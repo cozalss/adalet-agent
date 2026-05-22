@@ -6,7 +6,11 @@ CLI script'leri — bir kerelik veya periyodik işlemler için.
 
 | Dosya | Görev |
 |-------|-------|
-| `seed.py` | Yargıtay + mevzuat verisini Qdrant'a yükle (bulk indexleme) |
+| `seed.py` | (TODO) Tam bulk indexleme — production için, henüz update bekliyor |
+| `mini_seed.py` | Mini end-to-end seed (6 karar, ~24 chunk) — pipeline doğrulama |
+| `smoke_test_yargi.py` | yargi-mcp bağlantı testi (3 sorgu) |
+| `test_search.py` | Hybrid search test (Qdrant'taki seed verisinde) |
+| `list_tools.py` | yargi-mcp tool şemalarını listele (debug için referans) |
 
 ## Çalıştırma
 

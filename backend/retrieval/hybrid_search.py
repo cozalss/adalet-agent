@@ -102,8 +102,9 @@ async def search(
 
 def _to_result(point: Any) -> SearchResult:
     payload = point.payload or {}
+    chunk_id = payload.get("chunk_id") or str(point.id)
     return SearchResult(
-        chunk_id=str(point.id),
+        chunk_id=chunk_id,
         score=float(point.score) if point.score is not None else 0.0,
         text=payload.get("text", ""),
         source=payload.get("source", ""),
@@ -112,6 +113,6 @@ def _to_result(point: Any) -> SearchResult:
         metadata={
             k: v
             for k, v in payload.items()
-            if k not in {"text", "source", "source_url", "domain"}
+            if k not in {"text", "source", "source_url", "domain", "chunk_id"}
         },
     )

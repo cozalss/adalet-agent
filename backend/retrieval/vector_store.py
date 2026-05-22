@@ -10,6 +10,7 @@ Hybrid sorgu için `retrieval/hybrid_search.py` modülüne bak.
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,15 @@ COLLECTION_NAME = "adalet"
 DENSE_VECTOR_SIZE = 1024  # BGE-M3 boyutu
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None
+
+# Deterministic UUID üretimi için sabit namespace.
+# Aynı chunk_id her zaman aynı UUID'yi verir → idempotent upsert.
+_CHUNK_UUID_NAMESPACE = uuid.UUID("8c5e4a14-9b1c-4f2a-8a6f-1d2e3b4c5a6b")
+
+
+def chunk_id_to_uuid(chunk_id: str) -> str:
+    """String chunk ID → deterministic UUID5 string."""
+    return str(uuid.uuid5(_CHUNK_UUID_NAMESPACE, chunk_id))
 
 
 @dataclass(slots=True)
@@ -81,13 +91,18 @@ async def upsert_chunks(
     chunks: list[ChunkPoint],
     batch_size: int = 64,
 ) -> int:
-    """Chunk batch'lerini Qdrant'a yaz. Toplam yazılan sayı döner."""
+    """Chunk batch'lerini Qdrant'a yaz. Toplam yazılan sayı döner.
+
+    Qdrant point ID'leri integer veya UUID olmak zorunda — string chunk_id
+    her zaman UUID5 ile deterministic bir UUID'ye dönüştürülür. Orijinal
+    chunk_id payload'da `chunk_id` field'ı olarak saklanır.
+    """
     written = 0
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
         points = [
             models.PointStruct(
-                id=chunk.id,
+                id=chunk_id_to_uuid(chunk.id),
                 vector={
                     "dense": chunk.dense_vector,
                     "sparse": models.SparseVector(
@@ -95,7 +110,7 @@ async def upsert_chunks(
                         values=chunk.sparse_values,
                     ),
                 },
-                payload=chunk.payload,
+                payload={**chunk.payload, "chunk_id": chunk.id},
             )
             for chunk in batch
         ]
