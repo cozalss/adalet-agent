@@ -1,0 +1,25 @@
+name: adalet-agent
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: adalet-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: adalet-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  qdrant_data:
+  redis_data:

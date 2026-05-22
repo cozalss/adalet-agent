@@ -1,0 +1,49 @@
+# Bağımlılıklar
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pub-cache/
+.dart_tool/
+
+# Build
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Flutter
+mobile/build/
+mobile/ios/Pods/
+
+# Ortam
+.env
+.env.local
+!.env.example
+
+# Editör / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Log
+*.log
+logs/
+
+# ML / veri
+data/training/raw/
+*.ckpt
+*.pt
+*.safetensors
+
+# Test
+coverage/
+.coverage
+htmlcov/
+
+# Geçici
+tmp/
+*.tmp
