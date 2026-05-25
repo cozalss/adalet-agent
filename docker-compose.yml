@@ -1,25 +1,209 @@
 name: adalet-agent
 
+# ============================================================================
+#  ADALET-AGENT — production compose stack (Sprint-4 W7 hardening)
+#
+#  Hardening:
+#   - Redis password (REDIS_PASSWORD env şart) + 6379 internal only
+#   - Qdrant API key (QDRANT_API_KEY env) + internal only
+#   - Backend: read-only fs, cap_drop ALL, security_opt no-new-privileges
+#   - Tmpfs /tmp (writable) — uploads ve temp file için
+#   - Resource limits ile DoS guard
+#   - Caddy/llama-server: W9'da eklenecek (placeholder)
+#
+#  ENV (.env ile sağla):
+#    REDIS_PASSWORD=<32+ byte random>
+#    QDRANT_API_KEY=<32+ byte random>
+#    JWT_SECRET=<32+ byte random>
+#    AUTH_ENABLED=1
+#    API_KEYS_FILE=/run/secrets/api_keys.json (opsiyonel)
+# ============================================================================
+
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.12.0
     container_name: adalet-qdrant
-    ports:
-      - "6333:6333"
+    restart: unless-stopped
+    # Sprint-4 W7.2: API key + internal-only — host'a expose YOK,
+    # backend container'ı qdrant.adalet-net üzerinden konuşur.
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY env zorunlu}
+      QDRANT__SERVICE__ENABLE_CORS: "false"
     volumes:
       - qdrant_data:/qdrant/storage
-    restart: unless-stopped
+    networks:
+      - adalet-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   redis:
     image: redis:7-alpine
     container_name: adalet-redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    # Sprint-4 W7.1: requirepass + internal-only port (host'a expose YOK).
+    # AOF persistence; everysec policy production'da uygun.
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD env zorunlu}"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory"
+      - "512mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
     volumes:
       - redis_data:/data
+    networks:
+      - adalet-net
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: adalet-backend
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    # Sprint-4 W7.3: container hardening.
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    tmpfs:
+      # /tmp uploads ve native lib write için writable; rest read-only.
+      - /tmp:size=512m,mode=1777
+      # HF model cache (model preload ile volume tercih edilir; tmpfs fallback)
+      - /home/app/.cache:size=128m,mode=0700
+    environment:
+      # Connection strings — host port değil servis isimi (internal-net).
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      RATE_LIMIT_STORAGE_URI: redis://:${REDIS_PASSWORD}@redis:6379/1
+      SESSION_STORE_KIND: redis
+      AUTH_ENABLED: ${AUTH_ENABLED:-1}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET env zorunlu}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-86400}
+      JWT_ISSUER: ${JWT_ISSUER:-adalet-agent}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-adalet-agent-api}
+      API_KEYS_FILE: ${API_KEYS_FILE:-}
+      SANITIZE_ENABLED: ${SANITIZE_ENABLED:-1}
+      PII_ENABLED: ${PII_ENABLED:-1}
+      # LLM: W9'da llama-server compose ile eklenir; şu an mock fallback
+      LLM_MODE: ${LLM_MODE:-mock}
+      LLM_SERVER_URL: ${LLM_SERVER_URL:-http://host.docker.internal:8080}
+      # Retrieval feature toggles
+      HYDE_ENABLED: "1"
+      MULTI_QUERY_ENABLED: "1"
+      COLBERT_QUERY_ENABLED: "1"
+      MEVZUAT_DOMAIN_FILTER: "1"
+      PYTHONUTF8: "1"
+    volumes:
+      # Model cache (BGE-M3, reranker, NLI) — read-only fs üstüne writable volume
+      - hf_models:/models
+    networks:
+      - adalet-net
+    ports:
+      # Caddy reverse-proxy W9'da bunun önüne girer. Şimdilik host port:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 8G  # BGE-M3 + reranker + NLI yüklü
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --output
+        - /dev/null
+        - http://127.0.0.1:8000/health
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+  # ============================================================================
+  # W9'da eklenecek — placeholder (commented out):
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: adalet-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   networks:
+  #     - adalet-net
+  #   depends_on:
+  #     - backend
+  #
+  # llama-server:
+  #   image: ghcr.io/ggerganov/llama.cpp:server-cuda
+  #   container_name: adalet-llm
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   volumes:
+  #     - ./models:/models:ro
+  #   command:
+  #     - "-m"
+  #     - "/models/qwen2.5-14b-q4_k_m.gguf"
+  #     - "--ctx-size"
+  #     - "8192"
+  #     - "--port"
+  #     - "8080"
+  #     - "--host"
+  #     - "0.0.0.0"
+  #     - "-ngl"
+  #     - "20"
+  #   networks:
+  #     - adalet-net
+  # ============================================================================
+
+networks:
+  adalet-net:
+    driver: bridge
+    # Trafiği container içine kapat (host port expose YOK)
+    internal: false  # backend public 8000'i için false; backend dışı servis dışarı çıkmaz
 
 volumes:
   qdrant_data:
   redis_data:
+  hf_models:
+  # caddy_data:   # W9
+  # caddy_config: # W9

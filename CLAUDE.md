@@ -33,3 +33,9 @@
 2. Yeni özellik için test yaz (TDD).
 3. Türkçe karakterler içerikte tam (ç, ş, ğ); değişken isimlerinde Latin (`tckn` not `tCKN`).
 4. UI'da her cevabın altında hukuki disclaimer.
+
+## Frontend referansı
+
+[`frontend/DESIGN.md`](./frontend/DESIGN.md) — token paleti, font ölçeği,
+component listesi, routing yapısı. Yardımcı bir not dosyası; sözleşme değil.
+İhtiyaca göre güncelle veya yoksay.

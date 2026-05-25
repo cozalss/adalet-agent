@@ -1,0 +1,3 @@
+Latency: 9.5s
+Response:
+Kıdem tazminatı, işçinin şirketde geçirdiği her yıl için belirli bir miktarda para ödemelerini ifade eder. Bu ödemeler, genellikle iş ilişkisi sona erdiğinde, istihdam sözleşmesinin bitmesiyle veya işçinin istifa etmesiyle yapılır.

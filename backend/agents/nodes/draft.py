@@ -1,0 +1,205 @@
+"""Draft ajanı — LLM ile cevap taslağı + claim extraction.
+
+İki aşamalı:
+  1. LLM cevabı üretir (prompt: draft.tr.txt + retrieval bağlamı)
+  2. Cevap içinden cümle bazlı claim'ler çıkarılır (verify için)
+
+Claim extraction basit yapılır: cümle ayır + 'iddia içeren' filtre.
+LLM-based extraction sonraki iterasyona bırakılır.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+
+import structlog
+
+from agents.config import LLM_CONTEXT_BUDGET, LLM_MAX_TOKENS, LLM_TEMPERATURE
+from agents.llm import ChatMessage, get_llm
+from agents.state import AgentState, Citation, Claim
+
+log = structlog.get_logger()
+
+_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "draft.tr.txt"
+
+# Kaynak ID etiketleri: [src: chunk_abc123]
+_SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
+# Cümle ayraç — Türkçe nokta/!?
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ])")
+
+# Sprint-4 W4.6: LLM-based atomic claim extraction (opt-in).
+# Heuristic regex bazı edge case'lerde claim'i bölemez (uzun cümle, virgül
+# bağlı yan yargılar). LLM atomize bunları parçalar → verify daha hassas.
+# Default OFF — ek LLM çağrı maliyeti; ENV=1 ile aktif edilir.
+LLM_CLAIM_EXTRACTION_ENABLED = (
+    os.getenv("LLM_CLAIM_EXTRACTION", "0").lower() in {"1", "true", "yes"}
+)
+
+
+async def draft_node(state: AgentState) -> dict[str, object]:
+    question = state["question"]
+    refs: list[Citation] = (
+        state.get("mevzuat_refs", []) + state.get("emsal_refs", [])
+    )
+
+    if not refs:
+        return {
+            "draft_response": "",
+            "claims": [],
+            "errors": ["draft: kaynak bulunamadı"],
+        }
+
+    kaynaklar = _format_refs_for_prompt(refs)
+    prompt_template = _PROMPT_PATH.read_text(encoding="utf-8")
+    user_prompt = prompt_template.replace("{kaynaklar_blogu}", kaynaklar).replace(
+        "{soru}", question
+    )
+
+    llm = get_llm()
+    response = await llm.chat(
+        messages=[
+            ChatMessage(role="system", content="Sen Türk hukuku asistanısın."),
+            ChatMessage(role="user", content=user_prompt),
+        ],
+        temperature=LLM_TEMPERATURE,
+        max_tokens=LLM_MAX_TOKENS,
+        json_mode=False,
+    )
+
+    draft_text = response.content.strip()
+    claims: list[Claim] = []
+    if LLM_CLAIM_EXTRACTION_ENABLED:
+        try:
+            claims = await _extract_claims_llm(draft_text, refs, llm)
+            log.info("draft_claims_llm", n_claims=len(claims))
+        except Exception as exc:
+            log.warning("draft_claims_llm_failed_fallback_regex", error=str(exc))
+            claims = []
+    if not claims:
+        claims = _extract_claims(draft_text, refs)
+
+    log.info("draft_done", tokens_out=response.tokens_out, n_claims=len(claims))
+    return {"draft_response": draft_text, "claims": claims}
+
+
+_CLAIM_LLM_SYSTEM = (
+    "Sen Türk hukuku metinlerinden ATOMİK iddialar çıkaran bir asistansın. "
+    "Her iddia tek bir önerme olmalı (bileşik cümle bölünmelidir). "
+    "Disclaimer, soru, boş retorik atılmalıdır."
+)
+_CLAIM_LLM_USER_TMPL = (
+    "Aşağıdaki cevaptan atomik iddialar çıkar. Her iddia için varsa "
+    "kaynak ID'lerini ([src: X] etiketlerinden) listele.\n\n"
+    "Cevap:\n{draft}\n\n"
+    "Çıktı SADECE JSON: "
+    '{{"claims": [{{"text": "...", "cite_ids": ["..."]}}]}}'
+)
+
+
+async def _extract_claims_llm(
+    text: str, refs: list[Citation], llm: object,
+) -> list[Claim]:
+    """LLM ile atomik claim extraction. Başarısız olursa boş döner."""
+    known_ids = {r["source_id"] for r in refs}
+    user = _CLAIM_LLM_USER_TMPL.format(draft=text[:3000])
+    resp = await llm.chat(  # type: ignore[attr-defined]
+        messages=[
+            ChatMessage(role="system", content=_CLAIM_LLM_SYSTEM),
+            ChatMessage(role="user", content=user),
+        ],
+        temperature=0.0,
+        max_tokens=600,
+        json_mode=True,
+    )
+    data = json.loads(resp.content)
+    raw = data.get("claims", []) if isinstance(data, dict) else []
+    claims: list[Claim] = []
+    for item in raw[:15]:
+        if not isinstance(item, dict):
+            continue
+        ctext = str(item.get("text", "")).strip()
+        if len(ctext) < 30 or ctext.endswith("?"):
+            continue
+        cite_ids = [c for c in (item.get("cite_ids") or []) if c in known_ids]
+        claims.append(Claim(
+            text=ctext, cite_ids=cite_ids, verified=False,
+            verify_score=0.0, verify_reason="",
+        ))
+    return claims
+
+
+def _format_refs_for_prompt(refs: list[Citation]) -> str:
+    """LLM'e verilecek kaynak bloğu. Char budget içinde kal."""
+    lines = []
+    budget = LLM_CONTEXT_BUDGET * 4  # ~4 char per token rough
+    used = 0
+    for r in refs:
+        chunk = (
+            f"[{r['source_id']}] {r['title']}\n"
+            f"  Kaynak: {r['url']}\n"
+            f"  Metin: {r['snippet'][:600]}\n"
+        )
+        if used + len(chunk) > budget:
+            break
+        lines.append(chunk)
+        used += len(chunk)
+    return "\n".join(lines)
+
+
+def _extract_claims(text: str, refs: list[Citation]) -> list[Claim]:
+    """Cümle bazlı claim extraction.
+
+    İki yol:
+      1) `[src: ...]` etiketi olan cümleler → cite_ids ile claim
+      2) Etiketsiz declarative cümleler → cite_ids=[] ile claim (verify
+         node tüm refs üzerinde fuzzy match yapar — cite_ids boşsa fallback
+         davranışı verify.py:_layer2_fuzzy'de zaten var)
+
+    Neden gevşek? Qwen 14B Q4 prompt'taki `[src: ...]` etiketini tutarsız
+    koyuyor (E2E ölçümlerde 8 soru × ~70% etiketsiz). Etiket yok = claim
+    yok = hard reject template — bu hatalı. Gerçek halüsinasyon koruması
+    verify_node'da (NLI veto + fuzzy threshold), claim listesinde değil.
+
+    Filtreler:
+      - len < 30 → çok kısa, claim değil
+      - soru cümlesi (? ile biten) → claim değil
+      - disclaimer / boilerplate ("avukata danışın", "bilgilendirme amaçlı")
+        → claim değil
+      - max 15 claim → verify maliyetini sınırla
+    """
+    known_ids = {r["source_id"] for r in refs}
+    claims: list[Claim] = []
+    boilerplate_patterns = (
+        "avukata danış",
+        "bilgilendirme amaç",
+        "hukuki tavsiye değil",
+        "kesin işlem için",
+    )
+
+    sentences = _SENT_SPLIT_RE.split(text)
+    for sent in sentences:
+        cite_ids = [s for s in _SRC_TAG_RE.findall(sent) if s in known_ids]
+        clean = _SRC_TAG_RE.sub("", sent).strip()
+        if len(clean) < 30:
+            continue
+        if clean.endswith("?"):
+            continue
+        low = clean.lower()
+        if any(p in low for p in boilerplate_patterns):
+            continue
+        claims.append(
+            Claim(
+                text=clean,
+                cite_ids=cite_ids,
+                verified=False,
+                verify_score=0.0,
+                verify_reason="",
+            )
+        )
+        if len(claims) >= 15:
+            break
+
+    return claims

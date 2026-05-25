@@ -1,32 +1,218 @@
-"""ADALET-AGENT API entry point."""
+"""ADALET-AGENT API entry point.
 
+POST /ask         → tek seferlik soru-cevap (LangGraph zinciri)
+POST /ask/stream  → SSE; her node event yayar
+GET  /health      → liveness + ana bileşenlerin durumu
+"""
+
+from __future__ import annotations
+
+import contextlib
+import os
+import sys
 from contextlib import asynccontextmanager
 
+# Windows cp1254 console + Türkçe karakter çakışması: structlog default
+# PrintLoggerFactory print() ile cp1254'e yazar ve "İçtüzük" benzeri
+# karakterlerde UnicodeEncodeError fırlatır → ASGI 500. stdout/stderr'i
+# UTF-8'e zorla (Python 3.7+).
+with contextlib.suppress(Exception):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from api.limiter import limiter
+from api.routes.ask import router as ask_router
+from api.routes.auth import router as auth_router
+from api.routes.feedback import router as feedback_router
+from api.routes.multimodal import router as multimodal_router
+from api.schemas import HealthResponse
+
+log = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Startup: log mode + preload BGE-M3 & Reranker singleton'larını main thread'de.
+
+    Neden preload? Lazy load uvicorn + asyncio + Windows + torch CPU init
+    kombinasyonu request anında SIGSEGV (exit 139) yaratıyor. Modelleri
+    main thread'in startup'ında, request henüz hiç gelmeden yüklemek
+    bu çakışmayı önler.
+
+    Preload PRELOAD_MODELS=0 ile devre dışı bırakılabilir (test ortamı için).
+    """
+    log.info(
+        "adalet_starting",
+        llm_mode=os.environ.get("LLM_MODE", "mock"),
+        hyde=os.environ.get("HYDE_ENABLED", "1"),
+        embedding=os.environ.get("EMBEDDING_MODEL", "BAAI/bge-m3"),
+    )
+
+    if os.environ.get("PRELOAD_MODELS", "1").lower() in {"1", "true", "yes"}:
+        # Heavy model'leri sync olarak main thread'de warm up et.
+        # Request-time lazy load Windows'ta segfault'a neden olabiliyor.
+        try:
+            from retrieval.embedding import Embedder
+            log.info("preload_embedder_start")
+            emb = Embedder()
+            _ = emb.encode(["warmup"], return_colbert=False)
+            log.info("preload_embedder_done")
+        except Exception as exc:
+            log.warning("preload_embedder_failed", error=str(exc))
+
+        try:
+            from retrieval.reranker import get_reranker
+            log.info("preload_reranker_start")
+            rer = get_reranker()
+            _ = rer._model  # force lazy load
+            log.info("preload_reranker_done")
+        except Exception as exc:
+            log.warning("preload_reranker_failed", error=str(exc))
+
+        # Sprint-4 W3.2: RAPTOR pickle yüklemesi. RAPTOR_ENABLED=0 ise no-op,
+        # pickle yoksa boş index → query() [] döner. Build offline:
+        # `uv run python -m scripts.build_raptor`.
+        try:
+            from retrieval.raptor_runtime import get_raptor_index
+            log.info("preload_raptor_start")
+            idx = get_raptor_index()
+            if idx is not None:
+                log.info(
+                    "preload_raptor_done",
+                    built=idx.built,
+                    n_nodes=len(idx.all_nodes()),
+                )
+            else:
+                log.info("preload_raptor_disabled")
+        except Exception as exc:
+            log.warning("preload_raptor_failed", error=str(exc))
+
     yield
+    log.info("adalet_shutting_down")
 
 
 app = FastAPI(
     title="ADALET-AGENT API",
-    version="0.1.0",
-    description="Türkçe Hukuk AI Asistanı backend",
+    version="0.2.0",
+    description="Türkçe Hukuk AI Asistanı — çoklu-ajan, doğrulamalı RAG",
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# Rate limiter — slowapi tek-process in-memory backend default
+# (RATE_LIMIT_STORAGE_URI env ile Redis'e bağlanabilir). 429 handler shim
+# IP başına RATE_LIMIT_ASK (default 10/minute) /ask çağrısını sınırlar.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — Next.js (3000) ve Flutter web debug (8080) default; production
+# için ALLOWED_ORIGINS env ile genişlet ("," ile ayrılmış URL listesi).
+# Örnek: ALLOWED_ORIGINS=https://adalet.app,https://*.adalet-staging.vercel.app
+_DEFAULT_ORIGINS = (
+    "http://localhost:3000,"
+    "http://localhost:8080,"
+    "http://127.0.0.1:3000,"
+    "http://127.0.0.1:8080"
 )
 
 
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+def _parse_origins(raw: str) -> list[str]:
+    """Virgülle ayrılmış string → temizlenmiş URL listesi."""
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+_origins_env = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
+_allow_origins = _parse_origins(_origins_env)
+
+# Wildcard ("*") + allow_credentials=True kombinasyonu spec-dışı; tarayıcı
+# reddeder. Wildcard varsa credentials'ı kapat.
+_allow_credentials = "*" not in _allow_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allow_origins,
+    allow_credentials=_allow_credentials,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+)
+log.info("cors_configured", origins=_allow_origins, credentials=_allow_credentials)
+
+app.include_router(ask_router)
+app.include_router(multimodal_router)
+app.include_router(auth_router)
+app.include_router(feedback_router)
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health() -> HealthResponse:
+    """Sprint-4 W8.2: depth health — Qdrant + Redis + LLM ping.
+
+    Status:
+      - "ok"        — tüm bağımlılıklar erişilebilir
+      - "degraded"  — opsiyonel bileşen down (LLM mock'a düştü vs.)
+      - "unhealthy" — kritik bileşen erişilemez (Qdrant) — 503 dön
+    """
+    components: dict[str, str] = {
+        "llm_mode": os.environ.get("LLM_MODE", "mock"),
+        "hyde_enabled": os.environ.get("HYDE_ENABLED", "1"),
+    }
+    status_levels: list[str] = []
+
+    # Sprint-4 W8.2: dev mode (LLM_MODE=mock) → external bağımlılıklar opsiyonel,
+    # health 200 dönsün; production mode (llamacpp_server) → Qdrant zorunlu.
+    is_dev = os.environ.get("LLM_MODE", "mock") == "mock"
+
+    # Qdrant
+    try:
+        import httpx as _httpx
+        qdrant_url = os.environ.get("QDRANT_URL", "http://localhost:6333")
+        async with _httpx.AsyncClient(timeout=2.0) as c:
+            r = await c.get(f"{qdrant_url}/healthz")
+            components["qdrant"] = "ok" if r.status_code == 200 else f"http{r.status_code}"
+            if r.status_code != 200 and not is_dev:
+                status_levels.append("unhealthy")
+            elif r.status_code != 200:
+                status_levels.append("degraded")
+    except Exception as exc:
+        components["qdrant"] = f"down: {type(exc).__name__}"
+        status_levels.append("degraded" if is_dev else "unhealthy")
+
+    # Redis (session_store get_store internals)
+    try:
+        from api.session_store import get_store
+        store = get_store()
+        ok = await store.health()
+        components["redis"] = "ok" if ok else "fail"
+        if not ok:
+            status_levels.append("degraded")
+    except Exception as exc:
+        components["redis"] = f"down: {type(exc).__name__}"
+        status_levels.append("degraded")
+
+    # LLM
+    if os.environ.get("LLM_MODE") == "llamacpp_server":
+        try:
+            import httpx as _httpx
+            url = os.environ.get("LLM_SERVER_URL", "http://127.0.0.1:8080")
+            async with _httpx.AsyncClient(timeout=2.0) as c:
+                r = await c.get(f"{url}/health")
+                components["llm"] = "ok" if r.status_code == 200 else f"http{r.status_code}"
+                if r.status_code != 200:
+                    status_levels.append("degraded")
+        except Exception as exc:
+            components["llm"] = f"down: {type(exc).__name__}"
+            status_levels.append("degraded")
+    else:
+        components["llm"] = "mock"
+
+    if "unhealthy" in status_levels:
+        from fastapi.responses import JSONResponse
+        body = HealthResponse(status="down", components=components).model_dump()
+        return JSONResponse(status_code=503, content=body)  # type: ignore[return-value]
+    status_value = "degraded" if status_levels else "ok"
+    return HealthResponse(status=status_value, components=components)

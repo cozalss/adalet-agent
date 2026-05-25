@@ -15,11 +15,11 @@ from .citation import (
 from .hybrid_search import SearchResult, search
 
 __all__ = [
-    "search",
-    "SearchResult",
-    "verify_claim",
-    "parse_citation",
     "CitationClaim",
+    "SearchResult",
     "VerifyResult",
     "VerifyStatus",
+    "parse_citation",
+    "search",
+    "verify_claim",
 ]

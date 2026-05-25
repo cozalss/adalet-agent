@@ -1,17 +1,80 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1.6
+# ============================================================================
+#  ADALET-AGENT backend — multi-stage production image
+#
+#  Hedef: ~500MB tasarruf (build araçları runtime'a sızmıyor),
+#         non-root user, HEALTHCHECK, .dockerignore ile temiz bağlam.
+#
+#  NOT: ML modelleri (BGE-M3, reranker, NLI) ilk run'da indirilir; production
+#  deploy'da volume-mount edilmiş `/models` ve `HF_HOME=/models` önerilir.
+# ============================================================================
+
+# ----------------------------- BUILD stage ----------------------------------
+FROM python:3.11-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_CACHE_DIR=/root/.cache/uv
 
-WORKDIR /app
+# Build için gerekli araçlar (sadece bu stage'de kalır)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml ./
-RUN uv sync --no-dev
+WORKDIR /app
 
+# Bağımlılık katmanı — pyproject + uv.lock değişmezse cache hit
+COPY pyproject.toml uv.lock* ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+# Asıl kaynak kodu — bu katman daha sık değişir
 COPY . .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+
+# ---------------------------- RUNTIME stage ---------------------------------
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUTF8=1 \
+    PYTHONIOENCODING=utf-8 \
+    PATH="/app/.venv/bin:$PATH" \
+    HF_HUB_OFFLINE=0 \
+    HF_HOME=/models
+
+# Runtime'da sadece curl (HEALTHCHECK için) + libgomp (torch için) kalsın
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app \
+    && mkdir -p /models \
+    && chown -R app:app /models
+
+WORKDIR /app
+
+# Build stage'den .venv + uygulama kodunu kopyala (owner: app)
+COPY --from=builder --chown=app:app /app /app
+
+USER app
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Liveness probe — 30s arayla, ilk model yüklemesi için 60s grace
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl --fail --silent --output /dev/null http://127.0.0.1:8000/health || exit 1
+
+# Production default: HyDE+multi-query açık, llamacpp_server modunu compose'da set et
+ENV HYDE_ENABLED=1 \
+    MULTI_QUERY_ENABLED=1 \
+    LLM_MODE=mock
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

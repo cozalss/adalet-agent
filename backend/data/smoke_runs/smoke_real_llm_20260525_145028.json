@@ -1,0 +1,50 @@
+{
+  "ts": "20260525_145028",
+  "results": [
+    {
+      "qid": "E1",
+      "question": "Kıdem tazminatına hak kazanmak için ne kadar süre çalışılmalı?",
+      "expected_domain": "isHukuku",
+      "detected_domain": "isHukuku",
+      "verdict": "pass",
+      "confidence": 0.889,
+      "response_len": 901,
+      "response_preview": "Kıdem tazminatına hak kazanmak için en az bir yıl çalışmış olmanız gerekmektedir. İş Kanunu m.14 uyarınca, iş sözleşmesinin devamı süresince her tam yıl için işveren işçiyi 30 günlük ücret tutarında kıdem tazminatı ödemektedir. Ancak, kıdem tazminatı için sadece bir yıl çalışmak yeterli olmakla birlikte, işinizin bir yılın tamamını sürdüğünü ve işinizin sona erme nedeninin İş Kanunu m.14'de belirt",
+      "n_claims": 2,
+      "n_verified": 2,
+      "latency_s": 44.14,
+      "has_disclaimer": true,
+      "errors": []
+    },
+    {
+      "qid": "E2",
+      "question": "Ayıplı mal aldım, hangi haklarım var?",
+      "expected_domain": "tuketici",
+      "detected_domain": "tuketici",
+      "verdict": "pass",
+      "confidence": 0.865,
+      "response_len": 836,
+      "response_preview": "Ayıplı mal aldığınızda, satıcıdan bazı haklarınız mevcuttur. İlk olarak, sözleşmeden dönmenin yanı sıra, malın satış bedelinden indirim talep edebilirsiniz. Ayrıca, ayıbın ücretsiz olarak onarılmasını da isteyebilirsiniz. Son olarak, ayıpsız bir mal ile değişim talep etmeniz de mümkündür. Bu haklardan birini kullanma kararı sizin elimdedir [src: m-TKHK-11]. Ancak, bu haklarınızın süresi, malın tes",
+      "n_claims": 6,
+      "n_verified": 6,
+      "latency_s": 31.58,
+      "has_disclaimer": true,
+      "errors": []
+    },
+    {
+      "qid": "E3",
+      "question": "Kiracı kira ödemezse ne kadar süre ihtar verilir?",
+      "expected_domain": "kira",
+      "detected_domain": "kira",
+      "verdict": "pass",
+      "confidence": 0.695,
+      "response_len": 578,
+      "response_preview": "Kiracı kira bedelini veya yan giderleri ödemezse, kiraya veren kişi kiracıya yazılı olarak en az on günlük süre vererek borcun ödemesini isteyebilir. Ancak, konut veya çatılı işyeri kiralarında bu süre en az otuz gün olmalıdır [src: m-TBK-315]. Bu süre, kiracıya borcu ödemesi için yeterli bir zaman tanır. Bu bilgilendirme amaçlıdır, kesin işlem için avukata danışın.\n\n---\n**Kaynaklar:**\n- [Mevzuat]",
+      "n_claims": 3,
+      "n_verified": 2,
+      "latency_s": 21.8,
+      "has_disclaimer": true,
+      "errors": []
+    }
+  ]
+}

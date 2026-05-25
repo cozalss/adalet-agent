@@ -1,0 +1,58 @@
+{"id": "Q001", "soru": "kıdem tazminatı nasıl hesaplanır", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [32, 14], "ground_truth_keywords": ["kıdem tazminatı", "30 günlük ücret", "her yıl"]}
+{"id": "Q002", "soru": "ihbar tazminatı süreleri nelerdir", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [17], "ground_truth_keywords": ["ihbar süresi", "iş sözleşmesinin feshi", "altı hafta"]}
+{"id": "Q003", "soru": "haftalık çalışma süresi en fazla kaç saat", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [63], "ground_truth_keywords": ["haftalık çalışma süresi", "kırk beş saat"]}
+{"id": "Q004", "soru": "fazla mesai ücreti nasıl ödenir", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [41], "ground_truth_keywords": ["fazla çalışma", "yüzde elli zamlı"]}
+{"id": "Q005", "soru": "yıllık ücretli izin kaç gün", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [53], "ground_truth_keywords": ["yıllık izin", "on dört gün", "yirmi gün", "yirmi altı gün"]}
+{"id": "Q006", "soru": "işten haksız çıkarılma durumunda işçinin hakları", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [18, 21], "ground_truth_keywords": ["geçerli neden", "işe iade", "tazminat"]}
+{"id": "Q007", "soru": "deneme süresinde işten çıkarmak için neye dikkat edilmeli", "expected_domain": "isHukuku", "expected_kanun": ["IK"], "expected_madde_no": [15], "ground_truth_keywords": ["deneme süresi", "iki ay", "fesih"]}
+
+{"id": "Q008", "soru": "ev sahibi kiracıyı nasıl tahliye edebilir", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [350, 351, 352], "ground_truth_keywords": ["tahliye", "kiraya verenin ihtiyacı", "kira sözleşmesinin sona ermesi"]}
+{"id": "Q009", "soru": "iki haklı ihtar nedir tahliye sebebi mi", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [352], "ground_truth_keywords": ["iki haklı ihtar", "tahliye davası", "yazılı bildirim"]}
+{"id": "Q010", "soru": "kira artış oranı TÜFE üstünde olabilir mi", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [344], "ground_truth_keywords": ["kira artış", "tüketici fiyat endeksi", "TÜFE"]}
+{"id": "Q011", "soru": "depozito nasıl iade edilir", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [342], "ground_truth_keywords": ["güvence bedeli", "kira sözleşmesi", "iade"]}
+{"id": "Q012", "soru": "kira tespit davası nedir nasıl açılır", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [344, 345], "ground_truth_keywords": ["kira bedeli", "kira tespit davası", "hakim"]}
+{"id": "Q013", "soru": "kefilin sorumluluğunun sınırı", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [583, 584], "ground_truth_keywords": ["kefil", "kefalet sözleşmesi", "sorumluluk"]}
+{"id": "Q014", "soru": "tahliye taahhüdü kaç gün önce verilmeli", "expected_domain": "kira", "expected_kanun": ["TBK"], "expected_madde_no": [352], "ground_truth_keywords": ["tahliye taahhüdü", "yazılı", "süre"]}
+
+{"id": "Q015", "soru": "ayıplı malda iade hakkı kaç gün", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [11, 12], "ground_truth_keywords": ["ayıplı mal", "iade", "otuz gün"]}
+{"id": "Q016", "soru": "garanti süresi içinde tamir hakkı nelerdir", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [11, 56], "ground_truth_keywords": ["garanti süresi", "ücretsiz tamir", "değiştirme"]}
+{"id": "Q017", "soru": "tüketici hakem heyetine başvuru parasal sınırı", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [68], "ground_truth_keywords": ["tüketici hakem heyeti", "parasal sınır"]}
+{"id": "Q018", "soru": "mesafeli satışta cayma hakkı kaç gün", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [48], "ground_truth_keywords": ["mesafeli satış", "cayma hakkı", "on dört gün"]}
+{"id": "Q019", "soru": "abonelik sözleşmesi nasıl feshedilir", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [52], "ground_truth_keywords": ["abonelik sözleşmesi", "fesih", "bildirim"]}
+{"id": "Q020", "soru": "haksız şart nedir tüketici sözleşmesinde", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [5], "ground_truth_keywords": ["haksız şart", "tüketici", "sözleşme"]}
+{"id": "Q021", "soru": "tüketici kredisinde erken ödeme indirimi", "expected_domain": "tuketici", "expected_kanun": ["TKHK"], "expected_madde_no": [22, 24], "ground_truth_keywords": ["tüketici kredisi", "erken ödeme", "indirim"]}
+
+{"id": "Q022", "soru": "ödeme emrine itiraz süresi", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [62], "ground_truth_keywords": ["ödeme emri", "itiraz süresi", "yedi gün"]}
+{"id": "Q023", "soru": "ilamlı icra takibi nasıl başlatılır", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [32, 33], "ground_truth_keywords": ["ilamlı takip", "icra emri", "kesinleşen mahkeme kararı"]}
+{"id": "Q024", "soru": "haczin kaldırılması için ne yapmalı", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [82, 83], "ground_truth_keywords": ["haciz", "haczedilmezlik", "şikayet"]}
+{"id": "Q025", "soru": "menfi tespit davası nedir", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [72], "ground_truth_keywords": ["menfi tespit", "borç bulunmadığının tespiti"]}
+{"id": "Q026", "soru": "iflasın ertelenmesi şartları nelerdir", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [179], "ground_truth_keywords": ["iflas", "iflasın ertelenmesi", "borçlu"]}
+{"id": "Q027", "soru": "konkordato başvurusu nasıl yapılır", "expected_domain": "icra", "expected_kanun": ["IIK"], "expected_madde_no": [285, 286], "ground_truth_keywords": ["konkordato", "borçlu", "mahkeme"]}
+
+{"id": "Q028", "soru": "trafik kazasında manevi tazminat hesaplaması", "expected_domain": "trafik", "expected_kanun": ["KTK", "TBK"], "expected_madde_no": [56], "ground_truth_keywords": ["manevi tazminat", "trafik kazası"]}
+{"id": "Q029", "soru": "destekten yoksun kalma tazminatı kimler isteyebilir", "expected_domain": "trafik", "expected_kanun": ["TBK"], "expected_madde_no": [53], "ground_truth_keywords": ["destekten yoksun kalma", "ölüm", "yakınlar"]}
+{"id": "Q030", "soru": "trafik sigortası zorunlu mu kapsamı nedir", "expected_domain": "trafik", "expected_kanun": ["KTK"], "expected_madde_no": [91], "ground_truth_keywords": ["zorunlu mali sorumluluk sigortası", "kapsam"]}
+{"id": "Q031", "soru": "araç değer kaybı nasıl talep edilir", "expected_domain": "trafik", "expected_kanun": ["KTK"], "expected_madde_no": [85, 90], "ground_truth_keywords": ["değer kaybı", "araç", "kaza"]}
+{"id": "Q032", "soru": "alkollü araç kullanmada sigortanın rücu hakkı", "expected_domain": "trafik", "expected_kanun": ["KTK"], "expected_madde_no": [98], "ground_truth_keywords": ["alkollü araç", "rücu", "sigorta şirketi"]}
+
+{"id": "Q033", "soru": "vergi ziyaı cezası nedir nasıl hesaplanır", "expected_domain": "vergi", "expected_kanun": ["VUK"], "expected_madde_no": [344, 341], "ground_truth_keywords": ["vergi ziyaı", "ceza", "vergi aslı"]}
+{"id": "Q034", "soru": "vergi inceleme süreci nasıl işler", "expected_domain": "vergi", "expected_kanun": ["VUK"], "expected_madde_no": [134, 140], "ground_truth_keywords": ["vergi incelemesi", "inceleme tutanağı", "mükellef"]}
+{"id": "Q035", "soru": "ihtirazi kayıt nedir ne işe yarar", "expected_domain": "vergi", "expected_kanun": ["VUK"], "expected_madde_no": [378], "ground_truth_keywords": ["ihtirazi kayıt", "beyanname", "dava"]}
+{"id": "Q036", "soru": "vergi uzlaşma toplantısı nasıl yapılır", "expected_domain": "vergi", "expected_kanun": ["VUK"], "expected_madde_no": ["ek-1", "ek-11"], "ground_truth_keywords": ["uzlaşma", "vergi", "ceza"]}
+{"id": "Q037", "soru": "sahte fatura kullanma cezası nedir", "expected_domain": "vergi", "expected_kanun": ["VUK"], "expected_madde_no": [359], "ground_truth_keywords": ["sahte fatura", "naylon fatura", "kaçakçılık"]}
+
+{"id": "Q038", "soru": "tapu iptali ve tescil davası nasıl açılır", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [1023, 1024, 1025], "ground_truth_keywords": ["tapu iptali", "tescil", "muvazaa"]}
+{"id": "Q039", "soru": "ortaklığın giderilmesi izale-i şuyu nedir", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [698, 699], "ground_truth_keywords": ["ortaklığın giderilmesi", "paylı mülkiyet", "satış"]}
+{"id": "Q040", "soru": "muris muvazaası davası nedir", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [575], "ground_truth_keywords": ["muris muvazaası", "miras", "tapu"]}
+{"id": "Q041", "soru": "kat mülkiyetinde yönetim planı değişikliği", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [704, 705], "ground_truth_keywords": ["kat mülkiyeti", "yönetim planı", "değişiklik"]}
+{"id": "Q042", "soru": "önalım şufa hakkı kullanma süresi", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [732, 733], "ground_truth_keywords": ["önalım", "şufa", "süre", "üç ay"]}
+{"id": "Q043", "soru": "men-i müdahale davası nedir", "expected_domain": "tapu", "expected_kanun": ["TMK"], "expected_madde_no": [683], "ground_truth_keywords": ["men-i müdahale", "müdahalenin men'i", "mülkiyet"]}
+
+{"id": "Q044", "soru": "iptal davası açma süresi 60 gün midir", "expected_domain": "idari", "expected_kanun": ["IYUK"], "expected_madde_no": [7], "ground_truth_keywords": ["iptal davası", "altmış gün", "idari işlem"]}
+{"id": "Q045", "soru": "yürütmenin durdurulması kararı nasıl alınır", "expected_domain": "idari", "expected_kanun": ["IYUK"], "expected_madde_no": [27], "ground_truth_keywords": ["yürütmenin durdurulması", "telafisi güç", "idari işlem"]}
+{"id": "Q046", "soru": "memur disiplin cezasına itiraz yolu", "expected_domain": "idari", "expected_kanun": ["DMK"], "expected_madde_no": [135], "ground_truth_keywords": ["disiplin cezası", "itiraz", "yüksek disiplin kurulu"]}
+{"id": "Q047", "soru": "kamulaştırma bedelinin tespiti davası", "expected_domain": "idari", "expected_kanun": ["IYUK"], "expected_madde_no": [10, 11], "ground_truth_keywords": ["kamulaştırma", "bedel tespiti", "mahkeme"]}
+{"id": "Q048", "soru": "ihale iptali davası kaç gün içinde açılır", "expected_domain": "idari", "expected_kanun": ["IYUK"], "expected_madde_no": [7, 11], "ground_truth_keywords": ["ihale iptali", "altmış gün", "kamu ihale"]}
+{"id": "Q049", "soru": "memurun göreve iadesi nasıl olur", "expected_domain": "idari", "expected_kanun": ["DMK"], "expected_madde_no": [137, 138], "ground_truth_keywords": ["göreve iade", "memur", "iptal kararı"]}
+
+{"id": "Q050", "soru": "anayasa mahkemesine bireysel başvuru şartları", "expected_domain": "tuketici", "expected_kanun": ["ANAYASA"], "expected_madde_no": [148], "ground_truth_keywords": ["bireysel başvuru", "temel hak", "anayasa mahkemesi"]}

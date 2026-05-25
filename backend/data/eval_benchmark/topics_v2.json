@@ -1,0 +1,112 @@
+{
+  "_meta": {
+    "version": "v2",
+    "purpose": "Sprint-4 W2 benchmark expansion 50 → 200 vaka. Domain başına phrase listesi; her phrase ile yargi-mcp + mevzuat fetch → 1 vaka.",
+    "target_distribution": {
+      "isHukuku": 60,
+      "tuketici": 50,
+      "kira": 40,
+      "icra": 30,
+      "trafik": 7,
+      "vergi": 7,
+      "tapu": 3,
+      "idari": 3
+    },
+    "kanun_kodu_map": {
+      "isHukuku": ["4857", "5510", "6356"],
+      "tuketici": ["6502"],
+      "kira": ["6098"],
+      "icra": ["2004"],
+      "trafik": ["2918", "5510"],
+      "vergi": ["213", "3065", "193"],
+      "tapu": ["4721", "2644", "3194"],
+      "idari": ["2577", "657", "5018"]
+    }
+  },
+  "domains": {
+    "isHukuku": [
+      {"phrase": "kıdem tazminatı hesabı", "expected_madde": [14, 32], "keywords": ["kıdem tazminatı", "30 günlük ücret", "her yıl"]},
+      {"phrase": "ihbar tazminatı süresi", "expected_madde": [17], "keywords": ["ihbar süresi", "fesih bildirim"]},
+      {"phrase": "fazla mesai ücreti", "expected_madde": [41, 63], "keywords": ["fazla çalışma", "saatlik ücret", "yüzde elli zam"]},
+      {"phrase": "yıllık izin hakkı", "expected_madde": [53, 54], "keywords": ["yıllık ücretli izin", "14 gün", "kıdem"]},
+      {"phrase": "işe iade davası fesih", "expected_madde": [18, 21], "keywords": ["geçerli sebep", "işe iade", "feshin geçersizliği"]},
+      {"phrase": "mobbing tazminatı", "expected_madde": [24], "keywords": ["psikolojik taciz", "manevi tazminat", "iş akdinin feshi"]},
+      {"phrase": "iş kazası tazminatı", "expected_madde": [77], "keywords": ["iş kazası", "maddi manevi tazminat", "işverenin kusuru"]},
+      {"phrase": "asıl işveren alt işveren müteselsil sorumluluk", "expected_madde": [2], "keywords": ["alt işveren", "müteselsil sorumluluk"]},
+      {"phrase": "deneme süresi iş sözleşmesi", "expected_madde": [15], "keywords": ["deneme süreli", "iki ay"]},
+      {"phrase": "sendika üyeliği nedeniyle fesih", "expected_madde": [25], "keywords": ["sendika üyeliği", "tazminat", "ayrımcılık"]},
+      {"phrase": "kısa çalışma ödeneği", "expected_madde": [], "keywords": ["kısa çalışma", "İşKUR", "işsizlik"]},
+      {"phrase": "asgari ücret altı ödeme", "expected_madde": [39], "keywords": ["asgari ücret", "işveren yükümlülüğü"]},
+      {"phrase": "işyeri devri işçi hakları", "expected_madde": [6], "keywords": ["işyerinin devri", "işveren değişikliği"]},
+      {"phrase": "iş sözleşmesinin haklı nedenle feshi", "expected_madde": [24, 25], "keywords": ["haklı sebep", "derhal fesih"]},
+      {"phrase": "doğum izni ücretli", "expected_madde": [74], "keywords": ["doğum izni", "16 hafta", "annelik"]},
+      {"phrase": "sgk prim borcu emeklilik", "expected_madde": [], "keywords": ["sigorta primi", "yaşlılık aylığı"]},
+      {"phrase": "işsizlik ödeneği", "expected_madde": [], "keywords": ["işsizlik sigortası", "İşKUR"]},
+      {"phrase": "iş göremezlik raporu ücret", "expected_madde": [], "keywords": ["istirahat raporu", "geçici iş göremezlik"]}
+    ],
+    "tuketici": [
+      {"phrase": "ayıplı mal değiştirme talep", "expected_madde": [8, 11], "keywords": ["ayıplı mal", "aynı misli", "bedel iadesi"]},
+      {"phrase": "garanti süresi tamir hakkı", "expected_madde": [11, 56], "keywords": ["garanti", "2 yıl", "tamir"]},
+      {"phrase": "mesafeli sözleşme cayma hakkı", "expected_madde": [48], "keywords": ["cayma", "14 gün", "mesafeli satış"]},
+      {"phrase": "kapıdan satış cayma süresi", "expected_madde": [47], "keywords": ["kapıdan satış", "cayma hakkı"]},
+      {"phrase": "tüketici hakem heyeti başvuru", "expected_madde": [66, 70], "keywords": ["hakem heyeti", "parasal sınır", "ilçe tüketici"]},
+      {"phrase": "online alışveriş teslimat eksik", "expected_madde": [11, 48], "keywords": ["eksik teslim", "ayıp ihbarı"]},
+      {"phrase": "kredi kartı chargeback talep", "expected_madde": [], "keywords": ["chargeback", "bankacılık", "teküfre"]},
+      {"phrase": "abonelik fesih e-imza", "expected_madde": [52], "keywords": ["süreli sözleşme", "abonelik feshi"]},
+      {"phrase": "haksız şart tüketici sözleşmesi", "expected_madde": [5], "keywords": ["haksız şart", "kesin hükümsüzlük"]},
+      {"phrase": "taşıtta gizli ayıp", "expected_madde": [8, 11], "keywords": ["gizli ayıp", "ikinci el", "araba satışı"]},
+      {"phrase": "bankacılık hizmet ücreti iadesi", "expected_madde": [], "keywords": ["dosya masrafı", "kredi hayaı"]},
+      {"phrase": "elektronik haberleşme fatura itiraz", "expected_madde": [70], "keywords": ["fatura itirazı", "abonelik", "tarife"]},
+      {"phrase": "konut kredisi kağıt üzeri satış", "expected_madde": [], "keywords": ["konut kredisi", "haksız şart"]},
+      {"phrase": "uzaktan eğitim cayma", "expected_madde": [48], "keywords": ["cayma", "eğitim hizmeti", "14 gün"]},
+      {"phrase": "paket tur sözleşmesi iptal", "expected_madde": [51], "keywords": ["paket tur", "iptal", "iade"]},
+      {"phrase": "tüketici kredisi erken ödeme", "expected_madde": [26, 31], "keywords": ["erken ödeme", "indirim", "faiz"]},
+      {"phrase": "ayıplı hizmet talep", "expected_madde": [13, 15], "keywords": ["ayıplı hizmet", "bedel iadesi"]}
+    ],
+    "kira": [
+      {"phrase": "kira sözleşmesi tahliye", "expected_madde": [350, 351, 352], "keywords": ["tahliye davası", "ihtarname", "fesih"]},
+      {"phrase": "depozito iadesi kira", "expected_madde": [342], "keywords": ["güvence bedeli", "iade", "ev sahibi"]},
+      {"phrase": "kira artış oranı tüfe", "expected_madde": [344], "keywords": ["kira artışı", "TÜFE", "yıllık"]},
+      {"phrase": "konut ihtiyaç tahliye", "expected_madde": [350], "keywords": ["konut ihtiyacı", "ev sahibi", "tahliye"]},
+      {"phrase": "kira sözleşmesi yenileme", "expected_madde": [347], "keywords": ["uzama", "10 yıllık", "kiracı"]},
+      {"phrase": "kiracı erken çıkış tazminat", "expected_madde": [325], "keywords": ["erken fesih", "kira tazminatı"]},
+      {"phrase": "işyeri kirası fesih", "expected_madde": [347, 351], "keywords": ["işyeri kirası", "10 yıl", "tahliye"]},
+      {"phrase": "alt kiraya verme ev sahibi rızası", "expected_madde": [322], "keywords": ["alt kira", "izin", "ev sahibi"]},
+      {"phrase": "konut kirası ayıplı", "expected_madde": [304], "keywords": ["ayıplı kiralık", "kiraya verenin sorumluluğu"]},
+      {"phrase": "kira bedeli tespiti davası", "expected_madde": [344, 345], "keywords": ["kira tespiti", "rayiç", "endeks"]},
+      {"phrase": "evden çıkarma 7 gün", "expected_madde": [315], "keywords": ["kira ödemeden", "tahliye", "ihtar"]},
+      {"phrase": "kiracı zarar tazmini", "expected_madde": [334], "keywords": ["zarar", "kiracının sorumluluğu"]},
+      {"phrase": "yazılı olmayan kira sözleşmesi", "expected_madde": [299], "keywords": ["zorunlu yazılı", "kira sözleşmesi"]}
+    ],
+    "icra": [
+      {"phrase": "icra takibi itiraz", "expected_madde": [62, 63], "keywords": ["itiraz", "icra müdürlüğü", "yedi gün"]},
+      {"phrase": "haciz işlemi mal beyanı", "expected_madde": [82, 92], "keywords": ["haciz", "mal beyanı"]},
+      {"phrase": "ipoteğin paraya çevrilmesi", "expected_madde": [148], "keywords": ["ipotek", "paraya çevirme"]},
+      {"phrase": "iflasın açılması", "expected_madde": [177], "keywords": ["iflas", "alacaklılar"]},
+      {"phrase": "konkordato mehil", "expected_madde": [285, 286], "keywords": ["konkordato", "mehil"]},
+      {"phrase": "menfi tespit davası", "expected_madde": [72], "keywords": ["menfi tespit", "borcun yokluğu"]},
+      {"phrase": "kaçırma fiili icra", "expected_madde": [86], "keywords": ["mal kaçırma", "iptal davası"]},
+      {"phrase": "icra emri tebliği", "expected_madde": [42], "keywords": ["icra emri", "tebliğ"]},
+      {"phrase": "borca itiraz icra", "expected_madde": [62, 65], "keywords": ["itiraz", "imza", "borcun yokluğu"]},
+      {"phrase": "hacizden istihkak davası", "expected_madde": [96, 97], "keywords": ["istihkak", "haciz", "üçüncü kişi"]}
+    ],
+    "trafik": [
+      {"phrase": "trafik kazası tazminat", "expected_madde": [85, 91], "keywords": ["işleten kusursuz sorumluluk", "tazminat"]},
+      {"phrase": "alkollü araç sigorta rücü", "expected_madde": [98], "keywords": ["alkollü araç", "sigorta rücüu"]},
+      {"phrase": "kasko fer'i hasar", "expected_madde": [], "keywords": ["kasko sigortası", "hasar tespiti"]}
+    ],
+    "vergi": [
+      {"phrase": "kdv iadesi", "expected_madde": [29, 32], "keywords": ["kdv iadesi", "ihracat istisnası"]},
+      {"phrase": "vergi cezası uzlaşma", "expected_madde": [], "keywords": ["uzlaşma", "vergi cezası"]},
+      {"phrase": "gelir vergisi beyan", "expected_madde": [85, 86], "keywords": ["yıllık beyan", "gelir vergisi"]}
+    ],
+    "tapu": [
+      {"phrase": "tapu iptal davası", "expected_madde": [], "keywords": ["tapu iptali", "muris muvazaası"]},
+      {"phrase": "miras intikali tapu", "expected_madde": [495, 500], "keywords": ["intikal", "mirasçılar"]}
+    ],
+    "idari": [
+      {"phrase": "iptal davası idari işlem", "expected_madde": [2, 7], "keywords": ["iptal davası", "yürütmenin durdurulması"]},
+      {"phrase": "memuriyet ihraç disiplin", "expected_madde": [125, 133], "keywords": ["disiplin", "ihraç", "657"]}
+    ]
+  }
+}

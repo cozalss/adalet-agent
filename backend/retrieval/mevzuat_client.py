@@ -1,45 +1,92 @@
-"""mevzuat.gov.tr scraper — Türk hukukunun resmi mevzuat kaynağı.
+"""mevzuat-mcp client — Türk mevzuatına MCP JSON-RPC üzerinden erişim.
 
-Strateji:
-- yargi-mcp birçok mevzuat erişimi sunuyorsa onu tercih et (önce dene)
-- yoksa mevzuat.gov.tr'nin HTML sayfalarını parse et (BeautifulSoup)
-- Etik kazıma: robots.txt'e saygı, rate limit, kullanıcı ajanı
+Said Sürücü'nün mevzuat-mcp projesi (yargi-mcp ile aynı ekosistem).
+Public endpoint: https://mevzuat.surucu.dev/mcp
 
-Kanun kodları:
-- TBK: 6098 sayılı Türk Borçlar Kanunu (kira)
-- IK:  4857 sayılı İş Kanunu
-- TKHK: 6502 sayılı Tüketicinin Korunması Hakkında Kanun
-- SGK: 5510 sayılı Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu
+İki yol var:
+1. **Bedesten unified** (önerilen): `search_mevzuat(mevzuat_no=6502)` →
+   `get_mevzuat_content(mevzuat_id)` → full Markdown
+2. mevzuat.gov.tr legacy: `search_kanun()` + `search_within_kanun()`
+
+Kullanım:
+    async with MevzuatClient() as client:
+        mevzuat_id = await client.find_kanun_id(numara="6502")
+        markdown = await client.get_content(mevzuat_id)
+
+Repo: https://github.com/saidsurucu/mevzuat-mcp
 """
 
 from __future__ import annotations
 
-import asyncio
+import json
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-import structlog
-from bs4 import BeautifulSoup
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
-log = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
-MEVZUAT_BASE_URL = os.getenv("MEVZUAT_URL", "https://www.mevzuat.gov.tr")
-DEFAULT_DELAY_SEC = float(os.getenv("MEVZUAT_DELAY_SEC", "1.0"))
+MEVZUAT_MCP_URL = os.getenv("MEVZUAT_MCP_URL", "https://mevzuat.surucu.dev/mcp")
+MEVZUAT_MCP_TIMEOUT_MS = int(os.getenv("MEVZUAT_MCP_TIMEOUT_MS", "30000"))
 
-KANUN_KODU_TO_NUMARA = {
-    "TBK": "6098",
-    "IK": "4857",
-    "TKHK": "6502",
-    "SGK": "5510",
+PROTOCOL_VERSION = "2024-11-05"
+SESSION_HEADER = "mcp-session-id"
+
+# Türk hukukunun temel kanun numaraları → kanun kodları
+# Kapsam (CLAUDE.md §4): tuketici, isHukuku, kira, icra, trafik, vergi, tapu, idari
+# Ceza/aile YOK; TCK sadece referans için (graph CITES edge'leri için, doğrudan
+# kullanılmaz). Bu liste seed_mevzuat ve scripts/build_graph tarafından okunur.
+KANUN_KODU_TO_NUMARA: dict[str, str] = {
+    # --- Çekirdek hukuk ---
+    "TBK": "6098",      # Türk Borçlar Kanunu (kira: m.299-378; satım: m.207-281)
+    "IK": "4857",       # İş Kanunu
+    "TKHK": "6502",     # Tüketicinin Korunması Hakkında Kanun
+    "TMK": "4721",      # Türk Medeni Kanunu
+    "ANAYASA": "2709",  # T.C. Anayasası
+    # --- Usul kanunları (Sprint-8 yeni) ---
+    "HMK": "6100",      # Hukuk Muhakemeleri Kanunu (dava usulü, dilekçe formatı)
+    "IYUK": "2577",     # İdari Yargılama Usulü Kanunu (idari dava, iptal)
+    "IIK": "2004",      # İcra ve İflas Kanunu (haciz, takip — icra domain)
+    # --- Sosyal güvenlik + iş hukuku tamamlayıcılar ---
+    "SGK": "5510",      # Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu
+    "SK": "6356",       # Sendikalar ve Toplu İş Sözleşmesi Kanunu
+    "ISGK": "6331",     # İş Sağlığı ve Güvenliği Kanunu
+    # --- Tüketici + ekonomik düzen ---
+    "RKHK": "4054",     # Rekabetin Korunması Hakkında Kanun
+    "EKK": "6502",      # Elektronik Ticaret Düzenlemesi — TKHK kapsamında zaten
+    # --- Vergi + tapu + trafik ---
+    "VUK": "213",       # Vergi Usul Kanunu (vergi domain)
+    "TK": "2918",       # Karayolları Trafik Kanunu (trafik domain)
+    "KK": "2644",       # Tapu Kanunu (tapu domain)
+    "KMK": "634",       # Kat Mülkiyeti Kanunu (tapu/yönetim)
+    # --- Referans (kapsam dışı ama graph cite için) ---
+    "TCK": "5237",      # Türk Ceza Kanunu — DİREKT KULLANILMAZ
 }
 
 
 @dataclass(slots=True)
+class MevzuatRef:
+    """search_mevzuat sonucundan tek bir mevzuat kaydı."""
+
+    mevzuat_id: str
+    mevzuat_no: str | None
+    mevzuat_adi: str
+    mevzuat_tur: str | None
+    resmi_gazete_tarihi: str | None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class Madde:
-    """Tek bir kanun maddesi."""
+    """Tek bir kanun maddesi — chunk + citation verification için."""
 
     kanun_kodu: str
     kanun_numarasi: str
@@ -56,6 +103,7 @@ class Madde:
     def to_payload(self) -> dict[str, Any]:
         return {
             "doc_id": self.id,
+            "doc_type": "law",
             "kanun_kodu": self.kanun_kodu,
             "kanun_numarasi": self.kanun_numarasi,
             "kanun_adi": self.kanun_adi,
@@ -67,138 +115,163 @@ class Madde:
 
 
 class MevzuatClient:
-    """mevzuat.gov.tr scraper. Async kullanım için `async with`."""
+    """mevzuat-mcp MCP JSON-RPC client. `async with` ile kullanın."""
 
     def __init__(
         self,
-        base_url: str = MEVZUAT_BASE_URL,
-        delay_sec: float = DEFAULT_DELAY_SEC,
+        base_url: str = MEVZUAT_MCP_URL,
+        timeout_ms: int = MEVZUAT_MCP_TIMEOUT_MS,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.delay_sec = delay_sec
+        self.base_url = base_url
+        self._timeout = timeout_ms / 1000.0
         self._client: httpx.AsyncClient | None = None
+        self._session_id: str | None = None
+        self._rpc_id = 0
+        self._initialized = False
 
     async def __aenter__(self) -> MevzuatClient:
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
-            timeout=30.0,
+            timeout=self._timeout,
             headers={
-                "User-Agent": "adalet-agent/0.1 (academic research)",
-                "Accept-Language": "tr-TR,tr;q=0.9",
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
             },
             follow_redirects=True,
         )
+        await self._initialize()
         return self
 
     async def __aexit__(self, *_exc: object) -> None:
         if self._client:
             await self._client.aclose()
             self._client = None
+            self._initialized = False
 
-    async def fetch_kanun(self, kanun_kodu: str) -> list[Madde]:
-        """Bir kanunun tüm maddelerini çek."""
-        numara = KANUN_KODU_TO_NUMARA.get(kanun_kodu)
-        if not numara:
-            raise ValueError(f"Bilinmeyen kanun kodu: {kanun_kodu}")
-
-        log.info("kanun_fetch_started", kod=kanun_kodu, numara=numara)
-        html = await self._fetch_kanun_html(numara)
-        maddeler = _parse_kanun_html(
-            html,
-            kanun_kodu=kanun_kodu,
-            kanun_numarasi=numara,
-            source_url=self._kanun_url(numara),
+    async def _initialize(self) -> None:
+        if self._initialized:
+            return
+        assert self._client is not None
+        self._rpc_id += 1
+        payload = {
+            "jsonrpc": "2.0",
+            "id": self._rpc_id,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "adalet-agent", "version": "0.1"},
+            },
+        }
+        resp = await self._client.post("", json=payload)
+        self._session_id = resp.headers.get(SESSION_HEADER)
+        if not self._session_id:
+            raise RuntimeError(f"mevzuat-mcp session ID alınamadı: {resp.status_code}")
+        # notifications/initialized
+        await self._client.post(
+            "",
+            json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+            headers={SESSION_HEADER: self._session_id},
         )
-        log.info("kanun_fetch_completed", kod=kanun_kodu, madde_count=len(maddeler))
-        return maddeler
-
-    async def fetch_madde(self, kanun_kodu: str, madde_no: int) -> Madde | None:
-        """Tek bir maddeyi çek — citation verification için kritik.
-
-        Doğrulama sürecinde her referans için canlı kaynaktan fetch edilir.
-        """
-        maddeler = await self.fetch_kanun(kanun_kodu)
-        for madde in maddeler:
-            if madde.madde_no == madde_no:
-                return madde
-        return None
+        self._initialized = True
+        logger.info("mevzuat_mcp_initialized", extra={"session_id": self._session_id[:8]})
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=15),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
         reraise=True,
     )
-    async def _fetch_kanun_html(self, numara: str) -> str:
-        assert self._client is not None
-        url = self._kanun_url(numara)
-        resp = await self._client.get(url)
+    async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        assert self._client is not None and self._session_id is not None
+        self._rpc_id += 1
+        payload = {
+            "jsonrpc": "2.0",
+            "id": self._rpc_id,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        }
+        resp = await self._client.post(
+            "",
+            json=payload,
+            headers={SESSION_HEADER: self._session_id},
+        )
         resp.raise_for_status()
-        await asyncio.sleep(self.delay_sec)
-        return resp.text
+        data = _parse_mcp_response(resp.text)
+        if "error" in data:
+            raise RuntimeError(f"mevzuat-mcp error: {data['error']}")
+        result = data.get("result", {})
+        # MCP tool çıktısı: {"content": [{"type": "text", "text": "<JSON string>"}]}
+        content = result.get("content", [])
+        if content and isinstance(content, list):
+            text = content[0].get("text", "{}")
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return {"raw_text": text}
+        return result
 
-    def _kanun_url(self, numara: str) -> str:
-        # NOT: mevzuat.gov.tr URL pattern'i zaman zaman değişir.
-        # Doğrulanan endpoint çalıştırma sırasında test edilmelidir.
-        return f"/mevzuatmetin/1.5.{numara}.pdf"
+    async def search_kanun_by_no(self, mevzuat_no: str) -> list[MevzuatRef]:
+        """Bir kanun numarasından kanun listesi (genelde tek sonuç döner)."""
+        data = await self._call_tool(
+            "search_mevzuat",
+            {"mevzuat_no": mevzuat_no, "mevzuat_tur": "KANUN"},
+        )
+        items = (
+            data.get("results")
+            or data.get("documents")
+            or data.get("mevzuat_list")
+            or []
+        )
+        return [_parse_mevzuat_ref(item) for item in items if item.get("mevzuat_id") or item.get("id")]
 
-
-def _parse_kanun_html(
-    html: str,
-    *,
-    kanun_kodu: str,
-    kanun_numarasi: str,
-    source_url: str,
-) -> list[Madde]:
-    """HTML kanun sayfasından madde madde parse et.
-
-    NOT: mevzuat.gov.tr PDF ve HTML her ikisini de sunar. HTML versiyonu varsa
-    bu fonksiyon yeterlidir; PDF'ten extract için pdfplumber gerekir
-    (gelecekte eklenecek).
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    kanun_adi = _extract_kanun_adi(soup) or kanun_kodu
-
-    maddeler: list[Madde] = []
-    for el in soup.select("div.madde, p.madde, .MaddeBaslik"):
-        text = el.get_text("\n", strip=True)
-        if not text or not text.lower().startswith("madde"):
-            continue
-
-        madde_no = _extract_madde_no(text)
-        if madde_no is None:
-            continue
-
-        maddeler.append(
-            Madde(
-                kanun_kodu=kanun_kodu,
-                kanun_numarasi=kanun_numarasi,
-                kanun_adi=kanun_adi,
-                madde_no=madde_no,
-                baslik=_extract_baslik(text),
-                metin=text,
-                source_url=source_url,
-            )
+    async def get_content(self, mevzuat_id: str) -> str:
+        """Tam kanun metnini Markdown formatında al."""
+        data = await self._call_tool(
+            "get_mevzuat_content",
+            {"mevzuat_id": mevzuat_id},
+        )
+        # Olası field isimleri:
+        return (
+            data.get("markdown_content")
+            or data.get("markdown")
+            or data.get("content")
+            or data.get("text")
+            or ""
         )
 
-    return maddeler
+    async def get_madde_tree(self, mevzuat_id: str) -> list[dict[str, Any]]:
+        """Madde içindekiler ağacı — büyük kanunlarda navigasyon için."""
+        data = await self._call_tool(
+            "get_mevzuat_madde_tree",
+            {"mevzuat_id": mevzuat_id},
+        )
+        return data.get("nodes") or data.get("tree") or data.get("items") or []
 
 
-def _extract_kanun_adi(soup: BeautifulSoup) -> str | None:
-    title = soup.find("title")
-    return title.get_text(strip=True) if title else None
+def _parse_mcp_response(body: str) -> dict[str, Any]:
+    """yargi-mcp ile aynı SSE/JSON parser mantığı."""
+    body = body.strip()
+    if body.startswith("{"):
+        return json.loads(body)
+    for line in body.split("\n"):
+        line = line.strip()
+        if line.startswith("data:"):
+            payload = line[len("data:"):].strip()
+            if payload:
+                try:
+                    return json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+    raise ValueError(f"mevzuat-mcp yanıtı parse edilemedi: {body[:200]}")
 
 
-def _extract_madde_no(text: str) -> int | None:
-    import re
-
-    m = re.search(r"Madde\s+(\d+)", text, re.IGNORECASE)
-    return int(m.group(1)) if m else None
-
-
-def _extract_baslik(text: str) -> str | None:
-    """Madde başlığı genelde madde numarasından sonra gelir."""
-    import re
-
-    m = re.search(r"Madde\s+\d+\s*[\.\-—]\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
-    return m.group(1).strip() if m else None
+def _parse_mevzuat_ref(item: dict[str, Any]) -> MevzuatRef:
+    return MevzuatRef(
+        mevzuat_id=str(item.get("mevzuat_id") or item.get("id") or ""),
+        mevzuat_no=item.get("mevzuat_no") or item.get("kanun_numarasi"),
+        mevzuat_adi=item.get("mevzuat_adi") or item.get("title") or item.get("ad") or "",
+        mevzuat_tur=item.get("mevzuat_tur") or item.get("type"),
+        resmi_gazete_tarihi=item.get("resmi_gazete_tarihi"),
+        raw=item,
+    )

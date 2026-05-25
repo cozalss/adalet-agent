@@ -1,0 +1,114 @@
+# Bağlam temizliği — Docker build context'i 100MB altına indirir,
+# `COPY . .` her dosya değişiminde tam invalidate olur, küçük tutmak şart.
+
+# Python build artefaktları
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs (production'da volume-mount edilir)
+*.log
+uvicorn_v*.log
+uvicorn_v*.err
+freeze_*.log
+freeze_*.err
+seed_*.log
+seed_*.err
+build_graph_*.log
+build_graph_*.err
+llama_server_*.log
+llama_server_*.err
+e2e_*.log
+
+# Eval / runtime outputs
+data/e2e_runs/
+data/eval_runs/
+eval/runs/
+data/graph/legal_graph.json
+
+# Mevzuat seed çıktıları (Qdrant zaten yüklü)
+data/mevzuat_seeded/
+
+# Model cache (HF_HOME volume'a mount edilir)
+models/
+.huggingface/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub actions
+.github/
+
+# Dokümantasyon (build'e gerek yok)
+docs/
+*.md
+!README.md
+
+# Secrets — KESİNLİKLE imaja girmemeli
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# Bizim Dockerfile
+Dockerfile
+.dockerignore

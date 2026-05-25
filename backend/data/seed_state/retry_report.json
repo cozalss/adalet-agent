@@ -1,0 +1,26 @@
+{
+  "skipped": [],
+  "results": [
+    {
+      "kod": "TK",
+      "madde_count": 178,
+      "status": "ok"
+    },
+    {
+      "kod": "KK",
+      "madde_count": 42,
+      "status": "ok"
+    },
+    {
+      "kod": "KMK",
+      "madde_count": 83,
+      "status": "ok"
+    },
+    {
+      "kod": "RKHK",
+      "madde_count": 68,
+      "status": "ok"
+    }
+  ],
+  "total_added": 371
+}

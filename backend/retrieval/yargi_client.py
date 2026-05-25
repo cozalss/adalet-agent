@@ -21,6 +21,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 
 import httpx
@@ -283,7 +284,12 @@ class YargiClient:
             or []
         )
 
-        decisions = [_parse_decision(item, court_types[0]) for item in decisions_raw]
+        decisions: list[YargitayDecision] = []
+        for item in decisions_raw:
+            try:
+                decisions.append(_parse_decision(item, court_types[0]))
+            except ValueError as exc:
+                logger.warning("decision_parse_skipped", extra={"err": str(exc)})
         logger.info("yargi_search_completed", extra={"count": len(decisions)})
         return decisions
 
@@ -299,6 +305,72 @@ class YargiClient:
             or data.get("text")
             or ""
         )
+
+    async def search_anayasa(
+        self,
+        keywords: list[str],
+        decision_type: Literal["norm_denetimi", "bireysel_basvuru"] = "bireysel_basvuru",
+        page_to_fetch: int = 1,
+    ) -> list[YargitayDecision]:
+        """Anayasa Mahkemesi kararı arama (norm denetimi veya bireysel başvuru)."""
+        arguments: dict[str, Any] = {
+            "decision_type": decision_type,
+            "page_to_fetch": max(page_to_fetch, 1),
+        }
+        if keywords:
+            arguments["keywords"] = keywords
+
+        logger.info(
+            "anayasa_search_started",
+            extra={"decision_type": decision_type, "keywords": keywords, "page": page_to_fetch},
+        )
+
+        data = await self._call_tool("search_anayasa_unified", arguments)
+        decisions_raw = (
+            data.get("decisions")
+            or data.get("results")
+            or (data.get("data") or {}).get("decisions")
+            or []
+        )
+
+        decisions: list[YargitayDecision] = []
+        for item in decisions_raw:
+            try:
+                decisions.append(_parse_anayasa_decision(item, decision_type))
+            except ValueError as exc:
+                logger.warning("anayasa_parse_skipped", extra={"err": str(exc)})
+        logger.info("anayasa_search_completed", extra={"count": len(decisions)})
+        return decisions
+
+    async def get_anayasa_document(self, document_url: str, max_pages: int = 5) -> str:
+        """Anayasa kararının tam metnini (Markdown) çek.
+
+        Anayasa belgeleri 5000 karakterlik sayfalara bölünmüştür — birden fazla
+        sayfa varsa hepsini birleştirir.
+        """
+        all_text: list[str] = []
+        for page_num in range(1, max_pages + 1):
+            data = await self._call_tool(
+                "get_anayasa_document_unified",
+                {"document_url": document_url, "page_number": page_num},
+            )
+            # yargi-mcp v0.2.x: top-level `markdown_chunk` + `total_pages`
+            text = (
+                data.get("markdown_chunk")
+                or data.get("markdown_content")
+                or data.get("markdown")
+                or data.get("text")
+                or ""
+            )
+            if not text:
+                break
+            all_text.append(text)
+
+            total_pages = data.get("total_pages") or 1
+            if page_num >= int(total_pages):
+                break
+
+        return "\n\n".join(all_text)
 
 
 def _parse_mcp_response(body: str) -> dict[str, Any]:
@@ -323,16 +395,97 @@ def _parse_mcp_response(body: str) -> dict[str, Any]:
     raise ValueError(f"MCP yanıtı parse edilemedi: {body[:200]}")
 
 
+_DATE_FORMATS = (
+    "%d.%m.%Y",   # Yargıtay/Danıştay Bedesten: 01.01.2024
+    "%d/%m/%Y",   # Anayasa: 02/05/2024
+    "%Y-%m-%d",   # ISO
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%dT%H:%M:%S.%fZ",
+)
+
+
+def _normalize_date(raw: str | None) -> str | None:
+    """Heterojen tarih formatlarını ISO 8601 (YYYY-MM-DD) standardına çevir.
+
+    Yargıtay/Danıştay "DD.MM.YYYY", Anayasa "DD/MM/YYYY" formatında döner.
+    Qdrant'ta lexicographic karşılaştırma yapacaksa ISO format şart.
+    None / parse edilemeyen değerleri olduğu gibi bırakır.
+    """
+    if not raw or not isinstance(raw, str):
+        return raw
+    raw = raw.strip()
+    if not raw:
+        return None
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    logger.debug("date_parse_failed", extra={"raw": raw[:60]})
+    return raw  # Orijinali döndür — Qdrant'a yine de yazılsın, kullanıcı görsün
+
+
+def _normalize_url(url: str) -> str:
+    """URL'leri dedupe için kanonik forma getir — trailing slash, query, fragment strip."""
+    if not url:
+        return ""
+    url = url.strip().split("#")[0].split("?")[0]
+    return url.rstrip("/")
+
+
 def _parse_decision(item: dict[str, Any], court_type: str) -> YargitayDecision:
-    """yargi-mcp ham karar JSON → YargitayDecision."""
+    """yargi-mcp ham karar JSON → YargitayDecision (Bedesten).
+
+    Empty document_id reddedilir — phantom chunk + UUID5 collision'u engeller.
+    """
+    doc_id = str(item.get("documentId") or item.get("id") or "").strip()
+    if not doc_id:
+        raise ValueError(f"Bedesten karar 'documentId' eksik: court={court_type}")
     return YargitayDecision(
-        document_id=str(item.get("documentId") or item.get("id") or ""),
+        document_id=doc_id,
         court_type=item.get("courtType") or court_type,
         chamber=item.get("birimAdi") or item.get("chamber"),
         title=item.get("title") or item.get("baslik"),
-        date=item.get("kararTarihi") or item.get("date"),
+        date=_normalize_date(item.get("kararTarihi") or item.get("date")),
         summary=item.get("summary") or item.get("ozet"),
         text=item.get("content") or item.get("text") or "",
         source_url=item.get("url") or item.get("source_url") or "",
+        raw=item,
+    )
+
+
+def _parse_anayasa_decision(item: dict[str, Any], decision_type: str) -> YargitayDecision:
+    """Anayasa ham karar JSON → YargitayDecision.
+
+    yargi-mcp v0.2.x bireysel_basvuru response field isimleri:
+    - decision_page_url      → tam URL (get_anayasa_document_unified `document_url` parametresi)
+    - decision_reference_no  → "2024/28913" benzersiz başvuru no
+    - decision_date_summary  → "02/05/2024" gibi
+    - decision_making_body   → "Genel Kurul" / "Komisyon" / "Esas (İhlal)" — chamber alanı
+    - title                  → karar başlığı
+    """
+    document_url = _normalize_url(
+        item.get("decision_page_url")
+        or item.get("document_url")
+        or item.get("url")
+        or ""
+    )
+    reference_no = (
+        item.get("decision_reference_no")
+        or item.get("application_no")
+        or document_url
+    )
+    if not reference_no:
+        raise ValueError("Anayasa karar 'decision_reference_no' veya URL eksik")
+    return YargitayDecision(
+        document_id=str(reference_no),  # "2024/28913" — benzersiz başvuru numarası
+        court_type=f"ANAYASA_{decision_type.upper()}",
+        chamber=item.get("decision_making_body") or item.get("daire"),
+        title=item.get("title") or item.get("baslik"),
+        date=_normalize_date(item.get("decision_date_summary") or item.get("decision_date")),
+        summary=item.get("application_subject_summary") or item.get("ozet"),
+        text="",  # Tam metin get_anayasa_document ile ayrıca çekilir
+        source_url=document_url,
         raw=item,
     )

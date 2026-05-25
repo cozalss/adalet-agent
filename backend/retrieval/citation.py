@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import structlog
 from rapidfuzz import fuzz
@@ -26,7 +26,7 @@ FUZZY_THRESHOLD = 0.85
 MIN_QUOTE_LENGTH = 30
 
 
-class VerifyStatus(str, Enum):
+class VerifyStatus(StrEnum):
     VERIFIED = "verified"
     MISMATCH = "mismatch"
     NOT_FOUND = "not_found"

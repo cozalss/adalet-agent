@@ -1,8 +1,15 @@
 """Qdrant vector store — collection management + upsert.
 
 Hybrid search için named vectors kullanır:
-- "dense": BGE-M3 1024-dim cosine
-- "sparse": BM25 sparse vectors
+  - "dense"   : BGE-M3 1024-dim cosine
+  - "sparse"  : BM25 sparse vectors (IDF modifier)
+  - "colbert" : (opsiyonel) ColBERT multi-vector MAX_SIM late-interaction
+
+ColBERT field — Sprint-4 W1 itibariyle **production default ON** (`COLBERT_ENABLED=1`).
+Yeni collection oluştururken `colbert` named vector schema'sı eklenir; eski
+collection ColBERT vec içermiyorsa hybrid_search runtime'da `collection_has_colbert`
+ile tespit edip 2-kol (dense+sparse) çalışır. ColBERT'i mevcut collection'a
+eklemek için reseed gerekir (`scripts/seed_mevzuat.py` ile drop + recreate).
 
 Hybrid sorgu için `retrieval/hybrid_search.py` modülüne bak.
 """
@@ -11,7 +18,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
@@ -19,13 +26,16 @@ from qdrant_client import AsyncQdrantClient, models
 
 log = structlog.get_logger()
 
-COLLECTION_NAME = "adalet"
-DENSE_VECTOR_SIZE = 1024  # BGE-M3 boyutu
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "adalet")
+DENSE_VECTOR_SIZE = 1024  # BGE-M3 dense boyutu
+COLBERT_VECTOR_SIZE = 1024  # BGE-M3 ColBERT token vec boyutu
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None
 
-# Deterministic UUID üretimi için sabit namespace.
-# Aynı chunk_id her zaman aynı UUID'yi verir → idempotent upsert.
+# Schema-level ColBERT toggle (collection oluştururken kullanılır)
+COLBERT_ENABLED = os.getenv("COLBERT_ENABLED", "1").lower() in {"1", "true", "yes"}
+
+# Deterministic UUID üretimi için sabit namespace — idempotent upsert.
 _CHUNK_UUID_NAMESPACE = uuid.UUID("8c5e4a14-9b1c-4f2a-8a6f-1d2e3b4c5a6b")
 
 
@@ -43,27 +53,64 @@ class ChunkPoint:
     sparse_indices: list[int]
     sparse_values: list[float]
     payload: dict[str, Any]
+    # ColBERT opsiyonel — token başına bir vektör listesi
+    colbert_vectors: list[list[float]] | None = field(default=None)
 
 
 def get_client() -> AsyncQdrantClient:
     return AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 
-async def ensure_collection(client: AsyncQdrantClient) -> None:
-    """Collection yoksa hybrid yapılandırma ile oluştur. Varsa dokunma."""
+async def collection_has_colbert(client: AsyncQdrantClient) -> bool:
+    """Mevcut collection ColBERT vec destekliyor mu? Run-time tespiti."""
+    try:
+        info = await client.get_collection(collection_name=COLLECTION_NAME)
+    except Exception:
+        return False
+    vectors = info.config.params.vectors or {}
+    if isinstance(vectors, dict):
+        return "colbert" in vectors
+    return False
+
+
+async def ensure_collection(
+    client: AsyncQdrantClient,
+    enable_colbert: bool | None = None,
+) -> None:
+    """Collection yoksa hybrid yapılandırma ile oluştur. Varsa dokunma.
+
+    Args:
+        enable_colbert: True → ColBERT multi-vector field eklenir.
+                        None → COLBERT_ENABLED env'ine göre.
+    """
     existing = await client.get_collections()
     if any(c.name == COLLECTION_NAME for c in existing.collections):
         log.info("collection_exists", name=COLLECTION_NAME)
         return
 
+    want_colbert = COLBERT_ENABLED if enable_colbert is None else enable_colbert
+
+    vectors_config: dict[str, models.VectorParams] = {
+        "dense": models.VectorParams(
+            size=DENSE_VECTOR_SIZE,
+            distance=models.Distance.COSINE,
+        ),
+    }
+    if want_colbert:
+        # ColBERT late-interaction — multi-vector MAX_SIM
+        vectors_config["colbert"] = models.VectorParams(
+            size=COLBERT_VECTOR_SIZE,
+            distance=models.Distance.COSINE,
+            multivector_config=models.MultiVectorConfig(
+                comparator=models.MultiVectorComparator.MAX_SIM,
+            ),
+            # ColBERT vec'leri büyük — disk'te tut, RAM'de tutma
+            on_disk=True,
+        )
+
     await client.create_collection(
         collection_name=COLLECTION_NAME,
-        vectors_config={
-            "dense": models.VectorParams(
-                size=DENSE_VECTOR_SIZE,
-                distance=models.Distance.COSINE,
-            ),
-        },
+        vectors_config=vectors_config,
         sparse_vectors_config={
             "sparse": models.SparseVectorParams(
                 modifier=models.Modifier.IDF,
@@ -83,7 +130,12 @@ async def ensure_collection(client: AsyncQdrantClient) -> None:
         field_schema=models.PayloadSchemaType.KEYWORD,
     )
 
-    log.info("collection_created", name=COLLECTION_NAME, size=DENSE_VECTOR_SIZE)
+    log.info(
+        "collection_created",
+        name=COLLECTION_NAME,
+        size=DENSE_VECTOR_SIZE,
+        colbert=want_colbert,
+    )
 
 
 async def upsert_chunks(
@@ -93,32 +145,38 @@ async def upsert_chunks(
 ) -> int:
     """Chunk batch'lerini Qdrant'a yaz. Toplam yazılan sayı döner.
 
-    Qdrant point ID'leri integer veya UUID olmak zorunda — string chunk_id
-    her zaman UUID5 ile deterministic bir UUID'ye dönüştürülür. Orijinal
-    chunk_id payload'da `chunk_id` field'ı olarak saklanır.
+    ColBERT vec'i mevcutsa chunk'ta `colbert_vectors` ile gönder; yoksa
+    yalnız dense + sparse upsert edilir (mevcut collection'larla uyumlu).
     """
     written = 0
+    has_colbert_col = await collection_has_colbert(client)
+
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
-        points = [
-            models.PointStruct(
-                id=chunk_id_to_uuid(chunk.id),
-                vector={
-                    "dense": chunk.dense_vector,
-                    "sparse": models.SparseVector(
-                        indices=chunk.sparse_indices,
-                        values=chunk.sparse_values,
-                    ),
-                },
-                payload={**chunk.payload, "chunk_id": chunk.id},
+        points: list[models.PointStruct] = []
+        for chunk in batch:
+            vector_map: dict[str, Any] = {
+                "dense": chunk.dense_vector,
+                "sparse": models.SparseVector(
+                    indices=chunk.sparse_indices,
+                    values=chunk.sparse_values,
+                ),
+            }
+            if has_colbert_col and chunk.colbert_vectors:
+                vector_map["colbert"] = chunk.colbert_vectors
+
+            points.append(
+                models.PointStruct(
+                    id=chunk_id_to_uuid(chunk.id),
+                    vector=vector_map,
+                    payload={**chunk.payload, "chunk_id": chunk.id},
+                )
             )
-            for chunk in batch
-        ]
         await client.upsert(collection_name=COLLECTION_NAME, points=points)
         written += len(batch)
         log.debug("batch_upserted", count=len(batch), total=written)
 
-    log.info("upsert_completed", total=written)
+    log.info("upsert_completed", total=written, colbert=has_colbert_col)
     return written
 
 

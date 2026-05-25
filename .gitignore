@@ -31,6 +31,7 @@ Thumbs.db
 
 # Log
 *.log
+*.err
 logs/
 
 # ML / veri

@@ -1,0 +1,22 @@
+Aşağıda kullanıcı ile geçmiş konuşmanın son birkaç turu var. Yeni soruyu DOĞRU
+şekilde değerlendirmek için bu bağlamı KULLAN ama uydurma.
+
+KURALLAR:
+  1. Yeni soru kendi başına net ise (eksik referans yok) → bağlamı yok say.
+  2. Yeni soru bir önceki konuya devam ediyorsa (örn. "peki bu durumda ne yapayım?",
+     "o zaman neye dikkat etmeliyim?") → bağlamla birlikte değerlendir.
+  3. Önceki turda triaj bir DOMAIN belirledi mi (örn. "kira") ve yeni soru aynı
+     konunun devamı görünüyorsa → AYNI DOMAIN'i koru. Aksi takdirde yeniden
+     triaj yap.
+  4. Hiçbir koşulda önceki turda doğrulanmamış bir iddiayı yeni cevabın temeli
+     yapma — geçmiş cevaplar da kaynaklara dayalıydı, AMA yeni soru yeni
+     kaynak gerektirir.
+
+GEÇMİŞ KONUŞMA (oldest → newest):
+{chat_history}
+
+YENİ SORU:
+{question}
+
+Yukarıdaki kurallara uyarak yeni soruyu olduğu gibi cevaplamaya başla
+(triaj/retrieval/draft hattı normalde işler).

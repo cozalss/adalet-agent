@@ -9,13 +9,43 @@ Strateji:
 
 from __future__ import annotations
 
+import itertools
 import re
+import unicodedata
 from dataclasses import dataclass
 
 MADDE_PATTERN = re.compile(
     r"(?=(?:^|\n)\s*Madde\s+\d+[\.\-—\s])",
     re.IGNORECASE | re.MULTILINE,
 )
+
+# Latin-1-in-UTF-8 Mojibake: PDF/Word kaynaklı kararlarda sık görülür.
+_MOJIBAKE_FIXES = (
+    ("Ã§", "ç"), ("Ã‡", "Ç"),
+    ("ÄŸ", "ğ"), ("Äž", "Ğ"),
+    ("Ä±", "ı"), ("Ä°", "İ"),
+    ("Ã¶", "ö"), ("Ã–", "Ö"),
+    ("ÅŸ", "ş"), ("Åž", "Ş"),
+    ("Ã¼", "ü"), ("Ãœ", "Ü"),
+    ("â€™", "'"), ("â€œ", "\""), ("â€", "\""),
+    ("â€“", "–"), ("â€”", "—"),
+    ("Â ", " "),  # nbsp double-encoded
+    (" ", " "),  # nbsp → space
+)
+
+
+def sanitize_text(text: str) -> str:
+    """Mojibake + control char temizliği — Türk hukuk kararlarındaki encoding sorunları."""
+    if not text:
+        return text
+    for bad, good in _MOJIBAKE_FIXES:
+        if bad in text:
+            text = text.replace(bad, good)
+    # Unicode normalize NFC (Türkçe karakterler için tutarlı kompozisyon)
+    text = unicodedata.normalize("NFC", text)
+    # Control char strip (line break + tab hariç)
+    text = "".join(ch for ch in text if ch.isprintable() or ch in "\n\t ")
+    return text
 
 
 @dataclass(slots=True)
@@ -32,8 +62,8 @@ def chunk_text(
     min_chars: int = 80,
 ) -> list[str]:
     """Karakter bazlı sliding window — paragraf sınırlarını korumaya çalışır."""
-    text = text.strip()
-    if not text:
+    text = sanitize_text(text).strip()
+    if not text or len(text) < min_chars:
         return []
 
     if len(text) <= chunk_chars:
@@ -59,7 +89,8 @@ def chunk_text(
     if buffer:
         chunks.append(buffer)
 
-    cleaned = [c for c in chunks if len(c) >= min_chars]
+    # min_chars filtre _split_oversize çıktısı için de çalışır — küçük tail'leri at
+    cleaned = [c for c in chunks if len(c.strip()) >= min_chars]
     return _apply_overlap(cleaned, overlap_chars)
 
 
@@ -119,7 +150,7 @@ def _apply_overlap(chunks: list[str], overlap_chars: int) -> list[str]:
         return chunks
 
     overlapped: list[str] = [chunks[0]]
-    for prev, curr in zip(chunks, chunks[1:]):
+    for prev, curr in itertools.pairwise(chunks):
         tail = prev[-overlap_chars:]
         overlapped.append(f"{tail}\n\n{curr}" if not curr.startswith(tail) else curr)
     return overlapped

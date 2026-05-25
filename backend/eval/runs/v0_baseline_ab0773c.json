@@ -1,0 +1,30 @@
+{
+  "git_sha": "ab0773c",
+  "timestamp": "2026-05-24T13:13:47.069406+00:00",
+  "benchmark": "data/eval_benchmark/benchmark.jsonl",
+  "models": {
+    "embedder": "BAAI/bge-m3",
+    "reranker": "BAAI/bge-reranker-v2-m3",
+    "nli_verifier": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+  },
+  "hybrid": {
+    "n": 50,
+    "D@1": 0.24,
+    "D@5": 0.56,
+    "kanun@5": 0.48,
+    "MRR": 0.3576,
+    "keyword_recall": 0.6583,
+    "avg_latency_ms": 331.1,
+    "p95_latency_ms": 355.7
+  },
+  "hybrid+rerank": {
+    "n": 50,
+    "D@1": 0.26,
+    "D@5": 0.64,
+    "kanun@5": 0.46,
+    "MRR": 0.413,
+    "keyword_recall": 0.6833,
+    "avg_latency_ms": 4495.0,
+    "p95_latency_ms": 26300.3
+  }
+}

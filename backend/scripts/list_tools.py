@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 import httpx
@@ -61,10 +60,10 @@ async def main() -> None:
             None,
         )
         if target:
-            print(f"\n=== search_bedesten_unified ŞEMASI ===")
+            print("\n=== search_bedesten_unified ŞEMASI ===")
             print(f"\nAçıklama:\n  {target.get('description', '')[:300]}")
             schema = target.get("inputSchema", {})
-            print(f"\nParametreler:")
+            print("\nParametreler:")
             for prop_name, prop_def in schema.get("properties", {}).items():
                 kind = prop_def.get("type") or prop_def.get("anyOf") or "?"
                 desc = (prop_def.get("description") or "")[:80]

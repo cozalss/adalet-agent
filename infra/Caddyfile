@@ -1,0 +1,89 @@
+{
+	# Sprint-4 W9.1 — Caddy 2 production config
+	email ops@adalet.app
+	# ACME auto-TLS (Let's Encrypt prod by default)
+	# Test için: acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+# ---------------------------------------------------------------------------
+# staging.adalet.app — beta deploy
+# ---------------------------------------------------------------------------
+staging.adalet.app {
+	# Auto-TLS (HTTPS+HSTS)
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	encode gzip zstd
+
+	# Güvenlik header'ları
+	header {
+		# HSTS — 1 yıl, alt-domain'leri kapsa, preload list eligibility
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# Clickjack koruması
+		X-Frame-Options "DENY"
+		# MIME sniff blok
+		X-Content-Type-Options "nosniff"
+		# XSS reflectif koruma (legacy ama zarar yok)
+		X-XSS-Protection "1; mode=block"
+		# Referrer policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Browser feature lockdown
+		Permissions-Policy "camera=(), microphone=(self), geolocation=(), payment=()"
+		# CSP — frontend'le birlikte ayarla; backend-only için minimal
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none';"
+		# Server banner kaldır
+		-Server
+	}
+
+	# Health endpoint ekstra header gerektirmesin
+	@health path /health
+	handle @health {
+		reverse_proxy backend:8000
+	}
+
+	# API endpoint'leri — backend container
+	@api path /ask* /multimodal/* /auth/* /feedback*
+	handle @api {
+		reverse_proxy backend:8000 {
+			# Backend rate-limit X-Forwarded-For ile gerçek IP görsün
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto {scheme}
+			header_up Host {host}
+			# SSE stream için buffer kapat
+			flush_interval -1
+		}
+	}
+
+	# Docs (production'da kapatılabilir — staging için açık)
+	@docs path /docs /openapi.json /redoc
+	handle @docs {
+		reverse_proxy backend:8000
+	}
+
+	# Default — 404
+	handle {
+		respond "Not found" 404
+	}
+
+	# Access log (JSON)
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 14
+			roll_keep_for 720h
+		}
+		format json
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Production placeholder — W10 sonrası
+# ---------------------------------------------------------------------------
+# adalet.app {
+#     tls { protocols tls1.2 tls1.3 }
+#     ... aynı header + reverse_proxy
+# }
