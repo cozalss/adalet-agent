@@ -49,6 +49,11 @@ backend/models/
 # Smoke test artifacts (büyük JSON output)
 backend/data/smoke_runs/
 
+# /feedback endpoint test/runtime artifacts (her gün YYYYMMDD.jsonl)
+# Test'ler conftest.py autouse fixture ile tmp'ye yönlendirilir; ama eski
+# committed dosyalar varsa ignore et — production'da named volume kullanılır.
+backend/data/feedback/*.jsonl
+
 # Test
 coverage/
 .coverage

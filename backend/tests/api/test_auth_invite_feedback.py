@@ -33,7 +33,8 @@ def _auth_env_invite(tmp_path, monkeypatch):
 
 @pytest.fixture
 def staging_client(_auth_env_invite, monkeypatch):
-    # session_store & limiter reset; auth + feedback routes mount
+    # session_store & limiter reset; auth + feedback routes mount.
+    # FEEDBACK_LOG_PATH conftest.py autouse fixture ile tmp'ye yönlendiriliyor.
     from api import session_store as ss_mod
     monkeypatch.setattr(ss_mod, "_store_singleton", ss_mod.InMemorySessionStore())
     from api.limiter import limiter

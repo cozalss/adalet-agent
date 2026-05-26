@@ -55,6 +55,21 @@ def _reset_llm_singleton() -> Iterator[None]:
     reset_llm()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_feedback_writes(tmp_path, monkeypatch):
+    """/feedback endpoint test'lerde gerçek `data/feedback/`'a satır yazmasın.
+
+    Production'da read-only fs altında `/var/lib/adalet/feedback` mount;
+    test'te repo-relative `data/feedback` patika kirletilirdi. Burada her
+    test için ayrı tmp_path'e yönlendiriyoruz — autouse, import-tolerant.
+    """
+    try:
+        from api.routes import feedback as fb_mod
+    except ImportError:
+        return
+    monkeypatch.setattr(fb_mod, "FEEDBACK_LOG_PATH", tmp_path / "feedback")
+
+
 @pytest.fixture
 def sample_citations() -> list[Citation]:
     """3 örnek citation — TKHK + iş hukuku + emsal karar."""
