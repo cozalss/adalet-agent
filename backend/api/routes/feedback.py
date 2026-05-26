@@ -6,6 +6,7 @@ Audit log'a + opsiyonel Langfuse score'a yazılır.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -23,7 +24,10 @@ from api.pii import mask_pii
 log = structlog.get_logger()
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
-FEEDBACK_LOG_PATH = Path("data/feedback")
+# Production read-only container'da `data/feedback` yazılamaz — FEEDBACK_LOG_DIR
+# env ile named volume mount edilen writable path verilir (örn. `/var/lib/adalet/feedback`).
+# Dev'de default `data/feedback` (repo-relative).
+FEEDBACK_LOG_PATH = Path(os.getenv("FEEDBACK_LOG_DIR", "data/feedback"))
 
 
 class FeedbackRequest(BaseModel):

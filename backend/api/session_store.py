@@ -2,7 +2,7 @@
 
 Protocol pattern: in-memory (default, dev/test) ve Redis (production).
 ENV ile seçilir:
-    SESSION_STORE=memory|redis      (default memory)
+    SESSION_STORE_KIND=memory|redis   (default memory; legacy: SESSION_STORE)
     REDIS_URL=redis://localhost:6379  (redis seçiliyse)
     SESSION_TTL_S=3600                (1 saat default)
     SESSION_MAX_TURNS=20              (chat_history sınırı)
@@ -32,7 +32,9 @@ from agents.state import ConversationTurn
 
 log = structlog.get_logger()
 
-STORE_KIND = os.getenv("SESSION_STORE", "memory").lower()
+# Env adı: production `SESSION_STORE_KIND` (docker-compose.yml) veya dev
+# `SESSION_STORE`. İkisi de kabul; KIND öncelikli (daha açık).
+STORE_KIND = os.getenv("SESSION_STORE_KIND", os.getenv("SESSION_STORE", "memory")).lower()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SESSION_TTL_S = int(os.getenv("SESSION_TTL_S", "3600"))
 SESSION_MAX_TURNS = int(os.getenv("SESSION_MAX_TURNS", "20"))

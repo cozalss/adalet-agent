@@ -29,7 +29,7 @@ from agents.graph import build_graph, make_initial_state
 from agents.state import ConversationTurn
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
-from api.limiter import ASK_RATE, limiter
+from api.limiter import ask_rate_for, limiter
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
 from api.pii import mask_pii
@@ -99,7 +99,7 @@ async def _persist_turn(
 
 
 @router.post("", response_model=AskResponse)
-@limiter.limit(ASK_RATE)
+@limiter.limit(ask_rate_for)
 @observe_ask_request(name="ask")
 async def ask(
     request: Request, req: AskRequest,
@@ -183,38 +183,76 @@ async def ask(
 
 
 @router.post("/stream")
-@limiter.limit(ASK_RATE)
+@limiter.limit(ask_rate_for)
 async def ask_stream(
     request: Request, req: AskRequest,
     principal: Principal = Depends(authenticate),
 ) -> StreamingResponse:
-    """SSE — her node bittiğinde event yay. Long-running latency UX için."""
-    _ = request, principal  # auth çalıştı (Depends) + slowapi request
+    """SSE — her node bittiğinde event yay. Long-running latency UX için.
+
+    Sprint-6 fix: graph tek seferlik koşar — `astream(values)` ile her node
+    çıktığında akümülasyonu yayınla, son values event'inden final state'i
+    üret. Daha önce astream → ainvoke ile iki kez çalıştırılıyordu (2x maliyet,
+    non-deterministik LLM çıktısı riski).
+
+    PII: persist `safe_for_log` (PII-masked) ile yapılır, raw soru asla
+    session'a yazılmaz.
+    """
+    _ = request  # slowapi request — yan etki için tutuluyor
     s_result = sanitize_question(req.question)
     if s_result.blocked:
+        emit_audit(AuditEvent(
+            event="ask_stream_blocked_pi", principal=principal,
+            question=req.question, conversation_id=req.conversation_id or "",
+            errors=tuple(s_result.matched_hard),
+        ))
         raise HTTPException(status_code=400, detail=f"prompt-injection: {s_result.reason}")
-    sanitized_req = req.model_copy(update={"question": s_result.cleaned_text})
+
+    cleaned_question = s_result.cleaned_text
+    safe_for_log = mask_pii(cleaned_question).masked_text  # PII-masked persist için
+    sanitized_req = req.model_copy(update={"question": cleaned_question})
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
 
     async def event_source() -> AsyncIterator[str]:
         start = time.perf_counter()
+        final_state: dict = {}
         try:
-            async for event in graph.astream(initial, stream_mode="updates"):
-                for node, delta in event.items():
-                    payload = {"node": node, "delta_keys": list(delta.keys())}
-                    yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            final = await graph.ainvoke(initial)
+            # stream_mode="values" → her node sonrası tüm state döner; en son
+            # event final_state olur. İkinci graph.ainvoke gereksiz.
+            async for state in graph.astream(initial, stream_mode="values"):
+                final_state = state
+                payload = {
+                    "keys": list(state.keys()),
+                    "domain": state.get("domain"),
+                    "retry_count": state.get("retry_count", 0),
+                }
+                yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
             elapsed = int((time.perf_counter() - start) * 1000)
-            resp = _state_to_response(final, elapsed, conv_id)
+            resp = _state_to_response(final_state, elapsed, conv_id)
             yield f"event: final\ndata: {resp.model_dump_json()}\n\n"
-            await _persist_turn(conv_id, "user", req.question, final.get("domain"))
-            await _persist_turn(conv_id, "assistant", resp.answer, final.get("domain"))
+
+            # PII-masked persist (raw req.question DEĞIL)
+            await _persist_turn(conv_id, "user", safe_for_log, final_state.get("domain"))
+            await _persist_turn(conv_id, "assistant", resp.answer, final_state.get("domain"))
+            emit_audit(AuditEvent(
+                event="ask_stream_response", principal=principal,
+                question=safe_for_log,
+                domain=resp.domain, verdict=resp.verdict,
+                conversation_id=conv_id, latency_ms=elapsed,
+                errors=tuple(resp.errors or ()),
+            ))
         except asyncio.CancelledError:
-            log.warning("ask_stream_cancelled")
+            log.warning("ask_stream_cancelled", conv_id=conv_id)
             raise
         except Exception as exc:
             log.exception("ask_stream_failed", error=str(exc))
+            emit_audit(AuditEvent(
+                event="ask_stream_failed", principal=principal,
+                question=safe_for_log, conversation_id=conv_id,
+                errors=(str(exc),),
+            ))
             err_payload = {"detail": str(exc), "code": "stream_failed"}
             yield f"event: error\ndata: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
 

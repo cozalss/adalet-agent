@@ -87,15 +87,23 @@ adalet-agent/
 
 Gerçek LLM kurulumu: [docs/runbooks/llm-production-setup.md](docs/runbooks/llm-production-setup.md)
 
+**Not:** `docker-compose.yml`'deki `caddy` ve `llama-server` servisleri şu an
+placeholder (commented out). Production deploy için Sprint-9 W9.1-9.3 (Caddy
+TLS + llama-server GPU passthrough) tamamlanmadı. Şu an gerçek LLM ayrı bir
+süreç olarak host'ta çalışıyor; backend container `host.docker.internal:8080`'e
+bağlanıyor.
+
 ---
 
-## Test
+## Test ve Lint
 
 ```powershell
 cd backend
 uv run pytest tests/ -m "not gpu and not llm_integration" --no-cov   # 373 base
 uv run pytest tests/ -m multimodal_integration                       # 5 (Piper+Whisper+Tesseract)
 uv run pytest --cov                                                  # full + coverage
+uv run ruff check .                                                  # 0 hata bekleniyor
+uv run mypy .                                                        # 158 source, 0 hata
 ```
 
 Markerlar (pyproject.toml):
@@ -104,6 +112,11 @@ Markerlar (pyproject.toml):
 - `llm_integration` — llama-server 8080 canlı
 - `multimodal_integration` — Whisper+Piper+Tesseract model dosyaları
 - `slow` — >10s
+
+**Not:** mypy strict global açık ama legacy modüllerde (retrieval, multimodal,
+api.*) per-module override ile yumuşatılmış — gradual adoption. Yeni modüller
+(`agents.verifier_layers`, `verifier.rarr`, `agents.nodes.draft`) tam strict.
+Test'ler ve script'ler için annotation zorunlu değil.
 
 ---
 
@@ -131,7 +144,9 @@ uv run python -m eval.domain_audit
 
 12 ay (Eyl 2026 - Eyl 2027). Sprint detayları: [docs/decisions/](docs/decisions/) + [eval/runs/Sprint*_changes.md](backend/eval/runs/)
 
-Şu an: **Sprint-6 bridge** (multimodal real + observability complete, predictive plan ready, retrieval tuning sıradaki).
+Şu an: **Sprint-6 bridge** — multimodal real (Piper+Whisper+Tesseract) +
+Langfuse v4 observability ✅; predictive Sprint-7/8 plan ready ✅;
+retrieval tuning + benchmark v3 + Caddy/llama-server compose henüz açık.
 
 ---
 

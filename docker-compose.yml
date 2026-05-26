@@ -108,6 +108,8 @@ services:
       API_KEYS_FILE: ${API_KEYS_FILE:-}
       SANITIZE_ENABLED: ${SANITIZE_ENABLED:-1}
       PII_ENABLED: ${PII_ENABLED:-1}
+      # /feedback writes — read-only fs altında writable named volume kullan
+      FEEDBACK_LOG_DIR: /var/lib/adalet/feedback
       # LLM: W9'da llama-server compose ile eklenir; şu an mock fallback
       LLM_MODE: ${LLM_MODE:-mock}
       LLM_SERVER_URL: ${LLM_SERVER_URL:-http://host.docker.internal:8080}
@@ -120,6 +122,8 @@ services:
     volumes:
       # Model cache (BGE-M3, reranker, NLI) — read-only fs üstüne writable volume
       - hf_models:/models
+      # Feedback persist — read-only fs altında named volume (KVKK: günlük cron rotate)
+      - feedback_logs:/var/lib/adalet/feedback
     networks:
       - adalet-net
     ports:
@@ -205,5 +209,6 @@ volumes:
   qdrant_data:
   redis_data:
   hf_models:
+  feedback_logs:
   # caddy_data:   # W9
   # caddy_config: # W9

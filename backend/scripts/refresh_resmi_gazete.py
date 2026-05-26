@@ -100,13 +100,13 @@ async def _fetch_feed() -> list[GazeteEntry]:
 def _filter_relevant(entries: list[GazeteEntry]) -> list[GazeteEntry]:
     """Sadece bizim domain'ler için ilgili tür ve kanun no'ları filtrele."""
     # Kapsam dışı türler: TÜZÜK eski, GENELGE düşük öncelik
-    RELEVANT_TUR = {"KANUN", "KHK", "CK", "CUMHURBASKANLIGI", "YONETMELIK"}
+    relevant_tur = {"KANUN", "KHK", "CK", "CUMHURBASKANLIGI", "YONETMELIK"}
     from retrieval.mevzuat_client import KANUN_KODU_TO_NUMARA
     known_kanun_nolar = set(KANUN_KODU_TO_NUMARA.values())
 
     out: list[GazeteEntry] = []
     for e in entries:
-        if e.mevzuat_tur and e.mevzuat_tur.upper() not in RELEVANT_TUR:
+        if e.mevzuat_tur and e.mevzuat_tur.upper() not in relevant_tur:
             continue
         # Eğer mevzuat_no biliniyorsa (mevcut seed'de var) → öncelikli
         if e.mevzuat_no and e.mevzuat_no in known_kanun_nolar:

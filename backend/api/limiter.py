@@ -5,8 +5,9 @@ deploy'larda Redis backend gerekli (`storage_uri="redis://..."`). Şu an
 1 uvicorn worker → in-memory yeterli.
 
 Env değişkenleri:
-  RATE_LIMIT_ASK = "10/minute" gibi slowapi format. Sayı + zaman aralığı.
-  RATE_LIMIT_STORAGE_URI = "memory://" (default) veya "redis://localhost:6379"
+  RATE_LIMIT_ASK            = "10/minute" — kullanıcı/IP default
+  RATE_LIMIT_ASK_API_KEY    = "60/minute" — B2B API key (daha yüksek)
+  RATE_LIMIT_STORAGE_URI    = "memory://" (default) veya "redis://localhost:6379"
 """
 
 from __future__ import annotations
@@ -39,7 +40,25 @@ def _principal_key(request: Request) -> str:
     return get_remote_address(request)
 
 
+def ask_rate_for(key: str) -> str:
+    """Sprint-6 fix: principal_kind'a göre dinamik limit string'i.
+
+    slowapi `LimitGroup.__iter__` callable limit_value'yi key_func sonucuyla
+    çağırır (signature'da `key` param'ı varsa). `_principal_key` zaten
+    "api_key:..." / "user:..." / IP prefix'i üretiyor — burada prefix'e bakıp
+    bucket'ı seçiyoruz.
+
+    API key → `ASK_RATE_API_KEY` (default 60/min)
+    User/IP → `ASK_RATE` (default 10/min)
+
+    Kullanım: `@limiter.limit(ask_rate_for)` decorator.
+    """
+    if key.startswith("api_key:"):
+        return ASK_RATE_API_KEY
+    return ASK_RATE
+
+
 limiter = Limiter(key_func=_principal_key, storage_uri=STORAGE_URI)
 
 
-__all__ = ("ASK_RATE", "ASK_RATE_API_KEY", "limiter")
+__all__ = ("ASK_RATE", "ASK_RATE_API_KEY", "ask_rate_for", "limiter")

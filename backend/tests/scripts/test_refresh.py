@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 
@@ -13,6 +11,7 @@ async def test_refresh_resmi_gazete_stub_returns_zero(monkeypatch):
     monkeypatch.setenv("REFRESH_RG_STUB", "1")
     # Module-level constant import sonrası değişir; re-import gerek
     import importlib
+
     import scripts.refresh_resmi_gazete as mod
     importlib.reload(mod)
     n = await mod.refresh_once()
@@ -24,6 +23,7 @@ async def test_refresh_yargitay_stub_returns_zero(monkeypatch):
     """REFRESH_YG_STUB=1 → Bedesten çağrılmaz, 0 döner."""
     monkeypatch.setenv("REFRESH_YG_STUB", "1")
     import importlib
+
     import scripts.refresh_yargitay_recent as mod
     importlib.reload(mod)
     n = await mod.refresh_once()
@@ -34,6 +34,7 @@ def test_scheduler_disabled_returns_none(monkeypatch):
     """SCHEDULER_ENABLED=0 → make_scheduler None döner."""
     monkeypatch.setenv("SCHEDULER_ENABLED", "0")
     import importlib
+
     import core.scheduler as mod
     importlib.reload(mod)
     sch = mod.make_scheduler()
@@ -44,6 +45,7 @@ def test_scheduler_enabled_returns_instance_or_none(monkeypatch):
     """SCHEDULER_ENABLED=1 → AsyncIOScheduler instance veya None (APScheduler import fail)."""
     monkeypatch.setenv("SCHEDULER_ENABLED", "1")
     import importlib
+
     import core.scheduler as mod
     importlib.reload(mod)
     sch = mod.make_scheduler()

@@ -75,7 +75,7 @@ def _init_langfuse() -> tuple[Any, Callable[..., Any] | None]:
 
 def get_langfuse_client() -> Any:
     """Langfuse v4 client singleton — None ENV yoksa."""
-    global _client, _observe_fn  # noqa: PLW0603 — singleton pattern
+    global _client, _observe_fn
     if _client is None and LANGFUSE_ENABLED:
         _client, _observe_fn = _init_langfuse()
     return _client
@@ -94,7 +94,7 @@ def observe_node(
         name: Trace'te görünecek isim (None → fonksiyon adı)
     """
     def decorator(fn: _F) -> _F:
-        global _observe_fn  # noqa: PLW0603
+        global _observe_fn
         # ENV yoksa → no-op
         if not LANGFUSE_ENABLED:
             return fn

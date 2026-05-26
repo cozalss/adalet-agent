@@ -36,13 +36,13 @@ from agents.config import (
     NLI_ENTAILMENT_THRESHOLD,
 )
 from agents.state import AgentState, Citation, Claim, DebateVerdict
-from core.observability import observe_node
 from agents.verifier_layers import (
     layer1_rules,
     layer2_fuzzy,
     layer3_nli_batch,
     layer25_lettuce,
 )
+from core.observability import observe_node
 
 # Sprint-4 W4.1: backward-compat re-export — eski test'ler private isimlerle
 # import ediyor. Modül split sonrası verifier_layers.py public isimlere alias.

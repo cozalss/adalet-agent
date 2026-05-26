@@ -53,8 +53,15 @@ _LOCAL_TESSDATA = (__import__("pathlib").Path(__file__).parent.parent
 if _LOCAL_TESSDATA.exists() and not os.getenv("TESSDATA_PREFIX"):
     os.environ["TESSDATA_PREFIX"] = str(_LOCAL_TESSDATA)
 
-# Windows: tesseract.exe binary path (winget default install dizini)
+# Windows: tesseract.exe binary path (winget default install dizini).
+# Import-time check — async fn içinde os.path.exists kullanmamak için
+# (ruff ASYNC240). PATH'e ekli değilse pytesseract bulamaz, set ediyoruz.
 _DEFAULT_TESSERACT_CMD_WIN = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+_TESSERACT_CMD: str | None = (
+    _DEFAULT_TESSERACT_CMD_WIN
+    if os.name == "nt" and __import__("pathlib").Path(_DEFAULT_TESSERACT_CMD_WIN).exists()
+    else None
+)
 
 
 @dataclass(slots=True)
@@ -134,9 +141,8 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             elapsed_ms=0, error=f"PIL/pytesseract yok: {exc}",
         )
 
-    # Windows: tesseract.exe winget default path — PATH'e ekli değilse pytesseract bulamaz
-    if os.name == "nt" and os.path.exists(_DEFAULT_TESSERACT_CMD_WIN):
-        pytesseract.pytesseract.tesseract_cmd = _DEFAULT_TESSERACT_CMD_WIN
+    if _TESSERACT_CMD is not None:
+        pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
 
     def _do() -> tuple[str, str | None]:
         try:

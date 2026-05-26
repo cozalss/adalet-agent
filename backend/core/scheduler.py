@@ -19,6 +19,7 @@ test sırasında scheduler.start() çağrılmaz, sadece factory döner.
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import structlog
 
@@ -28,7 +29,7 @@ SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "1").lower() in {"1", "true",
 SCHEDULER_TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Europe/Istanbul")
 
 
-def make_scheduler():
+def make_scheduler() -> Any:
     """AsyncIOScheduler factory — APScheduler runtime'ı opsiyonel.
 
     Returns:
