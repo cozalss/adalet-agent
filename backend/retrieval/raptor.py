@@ -158,31 +158,10 @@ class RaptorIndex:
             if not clusters:
                 break
 
-            next_level: list[RaptorNode] = []
-            for cl_idx, member_idxs in enumerate(clusters):
-                if len(member_idxs) < RAPTOR_MIN_CLUSTER_SIZE:
-                    continue
-                members = [current[i] for i in member_idxs]
-                texts = [m.text for m in members]
-                summary = await llm_summarize(texts)
-                # Boş özet (hata) → atla
-                if not summary or not summary.strip():
-                    continue
-                summary_emb = embedder.encode([summary], return_colbert=False).dense[0]
-                # Source chunk_ids transitif olarak topla
-                src_chunks: list[str] = []
-                for m in members:
-                    src_chunks.extend(m.source_chunk_ids)
-                node = RaptorNode(
-                    node_id=f"L{level}:c{cl_idx}",
-                    level=level,
-                    text=summary,
-                    embedding=summary_emb,
-                    children=[m.node_id for m in members],
-                    source_chunk_ids=src_chunks,
-                )
-                next_level.append(node)
-
+            next_level = await self._build_level(
+                level=level, current=current, clusters=clusters,
+                embedder=embedder, llm_summarize=llm_summarize,
+            )
             if not next_level:
                 log.info("raptor_no_summaries", level=level)
                 break
@@ -193,6 +172,39 @@ class RaptorIndex:
 
         self.built = True
         log.info("raptor_built", levels=list(self.tree.keys()), n_total=len(self.all_nodes()))
+
+    async def _build_level(
+        self,
+        *,
+        level: int,
+        current: list[RaptorNode],
+        clusters: list[list[int]],
+        embedder,  # type: ignore[no-untyped-def]
+        llm_summarize,  # type: ignore[no-untyped-def]
+    ) -> list[RaptorNode]:
+        """Bir RAPTOR seviyesini cluster'lardan inşa et (helper)."""
+        next_level: list[RaptorNode] = []
+        for cl_idx, member_idxs in enumerate(clusters):
+            if len(member_idxs) < RAPTOR_MIN_CLUSTER_SIZE:
+                continue
+            members = [current[i] for i in member_idxs]
+            texts = [m.text for m in members]
+            summary = await llm_summarize(texts)
+            if not summary or not summary.strip():
+                continue
+            summary_emb = embedder.encode([summary], return_colbert=False).dense[0]
+            src_chunks: list[str] = []
+            for m in members:
+                src_chunks.extend(m.source_chunk_ids)
+            next_level.append(RaptorNode(
+                node_id=f"L{level}:c{cl_idx}",
+                level=level,
+                text=summary,
+                embedding=summary_emb,
+                children=[m.node_id for m in members],
+                source_chunk_ids=src_chunks,
+            ))
+        return next_level
 
     def save(self, path: str | os.PathLike) -> None:
         """Tree'yi pickle olarak diske yaz. Sprint-4 W3.1.

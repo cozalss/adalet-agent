@@ -307,103 +307,72 @@ def _mock_domain_from_messages(messages: list[ChatMessage]) -> str:
     return "unknown"
 
 
+# Mock JSON şablonları — _mock_json_response dispatch table.
+# system_text'in tetikleyicisi → JSON payload. İlk eşleşen kazanır.
+_MOCK_PARAPHRASE_BASE = "soru"  # _multi_query_paraphrases içinde override edilir
+
+
+def _mock_multi_query_paraphrases(messages: list[ChatMessage]) -> str:
+    user_text = " ".join(m.content for m in messages if m.role == "user")
+    base = user_text.strip()[:120] or _MOCK_PARAPHRASE_BASE
+    return json.dumps(
+        {"paraphrases": [f"[MOCK paraphrase {i}] {base}" for i in range(1, 5)]},
+        ensure_ascii=False,
+    )
+
+
+# (predicate(system_text) -> bool, payload_builder(messages, system_text) -> str)
+# Sıra önemli: önce spesifik, sonra genel ("hakem"/"verdict" en sonda kalsın).
+_MOCK_DISPATCH: tuple[tuple[Any, Any], ...] = (
+    (lambda s: "paraphrases" in s,
+     lambda msgs, _s: _mock_multi_query_paraphrases(msgs)),
+    (lambda s: "faithful" in s and "complete" in s,
+     lambda _m, _s: json.dumps(
+         {"faithful": 0.85, "complete": 0.75, "tone": 0.80,
+          "notes": "[MOCK] Judge: ölçütler test seviyesinde."},
+         ensure_ascii=False)),
+    (lambda s: "self-rag" in s or ("retrieve" in s and "supported" in s and "utility" in s),
+     lambda _m, _s: json.dumps(
+         {"retrieve": "no", "supported": "yes", "utility": 5,
+          "notes": "[MOCK] Self-RAG: yansıma testi, tüm reflection tokens pozitif."},
+         ensure_ascii=False)),
+    (lambda s: "claim" in s and ("çıkart" in s or "atomic" in s),
+     lambda _m, _s: json.dumps(
+         {"claims": ["[MOCK] Atomic claim 1.", "[MOCK] Atomic claim 2."]},
+         ensure_ascii=False)),
+    (lambda s: "entailment" in s,
+     lambda _m, _s: json.dumps(
+         {"verdict": "yes", "reason": "[MOCK] context destekliyor."},
+         ensure_ascii=False)),
+    (lambda s: "soru üretici" in s or ("questions" in s and "soru" in s),
+     lambda _m, _s: json.dumps(
+         {"questions": ["[MOCK] Test sorusu 1?", "[MOCK] Test sorusu 2?"]},
+         ensure_ascii=False)),
+    (lambda s: "kaynak hakem" in s or "useful" in s,
+     lambda _m, _s: json.dumps(
+         {"useful": "yes", "reason": "[MOCK] kaynak gerekli."},
+         ensure_ascii=False)),
+    (lambda s: "hakem" in s or "verdict" in s or "constitutional" in s,
+     lambda _m, _s: json.dumps(
+         {"verdict": "pass", "score": 0.78, "issues": [],
+          "revised_answer": None,
+          "rationale": "[MOCK] Debate hakem: taslak kaynaklarla tutarlı görünüyor."},
+         ensure_ascii=False)),
+)
+
+
 def _mock_json_response(messages: list[ChatMessage]) -> str:
     """MockLLM json_mode router — system prompt'tan hangi node çağırdığını anla.
 
-    Triaj       → {"domain": ..., "confidence": ..., "reasoning": ...}
-    Debate      → {"verdict": "pass", "score": 0.78, "issues": [], ...}
-    Judge       → {"faithful": 0.85, "complete": 0.75, "tone": 0.80, "notes": ...}
-    Self-RAG    → {"retrieve": "no", "supported": "yes", "utility": 5, "notes": ...}
-    Multi-Query → {"paraphrases": ["...", "..."]}     (Sprint-4 W1)
-    Ragas atomize → {"claims": ["..."]}
-    Ragas entail  → {"verdict": "yes"|"no"|"unsure", "reason": ...}
-    Ragas rel-q   → {"questions": ["..."]}
-    Ragas ctxprec → {"useful": "yes"|"no", "reason": ...}
-    Diğer       → boş JSON obj
+    Dispatch table pattern: _MOCK_DISPATCH (predicate, builder) tuple'larını
+    sırayla dener. İlk eşleşmenin payload'u döner. Hiçbiri eşleşmezse default
+    triaj cevabı üretir.
     """
     system_text = " ".join(m.content for m in messages if m.role == "system").lower()
 
-    # Multi-Query paraphrase (system'da "paraphrases" key güvenilir)
-    if "paraphrases" in system_text:
-        user_text = " ".join(m.content for m in messages if m.role == "user")
-        # Stub paraphrase'ler — orijinal sorudan basit varyasyonlar
-        base = user_text.strip()[:120] or "soru"
-        return json.dumps(
-            {
-                "paraphrases": [
-                    f"[MOCK paraphrase 1] {base}",
-                    f"[MOCK paraphrase 2] {base}",
-                    f"[MOCK paraphrase 3] {base}",
-                    f"[MOCK paraphrase 4] {base}",
-                ],
-            },
-            ensure_ascii=False,
-        )
-
-    # Judge prompt (system'da "cevap hakem" + "faithful")
-    if "faithful" in system_text and "complete" in system_text:
-        return json.dumps(
-            {
-                "faithful": 0.85,
-                "complete": 0.75,
-                "tone": 0.80,
-                "notes": "[MOCK] Judge: ölçütler test seviyesinde.",
-            },
-            ensure_ascii=False,
-        )
-
-    # Self-RAG (system'da "reflection token" + "retrieve"/"supported"/"utility")
-    if "self-rag" in system_text or ("retrieve" in system_text and "supported" in system_text and "utility" in system_text):
-        return json.dumps(
-            {
-                "retrieve": "no",
-                "supported": "yes",
-                "utility": 5,
-                "notes": "[MOCK] Self-RAG: yansıma testi, tüm reflection tokens pozitif.",
-            },
-            ensure_ascii=False,
-        )
-
-    # Ragas atomize (system'da "claim çıkartıcı" + "atomic")
-    if "claim" in system_text and ("çıkart" in system_text or "atomic" in system_text):
-        return json.dumps(
-            {"claims": ["[MOCK] Atomic claim 1.", "[MOCK] Atomic claim 2."]},
-            ensure_ascii=False,
-        )
-
-    # Ragas entail (system'da "entailment hakem")
-    if "entailment" in system_text:
-        return json.dumps(
-            {"verdict": "yes", "reason": "[MOCK] context destekliyor."},
-            ensure_ascii=False,
-        )
-
-    # Ragas relevancy questions (system'da "soru üretici")
-    if "soru üretici" in system_text or ("questions" in system_text and "soru" in system_text):
-        return json.dumps(
-            {"questions": ["[MOCK] Test sorusu 1?", "[MOCK] Test sorusu 2?"]},
-            ensure_ascii=False,
-        )
-
-    # Ragas context precision (system'da "kaynak hakem" + "useful")
-    if "kaynak hakem" in system_text or "useful" in system_text:
-        return json.dumps(
-            {"useful": "yes", "reason": "[MOCK] kaynak gerekli."},
-            ensure_ascii=False,
-        )
-
-    # Debate prompt (system'da "hakem" + "verdict" geçer)
-    if "hakem" in system_text or "verdict" in system_text or "constitutional" in system_text:
-        return json.dumps(
-            {
-                "verdict": "pass",
-                "score": 0.78,
-                "issues": [],
-                "revised_answer": None,
-                "rationale": "[MOCK] Debate hakem: taslak kaynaklarla tutarlı görünüyor.",
-            },
-            ensure_ascii=False,
-        )
+    for predicate, builder in _MOCK_DISPATCH:
+        if predicate(system_text):
+            return str(builder(messages, system_text))
 
     # Default: triaj
     domain = _mock_domain_from_messages(messages)

@@ -15,7 +15,7 @@ Referans: docs/architecture.md (LangGraph topology).
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Literal, NotRequired, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 # 8 domain + unknown — CLAUDE.md kapsamı (ceza/aile YOK)
 Domain = Literal[
@@ -87,7 +87,7 @@ class AgentState(TypedDict):
     # --- Giriş ---
     question: str
     want_dilekce: bool
-    user_meta: NotRequired[dict]   # sehir, taraf, vs. (opsiyonel)
+    user_meta: NotRequired[dict[str, Any]]   # sehir, taraf, vs. (opsiyonel)
 
     # --- Multi-turn / Multi-modal (Sprint-5) ---
     conversation_id: NotRequired[str]

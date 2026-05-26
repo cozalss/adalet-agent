@@ -56,7 +56,7 @@ def _init_langfuse() -> tuple[Any, Callable[..., Any] | None]:
     if not LANGFUSE_ENABLED:
         return None, None
     try:
-        from langfuse import Langfuse, observe  # type: ignore[import-not-found]
+        from langfuse import Langfuse, observe
     except ImportError as exc:
         log.warning("langfuse_import_failed", error=str(exc), hint="pip install langfuse")
         return None, None
@@ -106,7 +106,8 @@ def observe_node(
                 return fn
             _observe_fn = observe
         try:
-            return _observe_fn(as_type=as_type, name=name or fn.__name__)(fn)  # type: ignore[misc]
+            decorated: _F = _observe_fn(as_type=as_type, name=name or fn.__name__)(fn)
+            return decorated
         except Exception as exc:
             log.warning("observe_decorator_failed", fn=fn.__name__, error=str(exc))
             return fn
@@ -130,9 +131,10 @@ def current_trace_id() -> str | None:
     try:
         # v4 API: client.get_current_trace_id() veya context'ten oku
         if hasattr(client, "get_current_trace_id"):
-            return client.get_current_trace_id()
+            tid = client.get_current_trace_id()
+            return str(tid) if tid is not None else None
         # Fallback: OTEL span context'inden
-        from opentelemetry import trace  # type: ignore[import-not-found]
+        from opentelemetry import trace
         span = trace.get_current_span()
         if span and span.get_span_context().trace_id:
             return f"{span.get_span_context().trace_id:032x}"
@@ -195,6 +197,7 @@ def get_langfuse_handler(
     Langfuse v4'te bu pattern desteklenmiyor; @observe decorator kullan.
     Şimdilik trace_id metadata güncellemesi yapar, None döner.
     """
+    _ = trace_name  # v2 imzasını koru (eski caller'lar geçiyor), v4'te kullanılmıyor
     if not LANGFUSE_ENABLED:
         return None
     # v4'te callback handler yok — sadece trace meta güncelle

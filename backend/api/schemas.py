@@ -11,7 +11,7 @@ Reject durumunda answer = boilerplate "avukata danışın" template.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -44,7 +44,7 @@ class AskRequest(BaseModel):
     conversation_id: str | None = Field(
         None, max_length=128, description="Multi-turn için session anahtarı",
     )
-    user_meta: dict | None = Field(None, description="Şehir, taraf, vb. opsiyonel metadata")
+    user_meta: dict[str, Any] | None = Field(None, description="Şehir, taraf, vb. opsiyonel metadata")
     stream: bool = Field(False, description="True → SSE stream'le aşama aşama dön")
 
 
