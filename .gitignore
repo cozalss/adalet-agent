@@ -39,6 +39,15 @@ data/training/raw/
 *.ckpt
 *.pt
 *.safetensors
+*.gguf
+*.onnx
+*.traineddata
+
+# Models (Qwen GGUF, Whisper bin, Piper ONNX, Tesseract tessdata)
+backend/models/
+
+# Smoke test artifacts (büyük JSON output)
+backend/data/smoke_runs/
 
 # Test
 coverage/

@@ -6,9 +6,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-# Bedesten API rate limit — 10 istek / 30 saniye / kaynak IP
-BEDESTEN_CAPACITY = 10
-BEDESTEN_REFILL_PER_SEC = 10.0 / 30.0
+# Bedesten API rate limit — Sprint-5 W13 fix: çok sıkı çıktı.
+# Önceki: 10 burst + 1/3s refill (etkili ~17/30s) → 429 rate_limit_exceeded.
+# Yeni: 3 burst + 1/5s refill (etkili ~6/30s, sustained 12/min).
+# yargi-mcp 0.2.0 lokal bucket yanıtı 'retry_after: 3.5' → 5s konservatif.
+BEDESTEN_CAPACITY = 3
+BEDESTEN_REFILL_PER_SEC = 1.0 / 5.0
 
 DEFAULT_BATCH_CHUNKS = 100
 DEFAULT_LIMIT_PER_DOMAIN = 1000
@@ -26,12 +29,20 @@ class DomainConfig:
     `applicable_courts`: bu domain HANGİ mahkemelerde aratılır?
     - Default: tüm court'lar (geri uyumluluk için mevcut domain'ler)
     - Özel routing: örn. "idari" Yargıtay'da boş döner → ("danistay", "anayasa")
+
+    `chambers`: Sprint-5 W13 — opsiyonel daire filtresi.
+    - Dict {court_id: (chamber1, chamber2, ...)}
+    - Boş → tüm daireler aratılır (eski davranış)
+    - Non-empty → her (keyword × chamber) ayrı API call → coverage artışı
     """
 
     name: str
     keywords: tuple[str, ...]
     kanunlar: tuple[str, ...]
     applicable_courts: tuple[str, ...] = ALL_COURTS
+    # Sprint-5 W13: court_id → (chamber names) mapping
+    # Bedesten API "birimAdi" parametresine direkt geçer.
+    chambers: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +77,16 @@ DOMAINS: dict[str, DomainConfig] = {
             "tüketici kredisi",
             "konut finansmanı",
             "ayıplı hizmet",
+            # Sprint-5 W14: TKHK madde bazlı alt-kategoriler
+            "TKHK 11 cayma hakkı",
+            "TKHK 48 mesafeli cayma",
+            "TKHK 49 kapıdan cayma",
+            "TKHK 61 garanti belgesi",
+            "TKHK 66 abonelik sözleşmesi",
+            "TKHK 83 hakem heyeti karar",
+            "TKHK 84 tüketici mahkemesi",
+            "ayıp ihbarı süresi",
+            "yenilemesiz iade",
         ),
         kanunlar=("TKHK",),
     ),
@@ -92,8 +113,26 @@ DOMAINS: dict[str, DomainConfig] = {
             "rekabet yasağı",
             "alt işveren",
             "muvazaa",
+            # Sprint-5 W14: İK madde bazlı alt-kategoriler
+            "İK 17 süreli fesih",
+            "İK 24 işçi haklı sebep",
+            "İK 25 işveren haklı sebep",
+            "İK 41 fazla çalışma ücreti",
+            "İK 55 yıllık izin hakkı",
+            "SGK 4-1a sigortalılık",
+            "SGK 86 emeklilik şartları",
+            "iş sözleşmesi geçersizlik",
+            "ücret bordrosu eksik",
         ),
         kanunlar=("IK", "SGK"),
+        # Yargıtay 9. HD (iş hukuku genel), 22. HD (iş hukuku özel), 21. HD (iş kazası)
+        chambers={
+            "yargitay": (
+                "9. Hukuk Dairesi",
+                "22. Hukuk Dairesi",
+                "21. Hukuk Dairesi",
+            ),
+        },
     ),
     "kira": DomainConfig(
         name="kira",
@@ -117,8 +156,25 @@ DOMAINS: dict[str, DomainConfig] = {
             "kiraya veren",
             "kira borcu",
             "tahliye davası",
+            # Sprint-5 W14: TBK madde bazlı alt-kategoriler
+            "TBK 299 fesih bildirimi",
+            "TBK 315 ihtarname kira",
+            "TBK 339 kefil sorumluluğu",
+            "TBK 344 artış sınırı",
+            "TBK 347 sözleşme yenileme",
+            "TBK 350 tahliye sebepleri",
+            "TBK 351 kiraya veren ihtiyaç",
+            "TBK 355 işyeri kirası",
+            "kira sözleşmesi süre bitimi",
         ),
         kanunlar=("TBK",),
+        # Yargıtay 3. HD (kira-alacak), 6. HD (kira sözleşme uyuşmazlığı)
+        chambers={
+            "yargitay": (
+                "3. Hukuk Dairesi",
+                "6. Hukuk Dairesi",
+            ),
+        },
     ),
     # === Yeni 5 domain — smart court routing (planner agent önerisi) ===
     "icra": DomainConfig(
@@ -144,9 +200,24 @@ DOMAINS: dict[str, DomainConfig] = {
             "tasarrufun iptali",
             "kambiyo senedi",
             "ihalenin feshi",
+            # Sprint-5 W13 yeni keyword'ler
+            "maaş haczi",
+            "üçüncü kişi istihkak",
+            "hisse haczi",
+            "ihtiyati haciz",
+            "icra emri",
+            "borçlu temerrüdü",
         ),
         kanunlar=("IIK",),
         applicable_courts=("yargitay", "anayasa"),  # Danıştay alakasız
+        # Sprint-5 W13: 12. HD primary (icra-iflas), 19. HD (kambiyo), 23. HD (iflas)
+        chambers={
+            "yargitay": (
+                "12. Hukuk Dairesi",
+                "19. Hukuk Dairesi",
+                "23. Hukuk Dairesi",
+            ),
+        },
     ),
     "trafik": DomainConfig(
         name="trafik",
@@ -170,9 +241,26 @@ DOMAINS: dict[str, DomainConfig] = {
             "karayolları trafik kanunu",
             "ölümlü trafik kazası",
             "yaralamalı trafik kazası",
+            # Sprint-5 W13 yeni keyword'ler
+            "ZMSS poliçesi",
+            "sürücü belgesi iptali",
+            "tutanak süresi",
+            "trafik para cezası",
+            "ağır kusur",
+            "sigorta limiti",
         ),
         kanunlar=("KTK",),
         applicable_courts=ALL_COURTS,
+        # Sprint-5 W13: 17. HD primary (trafik tazminatı), 4. HD (sigorta tahkim)
+        chambers={
+            "yargitay": (
+                "17. Hukuk Dairesi",
+                "4. Hukuk Dairesi",
+            ),
+            "danistay": (
+                "12. Daire",  # Sürücü belgesi iptali
+            ),
+        },
     ),
     "vergi": DomainConfig(
         name="vergi",
@@ -196,9 +284,24 @@ DOMAINS: dict[str, DomainConfig] = {
             "mücbir sebep",
             "düzeltme şikayet",
             "haksız iade",
+            # Sprint-5 W13 yeni keyword'ler
+            "özel tüketim vergisi",
+            "damga vergisi",
+            "motorlu taşıt vergisi",
+            "emlak vergisi",
+            "amme alacağı",
+            "vergi ceza ihbarnamesi",
         ),
         kanunlar=("VUK",),
         applicable_courts=ALL_COURTS,
+        # Sprint-5 W13: Danıştay 4. D (gelir), 7. D (gümrük), 9. D (vergi davaları)
+        chambers={
+            "danistay": (
+                "4. Daire",
+                "7. Daire",
+                "9. Daire",
+            ),
+        },
     ),
     "tapu": DomainConfig(
         name="tapu",
@@ -225,9 +328,27 @@ DOMAINS: dict[str, DomainConfig] = {
             "tapu iptali ve tescili",
             "izale-i şuyu",
             "ortaklığın giderilmesi",
+            # Sprint-5 W13 yeni keyword'ler
+            "kamulaştırma bedeli",
+            "kamulaştırmasız el atma",
+            "imar planı iptali",
+            "ifraz tevhid",
+            "ruhsatsız yapı",
+            "kentsel dönüşüm",
         ),
         kanunlar=("TMK",),
         applicable_courts=ALL_COURTS,
+        # Sprint-5 W13: 1. HD (tapu iptali), 8. HD (izale-i şuyu), 14. HD (kadastro)
+        chambers={
+            "yargitay": (
+                "1. Hukuk Dairesi",
+                "8. Hukuk Dairesi",
+                "14. Hukuk Dairesi",
+            ),
+            "danistay": (
+                "6. Daire",  # Kamulaştırma
+            ),
+        },
     ),
     "idari": DomainConfig(
         name="idari",
@@ -253,9 +374,27 @@ DOMAINS: dict[str, DomainConfig] = {
             "657 sayılı kanun",
             "devlet memuru",
             "idarenin sorumluluğu",
+            # Sprint-5 W13 yeni keyword'ler
+            "ihaleden yasaklanma",
+            "ihale uhdesinde kalma",
+            "memur soruşturması",
+            "çevre para cezası",
+            "belediye meclis kararı",
+            "yapı tatil tutanağı",
         ),
         kanunlar=("IYUK", "DMK"),
         applicable_courts=("danistay", "anayasa"),  # Yargıtay alakasız
+        # Sprint-5 W13: Danıştay 5. D (memur), 6. D (imar), 10. D (genel idare),
+        # 12. D (sürücü, eğitim), 13. D (ihale)
+        chambers={
+            "danistay": (
+                "5. Daire",
+                "6. Daire",
+                "10. Daire",
+                "12. Daire",
+                "13. Daire",
+            ),
+        },
     ),
 }
 

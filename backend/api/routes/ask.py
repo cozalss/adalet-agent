@@ -35,7 +35,12 @@ from api.middleware.sanitize import sanitize_question
 from api.pii import mask_pii
 from api.schemas import AskRequest, AskResponse, CitationSchema, ClaimSchema
 from api.session_store import get_store
-from core.observability import get_langfuse_handler
+from core.observability import (
+    current_trace_id,
+    get_langfuse_handler,
+    observe_ask_request,
+    update_current_trace,
+)
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/ask", tags=["ask"])
@@ -95,6 +100,7 @@ async def _persist_turn(
 
 @router.post("", response_model=AskResponse)
 @limiter.limit(ASK_RATE)
+@observe_ask_request(name="ask")
 async def ask(
     request: Request, req: AskRequest,
     principal: Principal = Depends(authenticate),
@@ -136,15 +142,18 @@ async def ask(
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
 
-    # W8.1 — Langfuse trace (opsiyonel; ENV yoksa None → no-op)
-    lf_handler = get_langfuse_handler(
-        trace_name="ask", user_id=principal.sub, session_id=conv_id,
+    # W8.1 — Langfuse v4: @observe_ask_request decorator inner fn'i sarar, trace
+    # otomatik açılır. update_current_trace ile user/session/metadata zenginleştir.
+    update_current_trace(
+        user_id=principal.sub,
+        session_id=conv_id,
         metadata={"domain": initial.get("domain"), "principal_kind": principal.kind},
     )
-    invoke_config: dict[str, Any] = {"callbacks": [lf_handler]} if lf_handler else {}
+    # Backward-compat: get_langfuse_handler v4'te None döner (callback handler yok)
+    _ = get_langfuse_handler  # imported for legacy callers; v4 no-op
 
     try:
-        final_state = await graph.ainvoke(initial, config=invoke_config or None)
+        final_state = await graph.ainvoke(initial)
     except Exception as exc:
         emit_audit(AuditEvent(
             event="ask_pipeline_failed", principal=principal,
@@ -156,6 +165,8 @@ async def ask(
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     response = _state_to_response(final_state, elapsed_ms, conv_id)
+    # v4 — trace_id'yi yanıta ekle (frontend Langfuse dashboard linki üretebilir)
+    response = response.model_copy(update={"trace_id": current_trace_id()})
 
     # Persist ile audit PII'siz
     await _persist_turn(conv_id, "user", safe_for_log, final_state.get("domain"))

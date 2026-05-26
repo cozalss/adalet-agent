@@ -20,6 +20,7 @@ import structlog
 from agents.config import LLM_CONTEXT_BUDGET, LLM_MAX_TOKENS, LLM_TEMPERATURE
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, Citation, Claim
+from core.observability import observe_node
 
 log = structlog.get_logger()
 
@@ -39,6 +40,7 @@ LLM_CLAIM_EXTRACTION_ENABLED = (
 )
 
 
+@observe_node(as_type="generation", name="draft")
 async def draft_node(state: AgentState) -> dict[str, object]:
     question = state["question"]
     refs: list[Citation] = (

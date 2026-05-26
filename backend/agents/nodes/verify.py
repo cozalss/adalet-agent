@@ -36,6 +36,7 @@ from agents.config import (
     NLI_ENTAILMENT_THRESHOLD,
 )
 from agents.state import AgentState, Citation, Claim, DebateVerdict
+from core.observability import observe_node
 from agents.verifier_layers import (
     layer1_rules,
     layer2_fuzzy,
@@ -56,6 +57,7 @@ log = structlog.get_logger()
 RARR_ENABLED = os.getenv("RARR_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+@observe_node(name="verify")
 async def verify_node(state: AgentState) -> dict:
     """4 katmanlı verifier. state['claims']'i alır, verified_claims + verdict üretir."""
     claims = state.get("claims", []) or []

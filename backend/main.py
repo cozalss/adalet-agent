@@ -93,7 +93,33 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             log.warning("preload_raptor_failed", error=str(exc))
 
+    # Sprint-5 W16: APScheduler — Resmi Gazete + Yargıtay delta cron.
+    # SCHEDULER_ENABLED=0 ile devre dışı (test/CI default).
+    scheduler = None
+    try:
+        from core.scheduler import make_scheduler
+        scheduler = make_scheduler()
+        if scheduler is not None:
+            scheduler.start()
+            log.info("scheduler_started", jobs=[j.id for j in scheduler.get_jobs()])
+    except Exception as exc:
+        log.warning("scheduler_start_failed", error=str(exc))
+
     yield
+
+    # Shutdown
+    if scheduler is not None:
+        try:
+            scheduler.shutdown(wait=False)
+            log.info("scheduler_shutdown")
+        except Exception as exc:
+            log.warning("scheduler_shutdown_failed", error=str(exc))
+    # W8.1 v4: pending Langfuse traces flush
+    try:
+        from core.observability import flush_langfuse
+        flush_langfuse()
+    except Exception as exc:
+        log.warning("langfuse_flush_failed_on_shutdown", error=str(exc))
     log.info("adalet_shutting_down")
 
 

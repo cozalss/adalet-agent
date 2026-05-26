@@ -88,6 +88,13 @@ class AskResponse(BaseModel):
     audio_url: str | None = Field(
         None, description="want_tts=True ise sesli cevap URL'i (in-mem temp)",
     )
+    trace_id: str | None = Field(
+        None,
+        description=(
+            "Langfuse trace ID — debug/observability için. "
+            "ENV ayarlı değilse None döner. Frontend bu ID ile dashboard linki üretebilir."
+        ),
+    )
 
 
 class OCRUploadResponse(BaseModel):

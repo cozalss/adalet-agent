@@ -1,87 +1,119 @@
 {
-  "generated_at": "2026-05-25T12:32:43.961957+00:00",
+  "generated_at": "2026-05-25T22:29:55.538084+00:00",
   "n_runs": 2,
-  "n_changelogs": 10,
+  "n_changelogs": 20,
   "runs": [
     {
       "file": "v0_baseline_ab0773c.json",
       "size_bytes": 728,
-      "mtime": "2026-05-24T13:13:47.069407+00:00",
-      "version": "v0_baseline_ab",
-      "embedded_sha": "ab0773c",
-      "git_sha": null,
-      "summary": {}
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "v1_hyde_ab0773c.json",
       "size_bytes": 570,
-      "mtime": "2026-05-24T18:24:09.584691+00:00",
-      "version": "v1_hyde_ab",
-      "embedded_sha": "ab0773c",
-      "git_sha": null,
-      "summary": {}
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     }
   ],
   "changelogs": [
     {
+      "file": "Sprint5_closure.md",
+      "size_bytes": 10359,
+      "mtime": "2026-05-25T22:26:55.349792+00:00"
+    },
+    {
+      "file": "Sprint5_domain_audit_20260525T222353Z.md",
+      "size_bytes": 1662,
+      "mtime": "2026-05-25T22:23:53.711789+00:00"
+    },
+    {
+      "file": "Sprint5_domain_audit_final.md",
+      "size_bytes": 1653,
+      "mtime": "2026-05-25T22:25:41.976521+00:00"
+    },
+    {
+      "file": "Sprint5_W11_audit.md",
+      "size_bytes": 15700,
+      "mtime": "2026-05-25T13:12:20.090585+00:00"
+    },
+    {
+      "file": "Sprint5_W12_changes.md",
+      "size_bytes": 2939,
+      "mtime": "2026-05-25T13:16:53.023907+00:00"
+    },
+    {
+      "file": "Sprint5_W13_changes.md",
+      "size_bytes": 3957,
+      "mtime": "2026-05-25T13:22:40.020294+00:00"
+    },
+    {
+      "file": "Sprint5_W14_changes.md",
+      "size_bytes": 3939,
+      "mtime": "2026-05-25T13:26:13.055627+00:00"
+    },
+    {
+      "file": "Sprint5_W15_changes.md",
+      "size_bytes": 7262,
+      "mtime": "2026-05-25T22:18:43.771474+00:00"
+    },
+    {
+      "file": "Sprint5_W16_changes.md",
+      "size_bytes": 5845,
+      "mtime": "2026-05-25T13:34:22.715499+00:00"
+    },
+    {
+      "file": "v0_vs_v1_DELTA.md",
+      "size_bytes": 4452,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
+    },
+    {
       "file": "W10_changes.md",
-      "week": "10",
-      "size_bytes": 5062,
-      "mtime": "2026-05-25T12:32:27.545167+00:00"
+      "size_bytes": 5198,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W1_changes.md",
-      "week": "1",
-      "size_bytes": 6370,
-      "mtime": "2026-05-25T10:15:27.728937+00:00"
+      "size_bytes": 6492,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W2_changes.md",
-      "week": "2",
-      "size_bytes": 6394,
-      "mtime": "2026-05-25T10:48:11.675445+00:00"
+      "size_bytes": 6533,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W3_changes.md",
-      "week": "3",
-      "size_bytes": 3602,
-      "mtime": "2026-05-25T11:08:27.376609+00:00"
+      "size_bytes": 3696,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W4_changes.md",
-      "week": "4",
-      "size_bytes": 4781,
-      "mtime": "2026-05-25T11:22:16.927953+00:00"
+      "size_bytes": 4897,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W5_changes.md",
-      "week": "5",
-      "size_bytes": 6013,
-      "mtime": "2026-05-25T11:40:40.106748+00:00"
+      "size_bytes": 6159,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W6_changes.md",
-      "week": "6",
-      "size_bytes": 5027,
-      "mtime": "2026-05-25T12:01:35.754093+00:00"
+      "size_bytes": 5159,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W7_changes.md",
-      "week": "7",
-      "size_bytes": 4571,
-      "mtime": "2026-05-25T12:07:49.971449+00:00"
+      "size_bytes": 4691,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W8_changes.md",
-      "week": "8",
-      "size_bytes": 4090,
-      "mtime": "2026-05-25T12:14:33.098621+00:00"
+      "size_bytes": 4201,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     },
     {
       "file": "W9_changes.md",
-      "week": "9",
-      "size_bytes": 5015,
-      "mtime": "2026-05-25T12:21:49.359427+00:00"
+      "size_bytes": 5146,
+      "mtime": "2026-05-25T12:44:05.277074+00:00"
     }
   ]
 }

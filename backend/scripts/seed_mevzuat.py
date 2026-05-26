@@ -30,31 +30,67 @@ from retrieval.vector_store import ChunkPoint, ensure_collection, get_client, up
 logger = logging.getLogger("scripts.seed_mevzuat")
 
 # Çekilecek kanunlar — hepsi public, hepsi temel hukuk.
+# Sprint-5 W12: 17 → 41 kanun. Her domain için 5+ ilgili kanun.
 # Kapsam (CLAUDE.md §4) ile uyumlu: tuketici, isHukuku, kira, icra, trafik,
-# vergi, tapu, idari domain'lerini kapsar.
+# vergi, tapu, idari domain'lerini kapsar. Alias entries (TK=KTK, KK=TPK)
+# yok — her kanun bir kez seed edilir.
 TARGET_LAWS: tuple[tuple[str, str], ...] = (
-    # Çekirdek
+    # === Çekirdek özel hukuk ===
     ("TKHK", "Tüketicinin Korunması Hakkında Kanun"),
     ("IK", "İş Kanunu"),
     ("TBK", "Türk Borçlar Kanunu"),
     ("TMK", "Türk Medeni Kanunu"),
+    ("TTK", "Türk Ticaret Kanunu"),
     ("ANAYASA", "Türkiye Cumhuriyeti Anayasası"),
-    # Usul (Sprint-8 ek)
+    # === Usul kanunları ===
     ("HMK", "Hukuk Muhakemeleri Kanunu"),
     ("IYUK", "İdari Yargılama Usulü Kanunu"),
     ("IIK", "İcra ve İflas Kanunu"),
-    # Sosyal güvenlik + iş tamamlayıcı
+    # === Sosyal güvenlik + iş hukuku tamamlayıcı ===
     ("SGK", "Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu"),
     ("SK", "Sendikalar ve Toplu İş Sözleşmesi Kanunu"),
     ("ISGK", "İş Sağlığı ve Güvenliği Kanunu"),
-    # Vergi/trafik/tapu
-    ("VUK", "Vergi Usul Kanunu"),
-    ("TK", "Karayolları Trafik Kanunu"),
-    ("KK", "Tapu Kanunu"),
-    ("KMK", "Kat Mülkiyeti Kanunu"),
-    # Rekabet (tüketici dolaylı)
+    ("DMK", "Devlet Memurları Kanunu"),
+    ("DIK", "Deniz İş Kanunu"),
+    ("BMC", "Basın Mesleğinde Çalışanlarla Çalıştıranlar Arasındaki Münasebetlerin Tanzimi Hakkında Kanun"),
+    ("OGK", "Özel Güvenlik Hizmetlerine Dair Kanun"),
+    # === Tüketici + ekonomik düzen ===
+    ("BK", "Bankacılık Kanunu"),
+    ("SIGORTA", "Sigortacılık Kanunu"),
     ("RKHK", "Rekabetin Korunması Hakkında Kanun"),
-    # Referans — graph CITES için (kapsam-dışı ama Yargıtay kararları atıfta bulunur)
+    ("KVKK", "Kişisel Verilerin Korunması Kanunu"),
+    ("OHK", "Ödeme ve Menkul Kıymet Mutabakat Sistemleri, Ödeme Hizmetleri ve Elektronik Para Kuruluşları Hakkında Kanun"),
+    # === Vergi + mali ===
+    ("VUK", "Vergi Usul Kanunu"),
+    ("GVK", "Gelir Vergisi Kanunu"),
+    ("KVK", "Kurumlar Vergisi Kanunu"),
+    ("KDV", "Katma Değer Vergisi Kanunu"),
+    ("OTV", "Özel Tüketim Vergisi Kanunu"),
+    ("DV", "Damga Vergisi Kanunu"),
+    ("MTV", "Motorlu Taşıtlar Vergisi Kanunu"),
+    ("EMLAKV", "Emlak Vergisi Kanunu"),
+    ("AATUHK", "Amme Alacaklarının Tahsil Usulü Hakkında Kanun"),
+    ("MYK", "Kamu Mali Yönetimi ve Kontrol Kanunu"),
+    ("GIBK", "Gelir İdaresi Başkanlığı Teşkilat Kanunu"),
+    # === Trafik + ulaşım ===
+    ("KTK", "Karayolları Trafik Kanunu"),
+    ("KGK", "Karayolu Taşıma Kanunu"),
+    # === Tapu + imar ===
+    ("TPK", "Tapu Kanunu"),
+    ("KMK", "Kat Mülkiyeti Kanunu"),
+    ("IMARK", "İmar Kanunu"),
+    ("KAMK", "Kamulaştırma Kanunu"),
+    ("KDK", "Afet Riski Altındaki Alanların Dönüştürülmesi Hakkında Kanun"),
+    # === İdari + kamu yönetimi ===
+    ("IHK", "Kamu İhale Kanunu"),
+    ("IHSK", "Kamu İhale Sözleşmeleri Kanunu"),
+    ("DIHK", "Dilekçe Hakkının Kullanılmasına Dair Kanun"),
+    ("BLDK", "Belediye Kanunu"),
+    ("IOIK", "İl Özel İdaresi Kanunu"),
+    ("CK", "Çevre Kanunu"),
+    # === Afet + sosyal yardım ===
+    ("AYK", "Umumi Hayata Müessir Afetler Dolayısiyle Alınacak Tedbirlerle Yapılacak Yardımlara Dair Kanun"),
+    # === Referans — graph CITES için (kapsam-dışı ama Yargıtay kararları atıfta bulunur) ===
     ("TCK", "Türk Ceza Kanunu"),
 )
 

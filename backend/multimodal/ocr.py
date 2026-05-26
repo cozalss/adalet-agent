@@ -45,6 +45,17 @@ OCR_TIMEOUT_S = float(os.getenv("OCR_TIMEOUT_S", "30"))
 OCR_LANG = os.getenv("OCR_LANG", "tur")
 MIN_TEXT_LEN_QWEN_FALLBACK = 50  # Tesseract bundan az çıkardıysa Qwen-VL dene
 
+# Sprint-6: project-local tessdata path (tur.traineddata burada).
+# Windows'da `C:\Program Files\Tesseract-OCR\tessdata` admin yetkisi gerek,
+# bu yüzden backend/models/tessdata/ kullanıyoruz.
+_LOCAL_TESSDATA = (__import__("pathlib").Path(__file__).parent.parent
+                   / "models" / "tessdata")
+if _LOCAL_TESSDATA.exists() and not os.getenv("TESSDATA_PREFIX"):
+    os.environ["TESSDATA_PREFIX"] = str(_LOCAL_TESSDATA)
+
+# Windows: tesseract.exe binary path (winget default install dizini)
+_DEFAULT_TESSERACT_CMD_WIN = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 @dataclass(slots=True)
 class OCRResult:
@@ -122,6 +133,10 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             text="", engine="tesseract", lang=lang, n_chars=0,
             elapsed_ms=0, error=f"PIL/pytesseract yok: {exc}",
         )
+
+    # Windows: tesseract.exe winget default path — PATH'e ekli değilse pytesseract bulamaz
+    if os.name == "nt" and os.path.exists(_DEFAULT_TESSERACT_CMD_WIN):
+        pytesseract.pytesseract.tesseract_cmd = _DEFAULT_TESSERACT_CMD_WIN
 
     def _do() -> tuple[str, str | None]:
         try:

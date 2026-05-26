@@ -9,10 +9,12 @@ import structlog
 
 from agents.config import DISCLAIMER_TR
 from agents.state import AgentState
+from core.observability import observe_node
 
 log = structlog.get_logger()
 
 
+@observe_node(name="finalize")
 async def finalize_node(state: AgentState) -> dict:
     domain = state.get("domain", "unknown")
     verdict = state.get("debate_verdict", "pass")

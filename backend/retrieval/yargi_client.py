@@ -81,6 +81,24 @@ class YargitayDecision:
         }
 
 
+@dataclass(slots=True)
+class RegulatorDecision:
+    """Tek bir düzenleyici otorite kararı (KVKK / Rekabet / Sayıştay / BDDK / GİB)."""
+
+    regulator: str  # kvkk, rekabet, sayistay, bddk, gib_ozelge, sigorta_tahkim, kik
+    decision_id: str
+    title: str | None
+    date: str | None
+    summary: str | None
+    text: str = ""
+    source_url: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def id(self) -> str:
+        return f"reg-{self.regulator}-{self.decision_id}"
+
+
 class YargiClient:
     """yargi-mcp client. Async kullanım için `async with`."""
 
@@ -277,6 +295,17 @@ class YargiClient:
         )
 
         data = await self._call_tool("search_bedesten_unified", arguments)
+        # Sprint-5 W13 fix: yargi-mcp 0.2.0 rate_limit_exceeded → 429 status,
+        # retry_after saniye field. Bekleme + 1 retry yap.
+        if data.get("error") == "rate_limit_exceeded":
+            retry_after_s = float(data.get("retry_after", "5") or 5)
+            logger.info(
+                "yargi_rate_limited_retry",
+                extra={"retry_after": retry_after_s, "phrase": phrase},
+            )
+            import asyncio as _asyncio
+            await _asyncio.sleep(retry_after_s + 1)
+            data = await self._call_tool("search_bedesten_unified", arguments)
         decisions_raw = (
             data.get("decisions")
             or data.get("results")
@@ -372,6 +401,121 @@ class YargiClient:
 
         return "\n\n".join(all_text)
 
+    # ------------------------------------------------------------------
+    # Düzenleyici otorite (regulator) arama metotları — Sprint-5 W15
+    # ------------------------------------------------------------------
+
+    async def search_kvkk(
+        self, keywords: str, page: int = 1
+    ) -> list[RegulatorDecision]:
+        """KVKK karar arama."""
+        data = await self._call_tool(
+            "search_kvkk_decisions",
+            {"keywords": keywords, "page": max(page, 1)},
+        )
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "kvkk")
+
+    async def search_rekabet(
+        self,
+        keyword: str | None = None,
+        karar_turu: str | None = None,
+        page: int = 1,
+    ) -> list[RegulatorDecision]:
+        """Rekabet Kurumu karar arama."""
+        args: dict[str, Any] = {"page": max(page, 1)}
+        if keyword:
+            args["PdfText"] = keyword
+        if karar_turu:
+            args["KararTuru"] = karar_turu
+        data = await self._call_tool("search_rekabet_kurumu_decisions", args)
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "rekabet")
+
+    async def search_sayistay(
+        self,
+        keyword: str,
+        decision_type: Literal["genel_kurul", "temyiz_kurulu", "daire"] = "daire",
+        page: int = 1,
+        length: int = 20,
+    ) -> list[RegulatorDecision]:
+        """Sayıştay karar arama."""
+        args: dict[str, Any] = {
+            "decision_type": decision_type,
+            "start": (max(page, 1) - 1) * length,
+            "length": length,
+        }
+        if decision_type == "genel_kurul":
+            args["karar_tamami"] = keyword
+        else:
+            args["web_karar_metni"] = keyword
+        data = await self._call_tool("search_sayistay_unified", args)
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "sayistay")
+
+    async def search_bddk(
+        self, keywords: str, page: int = 1
+    ) -> list[RegulatorDecision]:
+        """BDDK karar arama (bankacılık düzenleme)."""
+        data = await self._call_tool(
+            "search_bddk_decisions",
+            {"keywords": keywords, "page": max(page, 1)},
+        )
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "bddk")
+
+    async def search_gib_ozelge(
+        self,
+        keywords: str | None = None,
+        kanun_no: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> list[RegulatorDecision]:
+        """GİB özelge arama (vergi yorumları, 18k+ özelge)."""
+        args: dict[str, Any] = {"page": max(page, 1), "pageSize": min(page_size, 50)}
+        if keywords:
+            args["keywords"] = keywords
+        if kanun_no:
+            args["kanunNo"] = kanun_no
+        data = await self._call_tool("search_gib_ozelge", args)
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "gib_ozelge")
+
+    async def search_sigorta_tahkim(
+        self, keywords: str, page: int = 1
+    ) -> list[RegulatorDecision]:
+        """Sigorta Tahkim Komisyonu karar arama (trafik/kasko/sağlık)."""
+        data = await self._call_tool(
+            "search_sigorta_tahkim_decisions",
+            {"keywords": keywords, "page": max(page, 1)},
+        )
+        items = _extract_decision_list(data)
+        return _parse_regulator_items(items, "sigorta_tahkim")
+
+    async def get_regulator_document(
+        self, regulator: str, doc_ref: str
+    ) -> str:
+        """Düzenleyici otorite karar metnini Markdown olarak çek."""
+        tool_map = {
+            "kvkk": ("get_kvkk_document_markdown", "decision_url"),
+            "rekabet": ("get_rekabet_kurumu_document", "karar_id"),
+            "sayistay": ("get_sayistay_document_unified", "decision_id"),
+            "bddk": ("get_bddk_document_markdown", "document_id"),
+            "gib_ozelge": ("get_gib_ozelge_document_markdown", "ozelge_id"),
+            "sigorta_tahkim": ("get_sigorta_tahkim_document_markdown", "document_id"),
+        }
+        if regulator not in tool_map:
+            raise ValueError(f"Unknown regulator: {regulator}")
+        tool_name, key = tool_map[regulator]
+        data = await self._call_tool(tool_name, {key: doc_ref})
+        return (
+            data.get("markdown_content")
+            or data.get("markdown_chunk")
+            or data.get("markdown")
+            or data.get("text")
+            or ""
+        )
+
 
 def _parse_mcp_response(body: str) -> dict[str, Any]:
     """MCP yanıtı düz JSON veya SSE chunked olabilir — ikisini de işle."""
@@ -453,6 +597,109 @@ def _parse_decision(item: dict[str, Any], court_type: str) -> YargitayDecision:
         source_url=item.get("url") or item.get("source_url") or "",
         raw=item,
     )
+
+
+def _extract_decision_list(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Regulator tool yanıtlarındaki karar listesi field'larını generic olarak çıkar."""
+    if not isinstance(data, dict):
+        return []
+    nested = data.get("data") if isinstance(data.get("data"), dict) else {}
+    candidates = (
+        data.get("decisions"),
+        data.get("results"),
+        data.get("items"),
+        data.get("ozelgeler"),
+        data.get("kararlar"),
+        nested.get("decisions") if nested else None,
+        nested.get("results") if nested else None,
+        nested.get("items") if nested else None,
+    )
+    for c in candidates:
+        if isinstance(c, list) and c:
+            return c
+    return []
+
+
+def _parse_regulator_items(
+    items: list[dict[str, Any]], regulator: str
+) -> list[RegulatorDecision]:
+    """Regulator karar listesi → RegulatorDecision[]. Field isimleri kuruma göre değişir."""
+    out: list[RegulatorDecision] = []
+    for item in items:
+        try:
+            doc_id = str(
+                item.get("decision_id")
+                or item.get("document_id")
+                or item.get("karar_id")
+                or item.get("ozelge_id")
+                or item.get("id")
+                or item.get("decisionId")
+                or item.get("documentId")
+                or item.get("kararId")
+                or ""
+            ).strip()
+            if not doc_id:
+                continue
+            # Sayıştay: title yok; web_karar_konusu + kamu_idaresi_turu birleştir
+            title = (
+                item.get("title")
+                or item.get("baslik")
+                or item.get("sayfaAdi")
+                or item.get("decision_title")
+                or item.get("konu")
+                or ""
+            )
+            if not title and regulator == "sayistay":
+                parts = [
+                    item.get("web_karar_konusu", ""),
+                    item.get("kamu_idaresi_turu", ""),
+                ]
+                title = " — ".join(p for p in parts if p)
+            date_raw = (
+                item.get("decision_date")
+                or item.get("karar_tarihi")
+                or item.get("kararTarihi")
+                or item.get("karar_tarih")
+                or item.get("YayinlanmaTarihi")
+                or item.get("publication_date")
+                or item.get("date")
+                or item.get("ozelge_tarihi")
+            )
+            summary = (
+                item.get("summary")
+                or item.get("ozet")
+                or item.get("description")
+                or item.get("aciklama")
+                or ""
+            )
+            text = (
+                item.get("content")
+                or item.get("text")
+                or item.get("web_karar_metni")  # sayistay
+                or item.get("karar_metni")
+                or ""
+            )
+            url = (
+                item.get("source_url")
+                or item.get("url")
+                or item.get("decision_url")
+                or ""
+            )
+            out.append(
+                RegulatorDecision(
+                    regulator=regulator,
+                    decision_id=doc_id,
+                    title=title or None,
+                    date=_normalize_date(date_raw if isinstance(date_raw, str) else None),
+                    summary=summary or None,
+                    text=text,
+                    source_url=_normalize_url(url) if isinstance(url, str) else "",
+                    raw=item,
+                )
+            )
+        except (ValueError, TypeError) as exc:
+            logger.warning("regulator_parse_skipped %s: %s", regulator, exc)
+    return out
 
 
 def _parse_anayasa_decision(item: dict[str, Any], decision_type: str) -> YargitayDecision:

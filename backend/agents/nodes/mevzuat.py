@@ -25,6 +25,7 @@ from agents.config import (
     TOP_K_LAW,
 )
 from agents.state import AgentState, Citation
+from core.observability import observe_node
 from retrieval.hybrid_search import SearchResult, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
@@ -41,6 +42,7 @@ log = structlog.get_logger()
 _RETRIEVAL_FALLBACK_EXCEPTIONS = (asyncio.TimeoutError, httpx.HTTPError, ConnectionError)
 
 
+@observe_node(name="mevzuat")
 async def mevzuat_node(state: AgentState) -> dict:
     """Mevzuat retrieval — kanun maddelerini getir.
 

@@ -33,12 +33,14 @@ from agents.config import (
 )
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, Citation, DebateVerdict
+from core.observability import observe_node
 
 log = structlog.get_logger()
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "debate.tr.txt"
 
 
+@observe_node(as_type="generation", name="debate")
 async def debate_node(state: AgentState) -> dict:
     """Verify sonrası hakemlik — verdict'i kabul/iyileştir, retry sayacını yönet."""
     base_verdict: DebateVerdict = state.get("debate_verdict", "pass")

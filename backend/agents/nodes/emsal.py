@@ -16,6 +16,7 @@ import structlog
 
 from agents.config import RERANK_CANDIDATES, TOP_K_CASE
 from agents.state import AgentState, Citation
+from core.observability import observe_node
 from retrieval.hybrid_search import search_with_rerank
 
 log = structlog.get_logger()
@@ -25,6 +26,7 @@ log = structlog.get_logger()
 GRAPH_NEIGHBORS_TOP_K = int(os.getenv("GRAPH_NEIGHBORS_TOP_K", "3"))
 
 
+@observe_node(name="emsal")
 async def emsal_node(state: AgentState) -> dict:
     question = state["question"]
     domain = state.get("domain", "unknown")

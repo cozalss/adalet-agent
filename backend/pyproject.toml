@@ -40,6 +40,10 @@ dependencies = [
     "langfuse>=2.50.0",
     "snowballstemmer>=3.1.0",
     "pyjwt>=2.13.0",
+    # Sprint-5 W16: APScheduler — Resmi Gazete + Yargıtay delta refresh cron
+    "apscheduler>=3.10.4",
+    "faster-whisper>=1.2.1",
+    "piper-tts>=1.4.2",
 ]
 
 [project.optional-dependencies]
@@ -187,6 +191,7 @@ markers = [
     "network: tests requiring outbound network access",
     "slow: tests that take longer than 10s",
     "llm_integration: tests requiring a live LLM (llama-server localhost:8080)",
+    "multimodal_integration: tests requiring real Whisper/Piper models on disk",
 ]
 
 [tool.coverage.run]

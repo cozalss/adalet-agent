@@ -46,7 +46,13 @@ import structlog
 log = structlog.get_logger()
 
 STT_ENGINE = os.getenv("STT_ENGINE", "faster-whisper").lower()
-STT_MODEL = os.getenv("STT_MODEL", "small")  # CPU dostu default
+# Sprint-6: local path varsayılan, faster-whisper'ın local model dizinini kabul eder.
+# HF download'la backend/models/whisper/ altında Systran/faster-whisper-small mevcut.
+_DEFAULT_WHISPER_DIR = Path(__file__).parent.parent / "models" / "whisper"
+STT_MODEL = os.getenv(
+    "STT_MODEL",
+    str(_DEFAULT_WHISPER_DIR) if _DEFAULT_WHISPER_DIR.exists() else "small",
+)
 STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
 STT_COMPUTE_TYPE = os.getenv(
     "STT_COMPUTE_TYPE",

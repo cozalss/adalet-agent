@@ -119,6 +119,94 @@ def chunk_mevzuat(text: str) -> list[Chunk]:
     return chunks
 
 
+# Sprint-5 W14.7: Yargıtay/Danıştay karar metni section markers.
+# Bedesten output'ları genelde başlıkları içerir (gerekçe, hüküm/sonuç) —
+# bu marker'ları yakalayıp chunk metadata'sına "section" ekleriz. Retrieval
+# kalitesi artar: "tazminat miktarı nasıl hesaplanır" sorgusu gerekçe section'a
+# daha çok yakın gelir, "karar verildi mi" sorgusu hüküm section'a.
+#
+# Anchor: marker satır başında (`^`) olmalı + iki nokta (`:`) ZORUNLU.
+# Bu kombinasyon "Davacı" gibi paragraf içi geçişlerin yanlış match'ini engeller.
+_DECISION_SECTION_RE = re.compile(
+    r"^[ \t]*(?P<header>"
+    r"DAVA(?:NIN)?|"
+    r"OLAY(?:LAR)?|"
+    r"İSTEM|"
+    r"GEREKÇE|"
+    r"HUKUKİ\s+DEĞERLENDİRME|"
+    r"DEĞERLENDİRME|"
+    r"HÜKÜM|"
+    r"SONUÇ|"
+    r"KARAR"
+    r")[ \t]*:",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _classify_section(header: str) -> str:
+    """Section başlığını standart kategoriye eşle: olay/gerekce/sonuc."""
+    h = header.upper().strip().rstrip(":").strip()
+    if h in {"DAVA", "DAVANIN", "OLAY", "OLAYLAR", "İSTEM"}:
+        return "olay"
+    if h in {"GEREKÇE", "HUKUKİ DEĞERLENDİRME", "DEĞERLENDİRME"}:
+        return "gerekce"
+    if h in {"HÜKÜM", "SONUÇ", "KARAR"}:
+        return "sonuc"
+    return "gerekce"  # Varsayılan: bilinmeyen header → gerekçe sayılır
+
+
+def chunk_decision(
+    text: str,
+    chunk_chars: int = 1200,
+    overlap_chars: int = 200,
+    min_chars: int = 80,
+) -> list[Chunk]:
+    """Yargıtay/Danıştay karar metnini gerekçe/sonuç ayrımı ile chunk'la.
+
+    Section marker bulunamazsa `chunk_text` fallback'i — flat chunk list dönülür,
+    section metadata "gerekce" (default) olur.
+
+    Section bulunduğunda her section ayrı ayrı sliding-window'a sokulur ve
+    sonuç chunk'ların metadata'sına "section" eklenir.
+    """
+    text = sanitize_text(text).strip()
+    if not text:
+        return []
+
+    # Section başlıklarını yakala
+    matches = list(_DECISION_SECTION_RE.finditer(text))
+    if not matches:
+        # Marker yok — flat chunk list, default section "gerekce"
+        return [
+            Chunk(text=ch, seq=i, metadata={"section": "gerekce"})
+            for i, ch in enumerate(chunk_text(text, chunk_chars, overlap_chars, min_chars))
+        ]
+
+    # Section'lara böl: her match start'ından bir sonrakine
+    chunks: list[Chunk] = []
+    seq = 0
+    for i, m in enumerate(matches):
+        section = _classify_section(m.group("header"))
+        body_start = m.end()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[body_start:body_end].strip()
+        if not body or len(body) < min_chars:
+            continue
+        for chunk_body in chunk_text(body, chunk_chars, overlap_chars, min_chars):
+            chunks.append(
+                Chunk(text=chunk_body, seq=seq, metadata={"section": section})
+            )
+            seq += 1
+
+    if not chunks:
+        # Section başlıkları vardı ama hepsi çok kısa — fallback
+        return [
+            Chunk(text=ch, seq=i, metadata={"section": "gerekce"})
+            for i, ch in enumerate(chunk_text(text, chunk_chars, overlap_chars, min_chars))
+        ]
+    return chunks
+
+
 def _split_oversize(text: str, chunk_chars: int, overlap_chars: int) -> list[str]:
     """Tek bir paragraf chunk_chars'tan büyükse cümle/karakter bazlı böl."""
     sentences = re.split(r"(?<=[.!?])\s+", text)

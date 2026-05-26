@@ -89,18 +89,100 @@ MEVZUAT_DOMAIN_FILTER_ENABLED = (
     os.getenv("MEVZUAT_DOMAIN_FILTER", "1").lower() in {"1", "true", "yes"}
 )
 
-# Domain → resmi kanun kodları (mevzuat.gov.tr resmi numaralandırma).
-# Bir domain birden çok kanunu kapsayabilir. Birebir match yoksa boost yok.
-# Kanun_kodu string olarak payload'a yazılı; karşılaştırma string eşitlik.
+# Domain → kanun_kodu (mevzuat seed'in payload'a yazdığı alfabetik kod).
+# Sprint-5 W12: Her domain için 5+ ilgili kanun.
+# Sprint-5 fix: payload'da `kanun_kodu` ALFABETİK (TKHK, TBK, TTK),
+# `kanun_numarasi` numerik (6502, 6098, 6102). mevzuat_node._boost_by_domain
+# kanun_kodu field'ına baktığı için mapping ALFABETİK olmalı — yoksa boost
+# hiç eşleşmez (Sprint-4 pre-existing bug).
 DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
-    "tuketici":  ("6502",),                           # TKHK
-    "isHukuku":  ("4857", "5510", "6356"),            # İş K, SGK, Sendikalar
-    "kira":      ("6098",),                           # TBK (kira bölümü dahil)
-    "icra":      ("2004",),                           # İcra ve İflas K
-    "trafik":    ("2918", "5510"),                    # KTK, SGK (kaza tazminat)
-    "vergi":     ("213", "3065", "193"),              # VUK, KDV, Gelir V
-    "tapu":      ("4721", "2644", "3194"),            # TMK, Tapu K, İmar K
-    "idari":     ("2577", "657", "5018"),             # İYUK, DMK, Mali Yönetim
+    "tuketici":  (
+        "TKHK",     # 6502 — Tüketici
+        "TBK",      # 6098 — Borçlar (sözleşme)
+        "TTK",      # 6102 — Ticaret (e-ticaret)
+        "BK",       # 5411 — Bankacılık
+        "SIGORTA",  # 5684 — Sigortacılık
+        "KVKK",     # 6698 — Veri koruma
+        "RKHK",     # 4054 — Rekabet
+        "OHK",      # 6493 — Ödeme Hizmetleri
+    ),
+    "isHukuku":  (
+        "IK",       # 4857 — İş
+        "SGK",      # 5510 — Sosyal Sigorta
+        "SK",       # 6356 — Sendikalar
+        "ISGK",     # 6331 — İş Sağlığı Güvenliği
+        "DMK",      # 657 — Devlet Memurları
+        "TBK",      # 6098 — Borçlar (hizmet sözleşmesi)
+        "DIK",      # 854 — Deniz İş
+        "BMC",      # 5953 — Basın Mesleği
+        "OGK",      # 5188 — Özel Güvenlik
+    ),
+    "kira":      (
+        "TBK",      # 6098 — Borçlar (kira bölümü)
+        "TMK",      # 4721 — Medeni (mülkiyet)
+        "KMK",      # 634 — Kat Mülkiyeti
+        "KDK",      # 6306 — Kentsel Dönüşüm
+        "BLDK",     # 5393 — Belediye
+    ),
+    "icra":      (
+        "IIK",      # 2004 — İcra İflas
+        "TTK",      # 6102 — Kambiyo senetleri
+        "AATUHK",   # 6183 — Amme Alacağı
+        "BK",       # 5411 — Banka kredisi
+        "SGK",      # 5510 — SGK alacağı
+    ),
+    "trafik":    (
+        "KTK",      # 2918 — Karayolları Trafik
+        "SIGORTA",  # 5684 — Sigortacılık (ZMSS)
+        "TBK",      # 6098 — Borçlar (haksız fiil)
+        "SGK",      # 5510 — Kaza tazminat
+        "KGK",      # 4925 — Karayolu Taşıma
+    ),
+    "vergi":     (
+        "VUK",      # 213 — Vergi Usul
+        "GVK",      # 193 — Gelir Vergisi
+        "KVK",      # 5520 — Kurumlar Vergisi
+        "KDV",      # 3065 — Katma Değer
+        "OTV",      # 4760 — Özel Tüketim
+        "DV",       # 488 — Damga
+        "MTV",      # 197 — Motorlu Taşıt
+        "EMLAKV",   # 1319 — Emlak
+        "AATUHK",   # 6183 — Amme Alacağı
+        "MYK",      # 5018 — Mali Yönetim
+    ),
+    "tapu":      (
+        "TMK",      # 4721 — Medeni
+        "TPK",      # 2644 — Tapu
+        "KMK",      # 634 — Kat Mülkiyeti
+        "IMARK",    # 3194 — İmar
+        "KAMK",     # 2942 — Kamulaştırma
+        "KDK",      # 6306 — Kentsel Dönüşüm
+    ),
+    "idari":     (
+        "IYUK",     # 2577 — İdari Yargılama
+        "DMK",      # 657 — Devlet Memurları
+        "MYK",      # 5018 — Mali Yönetim
+        "IHK",      # 4734 — Kamu İhale
+        "IHSK",     # 4735 — İhale Sözleşmeleri
+        "DIHK",     # 3071 — Dilekçe Hakkı
+        "BLDK",     # 5393 — Belediye
+        "IOIK",     # 5302 — İl Özel
+        "CK",       # 2872 — Çevre
+    ),
+}
+
+# Düzenleyici otorite → ilgili domain'ler (Sprint-5 W15)
+# Bu mapping regulator karar'larını domain'lere yönlendirir (retrieval filter).
+# Sprint-5 W15: local yargi-mcp tools'la entegre — bddk + sigorta_tahkim
+# upstream broken (Tavily 433), spk listede ama public API yok.
+REGULATOR_TO_DOMAINS: dict[str, tuple[str, ...]] = {
+    "kvkk":           ("tuketici", "isHukuku"),  # Kişisel veri
+    "rekabet":        ("tuketici",),              # Rekabet ihlali / antitrust
+    "sayistay":       ("idari", "vergi"),         # Kamu mali denetim
+    "gib_ozelge":     ("vergi",),                 # Gelir İdaresi özelge — vergi yorumları
+    "sigorta_tahkim": ("trafik", "tuketici"),     # Sigorta tahkim — trafik/sağlık/kasko (currently broken upstream)
+    "bddk":           ("tuketici",),              # Banka tüketicisi (currently broken upstream)
+    "spk":            ("tuketici",),              # Yatırımcı/finansal tüketici (no public API)
 }
 
 # Domain'e uyan sonuçların skor boost'u — RRF/dense score üstüne ek (top'a it).

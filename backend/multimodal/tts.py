@@ -38,9 +38,13 @@ import structlog
 log = structlog.get_logger()
 
 TTS_ENGINE = os.getenv("TTS_ENGINE", "piper").lower()
-TTS_MODEL = os.getenv("TTS_MODEL", "tr_TR-fettah-medium")
+# 2026-05-26: rhasspy/piper-voices TR repo'sunda mevcut tek voice DFKI
+# (eskiden fettah ismiyle planlanmıştı, gerçek upload DFKI). ENV ile override:
+TTS_MODEL = os.getenv("TTS_MODEL", "tr_TR-dfki-medium")
+# Sprint-6: backend/models/piper/ altındaki HF mirror path varsayılan
+_DEFAULT_VOICE_DIR = Path(__file__).parent.parent / "models" / "piper" / "tr" / "tr_TR" / "dfki" / "medium"
 TTS_VOICE_DIR = Path(
-    os.getenv("TTS_VOICE_DIR", str(Path.home() / ".cache" / "piper")),
+    os.getenv("TTS_VOICE_DIR", str(_DEFAULT_VOICE_DIR)),
 )
 TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "2000"))
 TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "30"))
@@ -90,13 +94,18 @@ class PiperEngine:
         return PiperVoice.load(str(onnx_path))
 
     def synthesize_wav(self, text: str) -> tuple[bytes, int]:
-        """Tek pass synthesize → (wav_bytes, sample_rate)."""
+        """Tek pass synthesize → (wav_bytes, sample_rate).
+
+        piper-tts v1.4+: ``synthesize_wav(text, wav_file, set_wav_format=True)``
+        otomatik header (channels, sample_rate, sample_width) yazar. Eskiden
+        düz ``synthesize(text, wav)`` çalışıyordu, kaldırıldı.
+        """
         import io
         import wave
 
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wav:
-            self._voice.synthesize(text, wav)
+            self._voice.synthesize_wav(text, wav, set_wav_format=True)
         sample_rate = self._voice.config.sample_rate
         return buf.getvalue(), sample_rate
 

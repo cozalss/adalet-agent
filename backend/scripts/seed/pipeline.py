@@ -13,7 +13,7 @@ from typing import Any
 
 from qdrant_client import AsyncQdrantClient
 
-from retrieval.chunker import chunk_text
+from retrieval.chunker import chunk_decision
 from retrieval.embedding import Embedder
 from retrieval.vector_store import ChunkPoint, upsert_chunks
 
@@ -107,8 +107,12 @@ def _build_pending_chunks(
     enriched: EnrichedDecision,
     court_id: str,
 ) -> list[_PendingChunk]:
-    """Bir kararı chunk'lara böl, _PendingChunk listesine dönüştür."""
-    chunks = chunk_text(enriched.text)
+    """Bir kararı chunk'lara böl, _PendingChunk listesine dönüştür.
+
+    Sprint-5 W14.7: `chunk_decision` ile section-aware chunking — gerekçe/sonuç
+    metadata payload'a yazılır → retrieval kalitesi artar.
+    """
+    chunks = chunk_decision(enriched.text)
     out: list[_PendingChunk] = []
 
     base_payload = {
@@ -124,10 +128,16 @@ def _build_pending_chunks(
 
     for seq, chunk in enumerate(chunks):
         chunk_id = f"{enriched.ref.doc_id}-c{seq}"
-        payload = {**base_payload, "chunk_seq": seq, "text": chunk}
+        section = chunk.metadata.get("section", "gerekce")
+        payload = {
+            **base_payload,
+            "chunk_seq": seq,
+            "text": chunk.text,
+            "section": section,
+        }
         out.append(
             _PendingChunk(
-                chunk_text=chunk,
+                chunk_text=chunk.text,
                 chunk_id=chunk_id,
                 payload=payload,
                 doc_id=enriched.ref.doc_id,

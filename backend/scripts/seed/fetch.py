@@ -62,6 +62,16 @@ async def stream_decisions(
 
     target_new = limit - already_done
     yielded_this_run = 0
+
+    # Sprint-5 W13: Daire filtreleri (chambers) opsiyonel.
+    # Domain için bu court'un chambers'ı tanımlıysa, her keyword × her chamber
+    # ayrı API call → coverage artar. Aksi halde tek-pass (chamber=None).
+    court_chambers: tuple[str | None, ...]
+    if domain.chambers and source.court_id in domain.chambers:
+        court_chambers = tuple(domain.chambers[source.court_id])
+    else:
+        court_chambers = (None,)
+
     logger.info(
         "fetch_started",
         extra={
@@ -69,6 +79,7 @@ async def stream_decisions(
             "domain": domain.name,
             "already_done": already_done,
             "target_new": target_new,
+            "chambers": court_chambers,
         },
     )
 
@@ -76,35 +87,43 @@ async def stream_decisions(
         if yielded_this_run >= target_new:
             break
 
-        remaining = target_new - yielded_this_run
-        logger.info(
-            "fetch_keyword_started",
-            extra={"keyword": keyword, "remaining": remaining},
-        )
-
-        async for ref in source.iter_refs(keyword, remaining, rate, skip_ids):
-            try:
-                text = await source.fetch_text(ref, rate)
-            except (
-                EmptyDocumentError,
-                httpx.HTTPError,
-                httpx.TimeoutException,
-                ValueError,
-                RuntimeError,
-            ) as exc:
-                logger.warning(
-                    "doc_fetch_failed",
-                    extra={"doc_id": ref.doc_id, "err": str(exc)[:200]},
-                )
-                state.mark_done(ref.doc_id, status="error", reason=type(exc).__name__)
-                skip_ids.add(ref.doc_id)
-                stats.errors += 1
-                continue
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                raise
-
-            yielded_this_run += 1
-            yield EnrichedDecision(ref=ref, text=text, domain=domain.name)
-
+        for chamber in court_chambers:
             if yielded_this_run >= target_new:
                 break
+
+            remaining = target_new - yielded_this_run
+            logger.info(
+                "fetch_keyword_started",
+                extra={
+                    "keyword": keyword,
+                    "chamber": chamber,
+                    "remaining": remaining,
+                },
+            )
+
+            async for ref in source.iter_refs(keyword, remaining, rate, skip_ids, chamber=chamber):
+                try:
+                    text = await source.fetch_text(ref, rate)
+                except (
+                    EmptyDocumentError,
+                    httpx.HTTPError,
+                    httpx.TimeoutException,
+                    ValueError,
+                    RuntimeError,
+                ) as exc:
+                    logger.warning(
+                        "doc_fetch_failed",
+                        extra={"doc_id": ref.doc_id, "err": str(exc)[:200]},
+                    )
+                    state.mark_done(ref.doc_id, status="error", reason=type(exc).__name__)
+                    skip_ids.add(ref.doc_id)
+                    stats.errors += 1
+                    continue
+                except (KeyboardInterrupt, asyncio.CancelledError):
+                    raise
+
+                yielded_this_run += 1
+                yield EnrichedDecision(ref=ref, text=text, domain=domain.name)
+
+                if yielded_this_run >= target_new:
+                    break

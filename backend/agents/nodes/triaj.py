@@ -23,6 +23,7 @@ import structlog
 from agents.config import MIN_DOMAIN_CONFIDENCE, OUT_OF_SCOPE_KEYWORDS
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, ConversationTurn, Domain
+from core.observability import observe_node
 
 log = structlog.get_logger()
 
@@ -96,6 +97,7 @@ def _last_user_domain(history: list[ConversationTurn]) -> Domain | None:
     return None
 
 
+@observe_node(name="triaj")
 async def triaj_node(state: AgentState) -> dict:
     question = state["question"]
 

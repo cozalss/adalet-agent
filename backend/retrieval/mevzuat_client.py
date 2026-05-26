@@ -44,6 +44,7 @@ SESSION_HEADER = "mcp-session-id"
 # Kapsam (CLAUDE.md §4): tuketici, isHukuku, kira, icra, trafik, vergi, tapu, idari
 # Ceza/aile YOK; TCK sadece referans için (graph CITES edge'leri için, doğrudan
 # kullanılmaz). Bu liste seed_mevzuat ve scripts/build_graph tarafından okunur.
+# Sprint-5 W12: 17 → 41 kanun. Her domain için 5+ ilgili kanun.
 KANUN_KODU_TO_NUMARA: dict[str, str] = {
     # --- Çekirdek hukuk ---
     "TBK": "6098",      # Türk Borçlar Kanunu (kira: m.299-378; satım: m.207-281)
@@ -51,7 +52,7 @@ KANUN_KODU_TO_NUMARA: dict[str, str] = {
     "TKHK": "6502",     # Tüketicinin Korunması Hakkında Kanun
     "TMK": "4721",      # Türk Medeni Kanunu
     "ANAYASA": "2709",  # T.C. Anayasası
-    # --- Usul kanunları (Sprint-8 yeni) ---
+    # --- Usul kanunları ---
     "HMK": "6100",      # Hukuk Muhakemeleri Kanunu (dava usulü, dilekçe formatı)
     "IYUK": "2577",     # İdari Yargılama Usulü Kanunu (idari dava, iptal)
     "IIK": "2004",      # İcra ve İflas Kanunu (haciz, takip — icra domain)
@@ -59,14 +60,49 @@ KANUN_KODU_TO_NUMARA: dict[str, str] = {
     "SGK": "5510",      # Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu
     "SK": "6356",       # Sendikalar ve Toplu İş Sözleşmesi Kanunu
     "ISGK": "6331",     # İş Sağlığı ve Güvenliği Kanunu
-    # --- Tüketici + ekonomik düzen ---
+    "DMK": "657",       # Devlet Memurları Kanunu (kamu personeli)
+    "DIK": "854",       # Deniz İş Kanunu (gemi çalışanları)
+    "BMC": "5953",      # Basın Mesleğinde Çalışanlar Kanunu
+    "OGK": "5188",      # Özel Güvenlik Hizmetleri Kanunu
+    # --- Ticaret + tüketici ekonomik düzen ---
+    "TTK": "6102",      # Türk Ticaret Kanunu (e-ticaret, ticari satım, kambiyo)
+    "BK": "5411",       # Bankacılık Kanunu (kredi, mevduat)
+    "SIGORTA": "5684",  # Sigortacılık Kanunu (trafik, tüketici sigorta)
     "RKHK": "4054",     # Rekabetin Korunması Hakkında Kanun
-    "EKK": "6502",      # Elektronik Ticaret Düzenlemesi — TKHK kapsamında zaten
-    # --- Vergi + tapu + trafik ---
-    "VUK": "213",       # Vergi Usul Kanunu (vergi domain)
-    "TK": "2918",       # Karayolları Trafik Kanunu (trafik domain)
-    "KK": "2644",       # Tapu Kanunu (tapu domain)
-    "KMK": "634",       # Kat Mülkiyeti Kanunu (tapu/yönetim)
+    "KVKK": "6698",     # Kişisel Verilerin Korunması Kanunu
+    "OHK": "6493",      # Ödeme ve Menkul Kıymet Mutabakat Hizmetleri Kanunu
+    # --- Vergi + mali ---
+    "VUK": "213",       # Vergi Usul Kanunu
+    "GVK": "193",       # Gelir Vergisi Kanunu
+    "KVK": "5520",      # Kurumlar Vergisi Kanunu
+    "KDV": "3065",      # Katma Değer Vergisi Kanunu
+    "OTV": "4760",      # Özel Tüketim Vergisi Kanunu
+    "DV": "488",        # Damga Vergisi Kanunu
+    "MTV": "197",       # Motorlu Taşıtlar Vergisi Kanunu
+    "EMLAKV": "1319",   # Emlak Vergisi Kanunu
+    "AATUHK": "6183",   # Amme Alacaklarının Tahsil Usulü Kanunu
+    "MYK": "5018",      # Kamu Mali Yönetimi ve Kontrol Kanunu
+    # --- Trafik + ulaşım ---
+    "KTK": "2918",      # Karayolları Trafik Kanunu (TK alias)
+    "TK": "2918",       # KTK eski isim (geri uyumluluk)
+    "KGK": "4925",      # Karayolu Taşıma Kanunu
+    # --- Tapu + imar ---
+    "TPK": "2644",      # Tapu Kanunu (KK alias)
+    "KK": "2644",       # Tapu Kanunu eski isim
+    "KMK": "634",       # Kat Mülkiyeti Kanunu
+    "IMARK": "3194",    # İmar Kanunu
+    "KAMK": "2942",     # Kamulaştırma Kanunu
+    "KDK": "6306",      # Afet Riski Altındaki Alanların Dönüştürülmesi (Kentsel Dönüşüm)
+    # --- İdari + kamu yönetimi ---
+    "IHK": "4734",      # Kamu İhale Kanunu
+    "IHSK": "4735",     # Kamu İhale Sözleşmeleri Kanunu
+    "DIHK": "3071",     # Dilekçe Hakkı Kanunu
+    "BLDK": "5393",     # Belediye Kanunu
+    "IOIK": "5302",     # İl Özel İdaresi Kanunu
+    "CK": "2872",       # Çevre Kanunu
+    "GIBK": "5345",     # Gelir İdaresi Başkanlığı Teşkilat Kanunu
+    # --- Afet + sosyal yardım ---
+    "AYK": "7269",      # Umumi Hayata Müessir Afetler Kanunu
     # --- Referans (kapsam dışı ama graph cite için) ---
     "TCK": "5237",      # Türk Ceza Kanunu — DİREKT KULLANILMAZ
 }

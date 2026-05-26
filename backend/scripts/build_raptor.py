@@ -163,6 +163,10 @@ async def main_async() -> int:
 
 
 def main() -> int:
+    # NOT: Windows üzerinde BGE-M3 (torch) + asyncio.run() silent deadlock
+    # yapıyor. Bu build script'i WSL veya Linux'ta çalıştırılmalı.
+    # SelectorEventLoop fix Qdrant async client'ını bozar (aiohttp Proactor gerek).
+    # Sprint-6: bu script'i sync `.build()` versiyonu olarak refactor et.
     return asyncio.run(main_async())
 
 

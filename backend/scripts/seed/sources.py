@@ -47,11 +47,15 @@ class DecisionSource(Protocol):
         max_count: int,
         rate: AsyncTokenBucket,
         skip_ids: set[str],
+        chamber: str | None = None,
     ) -> AsyncIterator[DecisionRef]:
         """Sayfalı arama — her DecisionRef'i yield eder.
 
         Concrete impls async generator olarak yazılır (`async def` + `yield`).
         Protocol stub yield içermez; tip kontrolü için AsyncIterator dönüş tipi.
+
+        `chamber`: opsiyonel daire filtresi (örn. Yargıtay "12. Hukuk Dairesi").
+        None ise tüm daireler aratılır.
         """
         ...
 
@@ -78,13 +82,17 @@ def _to_ref(decision: YargitayDecision, doc_id_prefix: str) -> DecisionRef:
 
 
 # Date pencereleri — keyword tükenmesini bypass etmek için her arama
-# 4 farklı zaman aralığında yapılır → ~4x unique doc.
+# Sprint-5 W13: 4 → 8 pencere (2010-2026, 12+ yıl coverage).
 # yargi-mcp `kararTarihiStart` / `kararTarihiEnd` (ISO 8601) parametreleri.
 _DATE_WINDOWS: tuple[tuple[str, str], ...] = (
     ("2024-01-01", "2026-12-31"),  # Son 2 yıl — en güncel
     ("2022-01-01", "2023-12-31"),  # 2 yıl önce
     ("2020-01-01", "2021-12-31"),  # 4-5 yıl önce
-    ("2018-01-01", "2019-12-31"),  # En eski uzlaşmış içtihat
+    ("2018-01-01", "2019-12-31"),  # 6-7 yıl önce
+    ("2016-01-01", "2017-12-31"),  # 8-9 yıl önce — uzlaşmış içtihat
+    ("2014-01-01", "2015-12-31"),  # 10-11 yıl önce
+    ("2012-01-01", "2013-12-31"),  # 12-13 yıl önce
+    ("2010-01-01", "2011-12-31"),  # 14-15 yıl önce — eski landmark içtihat
 )
 
 
@@ -109,11 +117,14 @@ class _BedestenSource:
         max_count: int,
         rate: AsyncTokenBucket,
         skip_ids: set[str],
+        chamber: str | None = None,
     ) -> AsyncIterator[DecisionRef]:
         """Her keyword × her tarih penceresi → coverage artışı.
 
         Pencerelerden ardışık olarak ilerle: bir pencere tükenince diğerine geç.
         Aynı doc_id birden fazla pencerede dönerse `seen_in_run` ile filtrele.
+
+        Sprint-5 W13: `chamber` opsiyonel — Bedesten `birimAdi` parametresine map'lenir.
         """
         yielded = 0
         seen_in_run: set[str] = set()
@@ -131,6 +142,7 @@ class _BedestenSource:
                         page_number=page,
                         date_start=date_start,
                         date_end=date_end,
+                        chamber=chamber,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -140,6 +152,7 @@ class _BedestenSource:
                             "query": query,
                             "page": page,
                             "window": f"{date_start}..{date_end}",
+                            "chamber": chamber,
                             "err": str(exc),
                         },
                     )
@@ -209,7 +222,12 @@ class AnayasaSource:
         max_count: int,
         rate: AsyncTokenBucket,
         skip_ids: set[str],
+        chamber: str | None = None,
     ) -> AsyncIterator[DecisionRef]:
+        # AYM chamber filter desteklemez (Genel Kurul/Komisyon ayrımı API'de farklı yere düşer).
+        # Parametre tutulur — Protocol uyumu için; loglanır ama eyleme alınmaz.
+        if chamber:
+            logger.debug("anayasa_chamber_ignored", extra={"chamber": chamber})
         yielded = 0
         page = 1
         seen_in_run: set[str] = set()
