@@ -1,0 +1,65 @@
+name: adalet-agent-dev
+
+# ============================================================================
+#  ADALET-AGENT — DEV stack (lightweight onboarding)
+#
+#  Sadece Qdrant + Redis çalışır; backend kullanıcının local'inde
+#  `uv run uvicorn main:app --reload` ile koşar.
+#
+#  Production stack için `docker-compose.yml` (root) kullan.
+#
+#  Çalıştır:
+#    docker compose -f docker-compose.dev.yml up -d
+#
+#  Backend bunlara host'tan bağlanır:
+#    QDRANT_URL=http://127.0.0.1:6333
+#    REDIS_URL=redis://127.0.0.1:6379/0
+#
+#  Production'dan farkları:
+#    - Auth/API key/password YOK (sadece local)
+#    - Ports host'a expose (6333, 6379) — debug kolay
+#    - Backend container DEĞIL (local uvicorn ile dev'de hot reload)
+# ============================================================================
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.0
+    container_name: adalet-qdrant-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"  # HTTP
+      - "127.0.0.1:6334:6334"  # gRPC
+    volumes:
+      - qdrant_dev_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: adalet-redis-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  qdrant_dev_data:
+  redis_dev_data:
