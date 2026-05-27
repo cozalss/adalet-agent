@@ -45,10 +45,15 @@ class VerifierUnavailableError(RuntimeError):
 _MADDE_FORMAT_RE = re.compile(
     r"\b(?:m\.?|madde)\s*\d{1,4}\b", re.IGNORECASE,
 )
+# Kaynak-id formatı: "m-IK-21", "m-EIK-14", "m-TKHK-11" — draft bazen [src: ...]
+# id'sini düz prose'a gömüyor ("m-IK-21 maddesine göre..."). Bu kanonik atıf
+# da geçerli madde referansıdır; layer1 bunu format-eksik diye REDDETMEMELİ.
+_SRC_ID_RE = re.compile(r"\bm-[A-Za-zçğıöşüÇĞİÖŞÜ]+-(\d{1,4})\b", re.IGNORECASE)
 # Esas/Karar formatı (Yargıtay/Danıştay)
 _ESAS_KARAR_RE = re.compile(r"\b\d{4}\s*/\s*\d{1,6}\b")
 
 # Claim metninde geçen madde numaralarını yakala (kanıt-daraltma için).
+# Hem "madde 21" / "m. 21" hem de kaynak-id "m-IK-21" formundaki numarayı alır.
 _CLAIM_MADDE_NO_RE = re.compile(r"\b(?:m\.?|madde)\s*(\d{1,4})\b", re.IGNORECASE)
 # Citation.source_id ("m-IK-31") veya title ("IK Madde 31") sondaki madde no.
 _REF_SID_MADDE_RE = re.compile(r"-(\d{1,4})$")
@@ -56,8 +61,13 @@ _REF_TITLE_MADDE_RE = re.compile(r"\bmadde\s*(\d{1,4})\b", re.IGNORECASE)
 
 
 def _stated_madde_numbers(text: str) -> set[int]:
-    """Claim metninde AÇIKÇA belirtilen madde numaraları."""
-    return {int(n) for n in _CLAIM_MADDE_NO_RE.findall(text)}
+    """Claim metninde AÇIKÇA belirtilen madde numaraları.
+
+    "madde 21" / "m. 21" yanında kaynak-id "m-IK-21" formundaki numarayı da alır.
+    """
+    nums = {int(n) for n in _CLAIM_MADDE_NO_RE.findall(text)}
+    nums |= {int(n) for n in _SRC_ID_RE.findall(text)}
+    return nums
 
 
 def _ref_madde_no(ref: Citation) -> int | None:
@@ -132,9 +142,12 @@ def layer1_rules(claim: Claim) -> tuple[bool, str]:
     text = claim.get("text", "")
     has_madde_root = bool(re.search(r"\bmadde", text, re.IGNORECASE))
     has_madde_format = bool(_MADDE_FORMAT_RE.search(text))
+    has_src_id = bool(_SRC_ID_RE.search(text))
     has_esas_karar = bool(_ESAS_KARAR_RE.search(text))
 
-    if has_madde_root and not (has_madde_format or has_esas_karar):
+    # "madde" kökü var ama ne "madde 21" formatı, ne kaynak-id (m-IK-21), ne de
+    # esas/karar no → numara yok, şüpheli (yer-tutucu olabilir).
+    if has_madde_root and not (has_madde_format or has_src_id or has_esas_karar):
         return False, "'madde' geçiyor ama numara format bulunamadı"
 
     parsed = parse_citation(text)

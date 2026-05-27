@@ -36,6 +36,26 @@ def test_stated_madde_numbers_empty_when_none():
     assert vl._stated_madde_numbers("işçi ihbar tazminatı alabilir") == set()
 
 
+def test_stated_madde_numbers_extracts_from_source_id():
+    """Draft kaynak-id'yi prose'a gömerse ('m-IK-21') numara yine çıkar."""
+    assert vl._stated_madde_numbers("m-IK-21 maddesine göre işe iade") == {21}
+    assert vl._stated_madde_numbers("m-EIK-14 ve m-IK-17 maddeleri") == {14, 17}
+
+
+# --- layer1_rules: kaynak-id formatı geçerli madde referansı sayılır ---
+
+def test_layer1_accepts_source_id_format():
+    """'m-IK-21 maddesine göre' → format-eksik diye REDDEDİLMEZ (regresyon fix)."""
+    ok, msg = vl.layer1_rules(_claim("işçilik hukukunun m-IK-21 maddesine göre işe iade"))
+    assert ok is True, msg
+
+
+def test_layer1_still_rejects_madde_without_number():
+    """'madde' kökü var ama hiç numara yok → hâlâ reddedilir (yer-tutucu)."""
+    ok, _msg = vl.layer1_rules(_claim("ilgili madde uyarınca işçi hak sahibidir burada"))
+    assert ok is False
+
+
 # --- _ref_madde_no ---
 
 def test_ref_madde_no_from_source_id():
