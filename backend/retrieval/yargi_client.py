@@ -32,14 +32,13 @@ from tenacity import (
     wait_exponential,
 )
 
+from retrieval.mcp_base import PROTOCOL_VERSION, SESSION_HEADER, parse_mcp_response
+
 logger = logging.getLogger(__name__)
 
 YARGI_MCP_URL = os.getenv("YARGI_MCP_URL", "https://yargimcp.surucu.dev/mcp")
 YARGI_MCP_TIMEOUT_MS = int(os.getenv("YARGI_MCP_TIMEOUT_MS", "30000"))
 YARGI_MCP_TOKEN = os.getenv("YARGI_MCP_TOKEN")
-
-PROTOCOL_VERSION = "2024-11-05"
-SESSION_HEADER = "mcp-session-id"
 
 CourtType = Literal[
     "YARGITAYKARARI",
@@ -160,7 +159,7 @@ class YargiClient:
         if not self._session_id:
             raise RuntimeError("yargi-mcp initialize yanıtında session ID yok")
 
-        envelope = _parse_mcp_response(resp.text)
+        envelope = parse_mcp_response(resp.text)
         if "error" in envelope:
             raise RuntimeError(f"initialize hatası: {envelope['error']}")
 
@@ -203,7 +202,7 @@ class YargiClient:
             headers={SESSION_HEADER: self._session_id},
         )
         resp.raise_for_status()
-        envelope = _parse_mcp_response(resp.text)
+        envelope = parse_mcp_response(resp.text)
 
         if "error" in envelope:
             err = envelope["error"]
@@ -515,28 +514,6 @@ class YargiClient:
             or data.get("text")
             or ""
         )
-
-
-def _parse_mcp_response(body: str) -> dict[str, Any]:
-    """MCP yanıtı düz JSON veya SSE chunked olabilir — ikisini de işle."""
-    body = body.strip()
-    if not body:
-        return {}
-
-    if body.startswith("{"):
-        return json.loads(body)
-
-    for line in body.splitlines():
-        line = line.strip()
-        if line.startswith("data:"):
-            payload = line[5:].strip()
-            if payload and payload != "[DONE]":
-                try:
-                    return json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-
-    raise ValueError(f"MCP yanıtı parse edilemedi: {body[:200]}")
 
 
 _DATE_FORMATS = (

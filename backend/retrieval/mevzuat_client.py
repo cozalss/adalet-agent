@@ -32,13 +32,12 @@ from tenacity import (
     wait_exponential,
 )
 
+from retrieval.mcp_base import PROTOCOL_VERSION, SESSION_HEADER, parse_mcp_response
+
 logger = logging.getLogger(__name__)
 
 MEVZUAT_MCP_URL = os.getenv("MEVZUAT_MCP_URL", "https://mevzuat.surucu.dev/mcp")
 MEVZUAT_MCP_TIMEOUT_MS = int(os.getenv("MEVZUAT_MCP_TIMEOUT_MS", "30000"))
-
-PROTOCOL_VERSION = "2024-11-05"
-SESSION_HEADER = "mcp-session-id"
 
 # Türk hukukunun temel kanun numaraları → kanun kodları
 # Kapsam (CLAUDE.md §4): tuketici, isHukuku, kira, icra, trafik, vergi, tapu, idari
@@ -233,7 +232,7 @@ class MevzuatClient:
             headers={SESSION_HEADER: self._session_id},
         )
         resp.raise_for_status()
-        data = _parse_mcp_response(resp.text)
+        data = parse_mcp_response(resp.text)
         if "error" in data:
             raise RuntimeError(f"mevzuat-mcp error: {data['error']}")
         result = data.get("result", {})
@@ -283,23 +282,6 @@ class MevzuatClient:
             {"mevzuat_id": mevzuat_id},
         )
         return data.get("nodes") or data.get("tree") or data.get("items") or []
-
-
-def _parse_mcp_response(body: str) -> dict[str, Any]:
-    """yargi-mcp ile aynı SSE/JSON parser mantığı."""
-    body = body.strip()
-    if body.startswith("{"):
-        return json.loads(body)
-    for line in body.split("\n"):
-        line = line.strip()
-        if line.startswith("data:"):
-            payload = line[len("data:"):].strip()
-            if payload:
-                try:
-                    return json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-    raise ValueError(f"mevzuat-mcp yanıtı parse edilemedi: {body[:200]}")
 
 
 def _parse_mevzuat_ref(item: dict[str, Any]) -> MevzuatRef:
