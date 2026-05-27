@@ -76,9 +76,13 @@ async def test_stt_tts_round_trip_turkish() -> None:
     assert stt.language == "tr"
     assert stt.duration_s > 1.0
 
-    # Anahtar kelimeler test (case-insensitive, küçük hata toleransı)
+    # Anahtar kelimeler test (case-insensitive, küçük hata toleransı).
+    # Whisper-small Piper çıktısını noisy transkript eder ("tazminatı"→
+    # "tazmineti"); docstring birebir eşleşme beklemiyor. ASR-dayanıklı KÖK
+    # ("tazmin") üzerinden kontrol — gerçek hatayı (boş/alakasız metin) yine
+    # yakalar ama ek-çekim gürültüsünde flaky olmaz.
     text_lower = stt.text.lower()
-    assert "tazminat" in text_lower, f"'tazminat' yok: {stt.text!r}"
+    assert "tazmin" in text_lower, f"'tazminat' türevi yok: {stt.text!r}"
     assert any(
         w in text_lower for w in ("kıdem", "kıdam", "kidam", "kidem")
     ), f"'kıdem' türevleri yok: {stt.text!r}"
