@@ -69,6 +69,24 @@ class ClaimSchema(BaseModel):
     verify_reason: str
 
 
+class PredictionSchema(BaseModel):
+    """Dava sonucu tahmini — opsiyonel 8. ajan (tahmin_node) çıktısı.
+
+    KRİTİK: Bu bir TAHMİN, mahkeme garantisi değildir. `confidence` ≤ 0.85
+    (kesinlik ima etmez). 'belirsiz' = yeterli/uyumlu emsal sinyali yok.
+    """
+
+    verdict_class: Literal["kazandi", "kaybetti", "kismi", "belirsiz"]
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    similar_case_ids: list[str] = Field(default_factory=list)
+    reasoning: str = ""
+    disclaimer: str = (
+        "Bu tahmin geçmiş Yargıtay kararlarından türetilmiş istatistiksel bir "
+        "tahmindir; mahkeme sonucu garantisi DEĞİLDİR. Kesin değerlendirme için "
+        "bir avukata danışın."
+    )
+
+
 class AskResponse(BaseModel):
     """Tam yanıt — UI buradan render eder."""
 
@@ -82,6 +100,9 @@ class AskResponse(BaseModel):
     disclaimers: list[str] = Field(default_factory=list)
     debate_notes: str = ""
     retry_count: int = 0
+    prediction: PredictionSchema | None = Field(
+        None, description="Opsiyonel dava sonucu tahmini (PREDICTIVE_ENABLED).",
+    )
     errors: list[str] = Field(default_factory=list)
     latency_ms: int = 0
     conversation_id: str | None = None

@@ -58,9 +58,25 @@ from agents.nodes.emsal import emsal_node
 from agents.nodes.finalize import finalize_node
 from agents.nodes.mevzuat import mevzuat_node
 from agents.nodes.self_rag import self_rag_node
+from agents.nodes.tahmin import tahmin_node
 from agents.nodes.triaj import triaj_node
 from agents.nodes.verify import verify_node
 from agents.state import AgentState
+
+
+def _predictive_enabled() -> bool:
+    """ENV ile etkin: PREDICTIVE_ENABLED=1 (default kapalı — 8. ajan opt-in)."""
+    return os.environ.get("PREDICTIVE_ENABLED", "0").lower() in {"1", "true", "yes"}
+
+
+def _sink() -> str:
+    """Finalize'dan ÖNCEKİ son durak.
+
+    PREDICTIVE_ENABLED=1 ise finalize-bound her yol önce `tahmin`'e uğrar
+    (tahmin → finalize). Kapalıyken doğrudan `finalize` — baseline topoloji
+    birebir korunur.
+    """
+    return "tahmin" if _predictive_enabled() else "finalize"
 
 
 def _route_after_triaj(state: AgentState) -> list[str] | str:
@@ -70,7 +86,7 @@ def _route_after_triaj(state: AgentState) -> list[str] | str:
     - aksi                  → mevzuat + emsal paralel
     """
     if state.get("domain", "unknown") == "unknown":
-        return "finalize"
+        return _sink()
     return ["mevzuat", "emsal"]
 
 
@@ -86,8 +102,8 @@ def _route_after_debate(state: AgentState) -> str:
 
     if verdict == "retry" and retry_count <= MAX_RETRY:
         return "draft"
-    # pass veya reject veya retry-limit-doldu → finalize
-    return "finalize"
+    # pass veya reject veya retry-limit-doldu → finalize (veya tahmin → finalize)
+    return _sink()
 
 
 def _crag_enabled() -> bool:
@@ -125,10 +141,18 @@ def build_graph() -> Any:
     # Opsiyonel SOTA node'lar
     crag_on = _crag_enabled()
     self_rag_on = _self_rag_enabled()
+    predictive_on = _predictive_enabled()
     if crag_on:
         g.add_node("crag", crag_node)
     if self_rag_on:
         g.add_node("self_rag", self_rag_node)
+    if predictive_on:
+        # 8. ajan: finalize öncesi araya girer (tahmin → finalize).
+        g.add_node("tahmin", tahmin_node)
+        g.add_edge("tahmin", "finalize")
+
+    # Finalize öncesi son durak — predictive açıksa "tahmin", değilse "finalize".
+    sink = "tahmin" if predictive_on else "finalize"
 
     g.add_edge(START, "triaj")
 
@@ -136,7 +160,7 @@ def build_graph() -> Any:
     g.add_conditional_edges(
         "triaj",
         _route_after_triaj,
-        ["mevzuat", "emsal", "finalize"],
+        ["mevzuat", "emsal", sink],
     )
 
     # Fan-in: mevzuat ve emsal bittiğinde → (crag veya draft)
@@ -158,13 +182,13 @@ def build_graph() -> Any:
         g.add_conditional_edges(
             "self_rag",
             _route_after_debate,
-            ["draft", "finalize"],
+            ["draft", sink],
         )
     else:
         g.add_conditional_edges(
             "debate",
             _route_after_debate,
-            ["draft", "finalize"],
+            ["draft", sink],
         )
 
     g.add_edge("finalize", END)

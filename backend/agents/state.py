@@ -56,6 +56,26 @@ class Claim(TypedDict):
     verify_reason: str
 
 
+# Tahmin ajanı (opsiyonel 8. ajan) sonuç sınıfları. "belirsiz" = heuristic
+# baseline yeterli/uyumlu emsal sinyali bulamadı (dürüst düşüş — uydurma yok).
+PredictionClass = Literal["kazandi", "kaybetti", "kismi", "belirsiz"]
+
+
+class Prediction(TypedDict):
+    """Dava sonucu tahmini — opsiyonel `tahmin_node` çıktısı.
+
+    Heuristic baseline (emsal kararların sonuç-sinyali oylaması) veya Sprint-7/8
+    fine-tuned BERT-TR üretir. `confidence` kalibrasyon-hedefli [0,1] — ASLA
+    kesinlik ima etmez (≤0.85). Bu bir TAHMİN, mahkeme garantisi değildir
+    (CLAUDE.md §2); verify/debate hard-gate'i bundan etkilenmez (yalnız display).
+    """
+
+    verdict_class: PredictionClass
+    confidence: float
+    similar_case_ids: list[str]
+    reasoning: str
+
+
 class ConversationTurn(TypedDict):
     """Geçmiş konuşma turu — multi-turn context için.
 
@@ -118,6 +138,9 @@ class AgentState(TypedDict):
     debate_verdict: DebateVerdict
     debate_notes: str
     retry_count: int               # max 3 (config.MAX_RETRY)
+
+    # --- Tahmin (opsiyonel 8. ajan, PREDICTIVE_ENABLED) ---
+    prediction: NotRequired[Prediction | None]
 
     # --- Çıkış ---
     response: str

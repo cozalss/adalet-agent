@@ -35,7 +35,13 @@ from api.limiter import ask_rate_for, limiter
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
 from api.pii import mask_pii
-from api.schemas import AskRequest, AskResponse, CitationSchema, ClaimSchema
+from api.schemas import (
+    AskRequest,
+    AskResponse,
+    CitationSchema,
+    ClaimSchema,
+    PredictionSchema,
+)
 from api.session_store import get_store
 from core.observability import (
     current_trace_id,
@@ -356,6 +362,17 @@ def _state_to_response(
         )
         for c in state.get("verified_claims", []) or state.get("claims", [])
     ]
+    pred = state.get("prediction")
+    prediction = (
+        PredictionSchema(
+            verdict_class=pred["verdict_class"],
+            confidence=float(pred["confidence"]),
+            similar_case_ids=list(pred.get("similar_case_ids", [])),
+            reasoning=pred.get("reasoning", ""),
+        )
+        if pred
+        else None
+    )
     return AskResponse(
         answer=state.get("response", ""),
         domain=state.get("domain", "unknown"),
@@ -367,6 +384,7 @@ def _state_to_response(
         disclaimers=state.get("disclaimers", []),
         debate_notes=state.get("debate_notes", ""),
         retry_count=int(state.get("retry_count", 0)),
+        prediction=prediction,
         errors=state.get("errors", []),
         latency_ms=elapsed_ms,
         conversation_id=conv_id or state.get("conversation_id"),

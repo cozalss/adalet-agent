@@ -1,9 +1,17 @@
 # predictive — Dava Sonucu Tahmin Modeli (Sprint-7/8, Mart-Nisan 2027)
 
-> **Durum (2026-05-26):** Tasarım ve plan TAM dökümante; eğitim verisi toplama
-> ve fine-tune Sprint-7/8'de. Bu README'yi okuyan Üye 4 (ML lead) doğrudan
-> uygulamaya başlayabilir. Bitirme jürisinde "scope kasıtlı dışı, plan hazır,
-> Sprint-7/8'de implement" diye savunulur.
+> **Durum (2026-05-27):** ✅ **Heuristic baseline CANLI** — 8. ajan (`tahmin_node`)
+> artık çalışıyor. README'nin "Aşama-1: Regex + Heuristic" yaklaşımı
+> `predictive/inference.py`'de implemente edildi: getirilen benzer Yargıtay
+> kararlarının (emsal) sonuç-sinyallerini ("kabul/ret/kısmen") oylayıp TUTUCU bir
+> tahmin üretir; yeterli/uyumlu sinyal yoksa dürüstçe "belirsiz". `PREDICTIVE_ENABLED=1`
+> ile graph'a girer (finalize öncesi), `/ask` yanıtına `prediction` alanı eklenir.
+> `confidence` ≤ 0.85 (kesinlik ima etmez); verify/debate hard-gate'i etkilenmez.
+>
+> **Fine-tuned BERT-TR (aşağıdaki tasarım) hâlâ Sprint-7/8'de:** 10K etiketli
+> korpus + fine-tune. `predict_outcome()` arayüzü STABİL — model geldiğinde
+> heuristic'in yerine bu fonksiyonun içine düşer, çağıranlar (tahmin_node,
+> graph, API) değişmez. Önceki durum (tasarım/plan) aşağıda korunmuştur.
 
 ## 🎯 Hedef
 

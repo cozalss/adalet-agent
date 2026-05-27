@@ -40,6 +40,8 @@ async def finalize_node(state: AgentState) -> dict:
         "response": final,
         "confidence": confidence,
         "disclaimers": [DISCLAIMER_TR],
+        # Tahmin (8. ajan) hesapladıysa state'te var; pass cevapta gösterilir.
+        "prediction": state.get("prediction"),
     }
 
 
@@ -54,6 +56,8 @@ def _reject_response(state: AgentState) -> dict:
         "response": f"{body}\n\n{DISCLAIMER_TR}",
         "confidence": 0.0,
         "disclaimers": [DISCLAIMER_TR],
+        # Reddedilen/kapsam-dışı cevapta kazanma tahmini gösterme (yanıltıcı olur).
+        "prediction": None,
     }
 
 
