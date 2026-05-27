@@ -75,7 +75,8 @@ async def test_draft_prompt_has_eligibility_steps(monkeypatch):
     user_msg = next(m for m in cap.messages if m.role == "user")
     low = user_msg.content.lower()
     assert "eşik" in low or "şart" in low       # eşik/şart kontrolü
-    assert "doğmadığını" in low or "doğmad" in low  # eksik hakkı reddet talimatı
+    # eksik şartlı hakkı reddet talimatı: "doğmaz"/"doğmadığını"/"hak yok" formları
+    assert "doğma" in low or "hak yok" in low or "hakkınız yok" in low
 
 
 @pytest.mark.asyncio

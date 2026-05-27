@@ -168,10 +168,11 @@ _FACT_LABELS = {
 
 
 def _format_facts_for_prompt(facts: dict[str, object]) -> str:
-    """Triaj'ın çıkardığı olguları draft prompt'una hint bloğu olarak göm.
+    """Triaj'ın çıkardığı olguları draft prompt'una belirgin blok olarak göm.
 
-    Olgu yoksa boş string → ADIM 1 LLM'i kendi olgu çıkarımını yapar (degrade yok).
-    Varsa, eşik-kontrolü (ADIM 2) için somut zemin verir: "Süre: 3 ay" gibi.
+    Olgu yoksa boş string → LLM kendi olgu çıkarımını yapar (degrade yok).
+    Varsa eşik-kontrolü (ADIM 2) için somut zemin verir: "Süre: 3 ay" gibi.
+    Blok prompt'ta öne (KULLANICININ DURUMU) konur ki model gözünden kaçmasın.
     """
     if not facts:
         return ""
@@ -182,7 +183,10 @@ def _format_facts_for_prompt(facts: dict[str, object]) -> str:
     ]
     if not parts:
         return ""
-    return " (Sorudan çıkarılan olgular — " + "; ".join(parts) + ")"
+    return (
+        "\n\nKULLANICININ DURUMU (sorudan çıkarılan somut olgular — "
+        "eşik karşılaştırmasında BUNLARI kullan):\n- " + "\n- ".join(parts)
+    )
 
 
 def _format_refs_for_prompt(refs: list[Citation]) -> str:
