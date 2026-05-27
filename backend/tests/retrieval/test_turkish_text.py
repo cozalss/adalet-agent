@@ -146,3 +146,37 @@ def test_morphological_variants_uses_vowel_harmonic_suffix():
     # Harmony 'lik' DEĞİLSE, yanlış 'lik' formu üretilmemeli (regresyon guard)
     if expected_suffix != "lik":
         assert not any(stems[0] + "lik" in v for v in variants)
+
+
+# --- Hukuki eşanlam genişletmesi (W15) ---
+
+
+def test_expand_with_synonyms_substitutes_known_phrase():
+    """'depozito' → 'güvence bedeli' / 'kira teminatı' varyantları."""
+    variants = tt.expand_with_synonyms("depozito iade edilmedi", max_variants=3)
+    assert variants  # boş değil
+    joined = " || ".join(variants)
+    assert "güvence bedeli" in joined or "kira teminatı" in joined
+    # Orijinal ifade varyantlarda bırakılmamalı (hepsi farklı olmalı)
+    assert "depozito iade edilmedi" not in variants
+
+
+def test_expand_with_synonyms_no_match_returns_empty():
+    assert tt.expand_with_synonyms("hava bugün çok güzel", max_variants=3) == []
+
+
+def test_expand_with_synonyms_caps_at_max():
+    variants = tt.expand_with_synonyms("kıdem tazminatı ve işten çıkarma", max_variants=2)
+    assert len(variants) <= 2
+
+
+def test_expand_with_synonyms_case_insensitive_turkish():
+    """Büyük-İ ile yazılmış ifade de eşleşmeli (İŞTEN ÇIKARMA)."""
+    variants = tt.expand_with_synonyms("İŞTEN ÇIKARMA haksız mı", max_variants=3)
+    assert variants
+    joined = " || ".join(variants)
+    assert "fesih" in joined or "işe son verme" in joined or "işten atılma" in joined
+
+
+def test_expand_with_synonyms_empty_input():
+    assert tt.expand_with_synonyms("", max_variants=3) == []

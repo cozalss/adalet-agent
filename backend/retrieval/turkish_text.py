@@ -220,6 +220,97 @@ def _last_vowel_back(word: str) -> bool:
     return _last_vowel(word) in "aıou"
 
 
+# --------------------------------------------------------------------------
+#  Hukuki eşanlamlılık genişletmesi (deterministik — LLM'siz)
+# --------------------------------------------------------------------------
+#
+# Vatandaş dili ↔ kanun jargonu köprüsü. "depozitomu vermiyor" ile "kira
+# teminatı iade edilmedi" aynı semantik soru ama farklı kelimeler — dense
+# embedder bunu kısmen yakalar, ama deterministik genişletme recall'u LLM
+# multi-query'ye (timeout'a düşebilir) bağımlı olmadan artırır.
+#
+# Kapsam: CLAUDE.md §4 — tüketici + iş + kira hukuku + genel hukuki terimler.
+# Her grup KARŞILIKLI eşanlamlı ifadelerden oluşur; bir soruda grubun herhangi
+# bir üyesi geçerse diğer üyelerle değiştirerek varyant sorgu üretilir.
+LEGAL_SYNONYMS: tuple[tuple[str, ...], ...] = (
+    # --- İş hukuku ---
+    ("kıdem tazminatı", "iş sonu tazminatı", "işten ayrılma tazminatı"),
+    ("ihbar tazminatı", "bildirim tazminatı", "ihbar öneli tazminatı"),
+    ("işten çıkarma", "iş akdinin feshi", "işe son verme", "işten atılma"),
+    ("haksız fesih", "geçersiz fesih", "haksız işten çıkarma"),
+    ("fazla mesai", "fazla çalışma", "fazla mesai ücreti"),
+    ("işçi alacağı", "işçilik alacakları", "ödenmeyen ücret"),
+    ("yıllık izin", "yıllık ücretli izin", "izin ücreti"),
+    # --- Kira hukuku ---
+    ("depozito", "güvence bedeli", "kira teminatı", "depozito iadesi"),
+    ("ev sahibi", "kiraya veren", "mülk sahibi"),
+    ("tahliye", "evden çıkarma", "kiracının tahliyesi", "boşaltma"),
+    ("kira sözleşmesi", "kira kontratı", "kira akdi"),
+    ("kira artışı", "kira zammı", "kira bedeli artışı"),
+    # --- Tüketici hukuku ---
+    ("ayıplı mal", "kusurlu ürün", "defolu ürün", "arızalı ürün"),
+    ("cayma hakkı", "sözleşmeden dönme", "vazgeçme hakkı"),
+    ("iade", "geri ödeme", "ücret iadesi", "para iadesi"),
+    ("garanti", "garanti belgesi", "garanti kapsamı"),
+    ("tüketici hakem heyeti", "hakem heyeti", "tüketici hakları"),
+    ("mesafeli satış", "internetten alışveriş", "online satış"),
+    # --- Genel hukuki terimler ---
+    ("ihtarname", "ihtar", "resmi uyarı", "noter ihtarı"),
+    ("sözleşme", "kontrat", "mukavele", "akit"),
+    ("tazminat", "zarar tazmini", "zararın giderilmesi"),
+    ("dava açmak", "dava etmek", "yargıya başvurmak"),
+    ("zamanaşımı", "hak düşürücü süre", "dava açma süresi"),
+    ("temerrüt", "borçlu temerrüdü", "ödememe"),
+)
+
+
+@lru_cache(maxsize=1)
+def _synonym_index() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Eşanlam araması için (ifade_lower, grup) çiftleri — uzun ifade önce.
+
+    Uzun ifade önce sıralanır ki "kira sözleşmesi" "kira"dan önce eşleşsin
+    (prefix-collision'ı önler).
+    """
+    pairs: list[tuple[str, tuple[str, ...]]] = []
+    for group in LEGAL_SYNONYMS:
+        lowered = tuple(tr_lower(m) for m in group)
+        for member in lowered:
+            pairs.append((member, lowered))
+    pairs.sort(key=lambda p: len(p[0]), reverse=True)
+    return tuple(pairs)
+
+
+def expand_with_synonyms(question: str, max_variants: int = 3) -> list[str]:
+    """Soruda geçen hukuki ifadeleri eşanlamlılarıyla değiştirip varyant üret.
+
+    Deterministik (LLM'siz). "depozitomu iade etmiyor" → "güvence bedeli iade
+    etmiyor", "kira teminatı iade etmiyor". multi_query'nin RRF kollarını
+    LLM'e bağımlı olmadan zenginleştirir.
+
+    Returns:
+        En fazla max_variants benzersiz varyant (orijinal hariç). İfade
+        bulunamazsa boş liste.
+    """
+    if not question.strip():
+        return []
+    q_low = tr_lower(question)
+    variants: list[str] = []
+    seen: set[str] = {q_low}
+    for member, group in _synonym_index():
+        if member not in q_low:
+            continue
+        for alt in group:
+            if alt == member:
+                continue
+            variant = q_low.replace(member, alt)
+            if variant not in seen:
+                seen.add(variant)
+                variants.append(variant)
+            if len(variants) >= max_variants:
+                return variants
+    return variants
+
+
 def _lik_suffix(word: str) -> str:
     """-lık/-lik/-luk/-lük — Türkçe 4-yönlü ünlü uyumu (büyük ünlü uyumu).
 
@@ -238,6 +329,8 @@ def _lik_suffix(word: str) -> str:
 
 
 __all__ = (
+    "LEGAL_SYNONYMS",
+    "expand_with_synonyms",
     "keyword_overlap",
     "morphological_variants",
     "stem_text",

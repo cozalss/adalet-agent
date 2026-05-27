@@ -36,7 +36,7 @@ import structlog
 
 from agents.llm import ChatMessage, get_llm
 from retrieval.hybrid_search import SearchResult, search
-from retrieval.turkish_text import morphological_variants
+from retrieval.turkish_text import expand_with_synonyms, morphological_variants
 
 log = structlog.get_logger()
 
@@ -47,6 +47,10 @@ DEFAULT_N = int(os.getenv("MULTI_QUERY_N", "5"))
 # Türkçe hukuk için 60 (standart) vs 80 (geç-rank'lara şans) sweep edilecek.
 RRF_K = int(os.getenv("RRF_K", "60"))
 MQ_CACHE_SIZE = 256                       # in-mem LRU max entry
+# Deterministik hukuki eşanlam genişletmesi. LLM paraphrase'lerini ASLA
+# atmaz — yalnız boş slot'ları doldurur ve LLM-fallback'i zenginleştirir.
+# `LEGAL_SYNONYM_EXPANSION=0` ile kapatılır.
+LEGAL_SYNONYM_ENABLED = os.getenv("LEGAL_SYNONYM_EXPANSION", "1").lower() in {"1", "true", "yes"}
 # Sprint-4 W1: silent `except Exception` antipattern'i daraltıldı —
 # CancelledError propagate olsun, gerçek bug'lar (TypeError vb.) yutulmasın.
 _LLM_FALLBACK_EXCEPTIONS = (asyncio.TimeoutError, httpx.HTTPError, ConnectionError)
@@ -154,8 +158,14 @@ async def expand_queries(
             error=str(exc) or type(exc).__name__,
             exc_type=type(exc).__name__,
         )
-        variants = morphological_variants(question, max_variants=n - 1)
-        out_queries = [question] + variants
+        # Hukuki eşanlam + morfoloji birlikte — LLM yokken en geniş deterministik
+        # genişletme (eşanlam vatandaş↔jargon, morfoloji ek-çekim).
+        budget = n - 1
+        variants: list[str] = []
+        if LEGAL_SYNONYM_ENABLED:
+            variants += expand_with_synonyms(question, max_variants=budget)
+        variants += morphological_variants(question, max_variants=budget)
+        out_queries = list(dict.fromkeys([question, *variants]))[:n]
         if len(out_queries) >= 2:
             _cache_put(cache_key, out_queries)
         return out_queries
@@ -168,6 +178,16 @@ async def expand_queries(
     # Boş çıkarsa orijinalle dön; çift ise tek tut
     queries = [question] + [p for p in paraphrases if p and p != question]
     queries = list(dict.fromkeys(queries))[:n]
+
+    # LLM az paraphrase ürettiyse (veya hiç) kalan slot'ları deterministik
+    # hukuki eşanlamla DOLDUR — LLM paraphrase'leri asla atılmaz (displacement
+    # yok). LLM zaten n slot'u doldurduysa bu no-op.
+    if LEGAL_SYNONYM_ENABLED and len(queries) < n:
+        for syn in expand_with_synonyms(question, max_variants=n - len(queries)):
+            if syn not in queries:
+                queries.append(syn)
+            if len(queries) >= n:
+                break
 
     _cache_put(cache_key, queries)
     log.info(

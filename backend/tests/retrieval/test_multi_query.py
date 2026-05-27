@@ -7,6 +7,8 @@ test edilir.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from retrieval import multi_query as mq
@@ -147,6 +149,65 @@ async def test_expand_queries_cache_hit():
 async def test_expand_queries_empty_input():
     out = await mq.expand_queries("", n=3)
     assert out == [""]
+
+
+# --------------------------------------------------------------------------
+# Hukuki eşanlam genişletmesi entegrasyonu (W15)
+# --------------------------------------------------------------------------
+
+
+class _FailingLLM:
+    """chat() ConnectionError fırlatır → multi_query deterministic fallback."""
+
+    async def chat(self, **_kwargs):
+        raise ConnectionError("simulated llm down")
+
+
+class _OneParaLLM:
+    """chat() tek paraphrase döner → success path boş slot doldurma tetiklenir."""
+
+    async def chat(self, **_kwargs):
+        return SimpleNamespace(content='{"paraphrases": ["tek bir uzun paraphrase cümlesi"]}')
+
+
+@pytest.mark.asyncio
+async def test_fallback_includes_legal_synonyms(monkeypatch):
+    """LLM down → eşanlam + morfoloji deterministic fallback; eşanlam varyantı gelir."""
+    mq.reset_cache()
+    monkeypatch.setattr(mq, "get_llm", lambda: _FailingLLM())
+    queries = await mq.expand_queries("depozito iade edilmedi ev sahibi vermiyor", n=5)
+    assert queries[0] == "depozito iade edilmedi ev sahibi vermiyor"
+    joined = " || ".join(queries)
+    # depozito veya ev sahibi grubundan en az bir eşanlam ikamesi
+    assert any(
+        s in joined
+        for s in ("güvence bedeli", "kira teminatı", "kiraya veren", "mülk sahibi")
+    )
+
+
+@pytest.mark.asyncio
+async def test_success_path_fills_remaining_slots_with_synonyms(monkeypatch):
+    """LLM az paraphrase üretirse kalan slot'lar eşanlamla dolar (displacement YOK)."""
+    mq.reset_cache()
+    monkeypatch.setattr(mq, "get_llm", lambda: _OneParaLLM())
+    queries = await mq.expand_queries("depozito iade edilmedi", n=5)
+    assert queries[0] == "depozito iade edilmedi"
+    # LLM paraphrase korunmalı
+    assert "tek bir uzun paraphrase cümlesi" in queries
+    # Boş slot'lar eşanlamla dolduruldu → 2'den fazla
+    assert len(queries) > 2
+    assert len(queries) == len(set(queries))  # benzersiz
+
+
+@pytest.mark.asyncio
+async def test_synonym_expansion_disabled_via_flag(monkeypatch):
+    """LEGAL_SYNONYM_EXPANSION=0 → fallback yalnız morfoloji, eşanlam yok."""
+    mq.reset_cache()
+    monkeypatch.setattr(mq, "LEGAL_SYNONYM_ENABLED", False)
+    monkeypatch.setattr(mq, "get_llm", lambda: _FailingLLM())
+    queries = await mq.expand_queries("depozito iade edilmedi", n=5)
+    joined = " || ".join(queries)
+    assert "güvence bedeli" not in joined and "kira teminatı" not in joined
 
 
 # --------------------------------------------------------------------------
