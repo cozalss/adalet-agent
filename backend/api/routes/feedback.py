@@ -6,10 +6,12 @@ Audit log'a + opsiyonel Langfuse score'a yazılır.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +45,13 @@ class FeedbackResponse(BaseModel):
     feedback_id: str
 
 
+def _append_jsonl(log_path: Path, record: dict[str, Any]) -> None:
+    """mkdir + append-write — blocking I/O (asyncio.to_thread ile çağrılır)."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 @router.post("", response_model=FeedbackResponse)
 async def submit_feedback(
     req: FeedbackRequest,
@@ -62,8 +71,7 @@ async def submit_feedback(
     sub_fp = fingerprint(principal.sub, 12)
     feedback_id = f"fb_{ts}_{sub_fp}"
 
-    # Persist — production'da SQLite veya append-only log
-    FEEDBACK_LOG_PATH.mkdir(parents=True, exist_ok=True)
+    # Persist — production'da SQLite veya append-only log (mkdir+write helper'da)
     record = {
         "feedback_id": feedback_id,
         "ts": datetime.now(UTC).isoformat(),
@@ -74,10 +82,9 @@ async def submit_feedback(
         "rating": req.rating,
         "comment_masked": safe_comment,
     }
-    import json
     log_path = FEEDBACK_LOG_PATH / f"feedback_{datetime.now(UTC).strftime('%Y%m%d')}.jsonl"
-    with log_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # Blocking dosya yazımı thread pool'da — event loop'u bloke etme.
+    await asyncio.to_thread(_append_jsonl, log_path, record)
 
     emit_audit(AuditEvent(
         event=f"feedback_{req.rating}",

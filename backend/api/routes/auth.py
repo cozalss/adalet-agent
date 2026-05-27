@@ -11,8 +11,10 @@ KVKK: davet kodu kullanılırken kullanıcı consent verir; bu metadata audit lo
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -74,36 +76,62 @@ def _save_invites(data: dict[str, dict[str, object]]) -> None:
     p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+# Davet dosyası load→check→mark→save dizisi atomik olmalı: iki eşzamanlı istek
+# aynı kodu kullanmasın (TOCTOU). threading.Lock — to_thread worker'ları arası
+# serialize eder, asyncio.Lock'un test-başına-loop cross-loop sorunu olmadan.
+_invite_file_lock = threading.Lock()
+
+
+def _consume_invite(
+    code: str, req_email: str | None,
+) -> tuple[str, dict[str, object] | None]:
+    """Atomik tek-kullanım davet tüketimi (threading.Lock altında).
+
+    Döner: ("ok", invite) | ("not_found", None) | ("used", None) | ("no_email", None).
+    Blocking dosya I/O burada (asyncio.to_thread ile çağrılır → event loop bloke olmaz).
+    """
+    with _invite_file_lock:
+        invites = _load_invites()
+        invite = invites.get(code)
+        if not invite:
+            return ("not_found", None)
+        if invite.get("used"):
+            return ("used", None)
+        email = invite.get("email") or req_email
+        if not email:
+            return ("no_email", None)
+        now = datetime.now(UTC).isoformat()
+        invite["used"] = True
+        invite["used_at"] = now
+        invite["consent_given_at"] = now
+        invites[code] = invite
+        _save_invites(invites)
+        return ("ok", invite)
+
+
 @router.post("/invite/{code}", response_model=TokenResponse)
 async def accept_invite(code: str, req: InviteAcceptRequest) -> TokenResponse:
-    """Davet kodu ile JWT alır. Kod tek kullanımlık."""
+    """Davet kodu ile JWT alır. Kod tek kullanımlık (race-safe)."""
     if not req.kvkk_consent:
         raise HTTPException(400, "KVKK onayı şart")
 
-    invites = _load_invites()
-    invite = invites.get(code)
-    if not invite:
+    # Atomik tüketim + blocking dosya I/O thread pool'da (event loop bloke olmaz).
+    result, invite = await asyncio.to_thread(_consume_invite, code, req.email)
+    if result == "not_found":
         raise HTTPException(404, "Geçersiz davet kodu")
-    if invite.get("used"):
+    if result == "used":
         raise HTTPException(409, "Davet kodu daha önce kullanıldı")
-
-    # Subject oluştur — invite'taki email yoksa request'tekini kullan
-    email = invite.get("email") or req.email
-    if not email:
+    if result == "no_email":
         raise HTTPException(400, "email zorunlu (invite veya request body)")
+    if invite is None:  # mypy narrowing + defensive (result=="ok" → invite var)
+        raise HTTPException(500, "davet işlenemedi")
 
+    email = invite.get("email") or req.email
     sub = f"beta:{email}"
     token = issue_token(
         sub, role="beta",
         email=str(email), name=req.name or invite.get("name") or "",
     )
-
-    # Davet'i tek-kullanım olarak işaretle
-    invite["used"] = True
-    invite["used_at"] = datetime.now(UTC).isoformat()
-    invite["consent_given_at"] = datetime.now(UTC).isoformat()
-    invites[code] = invite
-    _save_invites(invites)
 
     emit_audit(AuditEvent(
         event="invite_accepted",
