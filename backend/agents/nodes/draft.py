@@ -25,6 +25,9 @@ from core.observability import observe_node
 log = structlog.get_logger()
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "draft.tr.txt"
+# Prompt'u modül yüklenirken bir kez oku — her draft_node çağrısında (her /ask)
+# senkron disk I/O yapma (event loop'u bloke eder, gereksiz syscall).
+_DRAFT_TEMPLATE = _PROMPT_PATH.read_text(encoding="utf-8")
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
 _SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
@@ -55,8 +58,7 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         }
 
     kaynaklar = _format_refs_for_prompt(refs)
-    prompt_template = _PROMPT_PATH.read_text(encoding="utf-8")
-    user_prompt = prompt_template.replace("{kaynaklar_blogu}", kaynaklar).replace(
+    user_prompt = _DRAFT_TEMPLATE.replace("{kaynaklar_blogu}", kaynaklar).replace(
         "{soru}", question
     )
 

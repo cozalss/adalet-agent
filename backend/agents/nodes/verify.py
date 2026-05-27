@@ -22,6 +22,7 @@ Notlar:
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Iterable
 
@@ -86,11 +87,18 @@ async def verify_node(state: AgentState) -> dict:
     # VERIFY_STRICT modunda NLI/Lettuce çökerse VerifierUnavailableError fırlar →
     # fail-closed reject. Doğrulayıcı çalışmadıysa hiçbir iddia "doğrulanmış"
     # sayılamaz (SIFIR HALÜSİNASYON, CLAUDE.md §1).
+    #
+    # Layer 1/2 saf-Python (hızlı, inline). Layer 2.5 (LettuceDetect) ve Layer 3
+    # (NLI) bağımsız ve model-ağırlıklı: NLI senkron PyTorch forward'ı → bloke
+    # etmemek için to_thread; ikisini gather ile eşzamanlı koştur (yavaş olan
+    # "bedava" arkada çalışır).
+    layer1_results = [layer1_rules(c) for c in claims]
+    layer2_results = [layer2_fuzzy(c, refs) for c in claims]
     try:
-        layer1_results = [layer1_rules(c) for c in claims]
-        layer2_results = [layer2_fuzzy(c, refs) for c in claims]
-        layer25_results = await layer25_lettuce(claims, refs)
-        layer3_results = layer3_nli_batch(claims, refs)
+        layer25_results, layer3_results = await asyncio.gather(
+            layer25_lettuce(claims, refs),
+            asyncio.to_thread(layer3_nli_batch, claims, refs),
+        )
     except VerifierUnavailableError as exc:
         log.error("verify_fail_closed", error=str(exc), n_claims=len(claims))
         return {

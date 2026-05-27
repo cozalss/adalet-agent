@@ -22,7 +22,9 @@ Kullanım:
 
 from __future__ import annotations
 
+import asyncio
 import os
+import threading
 from dataclasses import dataclass, field
 from functools import cached_property
 
@@ -65,6 +67,12 @@ class Embedder:
         self.model_name = model_name
         self.use_fp16 = use_fp16
         self.device = device
+        # BGEM3FlagModel tek-device forward'ı thread-safe DEĞİL. encode() artık
+        # asyncio.to_thread ile çağrıldığından (aencode/aencode_query), eşzamanlı
+        # worker thread'leri aynı modele girmesin diye serialize ediyoruz.
+        # threading.Lock (asyncio.Lock değil) — kilit worker thread'ler arası,
+        # üstelik pytest'in test-başına event loop'unda cross-loop hatası yok.
+        self._encode_lock = threading.Lock()
 
     @cached_property
     def _model(self):
@@ -116,14 +124,17 @@ class Embedder:
         # encode_single_device kullanıyoruz: FlagEmbedding'in default encode()
         # Windows CPU mode'da multi-process pool deadlock yapıyor (spawn).
         # encode_single_device tek process, deterministik, async-safe.
-        result = self._model.encode_single_device(
-            texts,
-            batch_size=batch_size,
-            max_length=max_length,
-            return_dense=True,
-            return_sparse=True,
-            return_colbert_vecs=want_colbert,
-        )
+        # Kilit hem ilk model yüklemesini (cached_property thread-safe değil) hem
+        # eşzamanlı forward'ları serialize eder.
+        with self._encode_lock:
+            result = self._model.encode_single_device(
+                texts,
+                batch_size=batch_size,
+                max_length=max_length,
+                return_dense=True,
+                return_sparse=True,
+                return_colbert_vecs=want_colbert,
+            )
 
         dense_arr = result["dense_vecs"]
         lexical = result["lexical_weights"]
@@ -147,6 +158,33 @@ class Embedder:
         out = self.encode([text], batch_size=1, return_colbert=return_colbert)
         colbert = out.colbert[0] if out.colbert else None
         return out.dense[0], out.sparse[0], colbert
+
+    # ----------------------------------------------------------------------
+    #  Async wrappers — encode CPU/GPU-bound; event loop'u bloke etmemeli.
+    #  Sync encode() PyTorch forward'ı async path'te (her /ask request)
+    #  doğrudan çağrılırsa tüm event loop'u kilitler (eşzamanlı tüm istekler
+    #  serialize olur). to_thread'e taşıyoruz; thread-safety _encode_lock'ta.
+    # ----------------------------------------------------------------------
+
+    async def aencode(
+        self,
+        texts: list[str],
+        batch_size: int = 12,
+        max_length: int = MAX_LENGTH,
+        return_colbert: bool | None = None,
+    ) -> EmbedOutput:
+        """encode() — thread pool'da (event loop bloke olmaz)."""
+        return await asyncio.to_thread(
+            self.encode, texts, batch_size, max_length, return_colbert,
+        )
+
+    async def aencode_query(
+        self,
+        text: str,
+        return_colbert: bool | None = None,
+    ) -> tuple[list[float], tuple[list[int], list[float]], list[list[float]] | None]:
+        """encode_query() — thread pool'da (event loop bloke olmaz)."""
+        return await asyncio.to_thread(self.encode_query, text, return_colbert)
 
 
 def _lexical_to_sparse(weights: dict) -> tuple[list[int], list[float]]:

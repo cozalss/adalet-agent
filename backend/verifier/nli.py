@@ -22,6 +22,7 @@ Zero-shot pipeline DEĞİL — bu model doğrudan NLI cross-encoder olarak çal�
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Literal
@@ -52,6 +53,11 @@ class NLIVerifier:
     def __init__(self, model_name: str = NLI_MODEL, use_fp16: bool = True) -> None:
         self.model_name = model_name
         self.use_fp16 = use_fp16
+        # verify_batch artık verify_node'da asyncio.to_thread ile çağrılıyor.
+        # Eşzamanlı /ask request'leri aynı mDeBERTa modeline ayrı thread'lerden
+        # girmesin diye serialize ediyoruz (transformers forward + ilk yükleme
+        # thread-safe değil). threading.Lock — kilit worker thread'ler arası.
+        self._infer_lock = threading.Lock()
 
     @cached_property
     def _components(self):
@@ -79,20 +85,21 @@ class NLIVerifier:
         if not claim.strip() or not evidence.strip():
             return NLIResult("neutral", 0.0, 0.0, 1.0, 0.0)
 
-        tokenizer, model, device = self._components
+        with self._infer_lock:
+            tokenizer, model, device = self._components
 
-        # NLI pair: (premise, hypothesis) — modelin beklediği sıra
-        inputs = tokenizer(
-            evidence, claim,
-            return_tensors="pt",
-            truncation=True,
-            max_length=512,
-            padding=True,
-        ).to(device)
+            # NLI pair: (premise, hypothesis) — modelin beklediği sıra
+            inputs = tokenizer(
+                evidence, claim,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512,
+                padding=True,
+            ).to(device)
 
-        with torch.no_grad():
-            logits = model(**inputs).logits
-        probs = torch.softmax(logits, dim=-1)[0].float().cpu().tolist()
+            with torch.no_grad():
+                logits = model(**inputs).logits
+            probs = torch.softmax(logits, dim=-1)[0].float().cpu().tolist()
 
         ent, neu, con = probs[0], probs[1], probs[2]
         top_idx = int(max(range(3), key=lambda i: probs[i]))
@@ -113,32 +120,34 @@ class NLIVerifier:
         if not pairs:
             return []
 
-        tokenizer, model, device = self._components
         results: list[NLIResult] = []
 
-        for i in range(0, len(pairs), batch_size):
-            batch = pairs[i : i + batch_size]
-            premises = [e for _, e in batch]
-            hypotheses = [c for c, _ in batch]
-            inputs = tokenizer(
-                premises, hypotheses,
-                return_tensors="pt", truncation=True, max_length=512, padding=True,
-            ).to(device)
+        with self._infer_lock:
+            tokenizer, model, device = self._components
 
-            with torch.no_grad():
-                logits = model(**inputs).logits
-            probs = torch.softmax(logits, dim=-1).float().cpu().tolist()
+            for i in range(0, len(pairs), batch_size):
+                batch = pairs[i : i + batch_size]
+                premises = [e for _, e in batch]
+                hypotheses = [c for c, _ in batch]
+                inputs = tokenizer(
+                    premises, hypotheses,
+                    return_tensors="pt", truncation=True, max_length=512, padding=True,
+                ).to(device)
 
-            for p in probs:
-                ent, neu, con = p[0], p[1], p[2]
-                top_idx = int(max(range(3), key=lambda i: p[i]))
-                results.append(NLIResult(
-                    label=_ID2LABEL[top_idx],
-                    score=float(p[top_idx]),
-                    entailment_score=float(ent),
-                    neutral_score=float(neu),
-                    contradiction_score=float(con),
-                ))
+                with torch.no_grad():
+                    logits = model(**inputs).logits
+                probs = torch.softmax(logits, dim=-1).float().cpu().tolist()
+
+                for p in probs:
+                    ent, neu, con = p[0], p[1], p[2]
+                    top_idx = int(max(range(3), key=lambda i: p[i]))
+                    results.append(NLIResult(
+                        label=_ID2LABEL[top_idx],
+                        score=float(p[top_idx]),
+                        entailment_score=float(ent),
+                        neutral_score=float(neu),
+                        contradiction_score=float(con),
+                    ))
         return results
 
 

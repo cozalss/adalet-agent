@@ -94,12 +94,13 @@ async def search_with_hyde(
         from retrieval.hybrid_search import search
         return await search(question=question, top_k=top_k, domain=qdrant_domain)
 
-    # 2) İki ayrı encoding:
-    #    - dense: hipotetik metnin embedding'i (HyDE tohumu)
-    #    - sparse: orijinal sorunun BM25 (keyword için orijinal şart)
+    # 2) Tek batch encoding (iki ayrı forward yerine bir forward + to_thread):
+    #    - dense: hipotetik metnin embedding'i (HyDE tohumu) → out[0]
+    #    - sparse: orijinal sorunun BM25 (keyword için orijinal şart) → out[1]
     embedder = _get_embedder()
-    hypo_dense, _hypo_sparse, _hypo_colbert = embedder.encode_query(hypo)
-    _q_dense, (sparse_idx, sparse_val), _q_colbert = embedder.encode_query(question)
+    out = await embedder.aencode([hypo, question])
+    hypo_dense = out.dense[0]
+    sparse_idx, sparse_val = out.sparse[1]
 
     query_filter = None
     if qdrant_domain:

@@ -97,7 +97,8 @@ async def search(
         want_colbert = COLBERT_QUERY_ENABLED and colbert_supported
 
         embedder = _get_embedder()
-        dense_vec, (sparse_idx, sparse_val), colbert_vecs = embedder.encode_query(
+        # to_thread: BGE-M3 forward CPU/GPU-bound — event loop'u bloke etme.
+        dense_vec, (sparse_idx, sparse_val), colbert_vecs = await embedder.aencode_query(
             question, return_colbert=want_colbert,
         )
 
