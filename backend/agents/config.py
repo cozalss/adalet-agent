@@ -56,6 +56,22 @@ def is_verify_strict() -> bool:
     """
     return os.getenv("VERIFY_STRICT", "0").lower() in {"1", "true", "yes"}
 
+def get_ask_graph_timeout_s() -> float:
+    """/ask + /ask/stream uçtan uca graph timeout (saniye). 0 = devre dışı.
+
+    Hung bir graph (LLM server yanıtsız, MCP retrieval takılı, sonsuz retry)
+    isteği süresiz açık tutup worker/connection tüketmesin diye üst sınır.
+    İç node timeout'larından (HyDE 15s, OCR, mevzuat_node total ~40s) bağımsız
+    son savunma hattı; aşılırsa /ask 504, /ask/stream timeout event döner.
+
+    Default 180s: production p99 üstünde geniş bir tavan; mock graph testlerde
+    ms'de biter, asla tetiklenmez (baseline korunur). Dinamik okunur ki testler
+    `monkeypatch.setenv` ile küçük değere çekip timeout yolunu sınayabilsin.
+    `ASK_GRAPH_TIMEOUT_S=0` ile tamamen kapatılabilir.
+    """
+    return float(os.getenv("ASK_GRAPH_TIMEOUT_S", "180"))
+
+
 # --- Debate ---
 DEBATE_REJECT_THRESHOLD = 0.30   # critique score < bu = hard reject
 MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max

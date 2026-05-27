@@ -15,6 +15,7 @@ Langfuse trace opsiyonel (LANGFUSE_PUBLIC_KEY varsa).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
@@ -25,6 +26,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import StreamingResponse
 
+from agents.config import get_ask_graph_timeout_s
 from agents.graph import build_graph, make_initial_state
 from agents.state import ConversationTurn
 from api.audit import AuditEvent
@@ -152,8 +154,24 @@ async def ask(
     # Backward-compat: get_langfuse_handler v4'te None döner (callback handler yok)
     _ = get_langfuse_handler  # imported for legacy callers; v4 no-op
 
+    timeout_s = get_ask_graph_timeout_s()
     try:
-        final_state = await graph.ainvoke(initial)
+        if timeout_s > 0:
+            final_state = await asyncio.wait_for(graph.ainvoke(initial), timeout=timeout_s)
+        else:
+            final_state = await graph.ainvoke(initial)
+    except TimeoutError as exc:
+        # Hung graph üst sınırı aştı — worker'ı süresiz tutmadan 504 dön.
+        emit_audit(AuditEvent(
+            event="ask_pipeline_timeout", principal=principal,
+            question=safe_for_log, conversation_id=conv_id,
+            errors=(f"timeout>{timeout_s}s",),
+        ))
+        log.warning("ask_pipeline_timeout", conv_id=conv_id, timeout_s=timeout_s)
+        raise HTTPException(
+            status_code=504,
+            detail="İstek zaman aşımına uğradı, lütfen tekrar deneyin.",
+        ) from exc
     except Exception as exc:
         emit_audit(AuditEvent(
             event="ask_pipeline_failed", principal=principal,
@@ -222,18 +240,23 @@ async def ask_stream(
     async def event_source() -> AsyncIterator[str]:
         start = time.perf_counter()
         final_state: dict = {}
+        timeout_s = get_ask_graph_timeout_s()
+        # /ask ile aynı uçtan uca tavan; 0 = devre dışı. nullcontext 3.10+ async
+        # CM olarak çalışır → astream döngüsünü tek kopyayla sarmalar.
+        guard: Any = asyncio.timeout(timeout_s) if timeout_s > 0 else contextlib.nullcontext()
         try:
             # stream_mode="values" → her node sonrası tüm state döner; en son
             # event final_state olur. İkinci graph.ainvoke gereksiz.
-            async for state in graph.astream(initial, stream_mode="values"):
-                final_state = state
-                # NOT: iç state anahtarlarını (list(state.keys())) istemciye yayma
-                # — iç şema sızıntısı. Frontend yalnız ilerleme sinyali kullanıyor.
-                payload = {
-                    "domain": state.get("domain"),
-                    "retry_count": state.get("retry_count", 0),
-                }
-                yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            async with guard:
+                async for state in graph.astream(initial, stream_mode="values"):
+                    final_state = state
+                    # NOT: iç state anahtarlarını (list(state.keys())) istemciye
+                    # yayma — iç şema sızıntısı. Frontend yalnız ilerleme sinyali.
+                    payload = {
+                        "domain": state.get("domain"),
+                        "retry_count": state.get("retry_count", 0),
+                    }
+                    yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
             elapsed = int((time.perf_counter() - start) * 1000)
             resp = _state_to_response(final_state, elapsed, conv_id)
@@ -252,6 +275,15 @@ async def ask_stream(
         except asyncio.CancelledError:
             log.warning("ask_stream_cancelled", conv_id=conv_id)
             raise
+        except TimeoutError:
+            log.warning("ask_stream_timeout", conv_id=conv_id, timeout_s=timeout_s)
+            emit_audit(AuditEvent(
+                event="ask_stream_timeout", principal=principal,
+                question=safe_for_log, conversation_id=conv_id,
+                errors=(f"timeout>{timeout_s}s",),
+            ))
+            err_payload = {"detail": "İstek zaman aşımına uğradı", "code": "stream_timeout"}
+            yield f"event: error\ndata: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
         except Exception as exc:
             log.exception("ask_stream_failed", error=str(exc))
             emit_audit(AuditEvent(
