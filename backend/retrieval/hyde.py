@@ -25,7 +25,7 @@ from qdrant_client import models
 
 from agents.llm import ChatMessage, get_llm
 from retrieval.hybrid_search import SearchResult, _get_embedder, _to_result
-from retrieval.vector_store import COLLECTION_NAME, get_client
+from retrieval.vector_store import COLLECTION_NAME, get_shared_client
 
 log = structlog.get_logger()
 
@@ -109,24 +109,21 @@ async def search_with_hyde(
                                   match=models.MatchValue(value=qdrant_domain))
         ])
 
-    # 3) Qdrant hybrid query (RRF fusion)
-    client = get_client()
-    try:
-        result = await client.query_points(
-            collection_name=COLLECTION_NAME,
-            prefetch=[
-                models.Prefetch(query=hypo_dense, using="dense",
-                                limit=prefetch_limit, filter=query_filter),
-                models.Prefetch(query=models.SparseVector(indices=sparse_idx,
-                                                         values=sparse_val),
-                                using="sparse",
-                                limit=prefetch_limit, filter=query_filter),
-            ],
-            query=models.FusionQuery(fusion=models.Fusion.RRF),
-            limit=top_k,
-            with_payload=True,
-        )
-    finally:
-        await client.close()
+    # 3) Qdrant hybrid query (RRF fusion) — paylaşılan client (kapatma).
+    client = get_shared_client()
+    result = await client.query_points(
+        collection_name=COLLECTION_NAME,
+        prefetch=[
+            models.Prefetch(query=hypo_dense, using="dense",
+                            limit=prefetch_limit, filter=query_filter),
+            models.Prefetch(query=models.SparseVector(indices=sparse_idx,
+                                                     values=sparse_val),
+                            using="sparse",
+                            limit=prefetch_limit, filter=query_filter),
+        ],
+        query=models.FusionQuery(fusion=models.Fusion.RRF),
+        limit=top_k,
+        with_payload=True,
+    )
 
     return [_to_result(p) for p in result.points]

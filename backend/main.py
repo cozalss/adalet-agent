@@ -120,6 +120,13 @@ async def lifespan(app: FastAPI):
         flush_langfuse()
     except Exception as exc:
         log.warning("langfuse_flush_failed_on_shutdown", error=str(exc))
+    # Paylaşılan Qdrant client'ı kapat (request path singleton'ı).
+    try:
+        from retrieval.vector_store import aclose_shared_client
+        await aclose_shared_client()
+        log.info("qdrant_shared_client_closed")
+    except Exception as exc:
+        log.warning("qdrant_close_failed_on_shutdown", error=str(exc))
     log.info("adalet_shutting_down")
 
 

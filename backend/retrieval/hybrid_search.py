@@ -30,7 +30,7 @@ from qdrant_client import models
 
 from .embedding import Embedder
 from .reranker import RerankResult, get_reranker
-from .vector_store import COLLECTION_NAME, collection_has_colbert, get_client
+from .vector_store import COLLECTION_NAME, collection_has_colbert, get_shared_client
 
 log = structlog.get_logger()
 
@@ -91,52 +91,50 @@ async def search(
     if not question.strip():
         return []
 
-    client = get_client()
-    try:
-        colbert_supported = await _detect_colbert_support(client)
-        want_colbert = COLBERT_QUERY_ENABLED and colbert_supported
+    # Paylaşılan client — kapatma (process-ömürlü singleton).
+    client = get_shared_client()
+    colbert_supported = await _detect_colbert_support(client)
+    want_colbert = COLBERT_QUERY_ENABLED and colbert_supported
 
-        embedder = _get_embedder()
-        # to_thread: BGE-M3 forward CPU/GPU-bound — event loop'u bloke etme.
-        dense_vec, (sparse_idx, sparse_val), colbert_vecs = await embedder.aencode_query(
-            question, return_colbert=want_colbert,
-        )
+    embedder = _get_embedder()
+    # to_thread: BGE-M3 forward CPU/GPU-bound — event loop'u bloke etme.
+    dense_vec, (sparse_idx, sparse_val), colbert_vecs = await embedder.aencode_query(
+        question, return_colbert=want_colbert,
+    )
 
-        query_filter = _build_filter(domain)
+    query_filter = _build_filter(domain)
 
-        prefetch_list: list[models.Prefetch] = [
+    prefetch_list: list[models.Prefetch] = [
+        models.Prefetch(
+            query=dense_vec,
+            using="dense",
+            limit=prefetch_limit,
+            filter=query_filter,
+        ),
+        models.Prefetch(
+            query=models.SparseVector(indices=sparse_idx, values=sparse_val),
+            using="sparse",
+            limit=prefetch_limit,
+            filter=query_filter,
+        ),
+    ]
+    if want_colbert and colbert_vecs:
+        prefetch_list.append(
             models.Prefetch(
-                query=dense_vec,
-                using="dense",
+                query=colbert_vecs,  # multi-vector list[list[float]]
+                using="colbert",
                 limit=prefetch_limit,
                 filter=query_filter,
-            ),
-            models.Prefetch(
-                query=models.SparseVector(indices=sparse_idx, values=sparse_val),
-                using="sparse",
-                limit=prefetch_limit,
-                filter=query_filter,
-            ),
-        ]
-        if want_colbert and colbert_vecs:
-            prefetch_list.append(
-                models.Prefetch(
-                    query=colbert_vecs,  # multi-vector list[list[float]]
-                    using="colbert",
-                    limit=prefetch_limit,
-                    filter=query_filter,
-                )
             )
-
-        result = await client.query_points(
-            collection_name=COLLECTION_NAME,
-            prefetch=prefetch_list,
-            query=models.FusionQuery(fusion=models.Fusion.RRF),
-            limit=top_k,
-            with_payload=True,
         )
-    finally:
-        await client.close()
+
+    result = await client.query_points(
+        collection_name=COLLECTION_NAME,
+        prefetch=prefetch_list,
+        query=models.FusionQuery(fusion=models.Fusion.RRF),
+        limit=top_k,
+        with_payload=True,
+    )
 
     return [_to_result(point) for point in result.points]
 

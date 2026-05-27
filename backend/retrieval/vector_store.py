@@ -58,7 +58,41 @@ class ChunkPoint:
 
 
 def get_client() -> AsyncQdrantClient:
+    """Her çağrıda YENİ client. Kısa-ömürlü işler (seed/build/eval script'leri)
+    için — onlar kendi lifecycle'larını yönetip `await client.close()` eder."""
     return AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+
+# Process-ömürlü paylaşılan client — request path (hybrid_search/hyde) için.
+# Eskiden her search çağrısı yeni client+pool açıp finally'de kapatıyordu →
+# her /ask'ta TCP/gRPC handshake churn'ü. Tek client'ı yeniden kullan.
+_shared_client: AsyncQdrantClient | None = None
+
+
+def get_shared_client() -> AsyncQdrantClient:
+    """Process boyunca yeniden kullanılan tek Qdrant client (lazy init).
+
+    Request path için: bağlantı havuzu churn'ünü önler. KAPATMA — singleton;
+    `main.py` lifespan shutdown'ında `aclose_shared_client()` ile kapanır.
+    """
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    return _shared_client
+
+
+async def aclose_shared_client() -> None:
+    """Paylaşılan client'ı kapat + sıfırla (lifespan shutdown). Idempotent."""
+    global _shared_client
+    if _shared_client is not None:
+        client, _shared_client = _shared_client, None
+        await client.close()
+
+
+def _reset_shared_client() -> None:
+    """Test izolasyonu — singleton referansını sıfırla (kapatmadan)."""
+    global _shared_client
+    _shared_client = None
 
 
 async def collection_has_colbert(client: AsyncQdrantClient) -> bool:
