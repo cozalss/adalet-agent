@@ -23,6 +23,12 @@ import os
 import sys
 from datetime import UTC, datetime, timedelta
 
+# Windows: `core.native_preload` pyarrow'u torch'tan ÖNCE yükler — refresh_once()
+# lazy import'la Embedder'ı (sentence_transformers→datasets→pyarrow) çekiyor;
+# preload olmadan torch sonrası BGE-M3 warmup segfault yapar (scripts.seed ile
+# aynı bug sınıfı). Module-load'da çalışması yeterli; lazy import'tan önce gelir.
+from core import native_preload  # noqa: F401
+
 logger = logging.getLogger("scripts.refresh_yargitay_recent")
 
 YG_LOOKBACK_DAYS = int(os.getenv("REFRESH_YG_LOOKBACK_DAYS", "30"))

@@ -22,6 +22,11 @@ import logging
 import sys
 from pathlib import Path
 
+# Windows: `core.native_preload` pyarrow'u torch'tan ÖNCE yükler — BGE-M3 embedder
+# warmup'ı (sentence_transformers→datasets→pyarrow) torch sonrası segfault yapar.
+# isort `core`'u `retrieval`'dan önce sıraladığı için preload, Embedder import'undan
+# (torch'u çeken) ÖNCE çalışır — sıra KRİTİK, elle bozma.
+from core import native_preload  # noqa: F401
 from retrieval.embedding import Embedder
 from retrieval.vector_store import ensure_collection, get_client
 from retrieval.yargi_client import YargiClient
