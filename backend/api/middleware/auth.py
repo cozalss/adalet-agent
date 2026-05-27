@@ -134,9 +134,12 @@ def decode_token(token: str) -> dict[str, Any]:
             detail="token süresi doldu",
         ) from exc
     except jwt.InvalidTokenError as exc:
+        # İç JWT hata detayını (imza/audience/issuer) istemciye SIZDIRMA — token
+        # forgery'ye oracle olur. Spesifik sebebi yalnız sunucu log'una yaz.
+        log.warning("jwt_invalid", reason=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"geçersiz token: {exc}",
+            detail="geçersiz veya süresi dolmuş token",
         ) from exc
 
 

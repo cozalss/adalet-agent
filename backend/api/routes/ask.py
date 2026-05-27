@@ -161,7 +161,12 @@ async def ask(
             errors=(str(exc),),
         ))
         log.exception("ask_pipeline_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=f"Pipeline hata: {exc!s}") from exc
+        # İç exception detayını (dosya yolu, modül, bağlantı string'i) istemciye
+        # sızdırma — tam trace yalnız log'a/audit'e gider.
+        raise HTTPException(
+            status_code=500,
+            detail="İstek işlenemedi, lütfen tekrar deneyin.",
+        ) from exc
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     response = _state_to_response(final_state, elapsed_ms, conv_id)
@@ -222,8 +227,9 @@ async def ask_stream(
             # event final_state olur. İkinci graph.ainvoke gereksiz.
             async for state in graph.astream(initial, stream_mode="values"):
                 final_state = state
+                # NOT: iç state anahtarlarını (list(state.keys())) istemciye yayma
+                # — iç şema sızıntısı. Frontend yalnız ilerleme sinyali kullanıyor.
                 payload = {
-                    "keys": list(state.keys()),
                     "domain": state.get("domain"),
                     "retry_count": state.get("retry_count", 0),
                 }
@@ -253,7 +259,8 @@ async def ask_stream(
                 question=safe_for_log, conversation_id=conv_id,
                 errors=(str(exc),),
             ))
-            err_payload = {"detail": str(exc), "code": "stream_failed"}
+            # İç exception detayını SSE ile istemciye sızdırma — log/audit yeterli.
+            err_payload = {"detail": "İstek işlenemedi", "code": "stream_failed"}
             yield f"event: error\ndata: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(

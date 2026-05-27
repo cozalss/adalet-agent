@@ -78,6 +78,30 @@ def test_ask_returns_full_response_envelope(client_with_mocked_retrieval):
     assert body["latency_ms"] >= 0
 
 
+def test_ask_pipeline_error_detail_is_generic(monkeypatch):
+    """Pipeline exception'ı 500 detail'inde iç detay (yol/modül/exc) SIZDIRMAMALI.
+
+    Eskiden detail=f"Pipeline hata: {exc!s}" tam exception'ı istemciye veriyordu.
+    Artık generic; tam trace yalnız log/audit'e gider.
+    """
+    from agents import graph as graph_mod
+
+    async def boom_triaj(_state):
+        raise RuntimeError("gizli iç hata: C:/secret/path.py satır 42")
+
+    monkeypatch.setattr(graph_mod, "triaj_node", boom_triaj)
+    from api.routes import ask as ask_mod
+    monkeypatch.setattr(ask_mod, "_graph_singleton", None)
+
+    from main import app
+    client = TestClient(app)
+    resp = client.post("/ask", json={"question": "Ayıplı malda tüketici hakkım nedir?"})
+    assert resp.status_code == 500
+    detail = resp.json()["detail"]
+    assert detail == "İstek işlenemedi, lütfen tekrar deneyin."
+    assert "gizli iç hata" not in detail and "path.py" not in detail
+
+
 def test_ask_out_of_scope_returns_advisor_message(client_with_mocked_retrieval):
     resp = client_with_mocked_retrieval.post(
         "/ask",

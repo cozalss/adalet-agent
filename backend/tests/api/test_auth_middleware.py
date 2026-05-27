@@ -75,6 +75,24 @@ def test_jwt_tampered_token_rejected(_auth_env):
         decode_token(tampered)
 
 
+def test_jwt_invalid_token_detail_is_generic(_auth_env):
+    """Geçersiz token 401 detail'i iç JWT sebebini SIZDIRMAMALI (forgery oracle).
+
+    Eskiden detail=f"geçersiz token: {exc}" imza/audience/issuer hatasını
+    istemciye veriyordu. Artık generic; spesifik sebep yalnız log'da.
+    """
+    from fastapi import HTTPException
+
+    tok = issue_token("user-x")
+    tampered = tok[:-4] + "XXXX"
+    with pytest.raises(HTTPException) as ei:
+        decode_token(tampered)
+    assert ei.value.status_code == 401
+    assert ei.value.detail == "geçersiz veya süresi dolmuş token"
+    low = str(ei.value.detail).lower()
+    assert "signature" not in low and "audience" not in low and "issuer" not in low
+
+
 def test_health_public_no_auth_required(auth_app):
     r = auth_app.get("/health")
     assert r.status_code == 200
