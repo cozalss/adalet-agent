@@ -44,6 +44,19 @@ _TURKISH_STOPWORDS: frozenset[str] = frozenset({
 _WORD_SPLIT_RE = re.compile(r"[^\w]+", re.UNICODE)
 
 
+def tr_lower(s: str) -> str:
+    """Türkçe-doğru küçük harfe çevirme.
+
+    Python `str.lower()` Türkçe İ/I'yı YANLIŞ çevirir:
+      "İ".lower() → "i̇" (i + U+0307 combining dot above) — "i" ile eşleşmez
+      "I".lower() → "i"  (Türkçe'de "ı" olmalı)
+    Hukuk metni İ/I dolu (İş, İcra, İdari, İhtarname, IK/İK). Yanlış casefold
+    "İş Kanunu" ↔ "iş kanunu" token'larını ayırıp recall'u sessizce düşürür.
+    Önce İ→i, I→ı eşle, sonra kalan harfleri standart lower() ile indir.
+    """
+    return s.replace("İ", "i").replace("I", "ı").lower()
+
+
 def _get_stemmer():
     """Lazy import + cache — snowballstemmer optional dependency."""
     try:
@@ -62,7 +75,7 @@ def stem_word(word: str) -> str:
     """Tek kelimeyi Türkçe stem'le. Stemmer yoksa lower() döner."""
     if not word:
         return ""
-    lo = word.lower().strip()
+    lo = tr_lower(word).strip()
     if _STEMMER is None:
         return lo
     return _STEMMER.stemWord(lo)
@@ -72,7 +85,7 @@ def tokenize(text: str) -> list[str]:
     """Metni Türkçe-uyumlu tokenlere böl; stopword'leri at."""
     if not text:
         return []
-    parts = _WORD_SPLIT_RE.split(text.lower())
+    parts = _WORD_SPLIT_RE.split(tr_lower(text))
     return [p for p in parts if p and p not in _TURKISH_STOPWORDS]
 
 
@@ -137,9 +150,9 @@ def keyword_overlap(
                 n_hit += 1
         return n_hit / len(expected_keywords)
 
-    # Plain lower() substring
-    low_ans = answer_text.lower()
-    n_hit = sum(1 for kw in expected_keywords if kw.lower() in low_ans)
+    # Plain substring (Türkçe-doğru lower)
+    low_ans = tr_lower(answer_text)
+    n_hit = sum(1 for kw in expected_keywords if tr_lower(kw) in low_ans)
     return n_hit / len(expected_keywords)
 
 
@@ -169,7 +182,7 @@ def morphological_variants(question: str, max_variants: int = 3) -> list[str]:
 
     # Varyant 1: tüm kelimeleri stem formuna indir (en kısa form)
     stem_form = " ".join(stems)
-    if stem_form and stem_form != question.lower():
+    if stem_form and stem_form != tr_lower(question):
         variants.append(stem_form)
 
     # Varyant 2: çoğul "-lar/-ler" — son kelimeye ek
@@ -180,10 +193,10 @@ def morphological_variants(question: str, max_variants: int = 3) -> list[str]:
         plural_form = " ".join(stems[:-1] + [last_stem + plural_suffix])
         variants.append(plural_form)
 
-    # Varyant 3: "-lik" abstract noun
+    # Varyant 3: "-lık/-lik/-luk/-lük" abstract noun (4-yönlü ünlü uyumu)
     if len(variants) < max_variants and stems:
         first_stem = stems[0]
-        nominal_suffix = "lik" if _last_vowel_back(first_stem) else "lik"
+        nominal_suffix = _lik_suffix(first_stem)
         nominal_form = " ".join([first_stem + nominal_suffix] + stems[1:])
         if nominal_form != stem_form:
             variants.append(nominal_form)
@@ -191,13 +204,37 @@ def morphological_variants(question: str, max_variants: int = 3) -> list[str]:
     return variants[:max_variants]
 
 
+_VOWELS = "aeıioöuü"
+
+
+def _last_vowel(word: str) -> str:
+    """Kelimedeki son ünlüyü döndür (yoksa 'a' — kalın default)."""
+    for ch in reversed(word):
+        if ch in _VOWELS:
+            return ch
+    return "a"
+
+
 def _last_vowel_back(word: str) -> bool:
     """Son ünlü kalın mı (a, ı, o, u)? Türkçe ünlü uyumu için."""
-    back_vowels = "aıou"
-    for ch in reversed(word):
-        if ch in "aeıioöuü":
-            return ch in back_vowels
-    return True   # default kalın
+    return _last_vowel(word) in "aıou"
+
+
+def _lik_suffix(word: str) -> str:
+    """-lık/-lik/-luk/-lük — Türkçe 4-yönlü ünlü uyumu (büyük ünlü uyumu).
+
+    Eski kod iki dalda da "lik" üretiyordu (kopyala-yapıştır bug) → "kıdemlik"
+    yerine "kıdemlik" (doğru) ama "kiralik" gibi yanlış formlar. Doğru: son
+    ünlüye göre lık (a/ı) · lik (e/i) · luk (o/u) · lük (ö/ü).
+    """
+    v = _last_vowel(word)
+    if v in "aı":
+        return "lık"
+    if v in "ei":
+        return "lik"
+    if v in "ou":
+        return "luk"
+    return "lük"  # ö, ü
 
 
 __all__ = (
@@ -206,4 +243,5 @@ __all__ = (
     "stem_text",
     "stem_word",
     "tokenize",
+    "tr_lower",
 )

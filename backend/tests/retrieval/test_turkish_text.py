@@ -85,3 +85,64 @@ def test_morphological_variants_empty_input():
 def test_morphological_variants_caps_at_max():
     variants = tt.morphological_variants("Kira sözleşmesi feshi", max_variants=2)
     assert len(variants) <= 2
+
+
+# --- Türkçe İ/I casefolding (W14) ---
+
+
+def test_tr_lower_handles_turkish_dotted_i():
+    """Python str.lower() İ→i̇ (combining dot) üretir; tr_lower düzeltir."""
+    assert tt.tr_lower("İŞÇİ") == "işçi"
+    assert tt.tr_lower("İş Kanunu") == "iş kanunu"
+    # Türkçe I → ı (dotsuz)
+    assert tt.tr_lower("IK") == "ık"
+    assert tt.tr_lower("İK") == "ik"
+    # combining dot above (U+0307) ASLA üretilmemeli
+    assert "̇" not in tt.tr_lower("İDARİ HUKUK")
+
+
+def test_stem_word_case_insensitive_turkish_i():
+    """'İş' ve 'iş' aynı stem'e inmeli — eskiden combining dot ayırıyordu."""
+    assert tt.stem_word("İş") == tt.stem_word("iş")
+    assert tt.stem_word("İCRA") == tt.stem_word("icra")
+
+
+def test_tokenize_uppercase_turkish_matches_lowercase():
+    """Büyük harfli Türkçe başlık küçük harfle aynı token üretmeli."""
+    assert tt.tokenize("İŞÇİ HAKLARI") == tt.tokenize("işçi hakları")
+    # combining dot içeren token oluşmamalı
+    assert all("̇" not in t for t in tt.tokenize("İHTARNAME"))
+
+
+def test_keyword_overlap_matches_across_turkish_case():
+    """Büyük-İ ile yazılmış cevapta küçük-i beklenen kelime yakalanmalı."""
+    answer = "İŞÇİNİN KIDEM TAZMİNATI ÖDENİR."
+    recall = tt.keyword_overlap(answer, ["kıdem tazminatı"], use_stem=False)
+    assert recall == 1.0
+
+
+# --- 4-yönlü ünlü uyumu -lık/-lik/-luk/-lük (W14) ---
+
+
+def test_lik_suffix_vowel_harmony():
+    assert tt._lik_suffix("kira") == "lık"      # son ünlü a → ı
+    assert tt._lik_suffix("vergi") == "lik"     # son ünlü i → i
+    assert tt._lik_suffix("hukuk") == "luk"     # son ünlü u → u
+    assert tt._lik_suffix("söz") == "lük"       # son ünlü ö → ü
+
+
+def test_morphological_variants_uses_vowel_harmonic_suffix():
+    """Variant-3 nominal eki ünlü uyumlu olmalı (eski bug hep 'lik' üretiyordu).
+
+    Ek STEM'lenmiş ilk köke ekleniyor → beklenen formu stemmer'dan bağımsız
+    hesaplayıp doğruluyoruz (kırılgan literal yerine).
+    """
+    q = "kira artışı oranı"
+    stems = tt.stem_text(q)
+    variants = tt.morphological_variants(q, max_variants=3)
+    expected_suffix = tt._lik_suffix(stems[0])
+    expected_nominal = stems[0] + expected_suffix
+    assert any(expected_nominal in v for v in variants)
+    # Harmony 'lik' DEĞİLSE, yanlış 'lik' formu üretilmemeli (regresyon guard)
+    if expected_suffix != "lik":
+        assert not any(stems[0] + "lik" in v for v in variants)
