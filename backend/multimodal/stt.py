@@ -206,17 +206,19 @@ async def transcribe_audio(
                 error=f"stt timeout ({STT_TIMEOUT_S}s)",
             )
         except ImportError as exc:
+            # Lib adı/exc detayı log'a; kullanıcıya generic (motor adı sızdırma).
+            log.warning("stt_import_failed", error=str(exc))
             return STTResult(
                 text="", language=language, duration_s=0.0,
                 elapsed_ms=int((time.perf_counter() - start) * 1000),
-                error=f"faster-whisper yok: {exc}",
+                error="STT motoru kullanılamıyor",
             )
         except Exception as exc:
             log.exception("stt_failed", error=str(exc))
             return STTResult(
                 text="", language=language, duration_s=0.0,
                 elapsed_ms=int((time.perf_counter() - start) * 1000),
-                error=f"stt hata: {exc!s}",
+                error="STT işlenemedi",
             )
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)

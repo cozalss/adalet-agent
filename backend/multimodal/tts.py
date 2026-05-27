@@ -172,23 +172,26 @@ async def synthesize_speech(
                 n_chars=len(cleaned), error="tts timeout",
             )
     except ImportError as exc:
+        log.warning("tts_import_failed", error=str(exc))
         return TTSResult(
             audio_bytes=b"", sample_rate=0, duration_s=0.0,
             elapsed_ms=int((time.perf_counter() - start) * 1000),
-            n_chars=len(cleaned), error=f"piper-tts yok: {exc}",
+            n_chars=len(cleaned), error="TTS motoru kullanılamıyor",
         )
     except FileNotFoundError as exc:
+        # str(exc) eksik model/binary dosya YOLUNU sızdırır → log'a, kullanıcıya generic.
+        log.warning("tts_file_not_found", error=str(exc))
         return TTSResult(
             audio_bytes=b"", sample_rate=0, duration_s=0.0,
             elapsed_ms=int((time.perf_counter() - start) * 1000),
-            n_chars=len(cleaned), error=str(exc),
+            n_chars=len(cleaned), error="TTS motoru kullanılamıyor",
         )
     except Exception as exc:
         log.exception("tts_failed", error=str(exc))
         return TTSResult(
             audio_bytes=b"", sample_rate=0, duration_s=0.0,
             elapsed_ms=int((time.perf_counter() - start) * 1000),
-            n_chars=len(cleaned), error=f"tts hata: {exc!s}",
+            n_chars=len(cleaned), error="TTS üretilemedi",
         )
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)

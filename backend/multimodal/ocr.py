@@ -136,9 +136,11 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
         import pytesseract
         from PIL import Image, ImageOps
     except ImportError as exc:
+        # Tam detay (lib adı/exc) sadece sunucu log'una; kullanıcıya generic.
+        log.warning("ocr_tesseract_import_failed", error=str(exc))
         return OCRResult(
             text="", engine="tesseract", lang=lang, n_chars=0,
-            elapsed_ms=0, error=f"PIL/pytesseract yok: {exc}",
+            elapsed_ms=0, error="OCR motoru kullanılamıyor",
         )
 
     if _TESSERACT_CMD is not None:
@@ -151,7 +153,9 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             text = pytesseract.image_to_string(img, lang=lang, config="--oem 3 --psm 6")
             return sanitize_text(text), None
         except Exception as exc:
-            return "", f"tesseract hata: {exc!s}"
+            # exc dosya yolu/iç detay sızdırabilir → log'a, kullanıcıya generic.
+            log.warning("ocr_tesseract_failed", error=str(exc))
+            return "", "OCR işlenemedi"
 
     try:
         text, err = await asyncio.wait_for(asyncio.to_thread(_do), timeout=OCR_TIMEOUT_S)
@@ -207,9 +211,10 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
     try:
         from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
     except ImportError as exc:
+        log.warning("ocr_qwen_import_failed", error=str(exc))
         return OCRResult(
             text="", engine="qwen-vl", lang=lang, n_chars=0,
-            elapsed_ms=0, error=f"transformers Qwen2VL yok: {exc}",
+            elapsed_ms=0, error="OCR motoru kullanılamıyor",
         )
 
     def _do() -> tuple[str, str | None]:
@@ -230,7 +235,8 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             text = processor.batch_decode(outputs, skip_special_tokens=True)[0]
             return sanitize_text(text), None
         except Exception as exc:
-            return "", f"qwen-vl hata: {exc!s}"
+            log.warning("ocr_qwen_failed", error=str(exc))
+            return "", "OCR işlenemedi"
 
     try:
         text, err = await asyncio.wait_for(
