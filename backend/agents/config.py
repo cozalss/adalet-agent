@@ -222,6 +222,12 @@ REGULATOR_TO_DOMAINS: dict[str, tuple[str, ...]] = {
 # Domain'e uyan sonuçların skor boost'u — RRF/dense score üstüne ek (top'a it).
 MEVZUAT_DOMAIN_BOOST = float(os.getenv("MEVZUAT_DOMAIN_BOOST", "0.15"))
 
+# Mevzuat law adaylarını cross-encoder ile yeniden sırala (RRF+boost heuristic'i
+# yerine GERÇEK soru-belge alakası). "buzdolabı/ayıplı mal" sorusunda alakasız
+# TTK (deniz ticareti) chunk'larını düşürüp TKHK m.11'i öne çıkarır. Default ON;
+# test ortamı conftest ile "0" (BGE-reranker yüklenmesin).
+MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true", "yes"}
+
 # --- Disclaimer ---
 DISCLAIMER_TR = (
     "⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. "

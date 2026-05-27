@@ -136,3 +136,166 @@ def test_boost_multi_kodu_domain():
     assert ids.index("A") <= 1
     assert ids.index("B") <= 2
     assert ids.index("C") <= 3
+
+
+# --------------------------------------------------------------------------
+#  _merge_dedup — domain-scoped takviye sonuçlarını birleştirme
+# --------------------------------------------------------------------------
+
+def test_merge_dedup_removes_duplicate_chunk_ids():
+    primary = [_sr("X", 0.9, kanun_kodu="TKHK"), _sr("Y", 0.8, kanun_kodu="TBK")]
+    secondary = [_sr("Y", 0.3, kanun_kodu="TBK"), _sr("Z", 0.2, kanun_kodu="TTK")]
+    out = mevzuat_mod._merge_dedup(primary, secondary)
+    ids = [r.chunk_id for r in out]
+    assert ids == ["X", "Y", "Z"]  # Y tek kez, primary'den
+
+
+def test_merge_dedup_primary_score_wins():
+    primary = [_sr("Y", 0.9, kanun_kodu="TKHK")]      # domain-scoped, güvenilir
+    secondary = [_sr("Y", 0.1, kanun_kodu="TKHK")]    # genel arama, düşük skor
+    out = mevzuat_mod._merge_dedup(primary, secondary)
+    assert len(out) == 1
+    assert out[0].score == pytest.approx(0.9)  # primary korunur
+
+
+# --------------------------------------------------------------------------
+#  _domain_priority_rerank — cross-encoder sırasını domain-önceliğiyle birleştir
+# --------------------------------------------------------------------------
+
+def test_domain_priority_promotes_primary_kanun():
+    """Cross-encoder TTK'yı öne koysa bile birincil kanun TKHK tier-0'a çıkar.
+
+    Buzdolabı bug'ı: cross-encoder TTK taşıma maddesini (878) TKHK ayıplı-mal
+    maddesinin (11) üstüne koyuyordu. Tier sort TKHK'yı başa alır.
+    """
+    cands = [
+        _sr("ttk878", 0.95, kanun_kodu="TTK"),   # cross-encoder #1 (alakasız taşıma)
+        _sr("tkhk88", 0.80, kanun_kodu="TKHK"),  # tüketici
+        _sr("ttk874", 0.70, kanun_kodu="TTK"),
+        _sr("tkhk11", 0.40, kanun_kodu="TKHK"),  # ASIL madde, cross-encoder geride
+    ]
+    out, n_primary = mevzuat_mod._domain_priority_rerank(cands, "tuketici")
+    ids = [c.chunk_id for c in out]
+    # Her iki TKHK, her iki TTK'nın önüne geçmeli
+    assert ids[:2] == ["tkhk88", "tkhk11"]   # tier-0, cross-encoder sırasında
+    assert ids[2:] == ["ttk878", "ttk874"]   # tier-1 (TTK tüketici domain'inde ama ikincil)
+    assert n_primary == 2
+
+
+def test_domain_priority_preserves_cross_encoder_order_within_tier():
+    """Aynı tier içinde cross-encoder (giriş) sırası korunur — stable sort."""
+    cands = [
+        _sr("a", 0.9, kanun_kodu="TKHK"),
+        _sr("b", 0.8, kanun_kodu="TKHK"),
+        _sr("c", 0.7, kanun_kodu="TKHK"),
+    ]
+    out, n_primary = mevzuat_mod._domain_priority_rerank(cands, "tuketici")
+    assert [c.chunk_id for c in out] == ["a", "b", "c"]
+    assert n_primary == 3
+
+
+def test_domain_priority_off_domain_sinks_to_last_tier():
+    """Domain dışı kanun (KTK trafik) tüketici sorgusunda en sona iner."""
+    cands = [
+        _sr("ktk", 0.99, kanun_kodu="KTK"),      # domain dışı, en yüksek skor
+        _sr("tbk", 0.50, kanun_kodu="TBK"),      # tüketici ikincil (tier-1)
+        _sr("tkhk", 0.40, kanun_kodu="TKHK"),    # tüketici birincil (tier-0)
+    ]
+    out, _ = mevzuat_mod._domain_priority_rerank(cands, "tuketici")
+    assert [c.chunk_id for c in out] == ["tkhk", "tbk", "ktk"]
+
+
+def test_domain_priority_unknown_domain_noop():
+    cands = [_sr("a", 0.5, kanun_kodu="TTK"), _sr("b", 0.4, kanun_kodu="TKHK")]
+    out, n_primary = mevzuat_mod._domain_priority_rerank(cands, "unknown")
+    assert out == cands
+    assert n_primary == 0
+
+
+# --------------------------------------------------------------------------
+#  Cross-encoder rerank entegrasyonu (fake reranker — model yüklenmez)
+# --------------------------------------------------------------------------
+
+class _FakeReranked:
+    """RerankResult-benzeri — mevzuat_node'un eriştiği alanlar."""
+
+    def __init__(self, sr: SearchResult, score: float) -> None:
+        self.chunk_id = sr.chunk_id
+        self.score = score
+        self.text = sr.text
+        self.source = sr.source
+        self.source_url = sr.source_url
+        self.domain = sr.domain
+        self.metadata = sr.metadata
+
+
+class _FakeReranker:
+    """Alaka sırası: TKHK > diğerleri (RRF skorunun TERSİ) — alakayı taklit eder."""
+
+    def rerank(self, query, candidates, top_k):
+        ordered = sorted(
+            candidates,
+            key=lambda c: 0 if c.metadata.get("kanun_kodu") == "TKHK" else 1,
+        )
+        return [_FakeReranked(c, 0.99 - i * 0.1) for i, c in enumerate(ordered[:top_k])]
+
+
+def _plain_search_env(monkeypatch):
+    """HyDE/MQ kapat → düz `search` yolu; rerank aç."""
+    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", False)
+    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", False)
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", True)
+
+
+@pytest.mark.asyncio
+async def test_mevzuat_rerank_promotes_relevant_over_noise(monkeypatch):
+    """Yüksek RRF skorlu alakasız TTK, düşük skorlu alakalı TKHK'nın altına
+    iner — cross-encoder gerçek alakayı yansıtır."""
+    _plain_search_env(monkeypatch)
+    cands = [
+        _sr("noise", 0.95, kanun_kodu="TTK"),     # yüksek RRF ama alakasız
+        _sr("relevant", 0.05, kanun_kodu="TKHK"),  # düşük RRF ama alakalı
+    ]
+
+    async def _fake_search(question, top_k=5, domain=None, **kw):
+        return cands
+
+    monkeypatch.setattr(mevzuat_mod, "search", _fake_search)
+    monkeypatch.setattr(mevzuat_mod, "get_reranker", lambda: _FakeReranker())
+
+    out = await mevzuat_mod.mevzuat_node({"question": "buzdolabı ayıplı", "domain": "tuketici"})
+    refs = out["mevzuat_refs"]
+    assert refs[0]["source_id"] == "relevant"  # TKHK rerank ile başa çıktı
+
+
+@pytest.mark.asyncio
+async def test_mevzuat_rerank_disabled_keeps_search_order(monkeypatch):
+    _plain_search_env(monkeypatch)
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
+    cands = [_sr("first", 0.95, kanun_kodu="TTK"), _sr("second", 0.05, kanun_kodu="TKHK")]
+
+    async def _fake_search(question, top_k=5, domain=None, **kw):
+        return cands
+
+    monkeypatch.setattr(mevzuat_mod, "search", _fake_search)
+    out = await mevzuat_mod.mevzuat_node({"question": "x", "domain": "tuketici"})
+    assert [r["source_id"] for r in out["mevzuat_refs"]] == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_mevzuat_rerank_failure_falls_back_gracefully(monkeypatch):
+    _plain_search_env(monkeypatch)
+    cands = [_sr("a", 0.9, kanun_kodu="TKHK"), _sr("b", 0.5, kanun_kodu="TBK")]
+
+    async def _fake_search(question, top_k=5, domain=None, **kw):
+        return cands
+
+    class _BoomReranker:
+        def rerank(self, *a, **k):
+            raise RuntimeError("reranker çöktü")
+
+    monkeypatch.setattr(mevzuat_mod, "search", _fake_search)
+    monkeypatch.setattr(mevzuat_mod, "get_reranker", lambda: _BoomReranker())
+    out = await mevzuat_mod.mevzuat_node({"question": "x", "domain": "tuketici"})
+    # çökse de search sırası korunur (graceful degrade)
+    assert [r["source_id"] for r in out["mevzuat_refs"]] == ["a", "b"]

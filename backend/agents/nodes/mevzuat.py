@@ -20,6 +20,7 @@ from agents.config import (
     HYDE_TIMEOUT_S,
     MEVZUAT_DOMAIN_BOOST,
     MEVZUAT_DOMAIN_FILTER_ENABLED,
+    MEVZUAT_RERANK_ENABLED,
     MULTI_QUERY_ENABLED,
     MULTI_QUERY_N,
     TOP_K_LAW,
@@ -29,6 +30,7 @@ from core.observability import observe_node
 from retrieval.hybrid_search import SearchResult, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
+from retrieval.reranker import get_reranker
 
 log = structlog.get_logger()
 
@@ -128,28 +130,53 @@ async def mevzuat_node(state: AgentState) -> dict:
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         results, n_boosted = _boost_by_domain(results, domain)
 
-    laws: list[Citation] = []
-    for r in results:
-        # law kriteri: doc_type=='law' VEYA source=='mevzuat'
-        is_law = r.metadata.get("doc_type") == "law" or r.source == "mevzuat"
-        if not is_law:
-            continue
-        laws.append(
-            Citation(
-                source_id=r.chunk_id,
-                doc_type="law",
-                title=_format_law_title(r),
-                snippet=r.text[:500],
-                url=r.source_url,
-                score=r.score,
+    # law adaylarını ayıkla (doc_type=='law' VEYA source=='mevzuat')
+    law_cands = [
+        r for r in results
+        if r.metadata.get("doc_type") == "law" or r.source == "mevzuat"
+    ]
+
+    # Cross-encoder rerank — RRF+boost heuristic'i alakasız ama kalabalık kanunları
+    # (TTK 405 chunk) öne koyabiliyor; cross-encoder gerçek soru-belge alakasıyla
+    # TKHK m.11 gibi ilgili maddeleri başa çıkarır. Reranker yoksa/çökerse
+    # boosted sıra korunur (graceful degrade).
+    reranked = False
+    if MEVZUAT_RERANK_ENABLED and law_cands:
+        try:
+            rr = await asyncio.to_thread(
+                get_reranker().rerank, question, law_cands, TOP_K_LAW * 2,
             )
+            if rr:
+                law_cands = rr
+                reranked = True
+        except Exception as exc:
+            log.warning("mevzuat_rerank_failed", error=str(exc) or type(exc).__name__)
+
+    # Domain-öncelikli tier sort — cross-encoder gerçek alakayı verir AMA hukuki
+    # bağlamı (tüketici vs deniz ticareti) ayırt edemez; "buzdolabı bozuldu"
+    # sorusunda TTK taşıma maddelerini TKHK ayıplı-mal maddesinin üstüne koyabiliyor.
+    # Triaj domain'i (yüksek güven) güvenilir bağlam sinyali → o domain'in BİRİNCİL
+    # kanunu (tuketici→TKHK) öne alınır, cross-encoder sırası tier İÇİNDE korunur.
+    n_primary = 0
+    if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
+        law_cands, n_primary = _domain_priority_rerank(law_cands, domain)
+
+    laws = [
+        Citation(
+            source_id=r.chunk_id,
+            doc_type="law",
+            title=_format_law_title(r),
+            snippet=r.text[:500],
+            url=r.source_url,
+            score=r.score,
         )
-        if len(laws) >= TOP_K_LAW:
-            break
+        for r in law_cands[:TOP_K_LAW]
+    ]
 
     log.info(
         "mevzuat_done",
-        domain=domain, n=len(laws), mode=retrieval_mode, boosted=n_boosted,
+        domain=domain, n=len(laws), mode=retrieval_mode,
+        boosted=n_boosted, reranked=reranked, primary=n_primary,
     )
     return {"mevzuat_refs": laws}
 
@@ -211,6 +238,42 @@ def _boost_by_domain(
 
     boosted.sort(key=lambda x: x.score, reverse=True)
     return boosted, n_match
+
+
+def _domain_priority_rerank(
+    cands: list, domain: str,
+) -> tuple[list, int]:
+    """Cross-encoder sırasını domain-önceliğiyle birleştir (stable tier sort).
+
+    Cross-encoder relevance'ı verir ama hukuki bağlamı ayırt edemez. Triaj
+    domain'inin BİRİNCİL kanunu (DOMAIN_TO_KANUN_KODU tuple'ının ilk elemanı,
+    örn. tuketici→TKHK) tier-0'a alınır; aynı domain'in diğer kanunları tier-1;
+    domain dışı tier-2. `sorted` stable olduğundan tier İÇİNDE mevcut
+    (cross-encoder) sıra korunur — yani TKHK maddeleri kendi alaka sırasında
+    kalır, sadece TTK/TBK gürültüsünün üstüne çıkar.
+
+    Returns:
+        (re-sıralı liste, birincil-kanun chunk sayısı).
+    """
+    kodlar = DOMAIN_TO_KANUN_KODU.get(domain, ())
+    if not kodlar:
+        return cands, 0
+    primary = kodlar[0]
+    domain_set = set(kodlar)
+
+    def _tier(c) -> int:
+        kod = str(c.metadata.get("kanun_kodu") or "")
+        if kod == primary:
+            return 0
+        if kod in domain_set:
+            return 1
+        return 2
+
+    ordered = sorted(cands, key=_tier)  # stable → tier içinde cross-encoder sırası
+    n_primary = sum(
+        1 for c in cands if str(c.metadata.get("kanun_kodu") or "") == primary
+    )
+    return ordered, n_primary
 
 
 def _format_law_title(r) -> str:

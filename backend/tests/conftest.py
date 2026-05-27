@@ -28,6 +28,9 @@ os.environ.setdefault("PRELOAD_MODELS", "0")
 # behaviour'u eski testlerde aynı kalsın. Yeni boost testleri kendi env'lerini
 # yönetir (`tests/agents/test_mevzuat_node.py`).
 os.environ.setdefault("MEVZUAT_DOMAIN_FILTER", "0")
+# Mevzuat cross-encoder rerank — testlerde kapalı (BGE-reranker yüklenmesin;
+# rerank davranışı kendi testinde fake reranker ile sınanır).
+os.environ.setdefault("MEVZUAT_RERANK", "0")
 
 from agents.llm import reset_llm
 from agents.state import Citation, Claim
