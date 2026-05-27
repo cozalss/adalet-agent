@@ -38,14 +38,16 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: log mode + preload BGE-M3 & Reranker singleton'larını main thread'de.
+    """Startup: log mode + preload BGE-M3 & Reranker + request-path singleton warm-up.
 
     Neden preload? Lazy load uvicorn + asyncio + Windows + torch CPU init
     kombinasyonu request anında SIGSEGV (exit 139) yaratıyor. Modelleri
     main thread'in startup'ında, request henüz hiç gelmeden yüklemek
-    bu çakışmayı önler.
+    bu çakışmayı önler. Preload PRELOAD_MODELS=0 ile devre dışı (test ortamı).
 
-    Preload PRELOAD_MODELS=0 ile devre dışı bırakılabilir (test ortamı için).
+    Ayrıca request-path singleton'ları (graph/llm/store) warm-up edilir: ilk
+    istek soğuk başlamaz ve config hataları boot'ta yüzeye çıkar. Bu warm-up
+    torch yüklemez, PRELOAD_MODELS'ten bağımsız çalışır.
     """
     log.info(
         "adalet_starting",
@@ -92,6 +94,36 @@ async def lifespan(app: FastAPI):
                 log.info("preload_raptor_disabled")
         except Exception as exc:
             log.warning("preload_raptor_failed", error=str(exc))
+
+    # Request-path singleton'larını startup'ta eager warm-up et: compiled graph,
+    # LLM client, session store. İki kazanç:
+    #   1. İlk istek "soğuk" başlamaz — graph compile / client init / store bağlama
+    #      maliyeti boot'a kaydırılır, kullanıcı latency'sine değil.
+    #   2. Config hataları (örn. LLM_MODE=llamacpp ama LLM_MODEL_PATH yok) boot'ta
+    #      yüzeye çıkar; ilk kullanıcı isteğinde 500 olarak patlamaz.
+    # PRELOAD_MODELS'ten bağımsız: bu factory'ler torch yüklemez (mock/server modda
+    # hafif), Windows segfault riski taşımaz. Her biri izole try/except — bir warm-up
+    # başarısız olursa lazy yol fallback olarak kalır, startup bloke olmaz.
+    try:
+        from agents.llm import get_llm
+        get_llm()
+        log.info("warmup_llm_done")
+    except Exception as exc:
+        log.warning("warmup_llm_failed", error=str(exc))
+
+    try:
+        from api.session_store import get_store
+        get_store()
+        log.info("warmup_store_done")
+    except Exception as exc:
+        log.warning("warmup_store_failed", error=str(exc))
+
+    try:
+        from api.routes.ask import _get_graph
+        _get_graph()
+        log.info("warmup_graph_done")
+    except Exception as exc:
+        log.warning("warmup_graph_failed", error=str(exc))
 
     # Sprint-5 W16: APScheduler — Resmi Gazete + Yargıtay delta cron.
     # SCHEDULER_ENABLED=0 ile devre dışı (test/CI default).
