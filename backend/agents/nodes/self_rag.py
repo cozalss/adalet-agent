@@ -60,6 +60,16 @@ _REFLECT_USER_TEMPLATE = (
 )
 
 
+def _merge_notes(state: AgentState, new: str) -> str:
+    """debate_notes'u EZME — debate'in notuna ekle.
+
+    self_rag debate'ten SONRA çalışır; debate'in yazdığı notu (finalize bunu
+    kullanır) korumak için üzerine yazmak yerine birleştir.
+    """
+    existing = (state.get("debate_notes") or "").strip()
+    return f"{existing}\n[self_rag] {new}".strip() if existing else new
+
+
 async def self_rag_node(state: AgentState) -> dict:
     """Reflection-guided değerlendirme. State'e self_rag_signal yazar."""
     if not SELF_RAG_ENABLED:
@@ -70,7 +80,7 @@ async def self_rag_node(state: AgentState) -> dict:
     refs = list(state.get("mevzuat_refs", [])) + list(state.get("emsal_refs", []))
 
     if not draft:
-        return {"debate_notes": "Self-RAG: taslak yok"}
+        return {"debate_notes": _merge_notes(state, "Self-RAG: taslak yok")}
 
     refs_block = "\n".join(
         f"- {r['title']}: {r['snippet'][:200]}" for r in refs[:5]
@@ -93,7 +103,7 @@ async def self_rag_node(state: AgentState) -> dict:
         )
     except Exception as exc:
         log.warning("self_rag_llm_failed", error=str(exc))
-        return {"debate_notes": f"Self-RAG hata: {exc!s}"}
+        return {"debate_notes": _merge_notes(state, "Self-RAG hata: değerlendirme atlandı")}
 
     reflect = _parse_reflection_json(resp.content)
 
@@ -125,7 +135,7 @@ async def self_rag_node(state: AgentState) -> dict:
         # Retry sinyali — debate_node retry limitini kontrol eder
         new_verdict = "retry" if current_verdict != "reject" else current_verdict
 
-    out: dict = {"debate_notes": rationale}
+    out: dict = {"debate_notes": _merge_notes(state, rationale)}
     if new_verdict != current_verdict:
         out["debate_verdict"] = new_verdict
     return out

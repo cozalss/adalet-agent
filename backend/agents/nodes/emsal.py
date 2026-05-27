@@ -81,6 +81,12 @@ async def emsal_node(state: AgentState) -> dict:
                     ][:GRAPH_NEIGHBORS_TOP_K]
     except ImportError as exc:
         log.debug("graph_rag_unavailable", error=str(exc))
+    except Exception as exc:
+        # GraphRAG sadece referans zenginleştirme (best-effort, yeni retrieval
+        # yapmaz). Bozuk graf / beklenmedik hata emsal node'unu ÇÖKERTMEMELİ —
+        # emsal_refs zaten hesaplandı, onu döndür. (Eski bare-except yalnız
+        # ImportError yakalıyordu; AttributeError/KeyError propagate ediyordu.)
+        log.warning("graph_rag_expand_failed", error=str(exc))
 
     log.info(
         "emsal_done",

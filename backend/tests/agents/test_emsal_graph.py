@@ -111,3 +111,29 @@ async def test_emsal_unknown_domain_returns_empty(_mock_emsal_search):
     out = await emsal_mod.emsal_node(state)   # type: ignore[arg-type]
     assert out == {"emsal_refs": []}
     assert "emsal_graph_neighbors" not in out
+
+
+@pytest.mark.asyncio
+async def test_emsal_graph_expand_failure_does_not_crash(_mock_emsal_search, monkeypatch):
+    """W19: GraphRAG expand non-ImportError fırlatsa bile emsal node çökmemeli.
+
+    Graph expand best-effort referans zenginleştirme — bozuk graf / beklenmedik
+    hata emsal_refs'i kaybettirmemeli (eski bare-except yalnız ImportError tutuyordu).
+    """
+    from retrieval import graph_rag
+
+    graph_rag.reset_graph()
+    monkeypatch.setattr(graph_rag, "GRAPH_RAG_ENABLED", True)
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("bozuk graf — beklenmedik hata")
+
+    monkeypatch.setattr(graph_rag, "extract_seed_ids", _boom)
+
+    state = {"question": "Kıdem tazminatı?", "domain": "isHukuku"}
+    out = await emsal_mod.emsal_node(state)   # type: ignore[arg-type]
+
+    # Node çökmedi, emsal_refs korundu, neighbor yazılmadı.
+    assert "emsal_refs" in out
+    assert len(out["emsal_refs"]) == 2
+    assert "emsal_graph_neighbors" not in out

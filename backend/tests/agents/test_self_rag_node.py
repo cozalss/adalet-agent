@@ -65,6 +65,29 @@ async def test_self_rag_low_utility_triggers_retry(monkeypatch, base_state):
 
 
 @pytest.mark.asyncio
+async def test_self_rag_appends_to_debate_notes(monkeypatch, base_state):
+    """W19: self_rag debate'in notunu EZMEMELİ — birleştirmeli (finalize kullanır)."""
+    monkeypatch.setattr(sr_mod, "SELF_RAG_ENABLED", True)
+
+    async def _ok_llm(messages, **kw):
+        from agents.llm import LLMResponse
+        return LLMResponse(
+            content='{"retrieve": "no", "supported": "yes", "utility": 5, '
+                    '"notes": "yeterli"}',
+        )
+
+    class _Fake:
+        chat = staticmethod(_ok_llm)
+
+    monkeypatch.setattr(sr_mod, "get_llm", lambda: _Fake())
+    state = {**base_state, "debate_notes": "Verifier onayladı (debate notu)"}
+    out = await self_rag_node(state)
+    # Debate'in notu KORUNMALI + self_rag eki eklenmiş olmalı
+    assert "Verifier onayladı (debate notu)" in out["debate_notes"]
+    assert "[self_rag]" in out["debate_notes"]
+
+
+@pytest.mark.asyncio
 async def test_self_rag_unsupported_triggers_reject(monkeypatch, base_state):
     """supported=no → reject."""
     monkeypatch.setattr(sr_mod, "SELF_RAG_ENABLED", True)
