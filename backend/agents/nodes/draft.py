@@ -29,6 +29,21 @@ _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "draft.tr.txt"
 # senkron disk I/O yapma (event loop'u bloke eder, gereksiz syscall).
 _DRAFT_TEMPLATE = _PROMPT_PATH.read_text(encoding="utf-8")
 
+# Draft system prompt — SIFIR HALÜSİNASYON savunma hattı. System rolü en
+# yüksek talimat önceliği; user template kuralları görmezden gelinse bile bu
+# kalır. CLAUDE.md §1: kaynağı doğrulanmamış iddia üretilemez.
+_DRAFT_SYSTEM = (
+    "Sen Türk hukuku konusunda uzman bir asistansın. MUTLAK KURALLAR:\n"
+    "1. SADECE sana verilen kaynaklardaki bilgileri kullan. Kaynaklarda "
+    "geçmeyen hiçbir kanun maddesi, Yargıtay/Danıştay kararı, tarih veya "
+    "sayı UYDURMA.\n"
+    "2. Bir madde numarası veya karar referansı, verilen kaynaklarda AÇIKÇA "
+    "geçmiyorsa onu YAZMA.\n"
+    "3. Emin olmadığında uydurmak yerine 'bu konuda kesin bilgi veremiyorum, "
+    "bir avukata danışmanızı öneririm' de.\n"
+    "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle."
+)
+
 # Kaynak ID etiketleri: [src: chunk_abc123]
 _SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
 # Cümle ayraç — Türkçe nokta/!?
@@ -65,7 +80,7 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     llm = get_llm()
     response = await llm.chat(
         messages=[
-            ChatMessage(role="system", content="Sen Türk hukuku asistanısın."),
+            ChatMessage(role="system", content=_DRAFT_SYSTEM),
             ChatMessage(role="user", content=user_prompt),
         ],
         temperature=LLM_TEMPERATURE,
