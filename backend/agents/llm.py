@@ -169,6 +169,11 @@ class LlamaCppClient:
                 if self._model is None:
                     self._model = await asyncio.to_thread(self._load)
 
+        # Context-taşma guard: prompt + cevap n_ctx'i aşarsa llama_decode -1 ile
+        # ÇÖKER (kira/tapu gibi uzun-maddeli domain'lerde görüldü). max_tokens'ı
+        # prompt'a göre clamp et — cevap kısalır ama sistem çökmez.
+        max_tokens = self._fit_max_tokens(messages, max_tokens)
+
         kwargs: dict[str, Any] = {
             "messages": [m.to_dict() for m in messages],
             "temperature": temperature,
@@ -187,6 +192,40 @@ class LlamaCppClient:
             tokens_in=usage.get("prompt_tokens", 0),
             tokens_out=usage.get("completion_tokens", 0),
         )
+
+    # En az bu kadar token cevaba bırakılır (clamp tabanı); chat template + güvenlik payı.
+    _MIN_OUTPUT_TOKENS = 256
+    _CTX_MARGIN_TOKENS = 64
+
+    def _fit_max_tokens(self, messages: list[ChatMessage], requested: int) -> int:
+        """prompt + max_tokens ≤ n_ctx olacak şekilde max_tokens'ı clamp et.
+
+        Modelin kendi tokenizer'ıyla prompt token'ları sayılır (chat template
+        overhead'i mesaj başına ~8 token eklenir). prompt zaten n_ctx'e yakınsa
+        cevap tabana (256) iner; bu durumda prompt çağıran node tarafından
+        kısaltılmalı (draft ref bütçesi) — guard yine de hard-crash'i önler.
+        """
+        try:
+            prompt_tokens = sum(
+                len(self._model.tokenize(
+                    m.content.encode("utf-8"), add_bos=False, special=False,
+                ))
+                for m in messages
+            ) + 8 * (len(messages) + 1)
+        except Exception:
+            # Tokenizer erişilemezse muhafazakar tahmin (Türkçe ~2.3 char/token).
+            prompt_tokens = int(sum(len(m.content) for m in messages) / 2.3) + 16
+
+        available = self.n_ctx - prompt_tokens - self._CTX_MARGIN_TOKENS
+        if available < requested:
+            clamped = max(available, self._MIN_OUTPUT_TOKENS)
+            log.warning(
+                "llm_ctx_clamp",
+                requested=requested, clamped=clamped,
+                prompt_tokens=prompt_tokens, n_ctx=self.n_ctx,
+            )
+            return clamped
+        return requested
 
 
 class LlamaCppServerClient:

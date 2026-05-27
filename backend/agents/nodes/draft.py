@@ -86,15 +86,25 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     )
 
     llm = get_llm()
-    response = await llm.chat(
-        messages=[
-            ChatMessage(role="system", content=_DRAFT_SYSTEM),
-            ChatMessage(role="user", content=user_prompt),
-        ],
-        temperature=LLM_TEMPERATURE,
-        max_tokens=LLM_MAX_TOKENS,
-        json_mode=False,
-    )
+    try:
+        response = await llm.chat(
+            messages=[
+                ChatMessage(role="system", content=_DRAFT_SYSTEM),
+                ChatMessage(role="user", content=user_prompt),
+            ],
+            temperature=LLM_TEMPERATURE,
+            max_tokens=LLM_MAX_TOKENS,
+            json_mode=False,
+        )
+    except Exception as exc:
+        # LLM çağrısı çökerse (örn. context taşması, GPU OOM) tüm graph'ı
+        # düşürme — boş draft döndür, finalize bunu fail-closed reddeder.
+        log.error("draft_llm_failed", error=str(exc) or type(exc).__name__)
+        return {
+            "draft_response": "",
+            "claims": [],
+            "errors": [f"draft: LLM hatası ({type(exc).__name__})"],
+        }
 
     draft_text = response.content.strip()
     claims: list[Claim] = []
@@ -224,16 +234,25 @@ def _format_eligibility_for_prompt(assessments: list[dict]) -> str:
     )
 
 
+# Türkçe hukuk metni Qwen tokenizer'da ~2.3 karakter/token (eski "4 char/token"
+# varsayımı YANLIŞTI → uzun TBK maddeleriyle (kira/tapu) draft prompt'u n_ctx=8192'yi
+# aşıp `llama_decode -1` ile ÇÖKÜYORDU). Gerçekçi oran + ref sayısı + snippet cap ile
+# prompt güvenli sınırda tutulur; ayrıca LLM client max_tokens clamp guard'ı var.
+_CHARS_PER_TOKEN_TR = 2.3
+_DRAFT_SNIPPET_CHARS = 450
+_MAX_DRAFT_REFS = 10
+
+
 def _format_refs_for_prompt(refs: list[Citation]) -> str:
-    """LLM'e verilecek kaynak bloğu. Char budget içinde kal."""
+    """LLM'e verilecek kaynak bloğu — ref sayısı + token bütçesi sınırında kal."""
     lines = []
-    budget = LLM_CONTEXT_BUDGET * 4  # ~4 char per token rough
+    budget = int(LLM_CONTEXT_BUDGET * _CHARS_PER_TOKEN_TR)
     used = 0
-    for r in refs:
+    for r in refs[:_MAX_DRAFT_REFS]:
         chunk = (
             f"[{r['source_id']}] {r['title']}\n"
             f"  Kaynak: {r['url']}\n"
-            f"  Metin: {r['snippet'][:600]}\n"
+            f"  Metin: {r['snippet'][:_DRAFT_SNIPPET_CHARS]}\n"
         )
         if used + len(chunk) > budget:
             break

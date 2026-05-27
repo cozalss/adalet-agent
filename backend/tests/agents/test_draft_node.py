@@ -161,6 +161,43 @@ async def test_draft_injects_eligibility(monkeypatch):
     assert "HAK YOK" in user_msg.content
 
 
+def test_format_refs_caps_count_and_snippet():
+    """Context-taşma fix: çok/uzun ref draft prompt'unu şişirip n_ctx'i aşmasın."""
+    import agents.nodes.draft as draft_mod
+
+    refs = [
+        Citation(
+            source_id=f"m-TBK-{i}", doc_type="law", title=f"TBK Madde {i}",
+            snippet="çok uzun madde metni " * 100,  # ~2000 char
+            url="https://mevzuat/x", score=0.9,
+        )
+        for i in range(15)
+    ]
+    out = draft_mod._format_refs_for_prompt(refs)
+    # En fazla _MAX_DRAFT_REFS ref + her snippet _DRAFT_SNIPPET_CHARS ile sınırlı
+    assert out.count("[m-TBK-") <= draft_mod._MAX_DRAFT_REFS
+    # Hiçbir tek snippet 450+pay'ı aşmamalı (kabaca: toplam budget sınırı)
+    assert len(out) <= int(draft_mod.LLM_CONTEXT_BUDGET * draft_mod._CHARS_PER_TOKEN_TR) + 800
+
+
+@pytest.mark.asyncio
+async def test_draft_llm_failure_degrades_to_empty(monkeypatch):
+    """LLM çağrısı çökerse (context taşması/OOM) graph çökmesin — boş draft + hata."""
+    import agents.nodes.draft as draft_mod
+
+    class _BoomLLM:
+        async def chat(self, **_kwargs):
+            raise RuntimeError("llama_decode returned -1")
+
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: _BoomLLM())
+    out = await draft_mod.draft_node({
+        "question": "soru", "mevzuat_refs": [_ref()], "emsal_refs": [],
+    })
+    assert out["draft_response"] == ""
+    assert out["claims"] == []
+    assert out["errors"] and "LLM" in out["errors"][0]
+
+
 @pytest.mark.asyncio
 async def test_draft_no_refs_returns_empty(monkeypatch):
     """Kaynak yoksa LLM çağrılmadan boş taslak + hata döner (mevcut sözleşme)."""
