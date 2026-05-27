@@ -186,7 +186,9 @@ class MevzuatClient:
     async def _initialize(self) -> None:
         if self._initialized:
             return
-        assert self._client is not None
+        # assert yerine açık guard — `python -O` ile assert strip edilir (sessiz bug).
+        if self._client is None:
+            raise RuntimeError("MevzuatClient 'async with' bloğunda kullanılmalı")
         self._rpc_id += 1
         payload = {
             "jsonrpc": "2.0",
@@ -218,7 +220,8 @@ class MevzuatClient:
         reraise=True,
     )
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        assert self._client is not None and self._session_id is not None
+        if self._client is None or self._session_id is None:
+            raise RuntimeError("MevzuatClient: session başlatılmadı (_initialize)")
         self._rpc_id += 1
         payload = {
             "jsonrpc": "2.0",

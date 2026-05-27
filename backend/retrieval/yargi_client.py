@@ -139,7 +139,10 @@ class YargiClient:
 
     async def _initialize_session(self) -> None:
         """MCP initialize handshake — session ID'yi yakalar."""
-        assert self._client is not None
+        # NOT: assert KULLANMA — `python -O` (PYTHONOPTIMIZE) ile strip edilir,
+        # guard sessizce kaybolur → None'a erişim yanıltıcı AttributeError verir.
+        if self._client is None:
+            raise RuntimeError("YargiClient 'async with' bloğunda kullanılmalı")
         self._rpc_id += 1
 
         payload = {
@@ -169,7 +172,8 @@ class YargiClient:
 
     async def _send_notification(self, method: str, params: dict[str, Any]) -> None:
         """Notification gönder — id yok, yanıt beklenmez."""
-        assert self._client is not None and self._session_id is not None
+        if self._client is None or self._session_id is None:
+            raise RuntimeError("YargiClient: session başlatılmadı (_initialize_session)")
         payload = {"jsonrpc": "2.0", "method": method, "params": params}
         await self._client.post(
             self.base_url,
@@ -185,8 +189,10 @@ class YargiClient:
     )
     async def _call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """MCP tools/call wrapper. Tool sonucundaki JSON metni parse eder."""
-        assert self._client is not None, "YargiClient must be used via 'async with'"
-        assert self._session_id, "Session ilk olarak _initialize_session ile kurulmalı"
+        if self._client is None:
+            raise RuntimeError("YargiClient 'async with' ile kullanılmalı")
+        if not self._session_id:
+            raise RuntimeError("YargiClient: session önce _initialize_session ile kurulmalı")
 
         self._rpc_id += 1
         payload = {
