@@ -48,6 +48,54 @@ _MADDE_FORMAT_RE = re.compile(
 # Esas/Karar formatı (Yargıtay/Danıştay)
 _ESAS_KARAR_RE = re.compile(r"\b\d{4}\s*/\s*\d{1,6}\b")
 
+# Claim metninde geçen madde numaralarını yakala (kanıt-daraltma için).
+_CLAIM_MADDE_NO_RE = re.compile(r"\b(?:m\.?|madde)\s*(\d{1,4})\b", re.IGNORECASE)
+# Citation.source_id ("m-IK-31") veya title ("IK Madde 31") sondaki madde no.
+_REF_SID_MADDE_RE = re.compile(r"-(\d{1,4})$")
+_REF_TITLE_MADDE_RE = re.compile(r"\bmadde\s*(\d{1,4})\b", re.IGNORECASE)
+
+
+def _stated_madde_numbers(text: str) -> set[int]:
+    """Claim metninde AÇIKÇA belirtilen madde numaraları."""
+    return {int(n) for n in _CLAIM_MADDE_NO_RE.findall(text)}
+
+
+def _ref_madde_no(ref: Citation) -> int | None:
+    """Citation'ın madde numarası — source_id ('m-IK-31') ya da title ('IK Madde 31')."""
+    sid = ref.get("source_id", "") or ""
+    m = _REF_SID_MADDE_RE.search(sid)
+    if m:
+        return int(m.group(1))
+    m = _REF_TITLE_MADDE_RE.search(ref.get("title", "") or "")
+    return int(m.group(1)) if m else None
+
+
+def _scope_refs_to_claim_madde(
+    claim_text: str, refs: list[Citation],
+) -> tuple[list[Citation], bool]:
+    """Claim belirli madde no söylüyorsa kanıtı O maddenin kaynağına daralt.
+
+    SIFIR HALÜSİNASYON tightening (Step-4): bir claim "Madde 31 ..." diyorsa,
+    doğrulama o iddiayı m.31 kaynağıyla karşılaştırmalı — başka maddenin
+    snippet'iyle gevşek token örtüşmesi üzerinden geçmemeli. LLM bir maddenin
+    içeriğini başka maddeye atfederse (garbled m.31), kanıt doğru kaynağa
+    daraltılınca fuzzy/NLI skoru düşer → unsupported.
+
+    Returns:
+        (scoped_refs, stated_but_missing)
+        - claim madde no söylemiyorsa → (refs, False) — kısıt yok.
+        - söylüyor ve eşleşen ref varsa → (eşleşen refs, False).
+        - söylüyor ama HİÇBİR ref o numaraya sahip değilse → (refs, True):
+          claim, retrieve edilmemiş bir maddeye atıfta bulunuyor (grounded olamaz).
+    """
+    stated = _stated_madde_numbers(claim_text)
+    if not stated:
+        return refs, False
+    matching = [r for r in refs if _ref_madde_no(r) in stated]
+    if matching:
+        return matching, False
+    return refs, True
+
 
 # --------------------------------------------------------------------------
 #  Lazy factory hooks — test'ler monkeypatch eder
@@ -113,12 +161,22 @@ def layer2_fuzzy(
     if not claim_text:
         return 0.0, "boş claim", -1
 
+    # Step-4 tightening: claim belirli bir madde no söylüyorsa kanıtı O maddeye
+    # daralt. Söylenen madde corpus'ta hiç yoksa grounded olamaz → 0.0 (uydurma
+    # atıf). Bu, garbled madde-atfının yanlış snippet'le geçmesini engeller.
+    scoped_refs, stated_but_missing = _scope_refs_to_claim_madde(claim_text, refs)
+    if stated_but_missing:
+        stated = sorted(_stated_madde_numbers(claim_text))
+        return 0.0, f"atıf yapılan madde {stated} kaynakta yok", -1
+
     cite_ids = claim.get("cite_ids", []) or []
     candidates: list[tuple[int, Citation]] = []
-    if cite_ids:
-        for i, ref in enumerate(refs):
-            if ref["source_id"] in cite_ids:
-                candidates.append((i, ref))
+    # Önce stated-madde scope; o yoksa cite_ids; o da yoksa tüm refs.
+    scoped_ids = {r["source_id"] for r in scoped_refs}
+    if len(scoped_refs) < len(refs):
+        candidates = [(i, r) for i, r in enumerate(refs) if r["source_id"] in scoped_ids]
+    elif cite_ids:
+        candidates = [(i, r) for i, r in enumerate(refs) if r["source_id"] in cite_ids]
     if not candidates:
         candidates = list(enumerate(refs))
 
@@ -249,7 +307,19 @@ async def layer25_lettuce(
 # --------------------------------------------------------------------------
 
 def pick_evidence(claim: Claim, refs: list[Citation]) -> str:
-    """En alakalı snippet'i seç — cite_ids varsa o snippet'leri birleştir."""
+    """En alakalı snippet'i seç — stated-madde scope > cite_ids > fuzzy-best.
+
+    Step-4: claim madde no söylüyorsa NLI/grounding o maddenin kaynağıyla
+    karşılaştırılmalı (yanlış kaynağa karşı entailment kaçağını önler).
+    """
+    text = claim.get("text", "")
+    scoped_refs, stated_but_missing = _scope_refs_to_claim_madde(text, refs)
+    if stated_but_missing:
+        return ""  # atıf yapılan madde kaynakta yok → kanıt yok
+    if len(scoped_refs) < len(refs):
+        snippets = [r["snippet"] for r in scoped_refs if r["snippet"]]
+        if snippets:
+            return "\n\n".join(snippets)[:2000]
     cite_ids = claim.get("cite_ids", []) or []
     if cite_ids:
         snippets = [r["snippet"] for r in refs if r["source_id"] in cite_ids]
@@ -259,13 +329,21 @@ def pick_evidence(claim: Claim, refs: list[Citation]) -> str:
         return ""
     best = max(
         refs,
-        key=lambda r: fuzz.partial_ratio(claim.get("text", ""), r["snippet"] or ""),
+        key=lambda r: fuzz.partial_ratio(text, r["snippet"] or ""),
     )
     return (best["snippet"] or "")[:2000]
 
 
 def pick_evidence_list(claim: Claim, refs: list[Citation]) -> list[str]:
     """LettuceDetect için — birden çok evidence snippet'i listesi."""
+    text = claim.get("text", "")
+    scoped_refs, stated_but_missing = _scope_refs_to_claim_madde(text, refs)
+    if stated_but_missing:
+        return []
+    if len(scoped_refs) < len(refs):
+        snippets = [r["snippet"] for r in scoped_refs if r["snippet"]]
+        if snippets:
+            return snippets
     cite_ids = claim.get("cite_ids", []) or []
     if cite_ids:
         snippets = [
@@ -278,7 +356,7 @@ def pick_evidence_list(claim: Claim, refs: list[Citation]) -> list[str]:
         return []
     ranked = sorted(
         refs,
-        key=lambda r: fuzz.partial_ratio(claim.get("text", ""), r["snippet"] or ""),
+        key=lambda r: fuzz.partial_ratio(text, r["snippet"] or ""),
         reverse=True,
     )
     return [r["snippet"] for r in ranked[:3] if r.get("snippet")]
