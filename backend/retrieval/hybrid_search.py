@@ -79,6 +79,7 @@ async def search(
     top_k: int = 5,
     prefetch_limit: int = 50,
     domain: str | None = None,
+    kanun_kodu: list[str] | None = None,
 ) -> list[SearchResult]:
     """Hybrid search — dense + sparse (+ ColBERT) prefetch, RRF fusion, top_k.
 
@@ -86,7 +87,11 @@ async def search(
         question: Kullanıcı sorusu.
         top_k: Döndürülecek sonuç sayısı.
         prefetch_limit: Her vektör için ilk aşamada çekilecek aday sayısı.
-        domain: Filtre — None ise tüm domainler.
+        domain: Filtre — None ise tüm domainler (chunk payload `domain` alanı).
+        kanun_kodu: Filtre — verilirse yalnız bu kanun kodlarındaki (TKHK, TBK…)
+            law chunk'ları. Domain-scoped mevzuat retrieval için: triaj domain'i
+            biliniyorsa o domain'in kanun setine daraltıp ilgili kanunları
+            (örn. tüketici sorusunda TKHK) aday havuzuna garanti eder.
     """
     if not question.strip():
         return []
@@ -102,7 +107,7 @@ async def search(
         question, return_colbert=want_colbert,
     )
 
-    query_filter = _build_filter(domain)
+    query_filter = _build_filter(domain, kanun_kodu)
 
     prefetch_list: list[models.Prefetch] = [
         models.Prefetch(
@@ -169,17 +174,28 @@ async def search_with_rerank(
     return await asyncio.to_thread(reranker.rerank, question, candidates, top_k)
 
 
-def _build_filter(domain: str | None) -> models.Filter | None:
-    if not domain:
-        return None
-    return models.Filter(
-        must=[
+def _build_filter(
+    domain: str | None,
+    kanun_kodu: list[str] | None = None,
+) -> models.Filter | None:
+    conditions: list[models.FieldCondition] = []
+    if domain:
+        conditions.append(
             models.FieldCondition(
                 key="domain",
                 match=models.MatchValue(value=domain),
             )
-        ]
-    )
+        )
+    if kanun_kodu:
+        conditions.append(
+            models.FieldCondition(
+                key="kanun_kodu",
+                match=models.MatchAny(any=list(kanun_kodu)),
+            )
+        )
+    if not conditions:
+        return None
+    return models.Filter(must=conditions)
 
 
 def _to_result(point: Any) -> SearchResult:

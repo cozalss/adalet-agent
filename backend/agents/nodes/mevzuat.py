@@ -103,10 +103,27 @@ async def mevzuat_node(state: AgentState) -> dict:
         results = await search(question=question, top_k=target_k, domain=None)
         retrieval_mode = "hybrid"
 
+    # Domain-scoped takviye retrieval (W: vatandaş-dili köprüsü). Vatandaş dili
+    # ("buzdolabı bozuldu") genel aramada doğru kanunu (TKHK m.11 "ayıplı mal")
+    # top-K'ya getiremiyor — kelime örtüşmesi yok, üstelik TTK gibi kalabalık
+    # kanunlar baskın. Triaj domain'i yüksek güvenle biliniyorsa, o domain'in
+    # kanun setine FİLTRELİ ek bir arama yapıp sonuçları havuza katıyoruz; böylece
+    # ilgili kanunlar aday olarak GARANTİ edilir. (Post-hoc boost yalnız retrieve
+    # EDİLEN chunk'ı yükseltebilir; bu adım onu havuza sokar.)
+    if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
+        try:
+            scoped = await search(
+                question=question,
+                top_k=TOP_K_LAW * 2,
+                kanun_kodu=list(DOMAIN_TO_KANUN_KODU[domain]),
+            )
+            results = _merge_dedup(scoped, results)
+        except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
+            log.warning("domain_scoped_retrieval_failed",
+                        error=str(exc) or type(exc).__name__)
+
     # Sprint-4 W1: Pre-domain boost — triaj'ın belirlediği domain'e uyan
     # `kanun_kodu` payload'larını skoru +MEVZUAT_DOMAIN_BOOST ile re-rank et.
-    # Mevzuat seed'lerinde `domain` field yok ama `kanun_kodu` var; boost
-    # post-retrieve uygulanır → re-seed gerekmez.
     n_boosted = 0
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         results, n_boosted = _boost_by_domain(results, domain)
@@ -135,6 +152,22 @@ async def mevzuat_node(state: AgentState) -> dict:
         domain=domain, n=len(laws), mode=retrieval_mode, boosted=n_boosted,
     )
     return {"mevzuat_refs": laws}
+
+
+def _merge_dedup(
+    primary: list[SearchResult], secondary: list[SearchResult],
+) -> list[SearchResult]:
+    """İki sonuç listesini chunk_id'ye göre tekilleştirerek birleştir.
+
+    `primary` öncelikli: aynı chunk_id iki listede de varsa primary'deki
+    (domain-scoped, daha güvenilir skor) korunur. Sıralama sonradan
+    `_boost_by_domain` skor-desc sort'u ile belirlenir.
+    """
+    seen: dict[str, SearchResult] = {}
+    for r in [*primary, *secondary]:
+        if r.chunk_id not in seen:
+            seen[r.chunk_id] = r
+    return list(seen.values())
 
 
 def _boost_by_domain(
