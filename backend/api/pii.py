@@ -1,7 +1,10 @@
 """PII masking — Sprint-4 W6.4.
 
 Türkçe PII pattern'ları:
-  - TCKN (11 hane, ilk hane ≠ 0, son hane checksum) — tek modül, eval/edge_cases.py
+  - TCKN (11 hane, ilk hane ≠ 0). NOT: checksum doğrulaması KASITLI olarak YOK.
+    CLAUDE.md test verisinde geçersiz sahte TCKN (12345678901) kullanıyoruz;
+    checksum eklersek bunlar maskelenmez → KVKK için false-negative. Over-mask
+    (her 11 haneyi maskele) fail-safe tercih. — tek modül, eval/edge_cases.py
     ile paylaşılabilir
   - Telefon (TR +90 / 0xxx-xxx-xxxx)
   - Email
