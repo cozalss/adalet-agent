@@ -117,6 +117,20 @@ class LlamaCppClient:
         self._load_lock: Any = None
 
     def _load(self) -> Any:
+        # Windows: llama.dll'in CUDA bağımlılıkları (cudart64_12, cublas64_12)
+        # torch'un (cu124) bundle ettiği DLL'lerde mevcut. torch/lib'i DLL arama
+        # yoluna ekle → CUDA Toolkit kurmadan GPU offload. Toolkit yoksa "llama.dll
+        # bağımlılığı bulunamadı" ile yükleme çökerdi. Guard'lı: torch yoksa/Linux'ta
+        # no-op (binary'ler kendi runtime'ını bundle eder).
+        import contextlib
+        with contextlib.suppress(Exception):
+            import os as _os
+
+            import torch as _torch
+            _lib = _os.path.join(_os.path.dirname(_torch.__file__), "lib")
+            if hasattr(_os, "add_dll_directory") and _os.path.isdir(_lib):
+                _os.add_dll_directory(_lib)
+
         from llama_cpp import Llama
 
         log.info(

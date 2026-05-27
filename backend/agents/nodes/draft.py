@@ -41,7 +41,9 @@ _DRAFT_SYSTEM = (
     "geçmiyorsa onu YAZMA.\n"
     "3. Emin olmadığında uydurmak yerine 'bu konuda kesin bilgi veremiyorum, "
     "bir avukata danışmanızı öneririm' de.\n"
-    "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle."
+    "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle.\n"
+    "5. Yanıtının TAMAMI Türkçe olmalı. İngilizce, Çince veya başka hiçbir "
+    "dilde tek kelime bile yazma; tüm cevabı baştan sona Türkçe ver."
 )
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
