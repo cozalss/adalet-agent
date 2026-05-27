@@ -128,19 +128,19 @@ async def triaj_node(state: AgentState) -> dict:
             f"--- /KONUŞMA BAĞLAMI ---"
         )
 
-    # max_tokens=400: 200 yetersiz oldu (Qwen Türkçe reasoning ortasında kesip
-    # JSON kapatmıyordu → parse fail → unknown). 400 ile reasoning rahat sığar.
+    # max_tokens=512: 400'dü; facts objesi JSON'a eklenince reasoning+facts birlikte
+    # sığsın diye artırıldı (Qwen Türkçe reasoning ortasında kesilirse parse fail).
     response = await llm.chat(
         messages=[
             ChatMessage(role="system", content=system_prompt),
             ChatMessage(role="user", content=question),
         ],
         temperature=0.0,
-        max_tokens=400,
+        max_tokens=512,
         json_mode=True,
     )
 
-    domain, confidence, reasoning = _parse_triage_json(response.content)
+    domain, confidence, reasoning, facts = _parse_triage_json(response.content)
 
     # Devam sorusunda LLM unknown derse, inherited'i fallback olarak kullan
     if domain == "unknown" and inherited_domain:
@@ -158,16 +158,28 @@ async def triaj_node(state: AgentState) -> dict:
         "triaj_done",
         domain=domain, confidence=confidence,
         history_turns=len(history), continuation=inherited_domain is not None,
+        n_facts=len(facts),
     )
     return {
         "domain": domain,
         "domain_confidence": confidence,
         "triage_reasoning": reasoning,
+        "case_facts": facts,
     }
 
 
-def _parse_triage_json(raw: str) -> tuple[Domain, float, str]:
-    """Sağlam JSON parser — markdown fence vs. fallback."""
+# facts dict'inde kabul edilen anahtarlar — LLM serbest anahtar üretse de
+# yalnız bunları tutarız (gürültü/halüsinasyon anahtar sızıntısını engeller).
+_ALLOWED_FACT_KEYS = {"sure", "isci_sayisi", "tutar", "olay", "taraf", "tarih"}
+_MAX_FACT_VALUE_LEN = 120
+
+
+def _parse_triage_json(raw: str) -> tuple[Domain, float, str, dict[str, str]]:
+    """Sağlam JSON parser — markdown fence vs. fallback. facts tolere edilir.
+
+    facts eksik/bozuk olursa boş dict döner — domain sınıflandırması bundan
+    ETKİLENMEZ (additive alan). Yalnız izinli anahtarlar + string değerler tutulur.
+    """
     text = raw.strip()
     if text.startswith("```"):
         lines = text.splitlines()
@@ -177,9 +189,26 @@ def _parse_triage_json(raw: str) -> tuple[Domain, float, str]:
         obj = json.loads(text)
     except json.JSONDecodeError:
         log.warning("triaj_json_parse_failed", raw=raw[:200])
-        return "unknown", 0.0, f"JSON parse hatası: {raw[:80]}"
+        return "unknown", 0.0, f"JSON parse hatası: {raw[:80]}", {}
 
     domain = str(obj.get("domain", "unknown")).strip()
     confidence = float(obj.get("confidence", 0.0))
     reasoning = str(obj.get("reasoning", "")).strip()
-    return domain, confidence, reasoning  # type: ignore[return-value]
+    facts = _sanitize_facts(obj.get("facts"))
+    return domain, confidence, reasoning, facts  # type: ignore[return-value]
+
+
+def _sanitize_facts(raw: object) -> dict[str, str]:
+    """LLM facts çıktısını izinli anahtar + kısa string değerlere indir."""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, val in raw.items():
+        if key not in _ALLOWED_FACT_KEYS:
+            continue
+        if val is None:
+            continue
+        sval = str(val).strip()
+        if sval and sval.lower() not in {"null", "none", "yok", "-"}:
+            out[key] = sval[:_MAX_FACT_VALUE_LEN]
+    return out

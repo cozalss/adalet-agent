@@ -75,8 +75,12 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         }
 
     kaynaklar = _format_refs_for_prompt(refs)
-    user_prompt = _DRAFT_TEMPLATE.replace("{kaynaklar_blogu}", kaynaklar).replace(
-        "{soru}", question
+    olgular = _format_facts_for_prompt(state.get("case_facts") or {})
+    user_prompt = (
+        _DRAFT_TEMPLATE
+        .replace("{kaynaklar_blogu}", kaynaklar)
+        .replace("{olgular_blogu}", olgular)
+        .replace("{soru}", question)
     )
 
     llm = get_llm()
@@ -150,6 +154,35 @@ async def _extract_claims_llm(
             verify_score=0.0, verify_reason="",
         ))
     return claims
+
+
+# Triaj olgu anahtarları → kullanıcı-dostu Türkçe etiket (prompt okunurluğu).
+_FACT_LABELS = {
+    "sure": "Süre",
+    "isci_sayisi": "İşçi sayısı",
+    "tutar": "Tutar",
+    "olay": "Olay",
+    "taraf": "Taraf",
+    "tarih": "Tarih",
+}
+
+
+def _format_facts_for_prompt(facts: dict[str, object]) -> str:
+    """Triaj'ın çıkardığı olguları draft prompt'una hint bloğu olarak göm.
+
+    Olgu yoksa boş string → ADIM 1 LLM'i kendi olgu çıkarımını yapar (degrade yok).
+    Varsa, eşik-kontrolü (ADIM 2) için somut zemin verir: "Süre: 3 ay" gibi.
+    """
+    if not facts:
+        return ""
+    parts = [
+        f"{_FACT_LABELS.get(k, k)}: {str(v).strip()}"
+        for k, v in facts.items()
+        if str(v).strip()
+    ]
+    if not parts:
+        return ""
+    return " (Sorudan çıkarılan olgular — " + "; ".join(parts) + ")"
 
 
 def _format_refs_for_prompt(refs: list[Citation]) -> str:

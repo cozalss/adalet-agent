@@ -120,6 +120,11 @@ class AgentState(TypedDict):
     domain: Domain
     domain_confidence: float
     triage_reasoning: str
+    # Sorudan çıkarılan somut olgular (çalışma süresi, işçi sayısı, tutar, olay,
+    # taraf, tarih). Draft ajanı hakların ŞART/EŞİK'lerini bu olgularla karşılaştırır
+    # (örn. kıdem tazminatı için kaynaktaki 1 yıl eşiği vs. kullanıcının 3 ayı).
+    # Anahtarlar serbest; LLM neyi bulursa onu doldurur, yoksa boş dict.
+    case_facts: NotRequired[dict[str, Any]]
 
     # --- Retrieval (paralel fan-in) ---
     mevzuat_refs: Annotated[list[Citation], operator.add]

@@ -15,15 +15,27 @@ KESİN KURALLAR:
 2. Çocuğa zarar verebilecek içerik için "unknown" döndür.
 3. Güven skoru 0.35 altına düşerse "unknown" kullan.
 
+AYRICA: Sorudaki SOMUT OLGULARI çıkar. Yalnızca soruda AÇIKÇA geçen bilgileri yaz, tahmin etme/uydurma. Olası anahtarlar (yalnız geçenleri ekle):
+- sure        : çalışma/kira/sözleşme süresi (örn. "3 ay", "2 yıl")
+- isci_sayisi : işyerindeki işçi sayısı (örn. "10")
+- tutar       : para miktarı (örn. "5000 TL")
+- olay        : ne olduğu (örn. "işten çıkarıldı", "kira artışı", "ayıplı ürün")
+- taraf       : kullanıcının rolü (örn. "işçi", "kiracı", "tüketici")
+- tarih       : geçen tarih bilgisi (örn. "bugün", "geçen ay")
+Soruda hiçbir somut olgu yoksa "facts" boş obje {} olsun.
+
 YANIT FORMATI: Yalnızca geçerli JSON, başka hiçbir şey yazma:
 
-{"domain": "<8 etiketten biri>", "confidence": <0.0-1.0>, "reasoning": "<EN FAZLA 100 KARAKTER, tek cümle>"}
+{"domain": "<8 etiketten biri>", "confidence": <0.0-1.0>, "reasoning": "<EN FAZLA 100 KARAKTER, tek cümle>", "facts": {"<anahtar>": "<deger>"}}
 
-ÖNEMLİ: reasoning MUTLAKA kısa (100 karakter ↓) olmalı, aksi halde JSON kesilir ve parse fail olur. Uzun açıklama YAZMA.
+ÖNEMLİ: reasoning MUTLAKA kısa (100 karakter ↓) olmalı, aksi halde JSON kesilir ve parse fail olur. Uzun açıklama YAZMA. facts içine YALNIZCA soruda geçen değerleri koy.
 
 Örnek:
 Soru: "Kıdem tazminatı nasıl hesaplanır?"
-{"domain": "isHukuku", "confidence": 0.95, "reasoning": "İş Kanunu kıdem tazminatı."}
+{"domain": "isHukuku", "confidence": 0.95, "reasoning": "İş Kanunu kıdem tazminatı.", "facts": {}}
+
+Soru: "3 ay önce işe başladım ama bugün işten atıldım, haklarım neler?"
+{"domain": "isHukuku", "confidence": 0.95, "reasoning": "İşten çıkarma, işçi hakları.", "facts": {"sure": "3 ay", "olay": "işten çıkarıldı", "taraf": "işçi", "tarih": "bugün"}}
 
 Soru: "Kat malikleri toplantısı nasıl yapılır?"
-{"domain": "tapu", "confidence": 0.9, "reasoning": "KMK kat mülkiyeti yönetimi."}
+{"domain": "tapu", "confidence": 0.9, "reasoning": "KMK kat mülkiyeti yönetimi.", "facts": {}}

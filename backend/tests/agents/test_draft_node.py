@@ -60,6 +60,69 @@ async def test_draft_system_prompt_forbids_fabrication(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_draft_prompt_has_eligibility_steps(monkeypatch):
+    """Eşik-kontrolü düşünme adımları (Step-3) user prompt'a geçmeli — eksik
+    hakkı 'var' gibi sunma regresyonunu önler."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({
+        "question": "işten atıldım haklarım?",
+        "mevzuat_refs": [_ref()],
+        "emsal_refs": [],
+    })
+    user_msg = next(m for m in cap.messages if m.role == "user")
+    low = user_msg.content.lower()
+    assert "eşik" in low or "şart" in low       # eşik/şart kontrolü
+    assert "doğmadığını" in low or "doğmad" in low  # eksik hakkı reddet talimatı
+
+
+@pytest.mark.asyncio
+async def test_draft_injects_case_facts(monkeypatch):
+    """Triaj olguları varsa draft prompt'una somut hint olarak gömülür."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({
+        "question": "işten atıldım",
+        "mevzuat_refs": [_ref()],
+        "emsal_refs": [],
+        "case_facts": {"sure": "3 ay", "olay": "işten çıkarıldı"},
+    })
+    user_msg = next(m for m in cap.messages if m.role == "user")
+    assert "3 ay" in user_msg.content
+    assert "işten çıkarıldı" in user_msg.content
+
+
+@pytest.mark.asyncio
+async def test_draft_no_facts_leaves_placeholder_clean(monkeypatch):
+    """case_facts yoksa {olgular_blogu} boşa indirgenir — ham placeholder sızmaz."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({
+        "question": "soru", "mevzuat_refs": [_ref()], "emsal_refs": [],
+    })
+    user_msg = next(m for m in cap.messages if m.role == "user")
+    assert "{olgular_blogu}" not in user_msg.content
+
+
+def test_format_facts_empty_returns_empty_string():
+    import agents.nodes.draft as draft_mod
+    assert draft_mod._format_facts_for_prompt({}) == ""
+
+
+def test_format_facts_renders_labels():
+    import agents.nodes.draft as draft_mod
+    out = draft_mod._format_facts_for_prompt({"sure": "3 ay", "olay": "fesih"})
+    assert "Süre: 3 ay" in out
+    assert "Olay: fesih" in out
+
+
+@pytest.mark.asyncio
 async def test_draft_no_refs_returns_empty(monkeypatch):
     """Kaynak yoksa LLM çağrılmadan boş taslak + hata döner (mevcut sözleşme)."""
     import agents.nodes.draft as draft_mod
