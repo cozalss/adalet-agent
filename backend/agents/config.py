@@ -80,6 +80,15 @@ MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max
 LLM_MAX_TOKENS = 1536            # draft cevabı için
 LLM_TEMPERATURE = 0.1            # hukuki üretim — düşük sıcaklık şart
 LLM_CONTEXT_BUDGET = 3000        # context'in retrieval'a ayrılan token oranı
+
+# --- Uygunluk geçişi (yapılandırılmış akıl yürütme) ---
+# Eşik-uygulama (kıdem 1 yıl, işe iade 6 ay+30 işçi) tek draft prompt'unda
+# küçük modelde güvenilir olmuyor; ayrı, odaklı bir JSON-mode LLM çağrısı her
+# madde için "eşik çıkar → olguyla karşılaştır → VAR/YOK" kararı üretir. Draft
+# bu kararları prose'a çevirir. Default ON (asıl akıl-yürütme fix'i); testlerde
+# conftest kapatır (baseline topoloji korunur). E2E/production'da açık.
+ELIGIBILITY_ENABLED = os.getenv("ELIGIBILITY_ENABLED", "1") not in {"0", "false", "False"}
+ELIGIBILITY_MAX_TOKENS = int(os.getenv("ELIGIBILITY_MAX_TOKENS", "700"))
 # Not: 12-kanun seed sonrası retrieval blok büyüdü (8 law + 8 case × 600 char
 # = ~10KB ≈ 2500 token). System+soru+template ile 4096 token llama-server -c
 # default'unu aşıyordu (400 Bad Request). 3000'e düşürdük; 8 ref × ~1500 char

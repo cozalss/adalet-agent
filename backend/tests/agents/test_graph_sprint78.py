@@ -66,6 +66,34 @@ def test_graph_with_self_rag_enabled(monkeypatch):
     assert "crag" not in nodes
 
 
+def test_graph_eligibility_disabled_not_in_topology(monkeypatch):
+    """ELIGIBILITY_ENABLED=0 → 'eligibility' node yok, mevzuat→draft korunur."""
+    monkeypatch.setenv("ELIGIBILITY_ENABLED", "0")
+    monkeypatch.delenv("CRAG_ENABLED", raising=False)
+    g = build_graph()
+    gg = g.get_graph()
+    nodes = set(gg.nodes.keys())
+    assert "eligibility" not in nodes
+    edges = {(e.source, e.target) for e in gg.edges}
+    assert ("mevzuat", "draft") in edges
+
+
+def test_graph_eligibility_enabled_between_fanin_and_draft(monkeypatch):
+    """ELIGIBILITY_ENABLED=1 → fan-in 'eligibility'ye, o da 'draft'a bağlanır."""
+    monkeypatch.setenv("ELIGIBILITY_ENABLED", "1")
+    monkeypatch.delenv("CRAG_ENABLED", raising=False)
+    g = build_graph()
+    gg = g.get_graph()
+    nodes = set(gg.nodes.keys())
+    assert "eligibility" in nodes
+    edges = {(e.source, e.target) for e in gg.edges}
+    # fan-in → eligibility → draft; doğrudan mevzuat→draft OLMAMALI
+    assert ("mevzuat", "eligibility") in edges
+    assert ("emsal", "eligibility") in edges
+    assert ("eligibility", "draft") in edges
+    assert ("mevzuat", "draft") not in edges
+
+
 def test_graph_both_enabled(monkeypatch):
     """Hem CRAG hem Self-RAG → ikisi de eklenir."""
     monkeypatch.setenv("CRAG_ENABLED", "1")

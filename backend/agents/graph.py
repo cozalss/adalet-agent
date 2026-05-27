@@ -46,6 +46,7 @@ Notlar:
 from __future__ import annotations
 
 import os
+from itertools import pairwise
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -54,6 +55,7 @@ from agents.config import MAX_RETRY
 from agents.nodes.crag import crag_node
 from agents.nodes.debate import debate_node
 from agents.nodes.draft import draft_node
+from agents.nodes.eligibility import eligibility_node
 from agents.nodes.emsal import emsal_node
 from agents.nodes.finalize import finalize_node
 from agents.nodes.mevzuat import mevzuat_node
@@ -116,6 +118,11 @@ def _self_rag_enabled() -> bool:
     return os.environ.get("SELF_RAG_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def _eligibility_enabled() -> bool:
+    """ENV ile etkin: ELIGIBILITY_ENABLED (default ON; testlerde conftest kapatır)."""
+    return os.environ.get("ELIGIBILITY_ENABLED", "1") not in {"0", "false", "False"}
+
+
 def build_graph() -> Any:
     """Compiled LangGraph — `await graph.ainvoke({"question": ...})` ile çağrılır.
 
@@ -142,6 +149,9 @@ def build_graph() -> Any:
     crag_on = _crag_enabled()
     self_rag_on = _self_rag_enabled()
     predictive_on = _predictive_enabled()
+    eligibility_on = _eligibility_enabled()
+    if eligibility_on:
+        g.add_node("eligibility", eligibility_node)
     if crag_on:
         g.add_node("crag", crag_node)
     if self_rag_on:
@@ -163,14 +173,22 @@ def build_graph() -> Any:
         ["mevzuat", "emsal", sink],
     )
 
-    # Fan-in: mevzuat ve emsal bittiğinde → (crag veya draft)
+    # Fan-in: mevzuat ve emsal bittiğinde → retrieve-sonrası zincir → draft.
+    # Zincir: [crag?] → [eligibility?] → draft. Bayraklar kapalıysa doğrudan draft
+    # (baseline topoloji korunur). eligibility, kaynaklar hazırken eşik-uygunluk
+    # kararı üretir; draft bunu prose'a çevirir.
+    post_chain: list[str] = []
     if crag_on:
-        g.add_edge("mevzuat", "crag")
-        g.add_edge("emsal", "crag")
-        g.add_edge("crag", "draft")
-    else:
-        g.add_edge("mevzuat", "draft")
-        g.add_edge("emsal", "draft")
+        post_chain.append("crag")
+    if eligibility_on:
+        post_chain.append("eligibility")
+    post_chain.append("draft")
+
+    fan_in_target = post_chain[0]
+    g.add_edge("mevzuat", fan_in_target)
+    g.add_edge("emsal", fan_in_target)
+    for src, dst in pairwise(post_chain):
+        g.add_edge(src, dst)
 
     # Draft → verify → debate
     g.add_edge("draft", "verify")

@@ -364,6 +364,13 @@ _MOCK_DISPATCH: tuple[tuple[Any, Any], ...] = (
      lambda _m, _s: json.dumps(
          {"claims": ["[MOCK] Atomic claim 1.", "[MOCK] Atomic claim 2."]},
          ensure_ascii=False)),
+    (lambda s: "uygunluk değerlendir" in s,
+     lambda _m, _s: json.dumps(
+         {"degerlendirmeler": [
+             {"madde": "m-MOCK-1", "hak": "[MOCK] hak", "kosul": "-",
+              "saglaniyor": "belirsiz", "gerekce": "[MOCK] uygunluk testi."},
+         ]},
+         ensure_ascii=False)),
     (lambda s: "entailment" in s,
      lambda _m, _s: json.dumps(
          {"verdict": "yes", "reason": "[MOCK] context destekliyor."},

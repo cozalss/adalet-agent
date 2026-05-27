@@ -125,6 +125,11 @@ class AgentState(TypedDict):
     # (örn. kıdem tazminatı için kaynaktaki 1 yıl eşiği vs. kullanıcının 3 ayı).
     # Anahtarlar serbest; LLM neyi bulursa onu doldurur, yoksa boş dict.
     case_facts: NotRequired[dict[str, Any]]
+    # Uygunluk değerlendirmesi (yapılandırılmış akıl yürütme): retrieve edilen her
+    # madde için {madde, hak, kosul, saglaniyor: evet|hayir|belirsiz, gerekce}.
+    # Draft bu önceden-hesaplanmış kararları prose'a çevirir (eşik aritmetiğini
+    # prose üretiminden ayırır → küçük modelde daha güvenilir).
+    eligibility: NotRequired[list[dict[str, Any]]]
 
     # --- Retrieval (paralel fan-in) ---
     mevzuat_refs: Annotated[list[Citation], operator.add]

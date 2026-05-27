@@ -123,6 +123,44 @@ def test_format_facts_renders_labels():
     assert "Olay: fesih" in out
 
 
+def test_format_eligibility_empty_returns_empty():
+    import agents.nodes.draft as draft_mod
+    assert draft_mod._format_eligibility_for_prompt([]) == ""
+
+
+def test_format_eligibility_renders_verdict_labels():
+    import agents.nodes.draft as draft_mod
+    out = draft_mod._format_eligibility_for_prompt([
+        {"madde": "m-EIK-14", "hak": "kıdem", "kosul": "1 yıl",
+         "saglaniyor": "hayir", "gerekce": "3 ay < 1 yıl"},
+        {"madde": "m-IK-17", "hak": "ihbar", "kosul": "-",
+         "saglaniyor": "evet", "gerekce": "her kıdemde"},
+    ])
+    assert "HAK YOK" in out and "kıdem" in out
+    assert "HAK VAR" in out and "ihbar" in out
+
+
+@pytest.mark.asyncio
+async def test_draft_injects_eligibility(monkeypatch):
+    """Uygunluk kararları varsa draft prompt'una önceden-hesaplanmış blok girer."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({
+        "question": "işten atıldım",
+        "mevzuat_refs": [_ref()],
+        "emsal_refs": [],
+        "eligibility": [
+            {"madde": "m-EIK-14", "hak": "kıdem", "kosul": "1 yıl",
+             "saglaniyor": "hayir", "gerekce": "3 ay < 1 yıl"},
+        ],
+    })
+    user_msg = next(m for m in cap.messages if m.role == "user")
+    assert "UYGUNLUK DEĞERLENDİRMESİ" in user_msg.content
+    assert "HAK YOK" in user_msg.content
+
+
 @pytest.mark.asyncio
 async def test_draft_no_refs_returns_empty(monkeypatch):
     """Kaynak yoksa LLM çağrılmadan boş taslak + hata döner (mevcut sözleşme)."""

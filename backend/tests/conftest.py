@@ -31,6 +31,10 @@ os.environ.setdefault("MEVZUAT_DOMAIN_FILTER", "0")
 # Mevzuat cross-encoder rerank — testlerde kapalı (BGE-reranker yüklenmesin;
 # rerank davranışı kendi testinde fake reranker ile sınanır).
 os.environ.setdefault("MEVZUAT_RERANK", "0")
+# Uygunluk (eligibility) node — testlerde kapalı ki baseline graph topolojisi
+# (mevzuat+emsal→draft) korunsun. Kendi testleri (test_eligibility_node.py) ve
+# graph-wiring testi env'i açar. Production/e2e'de default ON.
+os.environ.setdefault("ELIGIBILITY_ENABLED", "0")
 
 from agents.llm import reset_llm
 from agents.state import Citation, Claim

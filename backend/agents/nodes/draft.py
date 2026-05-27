@@ -76,10 +76,12 @@ async def draft_node(state: AgentState) -> dict[str, object]:
 
     kaynaklar = _format_refs_for_prompt(refs)
     olgular = _format_facts_for_prompt(state.get("case_facts") or {})
+    uygunluk = _format_eligibility_for_prompt(state.get("eligibility") or [])
     user_prompt = (
         _DRAFT_TEMPLATE
         .replace("{kaynaklar_blogu}", kaynaklar)
         .replace("{olgular_blogu}", olgular)
+        .replace("{uygunluk_blogu}", uygunluk)
         .replace("{soru}", question)
     )
 
@@ -186,6 +188,39 @@ def _format_facts_for_prompt(facts: dict[str, object]) -> str:
     return (
         "\n\nKULLANICININ DURUMU (sorudan çıkarılan somut olgular — "
         "eşik karşılaştırmasında BUNLARI kullan):\n- " + "\n- ".join(parts)
+    )
+
+
+# saglaniyor → kullanıcıya gösterilecek karar etiketi
+_VERDICT_LABEL = {
+    "evet": "HAK VAR",
+    "hayir": "HAK YOK",
+    "belirsiz": "BELİRSİZ",
+}
+
+
+def _format_eligibility_for_prompt(assessments: list[dict]) -> str:
+    """Uygunluk node'unun önceden hesapladığı eşik kararlarını draft'a göm.
+
+    Bu blok varsa draft eşik aritmetiğini TEKRAR yapmaz — kararları prose'a
+    çevirir. HAK YOK olanları eksik şartıyla, HAK VAR olanları dayanağıyla yazar.
+    Boşsa "" → draft kendi DÜŞÜNME ADIMLARI ile idare eder (degrade yok).
+    """
+    if not assessments:
+        return ""
+    lines = []
+    for a in assessments:
+        label = _VERDICT_LABEL.get(a.get("saglaniyor", ""), "BELİRSİZ")
+        hak = a.get("hak", "") or "?"
+        madde = a.get("madde", "")
+        kosul = a.get("kosul", "")
+        gerekce = a.get("gerekce", "")
+        kosul_str = f" | Şart: {kosul}" if kosul and kosul != "-" else ""
+        lines.append(f"- [{label}] {hak} ({madde}){kosul_str} — {gerekce}")
+    return (
+        "\n\nUYGUNLUK DEĞERLENDİRMESİ (önceden hesaplandı — yanıtını BUNA dayandır; "
+        "HAK YOK olanları eksik şartıyla açıkça belirt, HAK VAR olanları öne çıkar):\n"
+        + "\n".join(lines)
     )
 
 
