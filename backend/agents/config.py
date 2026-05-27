@@ -249,6 +249,25 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "kira": (("TBK", 299), ("TBK", 315), ("TBK", 344), ("TBK", 347), ("TBK", 350)),
 }
 
+# Domain → ÖNCELİKLİ emsal mahkemesi (court-priority tier-sort).
+# Corpus'ta Anayasa Mahkemesi bireysel-başvuru kararları hacimce baskın
+# (~9:1 vs Yargıtay) → hybrid+cross-encoder emsalde anayasayı öne koyuyor.
+# Vatandaş-yardım domain'lerinde esaslı emsal Yargıtay/Danıştay içtihadıdır;
+# anayasa bireysel başvuru nadiren doğru emsal. Bu yüzden tier-0 = tercih edilen
+# mahkeme(ler), tier-1 = diğer mahkemeler, tier-2 = anayasa (stable sort →
+# cross-encoder sırası tier içinde korunur). DOMAIN_TO_KANUN_KODU/CORE ile
+# aynı tier-sort felsefesi (mevzuat tarafındaki düzeltmenin emsal karşılığı).
+DOMAIN_PREFERRED_COURTS: dict[str, tuple[str, ...]] = {
+    "tuketici": ("yargitay",),
+    "isHukuku": ("yargitay",),
+    "kira": ("yargitay",),
+    "icra": ("yargitay",),
+    "trafik": ("yargitay",),
+    "tapu": ("yargitay", "danistay"),
+    "vergi": ("danistay",),
+    "idari": ("danistay",),
+}
+
 # --- Disclaimer ---
 DISCLAIMER_TR = (
     "⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. "

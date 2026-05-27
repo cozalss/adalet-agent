@@ -14,7 +14,7 @@ import os
 
 import structlog
 
-from agents.config import RERANK_CANDIDATES, TOP_K_CASE
+from agents.config import DOMAIN_PREFERRED_COURTS, RERANK_CANDIDATES, TOP_K_CASE
 from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.hybrid_search import search_with_rerank
@@ -40,28 +40,31 @@ async def emsal_node(state: AgentState) -> dict:
         domain=domain,
     )
 
-    cases: list[Citation] = []
-    for rr in rerank_results:
-        # case kriteri: doc_type=='case' VEYA source ∈ {anayasa,yargitay,danistay,bedesten}
-        # (seed'lerde doc_type her zaman yazılmıyor — source field her zaman var)
-        is_case = (
-            rr.metadata.get("doc_type") == "case"
-            or rr.source in {"anayasa", "yargitay", "danistay", "bedesten"}
+    # case adaylarını ayıkla (doc_type=='case' VEYA source ∈ mahkeme kümesi —
+    # seed'lerde doc_type her zaman yazılmıyor, source field her zaman var).
+    case_results = [
+        rr for rr in rerank_results
+        if rr.metadata.get("doc_type") == "case"
+        or rr.source in {"anayasa", "yargitay", "danistay", "bedesten"}
+    ]
+
+    # Mahkeme-öncelikli tier-sort — Anayasa bireysel başvuru hacmi (corpus'ta
+    # ~9:1) cross-encoder'ı domine ediyor; vatandaş-yardım domain'lerinde esaslı
+    # emsal Yargıtay/Danıştay'dır. Tercih edilen mahkeme öne alınır (stable →
+    # cross-encoder sırası tier içinde korunur), sonra TOP_K_CASE'e kesilir.
+    case_results, n_preferred = _court_priority_sort(case_results, domain)
+
+    cases: list[Citation] = [
+        Citation(
+            source_id=rr.chunk_id,
+            doc_type="case",
+            title=_format_case_title(rr),
+            snippet=rr.text[:500],
+            url=rr.source_url,
+            score=rr.score,
         )
-        if not is_case:
-            continue
-        cases.append(
-            Citation(
-                source_id=rr.chunk_id,
-                doc_type="case",
-                title=_format_case_title(rr),
-                snippet=rr.text[:500],
-                url=rr.source_url,
-                score=rr.score,
-            )
-        )
-        if len(cases) >= TOP_K_CASE:
-            break
+        for rr in case_results[:TOP_K_CASE]
+    ]
 
     # Sprint-4 W3.4: GraphRAG expand — bayrak açık ve graph yüklü ise
     # citation title'larından seed'ler çıkar, k-hop neighbor node id'leri al.
@@ -91,11 +94,42 @@ async def emsal_node(state: AgentState) -> dict:
     log.info(
         "emsal_done",
         domain=domain, n=len(cases), graph_neighbors=len(graph_neighbors),
+        preferred=n_preferred,
     )
     out: dict = {"emsal_refs": cases}
     if graph_neighbors:
         out["emsal_graph_neighbors"] = graph_neighbors
     return out
+
+
+def _court_priority_sort(cases: list, domain: str) -> tuple[list, int]:
+    """Cross-encoder sırasını mahkeme-önceliğiyle birleştir (stable tier sort).
+
+    Anayasa bireysel başvuru kararları corpus'ta hacimce baskın olduğundan
+    cross-encoder onları öne koyuyor; oysa vatandaş-yardım domain'lerinde esaslı
+    emsal Yargıtay/Danıştay içtihadıdır. DOMAIN_PREFERRED_COURTS'taki mahkeme(ler)
+    tier-0'a, diğer non-anayasa tier-1'e, anayasa tier-2'ye iner. `sorted` stable
+    olduğundan tier İÇİNDE cross-encoder sırası korunur.
+
+    Returns:
+        (re-sıralı liste, tercih-edilen-mahkeme aday sayısı).
+    """
+    preferred = DOMAIN_PREFERRED_COURTS.get(domain)
+    if not preferred:
+        return cases, 0
+    preferred_set = set(preferred)
+
+    def _tier(rr) -> int:
+        src = str(rr.source or "").lower()
+        if src in preferred_set:
+            return 0
+        if src == "anayasa":
+            return 2
+        return 1
+
+    ordered = sorted(cases, key=_tier)  # stable → tier içinde cross-encoder sırası
+    n_preferred = sum(1 for rr in cases if str(rr.source or "").lower() in preferred_set)
+    return ordered, n_preferred
 
 
 def _format_case_title(sr) -> str:
