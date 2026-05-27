@@ -19,11 +19,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
+from api.limiter import INVITE_RATE, limiter
 from api.middleware.auth import Principal, authenticate, issue_token
 from api.pii import fingerprint
 
@@ -110,8 +111,15 @@ def _consume_invite(
 
 
 @router.post("/invite/{code}", response_model=TokenResponse)
-async def accept_invite(code: str, req: InviteAcceptRequest) -> TokenResponse:
-    """Davet kodu ile JWT alır. Kod tek kullanımlık (race-safe)."""
+@limiter.limit(INVITE_RATE)
+async def accept_invite(
+    request: Request, code: str, req: InviteAcceptRequest,
+) -> TokenResponse:
+    """Davet kodu ile JWT alır. Kod tek kullanımlık (race-safe).
+
+    Rate-limit (INVITE_RATE, IP başına): kod brute-force/enumerasyonunu sınırlar.
+    """
+    _ = request  # slowapi key_func request.state/IP'den okur — yan etki için tutulur
     if not req.kvkk_consent:
         raise HTTPException(400, "KVKK onayı şart")
 

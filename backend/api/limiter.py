@@ -20,6 +20,9 @@ from starlette.requests import Request
 
 ASK_RATE = os.getenv("RATE_LIMIT_ASK", "10/minute")
 ASK_RATE_API_KEY = os.getenv("RATE_LIMIT_ASK_API_KEY", "60/minute")
+# Davet kodu kabul — brute-force / kod-enumerasyon koruması. IP başına sıkı:
+# meşru kullanıcı bir kez kabul eder; saldırgan kod denemesini sınırla.
+INVITE_RATE = os.getenv("RATE_LIMIT_INVITE", "5/hour")
 STORAGE_URI = os.getenv("RATE_LIMIT_STORAGE_URI", "memory://")
 
 
@@ -61,4 +64,4 @@ def ask_rate_for(key: str) -> str:
 limiter = Limiter(key_func=_principal_key, storage_uri=STORAGE_URI)
 
 
-__all__ = ("ASK_RATE", "ASK_RATE_API_KEY", "ask_rate_for", "limiter")
+__all__ = ("ASK_RATE", "ASK_RATE_API_KEY", "INVITE_RATE", "ask_rate_for", "limiter")

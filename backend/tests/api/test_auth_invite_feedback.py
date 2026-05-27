@@ -59,6 +59,22 @@ def test_invite_used_code_returns_409(staging_client):
     assert r.status_code == 409
 
 
+def test_invite_rate_limited(staging_client):
+    """INVITE_RATE (default 5/hour) — aynı IP'den fazla deneme 429 (brute-force).
+
+    staging_client fixture limiter.reset() yapar → temiz başlar. İlk 5 deneme
+    geçer (404), 6. deneme rate-limit'e takılır.
+    """
+    statuses = [
+        staging_client.post(
+            "/auth/invite/no-such-code", json={"kvkk_consent": True},
+        ).status_code
+        for _ in range(6)
+    ]
+    assert statuses[-1] == 429
+    assert 429 not in statuses[:5]  # ilk 5 limit'e takılmamalı
+
+
 def test_invite_missing_kvkk_returns_400(staging_client):
     r = staging_client.post(
         "/auth/invite/code-alpha-1",
