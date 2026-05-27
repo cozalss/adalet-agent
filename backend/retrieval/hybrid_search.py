@@ -174,6 +174,33 @@ async def search_with_rerank(
     return await asyncio.to_thread(reranker.rerank, question, candidates, top_k)
 
 
+async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:
+    """Belirli (kanun_kodu, madde_no) maddelerini vektörsüz filtreyle çek.
+
+    Çapa-madde garantisi: domain'in kilit maddeleri (örn. İş Hukuku ihbar İK m.17)
+    konuşma-dili sorguda cross-encoder noise-floor yüzünden sıralamaya giremese bile
+    aday havuzunda bulunsun diye Qdrant'tan doğrudan çekilir. score=0.0 döner —
+    gerçek alakayı cross-encoder rerank sonradan atar; bulunmazsa sessizce atlanır.
+    """
+    if not pairs:
+        return []
+    client = get_shared_client()
+    out: list[SearchResult] = []
+    for kod, madde in pairs:
+        flt = models.Filter(must=[
+            models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kod)),
+            models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
+        ])
+        points, _ = await client.scroll(
+            collection_name=COLLECTION_NAME,
+            scroll_filter=flt,
+            limit=1,
+            with_payload=True,
+        )
+        out.extend(_to_result(p) for p in points)
+    return out
+
+
 def _build_filter(
     domain: str | None,
     kanun_kodu: list[str] | None = None,
@@ -201,9 +228,12 @@ def _build_filter(
 def _to_result(point: Any) -> SearchResult:
     payload = point.payload or {}
     chunk_id = payload.get("chunk_id") or str(point.id)
+    # scroll() `Record` döner (score'suz); query_points() `ScoredPoint` (score'lu).
+    # getattr ile ikisini de güvenle ele al — fetch_maddeler scroll kullanır.
+    score = getattr(point, "score", None)
     return SearchResult(
         chunk_id=chunk_id,
-        score=float(point.score) if point.score is not None else 0.0,
+        score=float(score) if score is not None else 0.0,
         text=payload.get("text", ""),
         source=payload.get("source", ""),
         source_url=payload.get("source_url", ""),

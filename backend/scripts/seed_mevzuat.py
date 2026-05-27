@@ -54,6 +54,7 @@ TARGET_LAWS: tuple[tuple[str, str], ...] = (
     ("SK", "Sendikalar ve Toplu İş Sözleşmesi Kanunu"),
     ("ISGK", "İş Sağlığı ve Güvenliği Kanunu"),
     ("DMK", "Devlet Memurları Kanunu"),
+    ("EIK", "1475 sayılı İş Kanunu (kıdem tazminatı m.14)"),
     ("DIK", "Deniz İş Kanunu"),
     ("BMC", "Basın Mesleğinde Çalışanlarla Çalıştıranlar Arasındaki Münasebetlerin Tanzimi Hakkında Kanun"),
     ("OGK", "Özel Güvenlik Hizmetlerine Dair Kanun"),

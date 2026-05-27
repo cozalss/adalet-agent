@@ -142,6 +142,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
     ),
     "isHukuku":  (
         "IK",       # 4857 — İş
+        "EIK",      # 1475 — Eski İş K. (m.14 kıdem tazminatı, hâlâ yürürlükte)
         "SGK",      # 5510 — Sosyal Sigorta
         "SK",       # 6356 — Sendikalar
         "ISGK",     # 6331 — İş Sağlığı Güvenliği
@@ -227,6 +228,17 @@ MEVZUAT_DOMAIN_BOOST = float(os.getenv("MEVZUAT_DOMAIN_BOOST", "0.15"))
 # TTK (deniz ticareti) chunk'larını düşürüp TKHK m.11'i öne çıkarır. Default ON;
 # test ortamı conftest ile "0" (BGE-reranker yüklenmesin).
 MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true", "yes"}
+
+# Domain çekirdek maddeleri — her domain'in EN kilit maddeleri (kanun_kodu, madde_no).
+# Konuşma-dili sorguda cross-encoder noise-floor skor verince bu maddeler (örn. İş
+# Hukuku ihbar tazminatı İK m.17) top-K'ya giremiyordu. Bu maddeler filtreyle çekilip
+# aday havuzuna eklenir VE final çıktıda GARANTİ edilir — vatandaşın tipik sorularının
+# yasal çekirdeği her zaman elde olsun. Yalnız MEVZUAT_DOMAIN_FILTER açıkken etkin.
+DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
+    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15)),
+    "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("EIK", 14)),
+    "kira": (("TBK", 299), ("TBK", 315), ("TBK", 344), ("TBK", 347), ("TBK", 350)),
+}
 
 # --- Disclaimer ---
 DISCLAIMER_TR = (

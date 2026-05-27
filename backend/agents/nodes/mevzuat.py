@@ -15,6 +15,7 @@ import httpx
 import structlog
 
 from agents.config import (
+    DOMAIN_CORE_MADDELER,
     DOMAIN_TO_KANUN_KODU,
     HYDE_ENABLED,
     HYDE_TIMEOUT_S,
@@ -27,7 +28,7 @@ from agents.config import (
 )
 from agents.state import AgentState, Citation
 from core.observability import observe_node
-from retrieval.hybrid_search import SearchResult, search
+from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
 from retrieval.reranker import get_reranker
@@ -105,13 +106,27 @@ async def mevzuat_node(state: AgentState) -> dict:
         results = await search(question=question, top_k=target_k, domain=None)
         retrieval_mode = "hybrid"
 
-    # Domain-scoped takviye retrieval (W: vatandaş-dili köprüsü). Vatandaş dili
-    # ("buzdolabı bozuldu") genel aramada doğru kanunu (TKHK m.11 "ayıplı mal")
-    # top-K'ya getiremiyor — kelime örtüşmesi yok, üstelik TTK gibi kalabalık
-    # kanunlar baskın. Triaj domain'i yüksek güvenle biliniyorsa, o domain'in
-    # kanun setine FİLTRELİ ek bir arama yapıp sonuçları havuza katıyoruz; böylece
-    # ilgili kanunlar aday olarak GARANTİ edilir. (Post-hoc boost yalnız retrieve
-    # EDİLEN chunk'ı yükseltebilir; bu adım onu havuza sokar.)
+    laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)
+    return {"mevzuat_refs": laws}
+
+
+async def _rank_and_build_laws(
+    question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
+) -> list[Citation]:
+    """Retrieve sonrası law adaylarını sırala + çapa garantisi + Citation üret.
+
+    mevzuat_node'dan ayrıldı (C901 — node 17>15 dal). Sıra:
+      1. domain-scoped takviye arama (vatandaş-dili köprüsü)
+      2. domain boost
+      3. law adayları ayıkla + çapa maddeleri ekle
+      4. cross-encoder rerank (+ çapaları geri-merge)
+      5. domain-öncelikli tier sort
+      6. çapa-garantili final top-K → Citation
+    """
+    # 1. Domain-scoped takviye retrieval. Vatandaş dili ("buzdolabı bozuldu")
+    # genel aramada doğru kanunu (TKHK m.11 "ayıplı mal") top-K'ya getiremiyor —
+    # kelime örtüşmesi yok, TTK gibi kalabalık kanunlar baskın. O domain'in kanun
+    # setine FİLTRELİ ek arama yapıp havuza katıyoruz; ilgili kanunlar GARANTİ aday.
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         try:
             scoped = await search(
@@ -124,27 +139,38 @@ async def mevzuat_node(state: AgentState) -> dict:
             log.warning("domain_scoped_retrieval_failed",
                         error=str(exc) or type(exc).__name__)
 
-    # Sprint-4 W1: Pre-domain boost — triaj'ın belirlediği domain'e uyan
-    # `kanun_kodu` payload'larını skoru +MEVZUAT_DOMAIN_BOOST ile re-rank et.
+    # 2. Pre-domain boost — domain'e uyan `kanun_kodu` skoru +MEVZUAT_DOMAIN_BOOST.
     n_boosted = 0
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         results, n_boosted = _boost_by_domain(results, domain)
 
-    # law adaylarını ayıkla (doc_type=='law' VEYA source=='mevzuat')
+    # 3. law adaylarını ayıkla (doc_type=='law' VEYA source=='mevzuat')
     law_cands = [
         r for r in results
         if r.metadata.get("doc_type") == "law" or r.source == "mevzuat"
     ]
 
-    # Cross-encoder rerank — RRF+boost heuristic'i alakasız ama kalabalık kanunları
-    # (TTK 405 chunk) öne koyabiliyor; cross-encoder gerçek soru-belge alakasıyla
-    # TKHK m.11 gibi ilgili maddeleri başa çıkarır. Reranker yoksa/çökerse
-    # boosted sıra korunur (graceful degrade).
+    # Çapa-maddeler — domain'in kilit maddelerini (örn. İş Hukuku ihbar İK m.17,
+    # kıdem EIK m.14) aday havuzuna GARANTİ et. Konuşma-dili sorguda noise-floor
+    # cross-encoder bunları top-K'dan düşürüyordu; filtreyle çekip merge ediyoruz.
+    anchors: list[SearchResult] = []
+    if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_CORE_MADDELER:
+        try:
+            anchors = await fetch_maddeler(list(DOMAIN_CORE_MADDELER[domain]))
+        except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
+            log.warning("anchor_fetch_failed", error=str(exc) or type(exc).__name__)
+    anchor_ids = {a.chunk_id for a in anchors}
+    if anchors:
+        law_cands = _merge_dedup(law_cands, anchors)
+
+    # 4. Cross-encoder rerank — RRF+boost heuristic'i kalabalık kanunları (TTK 405
+    # chunk) öne koyabiliyor; cross-encoder gerçek soru-belge alakasıyla TKHK m.11
+    # gibi ilgili maddeleri başa çıkarır. Reranker yoksa/çökerse boosted sıra korunur.
     reranked = False
     if MEVZUAT_RERANK_ENABLED and law_cands:
         try:
             rr = await asyncio.to_thread(
-                get_reranker().rerank, question, law_cands, TOP_K_LAW * 2,
+                get_reranker().rerank, question, law_cands, TOP_K_LAW * 3,
             )
             if rr:
                 law_cands = rr
@@ -152,15 +178,19 @@ async def mevzuat_node(state: AgentState) -> dict:
         except Exception as exc:
             log.warning("mevzuat_rerank_failed", error=str(exc) or type(exc).__name__)
 
-    # Domain-öncelikli tier sort — cross-encoder gerçek alakayı verir AMA hukuki
-    # bağlamı (tüketici vs deniz ticareti) ayırt edemez; "buzdolabı bozuldu"
-    # sorusunda TTK taşıma maddelerini TKHK ayıplı-mal maddesinin üstüne koyabiliyor.
-    # Triaj domain'i (yüksek güven) güvenilir bağlam sinyali → o domain'in BİRİNCİL
-    # kanunu (tuketici→TKHK) öne alınır, cross-encoder sırası tier İÇİNDE korunur.
+    # rerank, çapaları noise-floor skorla kesmiş olabilir → geri ekle (recall garanti)
+    if anchors:
+        law_cands = _merge_dedup(law_cands, anchors)
+
+    # 5. Domain-öncelikli tier sort — cross-encoder alakayı verir AMA hukuki bağlamı
+    # (tüketici vs deniz ticareti) ayırt edemez. Triaj domain'inin BİRİNCİL kanunu
+    # (tuketici→TKHK) tier-0'a alınır; cross-encoder sırası tier İÇİNDE korunur.
     n_primary = 0
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         law_cands, n_primary = _domain_priority_rerank(law_cands, domain)
 
+    # 6. Final top-K: çapa maddeleri GARANTİ et, kalanı sıralı doldur.
+    final_cands = _ensure_core_in_topk(law_cands, anchor_ids, TOP_K_LAW)
     laws = [
         Citation(
             source_id=r.chunk_id,
@@ -170,15 +200,16 @@ async def mevzuat_node(state: AgentState) -> dict:
             url=r.source_url,
             score=r.score,
         )
-        for r in law_cands[:TOP_K_LAW]
+        for r in final_cands
     ]
 
     log.info(
         "mevzuat_done",
         domain=domain, n=len(laws), mode=retrieval_mode,
         boosted=n_boosted, reranked=reranked, primary=n_primary,
+        anchors=len(anchor_ids),
     )
-    return {"mevzuat_refs": laws}
+    return laws
 
 
 def _merge_dedup(
@@ -274,6 +305,37 @@ def _domain_priority_rerank(
         1 for c in cands if str(c.metadata.get("kanun_kodu") or "") == primary
     )
     return ordered, n_primary
+
+
+def _ensure_core_in_topk(
+    ranked: list, anchor_ids: set[str], top_k: int,
+) -> list:
+    """Final top_k'da çapa maddelerini GARANTİ et; kalanı ranked sırasıyla doldur.
+
+    `_domain_priority_rerank` çıktısı zaten domain-öncelikli sıralı. Çapalar
+    (anchor_ids) genelde birincil kanunda olduğundan tier-0'a düşer ve doğal
+    olarak başa gelir; ama corpus'ta birden çok madde olunca top_k taşabilir.
+    Bu fonksiyon çapaları önce yerleştirip (ranked sırasını koruyarak), kalan
+    slotları yine ranked sırasıyla doldurur — yani hiçbir çapa top_k dışında
+    kalmaz, ama genel sıralama bozulmaz.
+    """
+    if not anchor_ids:
+        return ranked[:top_k]
+    pos = {r.chunk_id: i for i, r in enumerate(ranked)}
+    chosen: list = []
+    seen: set[str] = set()
+    for r in ranked:  # 1. çapalar önce (ranked sırasında)
+        if r.chunk_id in anchor_ids and r.chunk_id not in seen:
+            chosen.append(r)
+            seen.add(r.chunk_id)
+    for r in ranked:  # 2. kalan slotları doldur
+        if len(chosen) >= top_k:
+            break
+        if r.chunk_id not in seen:
+            chosen.append(r)
+            seen.add(r.chunk_id)
+    chosen.sort(key=lambda r: pos[r.chunk_id])  # 3. ranked sırasını geri getir
+    return chosen[:top_k]
 
 
 def _format_law_title(r) -> str:

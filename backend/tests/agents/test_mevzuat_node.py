@@ -241,10 +241,19 @@ class _FakeReranker:
 
 
 def _plain_search_env(monkeypatch):
-    """HyDE/MQ kapat → düz `search` yolu; rerank aç."""
+    """HyDE/MQ kapat → düz `search` yolu; rerank aç; çapa-fetch'i boşla.
+
+    `fetch_maddeler` boş döndürülür ki anchor merge bu testlerin (rerank/boost)
+    çıktısını kirletmesin — çapa mantığı kendi testlerinde ayrıca sınanır.
+    """
     monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", False)
     monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", False)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", True)
+
+    async def _no_anchors(pairs):
+        return []
+
+    monkeypatch.setattr(mevzuat_mod, "fetch_maddeler", _no_anchors)
 
 
 @pytest.mark.asyncio
@@ -299,3 +308,82 @@ async def test_mevzuat_rerank_failure_falls_back_gracefully(monkeypatch):
     out = await mevzuat_mod.mevzuat_node({"question": "x", "domain": "tuketici"})
     # çökse de search sırası korunur (graceful degrade)
     assert [r["source_id"] for r in out["mevzuat_refs"]] == ["a", "b"]
+
+
+# --------------------------------------------------------------------------
+#  _ensure_core_in_topk — çapa maddelerini final top-K'da GARANTİ et
+# --------------------------------------------------------------------------
+
+def test_ensure_core_no_anchors_is_plain_slice():
+    """anchor_ids boşsa düz ranked[:top_k] — davranış değişmez."""
+    ranked = [_sr(c, 0.0) for c in ("a", "b", "c", "d")]
+    out = mevzuat_mod._ensure_core_in_topk(ranked, set(), top_k=2)
+    assert [r.chunk_id for r in out] == ["a", "b"]
+
+
+def test_ensure_core_pulls_anchor_into_topk():
+    """Çapa madde ranked'da top_k DIŞINDA ise yine de final'a girer."""
+    ranked = [_sr(c, 0.0) for c in ("noise1", "noise2", "noise3", "anchor")]
+    out = mevzuat_mod._ensure_core_in_topk(ranked, {"anchor"}, top_k=2)
+    ids = [r.chunk_id for r in out]
+    assert "anchor" in ids
+    assert len(ids) == 2
+
+
+def test_ensure_core_preserves_ranked_order():
+    """Seçilenler ranked sırasında döner (çapa öne zorlanmaz, sadece dahil edilir)."""
+    ranked = [_sr(c, 0.0) for c in ("a", "b", "anchor", "d")]
+    out = mevzuat_mod._ensure_core_in_topk(ranked, {"anchor"}, top_k=3)
+    # a, b, anchor seçilir; ranked sırasında: a < b < anchor
+    assert [r.chunk_id for r in out] == ["a", "b", "anchor"]
+
+
+def test_ensure_core_multiple_anchors_all_included():
+    """Birden çok çapa + dar top_k → çapalar önceliklenir, ranked sırasıyla."""
+    ranked = [_sr(c, 0.0) for c in ("x", "anc1", "y", "anc2", "z")]
+    out = mevzuat_mod._ensure_core_in_topk(ranked, {"anc1", "anc2"}, top_k=2)
+    assert {r.chunk_id for r in out} == {"anc1", "anc2"}
+
+
+def test_ensure_core_anchor_already_in_topk_no_dup():
+    """Çapa zaten top_k içindeyse tekrar eklenmez (dedup)."""
+    ranked = [_sr(c, 0.0) for c in ("anchor", "b", "c")]
+    out = mevzuat_mod._ensure_core_in_topk(ranked, {"anchor"}, top_k=2)
+    ids = [r.chunk_id for r in out]
+    assert ids == ["anchor", "b"]
+    assert len(ids) == len(set(ids))
+
+
+# --------------------------------------------------------------------------
+#  Çapa entegrasyonu — fetch_maddeler ile kilit maddeler havuza GARANTİ girer
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_anchor_madde_guaranteed_in_output(monkeypatch):
+    """İş Hukuku ihbar maddesi (İK m.17) cross-encoder onu sıralamadan düşürse
+    bile çapa-fetch ile final çıktıda görünür."""
+    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", False)
+    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", False)
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
+    # Çapa mantığı domain-filter bayrağına bağlı; conftest test'te kapatır,
+    # production'da "1" (açık). Bu testte gerçek prod davranışını sınamak için açıyoruz.
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_DOMAIN_FILTER_ENABLED", True)
+
+    # search çapayı DÖNDÜRMEZ — sadece alakasız gürültü
+    noise = [_sr(f"noise{i}", 0.9 - i * 0.1, kanun_kodu="DMK") for i in range(5)]
+
+    async def _fake_search(question, top_k=5, domain=None, **kw):
+        return noise
+
+    # fetch_maddeler İK m.17'yi (ihbar) çapa olarak döndürür
+    anchor = _sr("m-IK-17", 0.0, kanun_kodu="IK")
+
+    async def _fake_anchors(pairs):
+        return [anchor]
+
+    monkeypatch.setattr(mevzuat_mod, "search", _fake_search)
+    monkeypatch.setattr(mevzuat_mod, "fetch_maddeler", _fake_anchors)
+
+    out = await mevzuat_mod.mevzuat_node({"question": "işten atıldım", "domain": "isHukuku"})
+    ids = [r["source_id"] for r in out["mevzuat_refs"]]
+    assert "m-IK-17" in ids  # çapa GARANTİ final'da

@@ -63,6 +63,7 @@ KANUN_KODU_TO_NUMARA: dict[str, str] = {
     "DIK": "854",       # Deniz İş Kanunu (gemi çalışanları)
     "BMC": "5953",      # Basın Mesleğinde Çalışanlar Kanunu
     "OGK": "5188",      # Özel Güvenlik Hizmetleri Kanunu
+    "EIK": "1475",      # 1475 sayılı (mülga) İş Kanunu — yürürlükteki m.14 KIDEM TAZMİNATI dayanağı
     # --- Ticaret + tüketici ekonomik düzen ---
     "TTK": "6102",      # Türk Ticaret Kanunu (e-ticaret, ticari satım, kambiyo)
     "BK": "5411",       # Bankacılık Kanunu (kredi, mevduat)
