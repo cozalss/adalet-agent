@@ -22,6 +22,9 @@ import asyncio
 import logging
 import sys
 
+# Windows: `core.native_preload` pyarrow'u torch'tan önce yükler — BGE-M3 embedder
+# warmup'ı torch sonrası segfault yapar. isort core'u retrieval'dan önce sıralar.
+from core import native_preload  # noqa: F401
 from retrieval.chunker import chunk_mevzuat, sanitize_text
 from retrieval.embedding import Embedder
 from retrieval.mevzuat_client import KANUN_KODU_TO_NUMARA, Madde, MevzuatClient

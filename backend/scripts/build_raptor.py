@@ -31,6 +31,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Windows: pyarrow'u torch'tan önce yükle — RaptorIndex embedder'ı çekiyor,
+# torch sonrası BGE-M3 warmup segfault yapar.
+from core import native_preload  # noqa: F401
 from retrieval.raptor import RaptorIndex
 from retrieval.vector_store import COLLECTION_NAME, get_client
 

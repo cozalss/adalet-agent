@@ -23,6 +23,10 @@ import logging
 import sys
 from pathlib import Path
 
+# Windows: pyarrow'u torch'tan önce yükle — bu CLI lazy import'la Embedder'ı
+# çekiyor, torch sonrası BGE-M3 warmup segfault yapar.
+from core import native_preload  # noqa: F401
+
 with contextlib.suppress(Exception):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 

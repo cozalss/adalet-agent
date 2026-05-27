@@ -26,6 +26,10 @@ import sys
 
 import structlog
 
+# Windows: pyarrow'u torch'tan önce yükle — build_graph lazy import'la
+# graph_rag/embedder'ı çekiyor, torch sonrası segfault yapar.
+from core import native_preload  # noqa: F401
+
 # UTF-8 zorla (Windows cp1254)
 with contextlib.suppress(Exception):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]

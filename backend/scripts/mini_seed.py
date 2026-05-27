@@ -19,6 +19,9 @@ import logging
 import sys
 import time
 
+# Windows: `core.native_preload` pyarrow'u torch'tan önce yükler — BGE-M3 embedder
+# warmup'ı torch sonrası segfault yapar. isort core'u retrieval'dan önce sıralar.
+from core import native_preload  # noqa: F401
 from retrieval.chunker import chunk_text
 from retrieval.embedding import Embedder
 from retrieval.vector_store import (
