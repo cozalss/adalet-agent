@@ -88,11 +88,15 @@ class NLIVerifier:
         with self._infer_lock:
             tokenizer, model, device = self._components
 
-            # NLI pair: (premise, hypothesis) — modelin beklediği sıra
+            # NLI pair: (premise, hypothesis) — modelin beklediği sıra.
+            # truncation="only_first": yalnız premise (evidence) kesilir, claim
+            # (hypothesis) HER ZAMAN tam kalır. "True" (=longest_first) uzun
+            # claim'lerde hipotezi kesip anlamını bozabilirdi — NLI'da hipotez
+            # bütünlüğü kritik.
             inputs = tokenizer(
                 evidence, claim,
                 return_tensors="pt",
-                truncation=True,
+                truncation="only_first",
                 max_length=512,
                 padding=True,
             ).to(device)
@@ -131,7 +135,8 @@ class NLIVerifier:
                 hypotheses = [c for c, _ in batch]
                 inputs = tokenizer(
                     premises, hypotheses,
-                    return_tensors="pt", truncation=True, max_length=512, padding=True,
+                    return_tensors="pt", truncation="only_first",
+                    max_length=512, padding=True,
                 ).to(device)
 
                 with torch.no_grad():
