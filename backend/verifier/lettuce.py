@@ -39,6 +39,14 @@ LETTUCE_MODEL = os.getenv(
 )
 LETTUCE_DEVICE = os.getenv("LETTUCE_DEVICE", "cpu")  # default CPU, NLI ile çakışmasın
 LETTUCE_ENABLED = os.getenv("LETTUCE_ENABLED", "1").lower() in {"1", "true", "yes"}
+# Ham HF token-classification modeli (pipe(claim)) context/evidence ALAMAZ →
+# claim-only grounding ANLAMSIZ (kaynağı görmeden "supported" diyemez, H3 bug).
+# Proper context-aware LettuceDetect `lettucedetect` kütüphanesini gerektirir
+# (predict(context=, question=, answer=)); o yeni bağımlılık eklenene kadar
+# default grounding = KAYNAK-FARKINDA token-coverage. Ham model yolu yalnız
+# LETTUCE_RAW_MODEL=1 ile (deneysel; eksik) etkin — varsayılan kapalı, model
+# yüklenmez (700MB tasarruf).
+LETTUCE_RAW_MODEL = os.getenv("LETTUCE_RAW_MODEL", "0").lower() in {"1", "true", "yes"}
 
 
 @dataclass(slots=True)
@@ -63,15 +71,19 @@ class LettuceDetector:
         model_name: str = LETTUCE_MODEL,
         device: str = LETTUCE_DEVICE,
         enabled: bool = LETTUCE_ENABLED,
+        use_raw_model: bool = LETTUCE_RAW_MODEL,
     ) -> None:
         self.model_name = model_name
         self.device = device
         self.enabled = enabled
+        # use_raw_model=False (default) → ham claim-only model YÜKLENMEZ;
+        # grounding kaynak-farkında token-coverage ile yapılır (H3 fix).
+        self.use_raw_model = use_raw_model
 
     @cached_property
     def _pipeline(self):
-        """Lazy load — ilk çağrıda model indirilir."""
-        if not self.enabled:
+        """Lazy load — yalnız use_raw_model=True iken (deneysel ham model)."""
+        if not self.enabled or not self.use_raw_model:
             return None
         try:
             from transformers import (
@@ -98,8 +110,11 @@ class LettuceDetector:
     ) -> GroundingResult:
         """Tek bir claim için en alakalı evidence ile grounding skoru.
 
-        Model yoksa rapidfuzz token-coverage fallback'i:
-          tokens(claim) & tokens(evidence) / tokens(claim)
+        DEFAULT: kaynak-farkında token-coverage
+          |tokens(claim) ∩ tokens(evidence)| / |tokens(claim)|
+        Bu deterministik metrik claim'i EVIDENCE ile karşılaştırır (H3 fix:
+        eski ham model `pipe(claim)` kaynağı hiç görmüyordu → anlamsız skor).
+        Ham model yolu yalnız use_raw_model=True iken (deneysel, eksik).
         """
         if not claim.strip():
             return GroundingResult(1.0, 0, 0, [], fallback_used=False)
@@ -111,12 +126,15 @@ class LettuceDetector:
             evidences,
             key=lambda e: fuzz.partial_ratio(claim, e or ""),
         )
-        # Tek bir prompt: "context + ANSWER" tarzı pipeline beklenir;
-        # Turk-LettuceDetect bu yapıyı destekler (literatür).
         pipe = self._pipeline
         if pipe is None:
+            # Default + güvenli yol: kaynak-farkında token-coverage.
             return _fallback_token_coverage(claim, best_ev)
 
+        # DENEYSEL ham model yolu (use_raw_model=1). DİKKAT: HF token-classification
+        # pipeline'ı tek string alır; context+answer formatını veremiyoruz →
+        # model claim'i izole değerlendirir (eksik). Proper context-grounding
+        # `lettucedetect` kütüphanesini bekliyor (yeni bağımlılık, ertelendi).
         try:
             import asyncio
 
@@ -181,9 +199,15 @@ def _fallback_token_coverage(claim: str, evidence: str) -> GroundingResult:
 
 
 def _tokenize(text: str) -> list[str]:
-    """Basit Türkçe tokenize: harf+sayı dizileri, lower, kısa kelimeleri at."""
+    """Basit Türkçe tokenize: harf+sayı dizileri, Türkçe-doğru lower, kısa at.
+
+    tr_lower: Python str.lower() İ→'i̇'(combining dot, eşleşmez) / I→'i' yapar;
+    kaynak-farkında grounding'in token kesişimi bu yüzden İ/I'da kaçırırdı.
+    """
     import re
-    tokens = re.findall(r"\w+", text.lower(), flags=re.UNICODE)
+
+    from retrieval.turkish_text import tr_lower
+    tokens = re.findall(r"\w+", tr_lower(text), flags=re.UNICODE)
     # Stopword-ish: çok kısa tokenları at
     return [t for t in tokens if len(t) > 2]
 
