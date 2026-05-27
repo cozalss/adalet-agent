@@ -26,6 +26,12 @@ import os
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 RERANKER_DEVICE = os.getenv("RERANKER_DEVICE", "auto").lower()  # auto|cuda|cpu
 RERANKER_FP16 = os.getenv("RERANKER_FP16", "true").lower() == "true"
+# Cross-encoder relevance alt eşiği (sigmoid 0-1). Bu skorun altındaki adaylar
+# elenir → alakasız emsal/mevzuat LLM'e ve verify'a GÜRÜLTÜ olarak gitmesin
+# (kapsam-dışı soruda zorlama "emsal" döndürmek yerine boş → reject, CLAUDE.md §1
+# belirsizlik kuralı). Default 0.0 = KAPALI (baseline davranış birebir korunur);
+# production'da örn. 0.3 ile açılır.
+RERANK_SCORE_MIN = float(os.getenv("RERANK_SCORE_MIN", "0.0"))
 
 
 @dataclass(slots=True)
@@ -106,6 +112,11 @@ class Reranker:
         # Skorları aday'larla eşle, sırala
         scored = list(zip(candidates, scores.tolist(), strict=False))
         scored.sort(key=lambda x: x[1], reverse=True)
+
+        # Alaka eşiği (opt-in): eşik altı adayları ele. Hepsi elenirse [] döner
+        # → çağıran (emsal/mevzuat) "kaynak yok" yolundan reject'e gider.
+        if RERANK_SCORE_MIN > 0.0:
+            scored = [(c, s) for c, s in scored if s >= RERANK_SCORE_MIN]
 
         return [_to_result(cand, score) for cand, score in scored[:top_k]]
 
