@@ -62,6 +62,32 @@ async def test_self_rag_low_utility_triggers_retry(monkeypatch, base_state):
     out = await self_rag_node(state)
     # supported=yes ama utility=1 → retry sinyali (current verdict pass'tan farklı)
     assert out.get("debate_verdict") == "retry"
+    assert out.get("retry_count") == 1
+
+
+@pytest.mark.asyncio
+async def test_self_rag_low_utility_rejects_at_retry_limit(monkeypatch, base_state):
+    """Self-RAG debate sonrası çalıştığı için retry limitini kendi kapatmalı."""
+    from agents.config import MAX_RETRY
+
+    monkeypatch.setattr(sr_mod, "SELF_RAG_ENABLED", True)
+
+    async def _low_util_llm(messages, **kw):
+        from agents.llm import LLMResponse
+        return LLMResponse(
+            content='{"retrieve": "yes", "supported": "yes", "utility": 1, '
+                    '"notes": "az faydalı"}',
+        )
+
+    class _Fake:
+        chat = staticmethod(_low_util_llm)
+
+    monkeypatch.setattr(sr_mod, "get_llm", lambda: _Fake())
+    state = {**base_state, "mevzuat_refs": [], "emsal_refs": [], "retry_count": MAX_RETRY}
+    out = await self_rag_node(state)
+
+    assert out.get("debate_verdict") == "reject"
+    assert "retry_count" not in out
 
 
 @pytest.mark.asyncio

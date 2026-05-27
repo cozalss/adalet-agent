@@ -16,6 +16,7 @@ ama LLM yine de yeni soruyu kendi başına değerlendirir. "Devam soruları"
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import structlog
@@ -192,7 +193,13 @@ def _parse_triage_json(raw: str) -> tuple[Domain, float, str, dict[str, str]]:
         return "unknown", 0.0, f"JSON parse hatası: {raw[:80]}", {}
 
     domain = str(obj.get("domain", "unknown")).strip()
-    confidence = float(obj.get("confidence", 0.0))
+    try:
+        confidence = float(obj.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if not math.isfinite(confidence):
+        confidence = 0.0
+    confidence = min(max(confidence, 0.0), 1.0)
     reasoning = str(obj.get("reasoning", "")).strip()
     facts = _sanitize_facts(obj.get("facts"))
     return domain, confidence, reasoning, facts  # type: ignore[return-value]

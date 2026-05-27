@@ -45,7 +45,15 @@ def _force_happy_path(monkeypatch):
         ]}
 
     async def fake_verify(_s):
-        return {"verified_claims": [], "debate_verdict": "pass"}
+        # Happy path: gerçek draft'ın ürettiği TÜM claim'leri doğrulanmış işaretle.
+        # finalize fail-closed kapısı (her claim verified olmalı) bunu bekler;
+        # boş verified_claims artık redde yol açardı.
+        claims = _s.get("claims", []) or []
+        verified = [
+            {**c, "verified": True, "verify_score": 0.9, "verify_reason": "test-pass"}
+            for c in claims
+        ]
+        return {"verified_claims": verified, "debate_verdict": "pass"}
 
     async def fake_debate(_s):
         return {"debate_verdict": "pass", "debate_notes": "ok"}

@@ -21,6 +21,7 @@ verify_node verdict'ine güvenir.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import structlog
@@ -78,8 +79,8 @@ async def debate_node(state: AgentState) -> dict:
             increment_retry=True,
         )
 
-    llm_verdict: DebateVerdict = debate_result.get("verdict", "retry")
-    score = float(debate_result.get("score", 0.5))
+    llm_verdict = _coerce_verdict(debate_result.get("verdict", "retry"))
+    score = _coerce_score(debate_result.get("score", 0.5))
     issues = debate_result.get("issues", []) or []
     rationale = str(debate_result.get("rationale", ""))
 
@@ -160,6 +161,23 @@ def _parse_debate_json(raw: str) -> dict:
     except json.JSONDecodeError:
         log.warning("debate_json_parse_failed", raw=raw[:200])
         return {"verdict": "retry", "score": 0.5, "issues": ["JSON parse hatası"]}
+
+
+def _coerce_verdict(value: object) -> DebateVerdict:
+    verdict = str(value or "retry").strip().lower()
+    if verdict in {"pass", "retry", "reject"}:
+        return verdict  # type: ignore[return-value]
+    return "retry"
+
+
+def _coerce_score(value: object) -> float:
+    try:
+        score = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.5
+    if not math.isfinite(score):
+        return 0.5
+    return min(max(score, 0.0), 1.0)
 
 
 # --------------------------------------------------------------------------

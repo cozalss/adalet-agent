@@ -32,7 +32,7 @@ import os
 
 import structlog
 
-from agents.config import LLM_TEMPERATURE
+from agents.config import LLM_TEMPERATURE, MAX_RETRY
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState
 
@@ -107,9 +107,9 @@ async def self_rag_node(state: AgentState) -> dict:
 
     reflect = _parse_reflection_json(resp.content)
 
-    retrieve_needed = reflect.get("retrieve", "no") == "yes"
-    supported = reflect.get("supported", "yes")
-    utility = int(reflect.get("utility", 5))
+    retrieve_needed = str(reflect.get("retrieve", "no")).lower() == "yes"
+    supported = str(reflect.get("supported", "yes")).lower()
+    utility = _coerce_utility(reflect.get("utility", 5))
     notes = str(reflect.get("notes", ""))
 
     log.info(
@@ -124,6 +124,7 @@ async def self_rag_node(state: AgentState) -> dict:
     # - aksi → pas (current verdict korunur)
     current_verdict = state.get("debate_verdict", "pass")
     new_verdict = current_verdict
+    retry_count = int(state.get("retry_count", 0))
     rationale = (
         f"Self-RAG: retrieve={retrieve_needed} "
         f"supported={supported} utility={utility} | {notes[:120]}"
@@ -131,13 +132,17 @@ async def self_rag_node(state: AgentState) -> dict:
 
     if supported == "no":
         new_verdict = "reject"
-    elif utility < UTILITY_MIN or (retrieve_needed and len(refs) < 2):
-        # Retry sinyali — debate_node retry limitini kontrol eder
-        new_verdict = "retry" if current_verdict != "reject" else current_verdict
+    elif current_verdict != "reject" and (
+        utility < UTILITY_MIN or (retrieve_needed and len(refs) < 2)
+    ):
+        # Self-RAG debate'ten sonra çalıştığı için retry sayacını burada yönetir.
+        new_verdict = "reject" if retry_count >= MAX_RETRY else "retry"
 
     out: dict = {"debate_notes": _merge_notes(state, rationale)}
     if new_verdict != current_verdict:
         out["debate_verdict"] = new_verdict
+    if new_verdict == "retry":
+        out["retry_count"] = retry_count + 1
     return out
 
 
@@ -159,6 +164,14 @@ def _parse_reflection_json(raw: str) -> dict:
             "utility": 0,
             "notes": "parse hatası — fail-closed",
         }
+
+
+def _coerce_utility(value: object) -> int:
+    try:
+        utility = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(5, utility))
 
 
 __all__ = ("SELF_RAG_ENABLED", "self_rag_node")

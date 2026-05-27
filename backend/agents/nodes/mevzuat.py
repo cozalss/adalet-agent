@@ -1,8 +1,9 @@
 """Mevzuat ajanı — kanun maddelerini retrieve eder.
 
 Strateji:
-  - MULTI_QUERY_ENABLED → LLM paraphrase fan-out + RRF merge (recall +)
   - HYDE_ENABLED → hipotetik kanun maddesi üretip onu embed (top score +)
+  - MULTI_QUERY_ENABLED → LLM paraphrase fan-out + RRF merge (recall +)
+  - İkisi de açıksa sonuçlar tek havuzda birleştirilir
   - İkisi de kapalıysa düz hybrid_search
   - doc_type='law' filter Qdrant'tan post-filter ile
 """
@@ -67,44 +68,46 @@ async def mevzuat_node(state: AgentState) -> dict:
     # Qdrant + embedder de eklenince +6s buffer makul (v11 ölçümünde 14B Q4 ile
     # 200-token üretim ortalama 15-20s sürüyor; eski 2s+8 buffer çok dar idi).
     timeout_total = HYDE_TIMEOUT_S + 25.0
+    results: list[SearchResult] = []
+    retrieval_modes: list[str] = []
     if HYDE_ENABLED:
         # HyDE: dense kanal LLM-üretimi hipotetik kanun maddesini embed eder
         try:
-            results = await asyncio.wait_for(
+            hyde_results = await asyncio.wait_for(
                 search_with_hyde(
                     question, top_k=target_k, domain=domain, qdrant_domain=None,
                 ),
                 timeout=timeout_total,
             )
-            retrieval_mode = "hyde"
+            results = _merge_dedup(hyde_results, results)
+            retrieval_modes.append("hyde")
         except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
-            # Fallback: plain hybrid. asyncio TimeoutError str() boş gelir, type ekle.
             log.warning("hyde_timeout_fallback",
                         error=str(exc) or type(exc).__name__,
                         exc_type=type(exc).__name__,
                         timeout_s=timeout_total)
-            results = await search(question=question, top_k=target_k, domain=None)
-            retrieval_mode = "hybrid_after_hyde_fail"
-    elif MULTI_QUERY_ENABLED:
+            retrieval_modes.append("hyde_failed")
+    if MULTI_QUERY_ENABLED:
         # Multi-query: N paraphrase fan-out + RRF merge (lexical recall)
         try:
-            results = await asyncio.wait_for(
+            mq_results = await asyncio.wait_for(
                 search_multi_query(
                     question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None,
                 ),
                 timeout=timeout_total,
             )
-            retrieval_mode = "multi_query"
+            results = _merge_dedup(results, mq_results)
+            retrieval_modes.append("multi_query")
         except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
             log.warning("multi_query_timeout_fallback",
                         error=str(exc) or type(exc).__name__,
                         exc_type=type(exc).__name__,
                         timeout_s=timeout_total)
-            results = await search(question=question, top_k=target_k, domain=None)
-            retrieval_mode = "hybrid_after_mq_fail"
-    else:
+            retrieval_modes.append("multi_query_failed")
+    if not results:
         results = await search(question=question, top_k=target_k, domain=None)
-        retrieval_mode = "hybrid"
+        retrieval_modes.append("hybrid")
+    retrieval_mode = "+".join(retrieval_modes)
 
     laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)
     return {"mevzuat_refs": laws}

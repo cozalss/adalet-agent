@@ -278,6 +278,33 @@ async def test_mevzuat_rerank_promotes_relevant_over_noise(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_mevzuat_combines_hyde_and_multi_query(monkeypatch):
+    """HyDE ve multi-query birlikte açıksa iki aday havuzu da final'e girmeli."""
+    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", True)
+    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", True)
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_DOMAIN_FILTER_ENABLED", False)
+    monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
+
+    async def _fake_hyde(question, **kw):
+        return [_sr("hyde-hit", 0.9, kanun_kodu="TKHK")]
+
+    async def _fake_mq(question, **kw):
+        return [_sr("mq-hit", 0.8, kanun_kodu="TBK")]
+
+    async def _unexpected_search(*args, **kwargs):
+        raise AssertionError("hybrid fallback çağrılmamalı")
+
+    monkeypatch.setattr(mevzuat_mod, "search_with_hyde", _fake_hyde)
+    monkeypatch.setattr(mevzuat_mod, "search_multi_query", _fake_mq)
+    monkeypatch.setattr(mevzuat_mod, "search", _unexpected_search)
+
+    out = await mevzuat_mod.mevzuat_node({"question": "ayıplı ürün", "domain": "tuketici"})
+    ids = {r["source_id"] for r in out["mevzuat_refs"]}
+
+    assert {"hyde-hit", "mq-hit"}.issubset(ids)
+
+
+@pytest.mark.asyncio
 async def test_mevzuat_rerank_disabled_keeps_search_order(monkeypatch):
     _plain_search_env(monkeypatch)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
