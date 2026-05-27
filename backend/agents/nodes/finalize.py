@@ -70,7 +70,9 @@ def _compute_confidence(state: AgentState, verified: list) -> float:
     """Basit harman: domain güveni + doğrulanmış claim oranı + retrieval kalitesi."""
     dom_conf = state.get("domain_confidence", 0.0)
     n_claims = len(state.get("claims", []) or [])
-    n_ver = len([c for c in verified if c.get("verified", True)])
+    # Fail-closed: "verified" anahtarı yoksa (doğrulama atlanmış/eksik) iddiayı
+    # doğrulanmamış say. Güven skorunu şişirmemek için varsayılan False.
+    n_ver = len([c for c in verified if c.get("verified", False)])
     claim_ratio = (n_ver / n_claims) if n_claims else 1.0
 
     refs = (state.get("mevzuat_refs") or []) + (state.get("emsal_refs") or [])

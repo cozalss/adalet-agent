@@ -22,11 +22,24 @@ from collections.abc import Callable
 import structlog
 from rapidfuzz import fuzz
 
-from agents.config import NLI_CONTRADICTION_THRESHOLD, VERIFY_BATCH
+from agents.config import (
+    NLI_CONTRADICTION_THRESHOLD,
+    VERIFY_BATCH,
+    is_verify_strict,
+)
 from agents.state import Citation, Claim
 from retrieval.citation import parse_citation
 
 log = structlog.get_logger()
+
+
+class VerifierUnavailableError(RuntimeError):
+    """Strict modda zorunlu bir doğrulayıcı (NLI/LettuceDetect) çöktü.
+
+    `verify_node` bunu yakalar ve cevabı **fail-closed** reddeder: doğrulayıcı
+    çalışmadıysa iddia "doğrulanmış" sayılamaz (SIFIR HALÜSİNASYON, CLAUDE.md §1).
+    Non-strict (dev/test) modda fırlatılmaz — graceful degrade korunur.
+    """
 
 # Madde referansı formatı genel desen — sentaktik geçerlilik
 _MADDE_FORMAT_RE = re.compile(
@@ -163,6 +176,10 @@ def layer3_nli_batch(
         verifier = _self.get_verifier()
         nli_results = verifier.verify_batch(pairs, batch_size=VERIFY_BATCH)  # type: ignore[attr-defined]
     except Exception as exc:
+        if is_verify_strict():
+            # Fail-closed: NLI yüklü olmalıydı ama çöktü → sessiz pas YOK.
+            log.error("nli_unavailable_strict", error=str(exc))
+            raise VerifierUnavailableError(f"NLI doğrulayıcı kullanılamıyor: {exc}") from exc
         log.warning("nli_unavailable", error=str(exc))
         return [(False, 0.0, 0.0, "NLI atlandı") for _ in claims]
 
@@ -204,6 +221,9 @@ async def layer25_lettuce(
     try:
         detector = _self.get_lettuce()
     except Exception as exc:
+        if is_verify_strict():
+            log.error("lettuce_unavailable_strict", error=str(exc))
+            raise VerifierUnavailableError(f"LettuceDetect kullanılamıyor: {exc}") from exc
         log.warning("lettuce_unavailable", error=str(exc))
         return [(0.0, True) for _ in claims]
 
@@ -214,6 +234,11 @@ async def layer25_lettuce(
             r = await detector.grounding_score(claim.get("text", ""), evidences)  # type: ignore[attr-defined]
             out.append((float(r.grounding_score), bool(r.fallback_used)))
         except Exception as exc:
+            if is_verify_strict():
+                log.error("lettuce_call_failed_strict", error=str(exc))
+                raise VerifierUnavailableError(
+                    f"LettuceDetect çağrısı başarısız: {exc}",
+                ) from exc
             log.warning("lettuce_call_failed", error=str(exc))
             out.append((0.0, True))
     return out
@@ -260,6 +285,7 @@ def pick_evidence_list(claim: Claim, refs: list[Citation]) -> list[str]:
 
 
 __all__ = (
+    "VerifierUnavailableError",
     "layer1_rules",
     "layer2_fuzzy",
     "layer3_nli_batch",

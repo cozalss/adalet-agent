@@ -139,8 +139,16 @@ def _parse_reflection_json(raw: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # Fail-closed: reflection okunamadı → "destekleniyor" varsayma.
+        # supported="no" + utility=0 + retrieve="yes" → retry/yeniden-getir sinyali
+        # (sessizce pas geçmek halüsinasyon riskini gizler).
         log.warning("self_rag_json_parse_failed", raw=raw[:200])
-        return {"retrieve": "no", "supported": "yes", "utility": 3, "notes": "parse hatası"}
+        return {
+            "retrieve": "yes",
+            "supported": "no",
+            "utility": 0,
+            "notes": "parse hatası — fail-closed",
+        }
 
 
 __all__ = ("SELF_RAG_ENABLED", "self_rag_node")

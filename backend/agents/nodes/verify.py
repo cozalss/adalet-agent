@@ -37,6 +37,7 @@ from agents.config import (
 )
 from agents.state import AgentState, Citation, Claim, DebateVerdict
 from agents.verifier_layers import (
+    VerifierUnavailableError,
     layer1_rules,
     layer2_fuzzy,
     layer3_nli_batch,
@@ -82,10 +83,26 @@ async def verify_node(state: AgentState) -> dict:
         }
 
     # --- Katman çağrıları (paralel-safe, side-effect yok) ---
-    layer1_results = [layer1_rules(c) for c in claims]
-    layer2_results = [layer2_fuzzy(c, refs) for c in claims]
-    layer25_results = await layer25_lettuce(claims, refs)
-    layer3_results = layer3_nli_batch(claims, refs)
+    # VERIFY_STRICT modunda NLI/Lettuce çökerse VerifierUnavailableError fırlar →
+    # fail-closed reject. Doğrulayıcı çalışmadıysa hiçbir iddia "doğrulanmış"
+    # sayılamaz (SIFIR HALÜSİNASYON, CLAUDE.md §1).
+    try:
+        layer1_results = [layer1_rules(c) for c in claims]
+        layer2_results = [layer2_fuzzy(c, refs) for c in claims]
+        layer25_results = await layer25_lettuce(claims, refs)
+        layer3_results = layer3_nli_batch(claims, refs)
+    except VerifierUnavailableError as exc:
+        log.error("verify_fail_closed", error=str(exc), n_claims=len(claims))
+        return {
+            "verified_claims": [
+                _mark_unverified(c, "Doğrulayıcı kullanılamadı") for c in claims
+            ],
+            "debate_verdict": "reject",
+            "debate_notes": (
+                "Doğrulama sistemi kullanılamadı; cevap güvenlik gereği "
+                f"reddedildi: {exc}"
+            ),
+        }
 
     # Katman 4 (RARR): claim için ek evidence; opt-in
     if RARR_ENABLED:

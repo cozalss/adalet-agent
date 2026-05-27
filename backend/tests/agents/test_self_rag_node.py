@@ -1,12 +1,14 @@
-"""Self-RAG reflection node — MockLLM tabanlı testler."""
+"""Self-RAG reflection node — MockLLM tabanlı testler.
+
+NOT: Burada `os.environ["SELF_RAG_ENABLED"]="1"` KULLANMA. Import anında process
+env'i kirletir ve `build_graph()` env'i dinamik okuduğu için diğer test'lere
+(ör. test_graph_e2e retry-limit) sızar → toplama sırasına bağlı flaky hata.
+Etkinleştirme gereken her test zaten `monkeypatch.setattr(sr_mod, ...)` kullanır.
+"""
 
 from __future__ import annotations
 
-import os
-
 import pytest
-
-os.environ["SELF_RAG_ENABLED"] = "1"
 
 from agents.nodes import self_rag as sr_mod
 from agents.nodes.self_rag import SELF_RAG_ENABLED, self_rag_node
@@ -112,9 +114,15 @@ def test_self_rag_parse_reflection_handles_fence():
     assert obj["supported"] == "yes"
 
 
-def test_self_rag_parse_reflection_invalid_returns_defaults():
+def test_self_rag_parse_reflection_invalid_fails_closed():
+    """Parse hatası → fail-closed: supported=no, utility=0, retrieve=yes.
+
+    Eski davranış (supported=yes, utility=3) parse hatasını sessizce "destekleniyor"
+    olarak yorumluyordu — halüsinasyon riskini gizliyordu. Artık güvenli tarafta:
+    okunamayan reflection retry/yeniden-getir sinyali üretir.
+    """
     from agents.nodes.self_rag import _parse_reflection_json
     obj = _parse_reflection_json("invalid garbage")
-    assert obj["retrieve"] == "no"
-    assert obj["supported"] == "yes"
-    assert obj["utility"] == 3
+    assert obj["retrieve"] == "yes"
+    assert obj["supported"] == "no"
+    assert obj["utility"] == 0

@@ -38,6 +38,24 @@ MIN_VERIFIED_CLAIMS_RATIO = 0.20 # taslakta kanıtlanan claim oranı (0.50→0.3
 # fuzzy 0.55 + LettuceDetect kombosuyla yapılıyor.
 VERIFY_BATCH = 16                # NLI batch boyutu (GPU/CPU)
 
+
+def is_verify_strict() -> bool:
+    """Fail-closed doğrulama modu (production hardening).
+
+    `VERIFY_STRICT=1`: NLI veya LettuceDetect doğrulayıcısı yüklü OLMASI
+    beklenirken bir EXCEPTION fırlatırsa (model yüklenemedi / inference çöktü),
+    sessizce pas geçmek YERİNE cevabı reddet. Doğrulayıcı çalışmadıysa iddiayı
+    "doğrulanmış" sayamayız — SIFIR HALÜSİNASYON garantisi (CLAUDE.md §1).
+
+    Default `0`: dev/test/mock ortamı. Bu ortamlarda NLI/Lettuce modelleri
+    KASITLI olarak yok; o yüzden graceful degrade (mevcut davranış) korunur.
+
+    Dinamik okunur (import-time sabit değil) ki testler `monkeypatch.setenv`
+    ile per-test toggle edebilsin; graph.py'deki CRAG/Self-RAG bayrak desenine
+    uyumlu.
+    """
+    return os.getenv("VERIFY_STRICT", "0").lower() in {"1", "true", "yes"}
+
 # --- Debate ---
 DEBATE_REJECT_THRESHOLD = 0.30   # critique score < bu = hard reject
 MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max
