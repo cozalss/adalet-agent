@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agents.nodes.finalize import finalize_node
+from agents.nodes.finalize import _split_sentences, finalize_node
 
 
 @pytest.mark.asyncio
@@ -71,6 +71,97 @@ async def test_finalize_rejects_when_all_claims_unverified(base_state):
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
     assert "Yetersiz kanıt" in out["response"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_drops_mixed_sentence_instead_of_leaking_unverified(base_state):
+    """Aynı cümlede destekli + desteksiz iddia varsa parçalayamayız; cümle atılır."""
+    claims = [
+        {
+            "text": "Destekli iddia bu cümlede geçiyor",
+            "cite_ids": ["m-TKHK-11"],
+            "verified": False,
+            "verify_score": 0.0,
+            "verify_reason": "",
+        },
+        {
+            "text": "desteksiz uydurma iddia da aynı cümlede geçiyor",
+            "cite_ids": [],
+            "verified": False,
+            "verify_score": 0.0,
+            "verify_reason": "",
+        },
+    ]
+    verified_claims = [
+        {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
+        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "Yetersiz kanıt"},
+    ]
+    state = {
+        **base_state,
+        "draft_response": (
+            "Destekli iddia bu cümlede geçiyor ve desteksiz uydurma iddia da "
+            "aynı cümlede geçiyor."
+        ),
+        "claims": claims,
+        "verified_claims": verified_claims,
+        "debate_verdict": "pass",
+    }
+
+    out = await finalize_node(state)
+
+    assert out["debate_verdict"] == "reject"
+    assert "desteksiz uydurma iddia" not in out["response"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_treats_missing_verified_claim_as_unverified(base_state):
+    """verify sonucu eksik dönerse eksik claim güvenli tarafta doğrulanmamış sayılır."""
+    claims = [
+        {
+            "text": "Destekli iddia cümlesi burada kalmalı",
+            "cite_ids": ["m-TKHK-11"],
+            "verified": False,
+            "verify_score": 0.0,
+            "verify_reason": "",
+        },
+        {
+            "text": "Eksik verify sonucu olan iddia burada atılmalı",
+            "cite_ids": [],
+            "verified": False,
+            "verify_score": 0.0,
+            "verify_reason": "",
+        },
+    ]
+    verified_claims = [
+        {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
+    ]
+    state = {
+        **base_state,
+        "draft_response": (
+            "Destekli iddia cümlesi burada kalmalı. "
+            "Eksik verify sonucu olan iddia burada atılmalı."
+        ),
+        "claims": claims,
+        "verified_claims": verified_claims,
+        "debate_verdict": "pass",
+    }
+
+    out = await finalize_node(state)
+
+    assert out["confidence"] > 0.0
+    assert "Destekli iddia cümlesi" in out["response"]
+    assert "Eksik verify sonucu" not in out["response"]
+
+
+def test_split_sentences_keeps_madde_abbreviation_together():
+    text = "TKHK m. 11 tüketiciye seçimlik hak verir. ayrıca bu ayrı cümledir."
+
+    out = _split_sentences(text)
+
+    assert out == [
+        "TKHK m. 11 tüketiciye seçimlik hak verir.",
+        "ayrıca bu ayrı cümledir.",
+    ]
 
 
 @pytest.mark.asyncio

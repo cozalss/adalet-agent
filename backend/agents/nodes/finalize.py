@@ -15,9 +15,12 @@ from core.observability import observe_node
 
 log = structlog.get_logger()
 
-# Cümle ayraç + kaynak etiketi — draft.py ile aynı desen (claim extraction'la tutarlı).
-_SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ])")
+# Cümle ayraç + kaynak etiketi. Bölücü kısmen muhafazakar: "m. 11" gibi hukuk
+# kısaltmalarında parçalamaz, ama cümle küçük harf/rakam/bullet ile devam etse de
+# güvenlik filtresine daha küçük birim verir.
+_SENT_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
 _SRC_TAG_RE = re.compile(r"\[src:\s*[A-Za-z0-9_\-]+\s*\]")
+_NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof", "doç"}
 
 
 @observe_node(name="finalize")
@@ -30,22 +33,27 @@ async def finalize_node(state: AgentState) -> dict:
         return _reject_response(state)
 
     draft = state.get("draft_response", "").strip()
-    verified_claims = state.get("verified_claims", []) or state.get("claims", [])
+    claims = state.get("claims", []) or []
+    verified_claims = state.get("verified_claims", []) or []
+    if not verified_claims and claims:
+        verified_claims = claims
+    if not claims and verified_claims:
+        claims = verified_claims
 
     if not draft:
         return _reject_response(state)
 
-    n_claims = len(state.get("claims", []) or [])
+    n_claims = len(claims)
     n_verified = len([c for c in verified_claims if c.get("verified", False)])
 
-    # İddia VAR ama hiçbiri doğrulanmadı → gösterilecek güvenli içerik yok, reddet.
-    if n_claims > 0 and n_verified == 0:
+    # İddia yoksa veya hiçbir iddia doğrulanmadıysa gösterilecek güvenli içerik yok.
+    if n_claims == 0 or n_verified == 0:
         return _reject_response(state, _unverified_claims_reason(verified_claims))
 
     # Fail-closed ama kapsam-koruyan: doğrulanmamış iddiaların cümlelerini taslaktan
     # ÇIKAR, doğrulanmış içeriği göster. Halüsinasyon kullanıcıya gitmez (CLAUDE.md §1)
     # ama tüm cevabı reddetmeyiz — vatandaş doğrulanmış kısımdan yararlanır.
-    filtered_draft, n_dropped = _filter_to_verified(draft, verified_claims)
+    filtered_draft, n_dropped = _filter_to_verified(draft, claims, verified_claims)
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
 
@@ -73,7 +81,36 @@ def _normalize_sentence(text: str) -> str:
     return " ".join(_SRC_TAG_RE.sub("", text).split()).lower()
 
 
-def _filter_to_verified(draft: str, verified: list) -> tuple[str, int]:
+def _split_sentences(text: str) -> list[str]:
+    """Cümleleri ayır; hukuk kısaltmalarındaki noktaları boundary sayma."""
+    if not text.strip():
+        return []
+    out: list[str] = []
+    start = 0
+    for match in _SENT_BOUNDARY_RE.finditer(text):
+        if not _should_split_at(text, match.start()):
+            continue
+        chunk = text[start:match.start()].strip()
+        if chunk:
+            out.append(chunk)
+        start = match.end()
+    tail = text[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _should_split_at(text: str, boundary_pos: int) -> bool:
+    prev = text[:boundary_pos].rstrip()
+    if not prev:
+        return False
+    stem = prev[:-1].rstrip() if prev[-1] in ".!?" else prev
+    token_match = re.search(r"([A-Za-zÇĞİÖŞÜçğıöşü]+)$", stem)
+    token = token_match.group(1).lower() if token_match else ""
+    return token not in _NO_SPLIT_ABBREVIATIONS
+
+
+def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, int]:
     """Doğrulanmamış claim'lere karşılık gelen cümleleri taslaktan çıkar.
 
     claim["text"] (draft cümlesinden çıkarılmıştı) ile draft cümleleri normalize
@@ -84,27 +121,31 @@ def _filter_to_verified(draft: str, verified: list) -> tuple[str, int]:
     Returns:
         (filtrelenmiş taslak, atılan cümle sayısı)
     """
-    unverified = [
-        _normalize_sentence(c["text"]) for c in verified if not c.get("verified", False)
-    ]
+    verified_txt = {
+        _normalize_sentence(c["text"]) for c in verified if c.get("verified", False)
+    }
+    verified_txt = {v for v in verified_txt if v}
+    all_claims = {_normalize_sentence(c["text"]) for c in claims}
+    all_claims = {c for c in all_claims if c}
+    unverified = list(
+        {_normalize_sentence(c["text"]) for c in verified if not c.get("verified", False)}
+        | (all_claims - verified_txt)
+    )
     unverified = [u for u in unverified if u]
     if not unverified:
         return draft, 0
-    verified_txt = [
-        _normalize_sentence(c["text"]) for c in verified if c.get("verified", False)
-    ]
-    verified_txt = [v for v in verified_txt if v]
 
     kept: list[str] = []
     dropped = 0
-    for sent in _SENT_SPLIT_RE.split(draft):
+    for sent in _split_sentences(draft):
         norm = _normalize_sentence(sent)
         if not norm:
             kept.append(sent)
             continue
         is_unverified = any(u in norm or norm in u for u in unverified)
-        is_verified = any(v in norm or norm in v for v in verified_txt)
-        if is_unverified and not is_verified:
+        # Aynı cümlede hem doğrulanmış hem doğrulanmamış claim varsa cümleyi
+        # parçalayamayız; halüsinasyon sızıntısını önlemek için tüm cümleyi at.
+        if is_unverified:
             dropped += 1
             continue
         kept.append(sent)
