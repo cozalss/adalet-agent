@@ -32,6 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
 
+from core import native_preload  # noqa: F401  — pyarrow'u torch'tan önce yükle (Windows)
 from scripts.eval_run import _eval_one, _load_benchmark
 
 RUNS_DIR = Path(__file__).parent / "runs"

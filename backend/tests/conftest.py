@@ -7,6 +7,10 @@ from collections.abc import Iterator
 
 import pytest
 
+# Windows: pyarrow'u torch'tan ÖNCE yükle (real-model testleri — embedder/reranker
+# sentence_transformers→datasets→pyarrow zinciri torch sonrası çökerdi).
+from core import native_preload  # noqa: F401
+
 # Test ortamı: MockLLM zorunlu, HyDE kapalı (network'e gitmesin)
 os.environ.setdefault("LLM_MODE", "mock")
 os.environ.setdefault("HYDE_ENABLED", "0")

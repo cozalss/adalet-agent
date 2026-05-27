@@ -20,6 +20,13 @@ with contextlib.suppress(Exception):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
+# Windows: pyarrow'u torch'tan ÖNCE yükle (Arrow↔torch native import-sıra
+# çakışması → access violation; bkz. core/native_preload.py). `with` bloğu
+# içinde olduğundan ruff/isort yeniden sıralamaz → kesinlikle EN ÖNDE çalışır,
+# herhangi bir api.*/torch import'undan önce.
+with contextlib.suppress(Exception):
+    from core import native_preload as _native_preload  # noqa: F401
+
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

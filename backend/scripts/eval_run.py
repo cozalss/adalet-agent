@@ -27,6 +27,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from core import native_preload  # noqa: F401  — pyarrow'u torch'tan önce yükle (Windows)
 from retrieval.hybrid_search import search, search_with_rerank
 
 logger = logging.getLogger("eval")
