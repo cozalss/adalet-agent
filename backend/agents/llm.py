@@ -112,6 +112,9 @@ class LlamaCppClient:
         self.n_ctx = n_ctx
         self.chat_format = chat_format
         self._model: Any = None
+        # Lazy asyncio.Lock — eşzamanlı ilk istekler modeli İKİ KEZ yüklemesin
+        # (çift GPU bellek → OOM). Lazy: __init__'te running loop gerekmez.
+        self._load_lock: Any = None
 
     def _load(self) -> Any:
         from llama_cpp import Llama
@@ -143,7 +146,14 @@ class LlamaCppClient:
         import asyncio
 
         if self._model is None:
-            self._model = await asyncio.to_thread(self._load)
+            # Double-checked lock: lock oluşturma tek event-loop'ta atomik
+            # (check↔assign arası await yok). İlk yükleme lock altında serialize
+            # → eşzamanlı istekler tek load; sonraki çağrılarda lock alınmaz.
+            if self._load_lock is None:
+                self._load_lock = asyncio.Lock()
+            async with self._load_lock:
+                if self._model is None:
+                    self._model = await asyncio.to_thread(self._load)
 
         kwargs: dict[str, Any] = {
             "messages": [m.to_dict() for m in messages],
