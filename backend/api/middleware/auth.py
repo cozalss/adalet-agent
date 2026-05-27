@@ -19,6 +19,7 @@ Tasarım kararları:
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from dataclasses import dataclass
@@ -92,6 +93,23 @@ def reset_api_key_cache() -> None:
     """Test yardımcısı — cache invalidate."""
     global _API_KEY_CACHE
     _API_KEY_CACHE = None
+
+
+def _match_api_key(provided: str, keys: dict[str, str]) -> str | None:
+    """Sabit-zaman API key eşleştirme — timing attack'a karşı.
+
+    Düz `dict.get(provided)` hash/uzunluğa göre değişken zamanlı; saldırgan
+    mikrosaniye ölçümüyle doğru prefix'i daraltabilir. Bunun yerine her kayıtla
+    `hmac.compare_digest` ile sabit-zaman karşılaştır. Erken return YOK (eşleşme
+    pozisyonunu sızdırmamak için tüm kayıtları gez); label son eşleşen olur
+    (key'ler benzersiz → en fazla bir eşleşme).
+    """
+    provided_b = provided.encode("utf-8")
+    matched: str | None = None
+    for key, label in keys.items():
+        if hmac.compare_digest(key.encode("utf-8"), provided_b):
+            matched = label
+    return matched
 
 
 # --- JWT helpers -----------------------------------------------------------
@@ -185,7 +203,7 @@ async def authenticate(
 
     if x_api_key:
         keys = get_api_keys()
-        label = keys.get(x_api_key)
+        label = _match_api_key(x_api_key, keys)
         if not label:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

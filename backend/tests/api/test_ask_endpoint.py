@@ -78,6 +78,15 @@ def test_ask_returns_full_response_envelope(client_with_mocked_retrieval):
     assert body["latency_ms"] >= 0
 
 
+def test_clear_session_rejects_invalid_conversation_id(client_with_mocked_retrieval):
+    """Redis key enjeksiyonu / path-traversal karakterli conversation_id → 422.
+
+    Pattern validation handler'dan ÖNCE çalışır; store'a hiç dokunulmaz.
+    """
+    resp = client_with_mocked_retrieval.delete("/ask/session/bad*key:123")
+    assert resp.status_code == 422
+
+
 def test_ask_pipeline_error_detail_is_generic(monkeypatch):
     """Pipeline exception'ı 500 detail'inde iç detay (yol/modül/exc) SIZDIRMAMALI.
 

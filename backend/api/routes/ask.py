@@ -22,7 +22,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import StreamingResponse
 
 from agents.graph import build_graph, make_initial_state
@@ -275,10 +275,23 @@ async def ask_stream(
 
 @router.delete("/session/{conversation_id}")
 async def clear_session(
-    conversation_id: str,
+    conversation_id: str = Path(
+        ...,
+        min_length=8,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    ),
     principal: Principal = Depends(authenticate),
 ) -> dict:
-    """Konuşma geçmişini sil — kullanıcı 'yeni konu' başlatınca."""
+    """Konuşma geçmişini sil — kullanıcı 'yeni konu' başlatınca.
+
+    conversation_id Path pattern ile kısıtlı ([A-Za-z0-9_-], 8-128) — Redis key
+    enjeksiyonu / path-traversal denemelerini (`*`, `:`, `/`) 422 ile reddeder.
+
+    NOT: Tam sahiplik (ownership) kontrolü — bir kullanıcının yalnız KENDİ
+    session'ını silebilmesi — session_store'a owner_sub binding gerektiriyor;
+    ayrı bir iterasyona bırakıldı ([[backend-hardening-backlog]]).
+    """
     _ = principal
     store = get_store()
     await store.clear(conversation_id)

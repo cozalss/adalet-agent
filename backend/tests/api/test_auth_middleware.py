@@ -125,6 +125,20 @@ def test_private_with_unknown_api_key_returns_401(auth_app):
     assert r.status_code == 401
 
 
+def test_match_api_key_constant_time_lookup():
+    """_match_api_key doğru label'ı döndürür, yanlış/boş key None.
+
+    Düz dict.get yerine hmac.compare_digest (timing-safe). Davranış aynı kalmalı.
+    """
+    from api.middleware.auth import _match_api_key
+
+    keys = {"key-alpha-123": "alpha-corp", "key-beta-456": "beta-ltd"}
+    assert _match_api_key("key-alpha-123", keys) == "alpha-corp"
+    assert _match_api_key("key-beta-456", keys) == "beta-ltd"
+    assert _match_api_key("no-such-key", keys) is None
+    assert _match_api_key("anything", {}) is None
+
+
 def test_auth_disabled_returns_anonymous(monkeypatch):
     monkeypatch.setattr(auth_mod, "AUTH_ENABLED", False)
     app = FastAPI()
