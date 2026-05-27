@@ -280,3 +280,44 @@ async def test_build_report_structure():
     assert "per_category" in report
     # mevcut eşikte format_bad kategorisi tam doğru sınıflanmalı (hepsi reddedilir)
     assert report["per_category"]["format_bad"]["decision_accuracy"] == 1.0
+
+
+def test_gold_ids_unique():
+    ids = [c.id for c in load_gold()]
+    assert len(ids) == len(set(ids))
+
+
+# --------------------------------------------------------------------------
+#  Regression guard — ölçülen deterministik invariant'lar (model GEREKMEZ).
+#  Bir eşik/katman değişikliği bunları bozarsa CI yakalar; harness'i tek-seferlik
+#  rapordan kalıcı koruyucuya çevirir.
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_regression_guard_deterministic_invariants():
+    cases = load_gold()
+    scores = [await score_case(c) for c in cases]
+    report = build_report(scores)
+    pc = report["per_category"]
+    # L1: format-bozuk claim'lerin HEPSİ reddedilmeli (madde-kökü-numara-yok kuralı)
+    assert pc["format_bad"]["decision_accuracy"] == 1.0
+    # Fuzzy: alakasız (off-topic) claim'ler reddedilmeli — yüksek taban
+    assert pc["unsupported"]["decision_accuracy"] >= 0.85
+    # Exact restatement'lar büyük oranda desteklenmeli
+    assert pc["exact"]["decision_accuracy"] >= 0.80
+    # Ayrım yönü doğru: supported skorları unsupported'tan yüksek olmalı
+    assert report["fuzzy_separation"]["gap"] > 0.0
+    assert report["lettuce_separation"]["gap"] > 0.0
+
+
+@pytest.mark.asyncio
+async def test_regression_guard_contradiction_needs_nli():
+    """Karakterizasyon: deterministik yol (fuzzy+L1) çelişkiyi GÜVENİLİR
+    yakalayamaz (negation token örtüşmesini bozmaz). Bu, NLI vetosunun +
+    VERIFY_STRICT fail-closed'ın neden yapısal olarak zorunlu olduğunu kilitler.
+    Çelişki kategorisi model-free doğruluğu düşük kalmalı; yükselirse fuzzy'nin
+    negation'ı sihirli biçimde çözdüğü (muhtemelen test artefaktı) sinyalidir."""
+    cases = load_gold()
+    scores = [await score_case(c) for c in cases]
+    report = build_report(scores)
+    assert report["per_category"]["contradiction"]["decision_accuracy"] < 0.60
