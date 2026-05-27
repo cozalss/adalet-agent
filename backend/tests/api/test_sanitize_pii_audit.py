@@ -134,3 +134,18 @@ def test_audit_disabled_silently_skips(monkeypatch):
     monkeypatch.setattr(audit_mod, "AUDIT_LOG_DISABLED", True)
     p = Principal(sub="x", kind="user")
     emit(AuditEvent(event="test", principal=p))
+
+
+# --- fingerprint (KVKK-safe ID) ---------------------------------------------
+
+
+def test_fingerprint_deterministic_and_hides_pii():
+    from api.pii import fingerprint
+
+    a = fingerprint("beta:alice@example.com")
+    b = fingerprint("beta:alice@example.com")
+    assert a == b                      # deterministik (gruplanabilir)
+    assert len(a) == 16                # default uzunluk
+    assert "@" not in a and "alice" not in a and "beta" not in a
+    assert fingerprint("x", 12) != fingerprint("y", 12)
+    assert len(fingerprint("x", 12)) == 12

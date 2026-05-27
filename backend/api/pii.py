@@ -84,15 +84,26 @@ def mask_pii(text: str) -> MaskResult:
     return MaskResult(masked, counts)
 
 
+def fingerprint(text: str, length: int = 16) -> str:
+    """SHA-256 truncated hex — geri-dönüşümsüz kimlik (KVKK-safe).
+
+    email / principal sub gibi PII'yi log / ID / JSONL'e HAM yazmak yerine
+    deterministik parmak izi üret: aynı girdi → aynı hash (gruplanabilir) ama
+    kimlik açığa çıkmaz. De-mask yok.
+    """
+    return hashlib.sha256(text.strip().lower().encode("utf-8")).hexdigest()[:length]
+
+
 def hash_question(text: str) -> str:
     """SHA-256 ilk 16 char — audit log için question fingerprint."""
-    return hashlib.sha256(text.strip().lower().encode("utf-8")).hexdigest()[:16]
+    return fingerprint(text, 16)
 
 
 __all__ = (
     "PII_ENABLED",
     "PII_MASK_TOKEN",
     "MaskResult",
+    "fingerprint",
     "hash_question",
     "mask_pii",
 )

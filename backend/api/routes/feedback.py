@@ -19,7 +19,7 @@ from api.audit import AuditEvent
 from api.audit import emit as emit_audit
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
-from api.pii import mask_pii
+from api.pii import fingerprint, mask_pii
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/feedback", tags=["feedback"])
@@ -57,7 +57,10 @@ async def submit_feedback(
         safe_comment = mask_pii(s.cleaned_text).masked_text
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
-    feedback_id = f"fb_{ts}_{principal.sub[:12]}"
+    # KVKK: principal.sub = "beta:email@..." → ham email feedback_id'ye, JSONL'e
+    # ve log'a sızmasın. Deterministik fingerprint (gruplanabilir, kimliksiz).
+    sub_fp = fingerprint(principal.sub, 12)
+    feedback_id = f"fb_{ts}_{sub_fp}"
 
     # Persist — production'da SQLite veya append-only log
     FEEDBACK_LOG_PATH.mkdir(parents=True, exist_ok=True)
@@ -65,7 +68,7 @@ async def submit_feedback(
         "feedback_id": feedback_id,
         "ts": datetime.now(UTC).isoformat(),
         "principal_kind": principal.kind,
-        "principal_sub": principal.sub,
+        "principal_sub_hash": sub_fp,
         "conversation_id": req.conversation_id,
         "turn_index": req.turn_index,
         "rating": req.rating,

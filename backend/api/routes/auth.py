@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
 from api.middleware.auth import Principal, authenticate, issue_token
+from api.pii import fingerprint
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -109,7 +110,8 @@ async def accept_invite(code: str, req: InviteAcceptRequest) -> TokenResponse:
         principal=Principal(sub=sub, kind="user", role="beta"),
         domain="auth",
     ))
-    log.info("invite_accepted", sub=sub)
+    # KVKK: sub = "beta:email@..." — ham email log'a yazma; fingerprint yeterli.
+    log.info("invite_accepted", sub_hash=fingerprint(sub))
 
     from api.middleware.auth import JWT_TTL_SECONDS
     return TokenResponse(

@@ -139,6 +139,20 @@ def test_feedback_thumbs_up(staging_client):
     assert body["feedback_id"].startswith("fb_")
 
 
+def test_feedback_id_does_not_leak_sub(staging_client):
+    """KVKK: feedback_id principal.sub'ı (email) HAM içermemeli — fingerprint'li."""
+    token = issue_token("beta:alice@example.com", role="beta")
+    r = staging_client.post(
+        "/feedback",
+        json={"conversation_id": "conv-1", "rating": "up"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+    fid = r.json()["feedback_id"]
+    assert fid.startswith("fb_")
+    assert "alice" not in fid and "@" not in fid and "beta:" not in fid
+
+
 def test_feedback_thumbs_down_with_comment(staging_client):
     token = issue_token("user-y", role="beta")
     r = staging_client.post(
