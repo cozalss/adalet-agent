@@ -115,6 +115,12 @@ class LlamaCppClient:
         # Lazy asyncio.Lock — eşzamanlı ilk istekler modeli İKİ KEZ yüklemesin
         # (çift GPU bellek → OOM). Lazy: __init__'te running loop gerekmez.
         self._load_lock: Any = None
+        # Tek-worker decode executor: çağıran asyncio.wait_for ile timeout atsa
+        # bile decode thread'i GPU'da çalışmaya devam eder. Aynı self._model
+        # üzerinde paralel create_chat_completion → KV-cache yarışı → llama_decode
+        # -1 (kira e2e'de görüldü: multi-query timeout sonrası eligibility çöktü).
+        # Single-worker executor yeni işi kuyruğa alır, asla yarışmaz.
+        self._decode_executor: Any = None
 
     def _load(self) -> Any:
         # Windows: llama.dll'in CUDA bağımlılıkları (cudart64_12, cublas64_12)
@@ -182,7 +188,19 @@ class LlamaCppClient:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-        result = await asyncio.to_thread(self._model.create_chat_completion, **kwargs)
+        # Tek-worker decode executor — asyncio.to_thread global pool'u kullansa
+        # eşzamanlı chat() çağrıları aynı self._model'i yarıştırırdı. Ayrı 1-worker
+        # executor: wait_for cancel olsa da thread çalışmaya devam eder, yeni iş
+        # kuyrukta bekler, decode'lar SIRAYLA koşar. Yarış yok → llama_decode -1 yok.
+        if self._decode_executor is None:
+            import concurrent.futures
+            self._decode_executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="llama-decode",
+            )
+        cf_future = self._decode_executor.submit(
+            self._model.create_chat_completion, **kwargs,
+        )
+        result = await asyncio.wrap_future(cf_future)
         choice = result["choices"][0]
         usage = result.get("usage", {})
         return LLMResponse(
