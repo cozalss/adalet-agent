@@ -31,7 +31,7 @@ async def authenticate(request, authorization=Header(...), x_api_key=Header(...)
 **JWT** (kullanıcı):
 - HS256, 24h TTL (refresh akışı yok — beta için yeterli)
 - Davet kodu ile issue (`POST /auth/invite/{code}`)
-- KVKK consent zorunlu
+- Gizlilik onayı zorunlu
 
 **X-API-Key** (B2B):
 - 32-byte random urlsafe
@@ -43,12 +43,12 @@ değil, principal başına (NAT arkasında kullanıcılar ayrı kovaya düşer).
 
 ## Sonuç
 - W6 sonu 29 test green (auth + sanitize + pii + audit)
-- Production deploy hazır (W9 invite endpoint + KVKK consent)
+- Production deploy hazır (W9 invite endpoint + gizlilik onayı)
 - B2B partner onboarding: API key + label JSON entry
 - Audit log her iki kanal için tutarlı (principal_kind ayrımı)
 
 ## Alternatifler
-- **Auth0 / Clerk** — vendor lock-in, KVKK için EU-hosted gerek, beta için fazla
+- **Auth0 / Clerk** — vendor lock-in, data residency gereksinimleri ve beta için fazla
 - **mTLS** — B2B partner ile sertifika takası operasyonel yük
 - **OAuth 2.0 + PKCE** — mobil app için fazla, beta için lüks
 

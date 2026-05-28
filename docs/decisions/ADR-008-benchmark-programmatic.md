@@ -15,7 +15,7 @@ Genişletme seçenekleri:
 2. **Programmatic + manual review** — yargi-mcp'den karar başlıklarını
    çek, LLM ile soru çıkar, %20 sample manuel review.
 3. **Crowd-source** — Çankaya Hukuk Fakültesi öğrencileri (4. yıl).
-   Sınav dönemi + KVKK consent karmaşık, Sprint-4'e yetişmez.
+   Sınav dönemi + katılımcı onayı karmaşık, Sprint-4'e yetişmez.
 
 ## Karar
 **Programmatic generation + sample QA review** (seçenek 2).

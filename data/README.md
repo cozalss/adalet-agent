@@ -13,7 +13,7 @@
 
 ## Veri Kaynakları
 
-Tümü kamuya açık → KVKK / etik kurul sorunu yok:
+Tümü kamuya açık kaynaklardan gelir; ek kişisel veri toplama yapılmaz:
 - Yargıtay açık kararlar (yargitay.gov.tr + yargi-mcp)
 - Mevzuat Bilgi Sistemi (mevzuat.gov.tr)
 - Danıştay (danistay.gov.tr)

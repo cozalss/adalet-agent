@@ -26,7 +26,7 @@ veya destek bulamayan iddialar reddedilir; sistem cevabı yeniden üretir.
 **D@1 X.XX, kanun@5 X.XX, Ragas faithfulness X.XX, average judge score X.XX**.
 (W10 final eval sonuçları buraya doldurulacak.) Mevcut baseline'a göre
 +%X iyileşme. Sistem MIT lisanslı, tamamen lokal (Qwen 2.5 14B Q4 + RTX
-4070), KVKK uyumlu (PII mask + audit log) bir mimaridir.
+4070), gizlilik odaklı (PII mask + audit log) bir mimaridir.
 
 ## 1. Giriş
 
@@ -61,7 +61,7 @@ karar referansı yanlış / hayali) pratik kullanımı tehlikeli kılmaktadır.
   RRF fusion + RAPTOR hiyerarşik özet ağacı + GraphRAG cross-citation
 - **200 vakalı dengelenmiş Türkçe hukuk benchmark'ı** (kamuya açık,
   programmatic generation + manuel review)
-- KVKK-uyumlu PII mask + audit log + JWT auth + read-only container deploy
+- PII mask + audit log + JWT auth + read-only container deploy
 - Tamamı **lokal**, **açık-ağırlık** modeller (Qwen 2.5 14B Q4, mDeBERTa,
   BGE-M3), **MIT lisans**
 
@@ -190,7 +190,7 @@ avg 32.5s, 3/3 pass, disclaimer + citation tüm cevaplarda mevcut.
 
 ### 5.1 Güçlü Yönler
 - **4-katman defense**: tek bir hata noktası yok
-- **Tamamı lokal**: KVKK + cost-free + repro
+- **Tamamı lokal**: dış servis maliyetini ve kişisel veri aktarımını azaltır + repro
 - **Açık-kaynak**: kod + benchmark + ADR'ler — akademik kontrolde
 
 ### 5.2 Sınırlamalar
@@ -203,7 +203,7 @@ avg 32.5s, 3/3 pass, disclaimer + citation tüm cevaplarda mevcut.
 - Avukatlık Kanunu kapsamı: bilgilendirme amaçlı, **hukuki tavsiye değil**
 - Her cevapta disclaimer zorunlu
 - Ceza + aile hukuku **kapsam dışı** (etik hassas)
-- KVKK: PII mask, anonim audit log, veri TR sınırı içinde
+- Gizlilik: PII mask, anonim audit log, kısa süreli session saklama
 
 ## 6. Sonuç ve Gelecek Çalışmalar
 

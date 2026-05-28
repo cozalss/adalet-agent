@@ -5,7 +5,7 @@
 **Sprint:** 4 / W6.4
 
 ## Bağlam
-KVKK + CLAUDE.md "session persist ve audit log'da PII yok" kuralı. Üç tasarım
+Gizlilik hedefi + CLAUDE.md "session persist ve audit log'da PII yok" kuralı. Üç tasarım
 seçeneği:
 
 1. **Masking at egress** — kullanıcı sorusu orijinal saklanır, sadece
@@ -18,7 +18,7 @@ seçeneği:
 - "TC numaramla işveren neden anlaşamıyor?" sorusunda TC'yi mask edersek
   cevap genelleşir; LLM "TC numaranızla" demez. Bu UX kaybı.
 - Aksine "Telefonumla 0555-xxx-xx-xx dolandırıldım" sorusunda
-  telefonu loglamak KVKK ihlali.
+  telefonu loglamak açık bir gizlilik riski.
 
 ## Karar
 **Hibrit (seçenek 3):**
@@ -46,11 +46,11 @@ W6 sonu 9 PII test green:
 ## Alternatifler
 - **NER-based PII** (spaCy/transformers): false-pos riski Türkçe için yüksek,
   regex pattern coverage zaten dar (5 tip yeterli — beta için).
-- **Tokenization** (PII → token, reversible): KVKK denetiminde kullanılabilir
+- **Tokenization** (PII → token, reversible): güvenlik denetiminde kullanılabilir
   ama key management ek operasyon — production'a gerek olduğunda eklenir.
 
 ## İlgili
 - [api/pii.py](../../adalet-agent/backend/api/pii.py)
 - [api/routes/ask.py:115-130](../../adalet-agent/backend/api/routes/ask.py#L115)
 - [api/audit.py](../../adalet-agent/backend/api/audit.py)
-- CLAUDE.md §3 KVKK
+- CLAUDE.md §3 privacy controls

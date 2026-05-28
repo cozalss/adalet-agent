@@ -165,14 +165,17 @@ flowchart LR
 
 | Dizin | Sorumluluk |
 |---|---|
-| `agents/` | LangGraph topology + 7 ajan + verifier_layers |
-| `retrieval/` | Hybrid search (BGE-M3 + RRF) + HyDE + Multi-Query + RAPTOR + GraphRAG |
-| `verifier/` | NLI (mDeBERTa) + LettuceDetect + RARR-lite |
-| `api/` | FastAPI routes + middleware (auth/sanitize/PII/audit) |
-| `api/routes/` | `/ask`, `/ask/stream`, `/multimodal/*`, `/auth/*`, `/feedback` |
-| `core/` | Logging config + observability |
+| `agents/` | LangGraph 12-node (triaj·mevzuat·emsal·draft·verify·debate·finalize + crag/self_rag/eligibility/tahmin/dilekçe) + state (merge_citations reducer) |
+| `retrieval/` | Hybrid (BGE-M3 + RRF) + HyDE + Multi-Query + RAPTOR + GraphRAG + domain tier-sort |
+| `verifier/` | NLI (mDeBERTa) + LettuceDetect + RARR |
+| `db/` | PostgreSQL — engine + models + repositories (env-gated, dosya fallback) |
+| `alembic/` | DB migration (async, DATABASE_URL'den) |
+| `api/` | FastAPI routes + middleware (auth/sanitize/PII/audit/security-headers) |
+| `api/routes/` | `/ask`, `/ask/stream`, `/multimodal/*`, `/auth/*`, `/feedback`, `/dilekce` |
+| `core/` | Logging redact + PII-mask + observability (Langfuse) |
 | `multimodal/` | OCR (Tesseract) + STT (Whisper) + TTS (Piper) |
-| `eval/` | freeze_baseline, edge_cases, ragas_full, judge |
+| `predictive/` | Tahmin modeli (BERT-TR — eğitim bekliyor) |
+| `eval/` | eval_run, freeze_baseline, edge_cases, ragas_full, judge |
 
 ## Önemli Sayılar (Sprint-4 Sonu)
 
@@ -189,6 +192,20 @@ flowchart LR
 | Audit log | yok | structlog stream |
 | CI/CD | manuel | GitHub Actions (4 job) |
 | Container hardening | non-root | read-only fs, cap-drop ALL |
+
+### Güncel (Sprint-6+ — 2026-05)
+
+| Metric | Değer |
+|---|---|
+| Test sayısı | **662** |
+| mypy --strict | 0 hata (**215 dosya**) · ruff ✅ · bandit ✅ |
+| Corpus | **159k vektör** (8 domain; 62k→159k) |
+| Retrieval | **domain@1 %81.2 · @5 %97.3 · MRR 0.88** (186 vaka, ölçüldü) |
+| İlişkisel DB | **PostgreSQL** (feedback/api_key/audit, env-gated, Alembic) |
+| Verify katman | 4 (fuzzy + LettuceDetect + NLI + debate) |
+| Retry | re-retrieve (mevzuat+emsal, MAX_RETRY guard) + dedup reducer |
+
+Ayrıntı: [theses/measured-results.md](theses/measured-results.md)
 
 ## Karar Bağlantıları (ADR)
 

@@ -4,7 +4,7 @@
 
 ## Hedef
 Caddy reverse-proxy + auto-TLS; Hetzner init script; llama-server compose
-placeholder; beta onboarding (invite + token + KVKK consent); feedback
+placeholder; beta onboarding (invite + token + gizlilik onayı); feedback
 endpoint; staging smoke E2E script.
 
 ## Değişiklikler
@@ -45,7 +45,7 @@ endpoint; staging smoke E2E script.
 
 ### W9.4 — Beta onboarding endpoint
 - Yeni `api/routes/auth.py`:
-  - `POST /auth/invite/{code}` — InviteAcceptRequest (kvkk_consent zorunlu)
+  - `POST /auth/invite/{code}` — InviteAcceptRequest (privacy_consent zorunlu)
     → TokenResponse (access_token + expires_in + sub + role)
   - Davet kodu single-use, used_at + consent_given_at timestamp
   - `GET /auth/me` — token verify smoke + principal echo
@@ -72,7 +72,7 @@ endpoint; staging smoke E2E script.
 - W8 sonu: 325 passed + 6 skipped
 - W9 sonu: **336 passed + 6 skipped** (+11 yeni)
   - tests/api/test_auth_invite_feedback.py: 11 test
-    (invite unknown/used/no-kvkk/accept/second-attempt + me/feedback × 4)
+    (invite unknown/used/no-consent/accept/second-attempt + me/feedback × 4)
 - Regression: 0
 - Coverage: **83.24%** (gate ✓)
 - mypy strict: 0 errors (67 source files)
@@ -112,7 +112,7 @@ print(json.dumps(codes, indent=2))
 ### Beta kullanıcı akışı
 ```
 POST /auth/invite/{code}
-  Body: {"kvkk_consent": true, "email": "...", "name": "..."}
+  Body: {"privacy_consent": true, "email": "...", "name": "..."}
   → 200 {"access_token": "...", "sub": "beta:...", "role": "beta", "expires_in": 86400}
 
 Sonra her istekte:

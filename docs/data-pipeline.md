@@ -14,7 +14,7 @@
 | Resmi Gazete | resmigazete.gov.tr | RSS / scrape | Güncel mevzuat |
 | UYAP | mevzuat.adalet.gov.tr | scrape | Çapraz doğrulama |
 
-Hepsi **kamuya açık** → KVKK / etik kurul sorunu yok.
+Hepsi **kamuya açık** kaynaklardan gelir; ek kişisel veri toplama yapılmaz.
 
 ---
 
@@ -133,7 +133,7 @@ Ajan iddiası: "TKHK Madde 11"
 
 ## 6. Veri Politikası
 
-### KVKK
+### Gizlilik
 - Yargıtay kararlarındaki **kişisel veriler** (isim, TC, telefon) anonimleştirilir
 - Her chunk'a metadata: `{"source_url": "...", "fetched_at": "...", "anonymized": true}`
 - Kullanıcı sorularını **gerekmedikçe loglama**; loglarsan **maskele**

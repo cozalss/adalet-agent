@@ -1,8 +1,14 @@
 # ADALET-AGENT Backend
 
-> **Sürüm:** v13 (Sprint-4 sonu — Mayıs 2026)
-> FastAPI + LangGraph üzerinde **doğrulamalı çoklu-ajan Türkçe Hukuk RAG**.
-> 336 test green, 83% coverage, mypy --strict, ruff strict, JWT auth, TLS hazır.
+> **Güncel durum (Mayıs 2026):** FastAPI + LangGraph üzerinde **doğrulamalı
+> çoklu-ajan Türkçe Hukuk RAG**.
+> **662 test** · ruff ✅ · mypy strict (215 dosya) ✅ · bandit ✅ · JWT+API-key auth.
+>
+> **Corpus:** 159k vektör (8 domain) · **Retrieval:** domain@1 %81.2, @5 %97.3, MRR 0.88
+> (186-vaka benchmark, ölçüldü → [docs/theses/measured-results.md](../docs/theses/measured-results.md)).
+>
+> **Veri katmanı:** Qdrant (vektör) + PostgreSQL (feedback/api_key/audit, env-gated,
+> Alembic) + Redis (session/rate-limit).
 
 ## Sprint-4 Özet (10 hafta, 25h/hafta)
 
@@ -22,29 +28,38 @@
 
 Detay: [`eval/runs/W{1..10}_changes.md`](eval/runs/).
 
+> **Sprint-5/6+ (güncel):** Corpus 62k→159k (HF Yargıtay 700k seed + Danıştay
+> idari/vergi + GİB özelge); PostgreSQL ilişkisel katman (repository pattern +
+> Alembic); retry artık re-retrieve eder; API/auth hardening (security headers,
+> IDOR owner-binding, API key hash); domain-öncelikli tier-sort. 662 test.
+
 ## Modüller
 
 ```
 backend/
-├── main.py            FastAPI entry — lifespan preload + /health depth
+├── main.py            FastAPI entry — lifespan (configure_logging+DB init+preload)
 ├── pyproject.toml     uv-managed deps + ruff/mypy strict + cov gate
 ├── Dockerfile         Multi-stage, non-root, healthcheck, read-only fs
-├── agents/            LangGraph 7-ajan + verifier_layers
+├── agents/            LangGraph 12-node (triaj·mevzuat·emsal·draft·verify·debate·
+│                      finalize + crag/self_rag/eligibility/tahmin/dilekçe) + state
 ├── retrieval/         BGE-M3 dense+sparse+ColBERT + HyDE + Multi-Query
-│                      + RAPTOR (opt-in) + GraphRAG (opt-in)
-├── verifier/          NLI + LettuceDetect + RARR-lite (W4)
-├── api/               Routes + middleware (auth/sanitize/PII/audit)
-│   ├── routes/        /ask, /ask/stream, /multimodal/*, /auth/*, /feedback
-│   ├── middleware/    auth.py (JWT+API-key), sanitize.py (PI filter)
+│                      + RAPTOR (opt-in) + GraphRAG (opt-in) + tier-sort
+├── verifier/          NLI + LettuceDetect + RARR
+├── db/                PostgreSQL — engine + models + repositories (env-gated)
+├── alembic/           DB migration (async, DATABASE_URL'den)
+├── api/               Routes + middleware (auth/sanitize/PII/audit/security-headers)
+│   ├── routes/        /ask, /ask/stream, /multimodal/*, /auth/*, /feedback, /dilekce
+│   ├── middleware/    auth.py (JWT+API-key hash), sanitize.py, security_headers.py
 │   ├── pii.py         PII mask layer (TCKN, phone, email, IBAN, plate)
 │   ├── audit.py       Audit log stream (PII-free, hash fingerprint)
 │   └── limiter.py     Per-principal rate limit (Redis backend)
-├── core/              Logging redact + observability (Langfuse)
+├── core/              Logging redact + PII-mask + observability (Langfuse)
 ├── multimodal/        OCR + STT + TTS
-├── eval/              freeze_baseline, edge_cases, ragas_full, judge
+├── predictive/        Tahmin modeli (BERT-TR — eğitim bekliyor)
+├── eval/              eval_run, freeze_baseline, edge_cases, ragas_full, judge
 │   └── runs/          Sprint changelogs + JSON outputs + manifest.json
-├── scripts/           Seed, build, backup, smoke, manifest
-└── tests/             pytest — 336 test (mock LLM), llm_integration mark
+├── scripts/           Seed (mevzuat/HF/Danıştay/GİB/UYAP) + build + backup + smoke
+└── tests/             pytest — 662 test (api·agents·db·retrieval·verifier·multimodal)
 ```
 
 ## Quickstart
@@ -83,17 +98,17 @@ Detaylı deploy: [`docs/runbooks/deploy-staging.md`](../docs/runbooks/deploy-sta
 ## Test
 
 ```bash
-# Tam suite (mock LLM, ~15s)
-uv run pytest tests/ --ignore=tests/multimodal --ignore=tests/training \
-  --cov --cov-report=term --cov-fail-under=80
-# 336 passed, 6 skipped, 83.24% cov
+# Tam suite (mock LLM)
+uv run --extra dev pytest tests/ -q                  # 662 test
+uv run --extra dev ruff check .                      # 0 hata
+uv run --extra dev mypy .                            # 215 dosya, 0 hata
+uv run --extra dev bandit -r . -c pyproject.toml -ll -ii   # güvenlik
 
-# mypy strict + ruff strict
-uv run mypy . --exclude '\.venv' --exclude tests --exclude scripts
-uv run ruff check .
+# DB katmanı (aiosqlite, container'sız)
+uv run --extra dev pytest tests/db/ -q
 
 # Real-LLM integration (llama-server + Qdrant şart, skip otherwise)
-uv run pytest -m llm_integration -v
+uv run --extra dev pytest -m llm_integration -v
 ```
 
 ## Eval
@@ -129,7 +144,7 @@ uv run python -m scripts.backup_qdrant --s3
 | POST | `/multimodal/ocr` | required | Belge → metin |
 | POST | `/multimodal/stt` | required | Ses → metin |
 | POST | `/multimodal/tts` | required | Metin → WAV |
-| POST | `/auth/invite/{code}` | public | Davet → JWT (KVKK consent) |
+| POST | `/auth/invite/{code}` | public | Davet → JWT (gizlilik onayı) |
 | GET | `/auth/me` | required | Principal echo |
 | POST | `/feedback` | required | Thumbs up/down + comment |
 
