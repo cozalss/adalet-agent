@@ -35,6 +35,9 @@ DİL KURALI (KESİN): Yanıtın YALNIZCA Türkçe ve geçerli JSON karakterlerin
 ANLAM AYRIMI (sık karıştırılır):
 - "Maaş/ücret ödenmiyor", "fazla mesai ödenmedi", "kıdem-ihbar verilmedi" → isHukuku (işçi alacağı, henüz icraya gitmemiş)
 - "Borç tahsili yapılamıyor", "haciz geldi", "icra takibi başlatıldı" → icra (zaten icra aşamasındaki alacak)
+- "MTV, KDV, ÖTV, gelir vergisi, vergi cezası, gecikme faizi (vergi)" → vergi (vergi mükellefi-Devlet ilişkisi)
+- "Ücret faizi, maaş gecikme" → isHukuku (işçi-işveren ilişkisi)
+  ÖNEMLİ: "ödenmedi" tek başına ayırt edici DEĞİL — bağlama bak. MTV/KDV/vergi adı geçiyorsa "vergi". Maaş/ücret geçiyorsa "isHukuku".
 
 Örnek:
 Soru: "Kıdem tazminatı nasıl hesaplanır?"
@@ -45,6 +48,9 @@ Soru: "3 ay önce işe başladım ama bugün işten atıldım, haklarım neler?"
 
 Soru: "İşveren maaşımı 2 aydır ödemiyor, ne yapabilirim?"
 {"domain": "isHukuku", "confidence": 0.95, "reasoning": "Ödenmeyen ücret işçi alacağı.", "facts": {"olay": "maaş ödenmiyor", "sure": "2 ay", "taraf": "işçi"}}
+
+Soru: "MTV ödenmedi, gecikme faizi nasıl hesaplanır?"
+{"domain": "vergi", "confidence": 0.95, "reasoning": "Motorlu Taşıtlar Vergisi gecikme faizi.", "facts": {"olay": "MTV ödenmedi", "taraf": "vergi_mukellefi"}}
 
 Soru: "Kat malikleri toplantısı nasıl yapılır?"
 {"domain": "tapu", "confidence": 0.9, "reasoning": "KMK kat mülkiyeti yönetimi.", "facts": {}}
