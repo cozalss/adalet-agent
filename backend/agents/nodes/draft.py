@@ -14,6 +14,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -209,7 +210,7 @@ _VERDICT_LABEL = {
 }
 
 
-def _format_eligibility_for_prompt(assessments: list[dict]) -> str:
+def _format_eligibility_for_prompt(assessments: list[dict[str, Any]]) -> str:
     """Uygunluk node'unun önceden hesapladığı eşik kararlarını draft'a göm.
 
     Bu blok varsa draft eşik aritmetiğini TEKRAR yapmaz — kararları prose'a

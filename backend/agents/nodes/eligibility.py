@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -49,7 +50,7 @@ _ELIG_SYSTEM = (
 
 
 @observe_node(as_type="generation", name="eligibility")
-async def eligibility_node(state: AgentState) -> dict:
+async def eligibility_node(state: AgentState) -> dict[str, Any]:
     """Retrieve edilen maddeleri kullanıcı olgularıyla eşik-karşılaştır."""
     if not ELIGIBILITY_ENABLED:
         return {}
@@ -99,7 +100,7 @@ async def eligibility_node(state: AgentState) -> dict:
     return {"eligibility": assessments}
 
 
-def _format_facts(facts: dict) -> str:
+def _format_facts(facts: dict[str, Any]) -> str:
     parts = [
         f"- {_FACT_LABELS.get(k, k)}: {str(v).strip()}"
         for k, v in facts.items() if str(v).strip()
@@ -116,7 +117,7 @@ def _format_maddeler(refs: list[Citation]) -> str:
     return "\n\n".join(lines)
 
 
-def _parse(raw: str, known_ids: set[str]) -> list[dict]:
+def _parse(raw: str, known_ids: set[str]) -> list[dict[str, Any]]:
     """Eligibility JSON'unu sağlam parse et + alanları doğrula."""
     text = raw.strip()
     if text.startswith("```"):
@@ -130,7 +131,7 @@ def _parse(raw: str, known_ids: set[str]) -> list[dict]:
         return []
 
     raw_list = obj.get("degerlendirmeler", []) if isinstance(obj, dict) else []
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for item in raw_list:
         if not isinstance(item, dict):
             continue

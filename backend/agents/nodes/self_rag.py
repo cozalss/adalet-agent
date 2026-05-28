@@ -168,7 +168,9 @@ def _parse_reflection_json(raw: str) -> dict:
 
 def _coerce_utility(value: object) -> int:
     try:
-        utility = int(value)  # type: ignore[arg-type]
+        # int(object) overload yok; LLM'den gelen JSON value int/float/str olabilir.
+        # cast üzerinden int'e zorla; TypeError/ValueError yakalanır.
+        utility = int(value)  # type: ignore[call-overload]
     except (TypeError, ValueError):
         return 0
     return max(0, min(5, utility))
