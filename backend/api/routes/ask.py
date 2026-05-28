@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import StreamingResponse
 
 from agents.config import get_ask_graph_timeout_s
@@ -31,11 +31,11 @@ from agents.graph import build_graph, make_initial_state
 from agents.state import ConversationTurn
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
-from api.limiter import ask_rate_for, limiter
 from api.dilekce_store import store_pdf
+from api.limiter import ask_rate_for, limiter
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
-from api.pii import mask_pii
+from api.pii import fingerprint, mask_pii
 from api.schemas import (
     AskRequest,
     AskResponse,
@@ -107,6 +107,40 @@ async def _persist_turn(
         log.warning("session_persist_failed", conv_id=conv_id, error=str(exc))
 
 
+async def _bind_or_verify_owner(conv_id: str, principal: Principal) -> None:
+    """IDOR koruması — conversation'ı sahibine bağla / sahipliği doğrula.
+
+    - Anonim (AUTH_ENABLED=0, dev/test) → no-op; herkes 'dev', IDOR yok.
+    - İlk erişim → owner = fingerprint(sub) bağlanır (set-if-absent).
+    - Sonraki erişim → mevcut owner ≠ çağıran fingerprint ise 403.
+
+    Owner ham sub değil fingerprint olarak saklanır (KVKK — Redis'te email yok).
+    Store hatası akışı bloke etmesin (best-effort); ownership ihlali ise 403 yükselt.
+    """
+    if principal.anonymous:
+        return
+    owner = fingerprint(principal.sub)
+    store = get_store()
+    try:
+        existing = await store.get_owner(conv_id)
+    except Exception as exc:
+        log.warning("owner_check_failed", conv_id=conv_id, error=str(exc))
+        return
+    if existing is None:
+        with contextlib.suppress(Exception):
+            await store.set_owner_if_absent(conv_id, owner)
+        return
+    if existing != owner:
+        emit_audit(AuditEvent(
+            event="session_idor_blocked", principal=principal,
+            conversation_id=conv_id,
+        ))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu oturuma erişim yetkiniz yok.",
+        )
+
+
 @router.post("", response_model=AskResponse)
 @limiter.limit(ask_rate_for)
 @observe_ask_request(name="ask")
@@ -150,6 +184,9 @@ async def ask(
 
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
+    # IDOR: conversation'ı sahibine bağla / sahipliği doğrula (resume'da başkasının
+    # oturumuna erişim 403). Anonim modda no-op.
+    await _bind_or_verify_owner(conv_id, principal)
 
     # W8.1 — Langfuse v4: @observe_ask_request decorator inner fn'i sarar, trace
     # otomatik açılır. update_current_trace ile user/session/metadata zenginleştir.
@@ -254,6 +291,8 @@ async def ask_stream(
     sanitized_req = req.model_copy(update={"question": cleaned_question})
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
+    # IDOR: sahip bağla / doğrula (stream başlamadan; mismatch → 403).
+    await _bind_or_verify_owner(conv_id, principal)
 
     async def event_source() -> AsyncIterator[str]:
         start = time.perf_counter()
@@ -338,11 +377,10 @@ async def clear_session(
     conversation_id Path pattern ile kısıtlı ([A-Za-z0-9_-], 8-128) — Redis key
     enjeksiyonu / path-traversal denemelerini (`*`, `:`, `/`) 422 ile reddeder.
 
-    NOT: Tam sahiplik (ownership) kontrolü — bir kullanıcının yalnız KENDİ
-    session'ını silebilmesi — session_store'a owner_sub binding gerektiriyor;
-    ayrı bir iterasyona bırakıldı ([[backend-hardening-backlog]]).
+    IDOR koruması: owner binding ile yalnız oturum sahibi silebilir. Başkasının
+    conversation_id'sini bilen kullanıcı 403 alır (auth açıkken).
     """
-    _ = principal
+    await _bind_or_verify_owner(conversation_id, principal)
     store = get_store()
     await store.clear(conversation_id)
     return {"cleared": conversation_id}

@@ -11,7 +11,7 @@ Veri modeli:
     key:    "adalet:session:{conversation_id}"
     value:  JSON: [{role, content, timestamp, domain}, ...]
 
-KVKK:
+Gizlilik:
   - TTL sıfırlanır (otomatik silme)
   - PII (TCKN/telefon) loglanırsa anonimleştirilir (gerekirse yeni katman)
   - Production'da Redis Türkiye sınırı içinde (Hetzner Helsinki yedek)
@@ -45,6 +45,11 @@ def _key(conversation_id: str) -> str:
     return f"adalet:session:{conversation_id}"
 
 
+def _owner_key(conversation_id: str) -> str:
+    """Owner binding anahtarı — IDOR koruması (fingerprint saklanır)."""
+    return f"adalet:session:{conversation_id}:owner"
+
+
 def _utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -62,6 +67,9 @@ class SessionStore(Protocol):
     async def append_turn(self, conversation_id: str, turn: ConversationTurn) -> None: ...
     async def clear(self, conversation_id: str) -> None: ...
     async def health(self) -> bool: ...
+    # IDOR koruması — owner binding (KVKK için fingerprint saklanır, ham sub değil)
+    async def get_owner(self, conversation_id: str) -> str | None: ...
+    async def set_owner_if_absent(self, conversation_id: str, owner: str) -> None: ...
 
 
 # --------------------------------------------------------------------------
@@ -84,6 +92,8 @@ class InMemorySessionStore:
         self.max_turns = max_turns
         # (turns_list, last_access_epoch)
         self._data: OrderedDict[str, tuple[list[ConversationTurn], float]] = OrderedDict()
+        # conversation_id → owner fingerprint (IDOR binding)
+        self._owners: dict[str, str] = {}
 
     def _evict_expired(self) -> None:
         now = time.time()
@@ -121,9 +131,17 @@ class InMemorySessionStore:
 
     async def clear(self, conversation_id: str) -> None:
         self._data.pop(conversation_id, None)
+        self._owners.pop(conversation_id, None)
 
     async def health(self) -> bool:
         return True
+
+    async def get_owner(self, conversation_id: str) -> str | None:
+        return self._owners.get(conversation_id)
+
+    async def set_owner_if_absent(self, conversation_id: str, owner: str) -> None:
+        # İlk yazan sahiptir; sonradan ezilmez (IDOR garantisi).
+        self._owners.setdefault(conversation_id, owner)
 
 
 # --------------------------------------------------------------------------
@@ -189,7 +207,17 @@ class RedisSessionStore:
 
     async def clear(self, conversation_id: str) -> None:
         client = await self._get_client()
-        await client.delete(_key(conversation_id))
+        await client.delete(_key(conversation_id), _owner_key(conversation_id))
+
+    async def get_owner(self, conversation_id: str) -> str | None:
+        client = await self._get_client()
+        return await client.get(_owner_key(conversation_id))
+
+    async def set_owner_if_absent(self, conversation_id: str, owner: str) -> None:
+        # SETNX (nx=True): yalnız yoksa yaz → ilk yazan sahiptir (IDOR garantisi).
+        # TTL session ile aynı; owner key session yaşadığı sürece yaşar.
+        client = await self._get_client()
+        await client.set(_owner_key(conversation_id), owner, nx=True, ex=self.ttl_s)
 
     async def health(self) -> bool:
         try:

@@ -12,16 +12,20 @@ Tasarım kararları:
 - JWT için PyJWT (lightweight, no crypto-suite dep).
 - Secret rotation: `JWT_SECRET` env değişikliği yeniden başlatma gerektirir.
 - Token TTL'i default 24h; refresh token akışı şu an yok (beta için yeterli).
-- API key sabit liste (`API_KEYS_FILE=path` JSON: {"key": "label"}). Hash
-  saklanmaz; geliştirici dosya yetkilerini kısıtlamalı.
+- API key sabit liste (`API_KEYS_FILE=path` JSON: {"key_or_sha256": "label"}).
+  Stored key SHA-256 hex ise hash modu (önerilen — dosya sızsa ham key açığa
+  çıkmaz); plaintext de desteklenir (geriye uyum, deprecation uyarısı). Hash
+  üret: `auth.hash_api_key("<ham-key>")`.
 - Rate-limit per-key entegrasyon W6.2'de api/limiter.py'ye ekleniyor.
 """
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -61,6 +65,11 @@ class Principal:
     claims: dict[str, Any] | None = None
 
 
+def hash_api_key(raw_key: str) -> str:
+    """Ham API key → SHA-256 hex. API_KEYS_FILE'a bu hash yazılır (güvenli mod)."""
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
 def _load_api_keys() -> dict[str, str]:
     """API_KEYS_FILE → {key: label} dict. Yoksa boş."""
     if not API_KEYS_FILE:
@@ -95,20 +104,42 @@ def reset_api_key_cache() -> None:
     _API_KEY_CACHE = None
 
 
-def _match_api_key(provided: str, keys: dict[str, str]) -> str | None:
-    """Sabit-zaman API key eşleştirme — timing attack'a karşı.
+# SHA-256 hex = 64 karakterlik [0-9a-f]. Stored key bu formatta ise hash kabul
+# edilir (güvenli mod); değilse plaintext (geriye uyum + deprecation uyarısı).
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+_plaintext_key_warned = False
 
-    Düz `dict.get(provided)` hash/uzunluğa göre değişken zamanlı; saldırgan
-    mikrosaniye ölçümüyle doğru prefix'i daraltabilir. Bunun yerine her kayıtla
-    `hmac.compare_digest` ile sabit-zaman karşılaştır. Erken return YOK (eşleşme
-    pozisyonunu sızdırmamak için tüm kayıtları gez); label son eşleşen olur
-    (key'ler benzersiz → en fazla bir eşleşme).
+
+def _match_api_key(provided: str, keys: dict[str, str]) -> str | None:
+    """Sabit-zaman API key eşleştirme — timing attack + at-rest sızıntı koruması.
+
+    Stored key SHA-256 hex ise sağlanan key hash'lenip karşılaştırılır → dosya
+    sızsa bile ham key açığa çıkmaz (C2). Plaintext stored key geriye uyum için
+    desteklenir ama bir kez deprecation uyarısı verilir — production'da hash önerilir.
+
+    Her iki yolda da `hmac.compare_digest` ile sabit-zaman; erken return YOK
+    (eşleşme pozisyonunu sızdırmamak için tüm kayıtlar gezilir).
     """
+    global _plaintext_key_warned
     provided_b = provided.encode("utf-8")
+    provided_hash = hashlib.sha256(provided_b).hexdigest().encode("utf-8")
     matched: str | None = None
     for key, label in keys.items():
-        if hmac.compare_digest(key.encode("utf-8"), provided_b):
-            matched = label
+        if _SHA256_HEX_RE.match(key):
+            # Güvenli mod: stored=hash, provided'ı hash'le karşılaştır
+            if hmac.compare_digest(key.encode("utf-8"), provided_hash):
+                matched = label
+        else:
+            # Geriye uyum: plaintext stored key (deprecation)
+            if not _plaintext_key_warned:
+                _plaintext_key_warned = True
+                log.warning(
+                    "api_key_plaintext_deprecated",
+                    hint="API_KEYS_FILE plaintext key içeriyor; SHA-256 hash kullan "
+                         "(hashlib.sha256(key).hexdigest()). Dosya sızarsa ham key açığa çıkar.",
+                )
+            if hmac.compare_digest(key.encode("utf-8"), provided_b):
+                matched = label
     return matched
 
 
@@ -226,6 +257,7 @@ __all__ = (
     "authenticate",
     "decode_token",
     "get_api_keys",
+    "hash_api_key",
     "issue_token",
     "reset_api_key_cache",
 )

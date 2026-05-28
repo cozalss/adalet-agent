@@ -45,6 +45,23 @@ from api.schemas import HealthResponse
 log = structlog.get_logger()
 
 
+def _log_auth_visibility() -> None:
+    """Boot'ta auth durumunu görünür logla — sessiz prod misconfig'i önler."""
+    with contextlib.suppress(Exception):
+        from api.middleware import auth as _auth
+        if not _auth.AUTH_ENABLED:
+            log.warning(
+                "auth_disabled",
+                hint="AUTH_ENABLED=0 — tüm endpoint'ler anonim erişime açık. "
+                     "Production'da AUTH_ENABLED=1 + JWT_SECRET zorunlu.",
+            )
+        elif not _auth.JWT_SECRET:
+            log.critical(
+                "auth_enabled_without_secret",
+                hint="AUTH_ENABLED=1 ama JWT_SECRET boş — JWT decode 500 döner.",
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: log mode + preload BGE-M3 & Reranker + request-path singleton warm-up.
@@ -65,6 +82,11 @@ async def lifespan(app: FastAPI):
     with contextlib.suppress(Exception):
         from core.logging import configure_logging
         configure_logging()
+
+    # Auth görünürlüğü: docker-compose AUTH_ENABLED=1 set eder; docker dışında
+    # (uvicorn --reload) default 0 → endpoint'ler korumasız. Boot'ta GÖRÜNÜR
+    # yap ki production yanlış-konfigürasyon sessiz kalmasın (security C1).
+    _log_auth_visibility()
 
     log.info(
         "adalet_starting",

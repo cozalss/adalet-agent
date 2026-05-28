@@ -139,6 +139,33 @@ def test_match_api_key_constant_time_lookup():
     assert _match_api_key("anything", {}) is None
 
 
+def test_match_api_key_hashed_mode():
+    """SHA-256 hash'li stored key → sağlanan ham key hash'lenip eşleşir (C2).
+
+    Dosya sızsa bile ham key açığa çıkmaz. Yanlış key None döner.
+    """
+    from api.middleware.auth import _match_api_key, hash_api_key
+
+    raw = "super-secret-b2b-key-2026"
+    keys = {hash_api_key(raw): "acme-corp", hash_api_key("other"): "beta-ltd"}
+    # Stored değer 64-hex hash → ham key hash'lenip karşılaştırılır
+    assert _match_api_key(raw, keys) == "acme-corp"
+    assert _match_api_key("other", keys) == "beta-ltd"
+    assert _match_api_key("wrong-key", keys) is None
+    # hash_api_key deterministik + 64-hex
+    assert hash_api_key(raw) == hash_api_key(raw)
+    assert len(hash_api_key(raw)) == 64
+
+
+def test_match_api_key_mixed_hash_and_plaintext():
+    """Hash + plaintext karışık dosya — ikisi de çalışır (geriye uyum)."""
+    from api.middleware.auth import _match_api_key, hash_api_key
+
+    keys = {hash_api_key("hashed-key"): "hashed-corp", "plain-key": "plain-corp"}
+    assert _match_api_key("hashed-key", keys) == "hashed-corp"
+    assert _match_api_key("plain-key", keys) == "plain-corp"
+
+
 def test_auth_disabled_returns_anonymous(monkeypatch):
     monkeypatch.setattr(auth_mod, "AUTH_ENABLED", False)
     app = FastAPI()

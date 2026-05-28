@@ -114,3 +114,49 @@ async def test_concurrent_appends_dont_lose_turns():
     ])
     h = await s.get_history("c1")
     assert len(h) == 10
+
+
+# --- IDOR owner binding -----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_owner_set_if_absent_is_first_writer_wins():
+    """İlk yazan sahiptir; sonraki set_owner_if_absent ezmez (IDOR garantisi)."""
+    s = InMemorySessionStore()
+    assert await s.get_owner("c1") is None
+    await s.set_owner_if_absent("c1", "alice-fp")
+    assert await s.get_owner("c1") == "alice-fp"
+    await s.set_owner_if_absent("c1", "mallory-fp")  # başkası sahiplenemez
+    assert await s.get_owner("c1") == "alice-fp"
+
+
+@pytest.mark.asyncio
+async def test_clear_removes_owner_binding():
+    """clear() owner kaydını da siler."""
+    s = InMemorySessionStore()
+    await s.set_owner_if_absent("c1", "alice-fp")
+    await s.clear("c1")
+    assert await s.get_owner("c1") is None
+
+
+@pytest.mark.asyncio
+async def test_bind_or_verify_owner_blocks_cross_user():
+    """_bind_or_verify_owner: sahip eşleşmezse 403, anonimde no-op."""
+    from fastapi import HTTPException
+
+    from api.middleware.auth import Principal
+    from api.routes import ask as ask_mod
+
+    reset_store()
+    alice = Principal(sub="beta:alice@x.com", kind="user")
+    mallory = Principal(sub="beta:mallory@x.com", kind="user")
+
+    await ask_mod._bind_or_verify_owner("conv-abc", alice)   # ilk → bağlanır
+    await ask_mod._bind_or_verify_owner("conv-abc", alice)   # tekrar → OK
+    with pytest.raises(HTTPException) as exc:
+        await ask_mod._bind_or_verify_owner("conv-abc", mallory)
+    assert exc.value.status_code == 403
+    # Anonim (dev) → no-op
+    anon = Principal(sub="dev", kind="anonymous", anonymous=True)
+    await ask_mod._bind_or_verify_owner("conv-abc", anon)
+    reset_store()

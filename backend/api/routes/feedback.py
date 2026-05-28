@@ -57,7 +57,25 @@ async def submit_feedback(
     req: FeedbackRequest,
     principal: Principal = Depends(authenticate),
 ) -> FeedbackResponse:
-    """Feedback persist + audit. Comment PII-mask edilir, sanitize edilir."""
+    """Feedback persist + audit. Comment PII-mask edilir, sanitize edilir.
+
+    IDOR (soft): conversation owner kayıtlıysa ve çağıran sahip değilse 403.
+    Owner süresi dolmuşsa (session TTL) doğrulanamaz → geç feedback'i kırmamak
+    için izin verilir. Anonim modda no-op.
+    """
+    if not principal.anonymous:
+        from api.session_store import get_store
+        try:
+            owner = await get_store().get_owner(req.conversation_id)
+        except Exception:
+            owner = None
+        if owner is not None and owner != fingerprint(principal.sub):
+            emit_audit(AuditEvent(
+                event="feedback_idor_blocked", principal=principal,
+                conversation_id=req.conversation_id,
+            ))
+            raise HTTPException(403, "Bu oturuma feedback verme yetkiniz yok.")
+
     safe_comment = ""
     if req.comment:
         s = sanitize_question(req.comment)
@@ -66,7 +84,7 @@ async def submit_feedback(
         safe_comment = mask_pii(s.cleaned_text).masked_text
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
-    # KVKK: principal.sub = "beta:email@..." → ham email feedback_id'ye, JSONL'e
+    # Gizlilik: principal.sub = "beta:email@..." → ham email feedback_id'ye, JSONL'e
     # ve log'a sızmasın. Deterministik fingerprint (gruplanabilir, kimliksiz).
     sub_fp = fingerprint(principal.sub, 12)
     feedback_id = f"fb_{ts}_{sub_fp}"
