@@ -142,9 +142,13 @@ def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, 
         if not norm:
             kept.append(sent)
             continue
-        is_unverified = any(u in norm or norm in u for u in unverified)
-        # Aynı cümlede hem doğrulanmış hem doğrulanmamış claim varsa cümleyi
-        # parçalayamayız; halüsinasyon sızıntısını önlemek için tüm cümleyi at.
+        # Yalnız tek yönlü substring: doğrulanmamış claim cümle İÇİNDE geçiyorsa
+        # cümle atılır (halüsinasyon sızıntısı önlenir). Önceki çift-yönlü kural
+        # ("norm in u" dahil) çok cömertti: yapısal cevapta kısa yan-cümleler
+        # daha uzun unverified claim'in alt-parçası gibi görünüp atılıyordu
+        # (16-soru testinde finalize 12 cümle düşürdü → cevap 1-2 cümleye indi).
+        # "u in norm" yeterlidir; "norm in u" yanlış-pozitif kapsam silmesidir.
+        is_unverified = any(u and u in norm for u in unverified)
         if is_unverified:
             dropped += 1
             continue

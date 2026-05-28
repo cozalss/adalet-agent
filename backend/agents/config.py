@@ -77,7 +77,7 @@ DEBATE_REJECT_THRESHOLD = 0.30   # critique score < bu = hard reject
 MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max
 
 # --- LLM ---
-LLM_MAX_TOKENS = 1536            # draft cevabı için
+LLM_MAX_TOKENS = 2048            # draft cevabı için (5 bölüm yapısal → daha uzun)
 LLM_TEMPERATURE = 0.1            # hukuki üretim — düşük sıcaklık şart
 LLM_CONTEXT_BUDGET = 3000        # context'in retrieval'a ayrılan token oranı
 
