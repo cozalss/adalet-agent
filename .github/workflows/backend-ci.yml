@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: read
+  # docker-build job'da cache-from/to: type=gha kullanılıyor;
+  # GHA cache API için actions:read/write zorunlu.
+  actions: write
 
 jobs:
   lint-and-types:
