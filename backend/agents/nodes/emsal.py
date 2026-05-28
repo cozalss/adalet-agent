@@ -45,7 +45,7 @@ async def emsal_node(state: AgentState) -> dict:
     case_results = [
         rr for rr in rerank_results
         if rr.metadata.get("doc_type") == "case"
-        or rr.source in {"anayasa", "yargitay", "danistay", "bedesten"}
+        or rr.source in {"anayasa", "yargitay", "danistay", "bedesten", "uyap", "gib_ozelge"}
     ]
 
     # Mahkeme-öncelikli tier-sort — Anayasa bireysel başvuru hacmi (corpus'ta

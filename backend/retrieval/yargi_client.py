@@ -340,6 +340,63 @@ class YargiClient:
             or ""
         )
 
+    async def search_emsal(
+        self,
+        keyword: str,
+        *,
+        page_number: int = 1,
+    ) -> list[YargitayDecision]:
+        """UYAP emsal — Bölge Adliye + Asliye Mahkemesi kararları (keyword-relevance).
+
+        Bedesten'in tarih-sıralı gevşek eşleşmesine karşılık UYAP gerçek keyword
+        eşleşmesi yapar; tüketici ayıplı-mal gibi sorgularda alakalı kararları
+        (Bölge Adliye Hukuk Daireleri, Asliye Ticaret/Hukuk) döndürür.
+        """
+        data = await self._call_tool(
+            "search_emsal_detailed_decisions",
+            {"keyword": keyword, "page_number": max(page_number, 1)},
+        )
+        items = data.get("decisions") or []
+        out: list[YargitayDecision] = []
+        for it in items:
+            doc_id = str(it.get("id") or "")
+            if not doc_id:
+                continue
+            daire = it.get("daire") or ""
+            esas = it.get("esasNo") or ""
+            karar = it.get("kararNo") or ""
+            title = f"{daire} {esas}/{karar}".strip()
+            out.append(
+                YargitayDecision(
+                    document_id=doc_id,
+                    court_type="emsal",
+                    chamber=daire or None,
+                    title=title or None,
+                    date=_normalize_date(it.get("kararTarihi")),
+                    summary=it.get("durum"),
+                    text="",
+                    source_url=(
+                        it.get("document_url")
+                        or f"https://emsal.uyap.gov.tr/getDokuman?id={doc_id}"
+                    ),
+                    raw=it,
+                )
+            )
+        return out
+
+    async def get_emsal_document(self, document_id: str) -> str:
+        """UYAP emsal tam metni (Markdown)."""
+        data = await self._call_tool(
+            "get_emsal_document_markdown",
+            {"id": document_id},
+        )
+        return (
+            data.get("markdown_content")
+            or data.get("content")
+            or data.get("markdown")
+            or ""
+        )
+
     async def search_anayasa(
         self,
         keywords: list[str],

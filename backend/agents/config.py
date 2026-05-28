@@ -258,13 +258,16 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
 # cross-encoder sırası tier içinde korunur). DOMAIN_TO_KANUN_KODU/CORE ile
 # aynı tier-sort felsefesi (mevzuat tarafındaki düzeltmenin emsal karşılığı).
 DOMAIN_PREFERRED_COURTS: dict[str, tuple[str, ...]] = {
-    "tuketici": ("yargitay",),
-    "isHukuku": ("yargitay",),
-    "kira": ("yargitay",),
-    "icra": ("yargitay",),
-    "trafik": ("yargitay",),
-    "tapu": ("yargitay", "danistay"),
-    "vergi": ("danistay",),
+    # UYAP (Bölge Adliye + Asliye Mahkemesi, keyword-relevance araması) eklendi —
+    # özel hukuk domain'lerinde Yargıtay ile birlikte tier-0; cross-encoder
+    # tier içinde sıralar.
+    "tuketici": ("yargitay", "uyap"),
+    "isHukuku": ("yargitay", "uyap"),
+    "kira": ("yargitay", "uyap"),
+    "icra": ("yargitay", "uyap"),
+    "trafik": ("yargitay", "uyap"),
+    "tapu": ("yargitay", "danistay", "uyap"),
+    "vergi": ("danistay", "gib_ozelge"),
     "idari": ("danistay",),
 }
 
