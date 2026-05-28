@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 
 import structlog
@@ -189,7 +190,17 @@ def _parse_triage_json(raw: str) -> tuple[Domain, float, str, dict[str, str]]:
     try:
         obj = json.loads(text)
     except json.JSONDecodeError:
+        # Qwen 2.5 zaman zaman Çince talimat sızdırıyor (kira/tk-01 vakası:
+        # "garanti期内请不要使用换行..."), JSON tamamlanmadan kesiliyor. Bozuk
+        # çıktıdan domain + confidence'ı regex ile kurtar — sıfır halüsinasyon
+        # ihlali yok (LLM domain'i zaten string olarak yazmıştı). Sınıflandırma
+        # kaybolmasın diye salvage; eğer regex de bulamazsa unknown fallback.
         log.warning("triaj_json_parse_failed", raw=raw[:200])
+        salvaged = _salvage_triage_fields(raw)
+        if salvaged is not None:
+            d, c, r = salvaged
+            log.info("triaj_json_salvaged", domain=d, confidence=c)
+            return d, c, r, {}
         return "unknown", 0.0, f"JSON parse hatası: {raw[:80]}", {}
 
     domain = str(obj.get("domain", "unknown")).strip()
@@ -203,6 +214,46 @@ def _parse_triage_json(raw: str) -> tuple[Domain, float, str, dict[str, str]]:
     reasoning = str(obj.get("reasoning", "")).strip()
     facts = _sanitize_facts(obj.get("facts"))
     return domain, confidence, reasoning, facts  # type: ignore[return-value]
+
+
+# Bozuk JSON'dan domain string'ini çek (Çince/karışık çıktı, kesilmiş yanıt).
+# "domain": "tuketici" deseni — case-insensitive, snake/camel arası fark gözetmez.
+_SALVAGE_DOMAIN_RE = re.compile(
+    r'["\']domain["\']\s*:\s*["\']([a-zA-Z_]+)["\']',
+    re.IGNORECASE,
+)
+_SALVAGE_CONFIDENCE_RE = re.compile(
+    r'["\']confidence["\']\s*:\s*([0-9]*\.?[0-9]+)',
+    re.IGNORECASE,
+)
+
+
+def _salvage_triage_fields(raw: str) -> tuple[Domain, float, str] | None:
+    """Bozuk JSON'dan (domain, confidence, reasoning) regex ile kurtar.
+
+    Qwen 2.5 Türkçe-Çince karışık çıktı zaman zaman üretiyor (training data
+    contamination). Yanıt bozulsa bile domain "tuketici" string'i çoğu zaman
+    bütün hâlinde yazılmış oluyor — atmak yerine kurtarıyoruz. Sıfır-halüsinasyon
+    ihlali değil: LLM domain string'ini ZATEN yazdı, biz sadece JSON parser
+    yerine regex ile okuyoruz.
+    """
+    m_dom = _SALVAGE_DOMAIN_RE.search(raw)
+    if not m_dom:
+        return None
+    domain = m_dom.group(1).strip()
+    if domain not in VALID_DOMAINS:
+        return None
+    m_conf = _SALVAGE_CONFIDENCE_RE.search(raw)
+    confidence = 0.5  # Salvage olduğu için muhafazakar baz; LLM yazdıysa kullan
+    if m_conf:
+        try:
+            c = float(m_conf.group(1))
+            if math.isfinite(c):
+                confidence = min(max(c, 0.0), 1.0)
+        except ValueError:
+            pass
+    reasoning = "JSON kesildi, domain regex ile kurtarıldı."
+    return domain, confidence, reasoning  # type: ignore[return-value]
 
 
 def _sanitize_facts(raw: object) -> dict[str, str]:
