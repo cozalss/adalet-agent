@@ -108,6 +108,14 @@ jobs:
     needs: [lint-and-types]
     steps:
       - uses: actions/checkout@v4
+      # GH Actions ubuntu-latest ~14GB free; torch CUDA 12.4 wheel (~3GB) +
+      # uv cache + builder katmanları kolayca taşar → "no space left on device".
+      # Kullanılmayan ön-yüklü SDK'ları sil.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build (no push)

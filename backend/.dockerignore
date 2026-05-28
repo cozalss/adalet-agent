@@ -112,3 +112,10 @@ credentials/
 # Bizim Dockerfile
 Dockerfile
 .dockerignore
+
+# Geçici scratch dosyalar (_ask_*, _batch_*, _retest_*, _pro_*, _e2e_*)
+_ask_*
+_batch_*
+_retest_*
+_pro_*
+_e2e_*
