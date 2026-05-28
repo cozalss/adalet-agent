@@ -104,7 +104,7 @@ jobs:
   docker-build:
     name: docker build smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: [lint-and-types]
     steps:
       - uses: actions/checkout@v4
@@ -116,5 +116,9 @@ jobs:
           context: ./backend
           push: false
           tags: adalet-backend:ci
+          # Yalnız linux/amd64 — multi-arch manifest export 2-3 dk fazla sürüyor,
+          # smoke test için tek platform yeterli.
+          platforms: linux/amd64
+          provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
