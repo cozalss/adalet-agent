@@ -28,7 +28,13 @@ YANIT FORMATI: Yalnızca geçerli JSON, başka hiçbir şey yazma:
 
 {"domain": "<8 etiketten biri>", "confidence": <0.0-1.0>, "reasoning": "<EN FAZLA 100 KARAKTER, tek cümle>", "facts": {"<anahtar>": "<deger>"}}
 
+DİL KURALI (KESİN): Yanıtın YALNIZCA Türkçe ve geçerli JSON karakterlerinden oluşmalı. Çince/İngilizce/başka dilden tek kelime, tek karakter bile yazma. reasoning alanı dahil her metin Türkçe olmalı.
+
 ÖNEMLİ: reasoning MUTLAKA kısa (100 karakter ↓) olmalı, aksi halde JSON kesilir ve parse fail olur. Uzun açıklama YAZMA. facts içine YALNIZCA soruda geçen değerleri koy.
+
+ANLAM AYRIMI (sık karıştırılır):
+- "Maaş/ücret ödenmiyor", "fazla mesai ödenmedi", "kıdem-ihbar verilmedi" → isHukuku (işçi alacağı, henüz icraya gitmemiş)
+- "Borç tahsili yapılamıyor", "haciz geldi", "icra takibi başlatıldı" → icra (zaten icra aşamasındaki alacak)
 
 Örnek:
 Soru: "Kıdem tazminatı nasıl hesaplanır?"
@@ -36,6 +42,9 @@ Soru: "Kıdem tazminatı nasıl hesaplanır?"
 
 Soru: "3 ay önce işe başladım ama bugün işten atıldım, haklarım neler?"
 {"domain": "isHukuku", "confidence": 0.95, "reasoning": "İşten çıkarma, işçi hakları.", "facts": {"sure": "3 ay", "olay": "işten çıkarıldı", "taraf": "işçi", "tarih": "bugün"}}
+
+Soru: "İşveren maaşımı 2 aydır ödemiyor, ne yapabilirim?"
+{"domain": "isHukuku", "confidence": 0.95, "reasoning": "Ödenmeyen ücret işçi alacağı.", "facts": {"olay": "maaş ödenmiyor", "sure": "2 ay", "taraf": "işçi"}}
 
 Soru: "Kat malikleri toplantısı nasıl yapılır?"
 {"domain": "tapu", "confidence": 0.9, "reasoning": "KMK kat mülkiyeti yönetimi.", "facts": {}}

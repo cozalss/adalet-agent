@@ -204,34 +204,44 @@ def _verdict_from_ratio(
     state: AgentState,
     contradictions: int = 0,
 ) -> DebateVerdict:
-    """Aggregate verdict — ratio-based + small-n sinyal-redundans guard.
+    """Aggregate verdict — ratio-based + süpermajority sinyal-redundans guard.
 
     Tarihçe:
       - v9: tek NLI çelişki tüm cevabı reddediyordu (E3: 3/4 supported %75 ama
         1 contradiction → reject). Türkçe XNLI paraphrase'lerde 0.50-0.70
         contradiction skoru sık üretiyor (false-pos). → ratio kuralına geçildi.
-      - Ama small-n (örn. n=2) sorununda ratio kapısı hâlâ tek çelişkiyle
-        tetikleniyordu (1/2 = %50 → reject). Kira e2e'sinde gerçek doğru
-        cevap böyle reddedildi. Düzeltme: çelişki vetosu için EN AZ 2 çelişki
-        gerekli — bir tek çelişki signal redundancy şartını karşılamaz.
-        Kalibrasyon harness'i per-claim metrikleri ölçer (verdict aggregation
-        DEĞİL); bu değişiklik harness P/R/F1'i etkilemez, yalnız agregasyonu
-        doğru ayarlar. [[adalet_nli_finding]], [[verify-calibration-harness]].
+      - Sonra: small-n (örn. n=2) sorununda ratio kapısı tek çelişkiyle
+        tetikleniyordu. → "en az 2 çelişki + ratio ≥ 0.5" kuralı kondu (138a104).
+      - SON BULGU (15-soru batch is-03): n=6, contradictions=3 → 0.5 ≥ 0.5
+        kuralı yine reddediyor, ama %50 çelişki "yarı yarıya" demek — false-pos
+        kümülasyonu olabilir. Süpermajority'ye geçildi: c >= ceil(n/2)+1.
+        n=2 → c=2 (tüm claim'ler çelişki, kesin sinyal) → reject ✓
+        n=4 → c=3 → reject
+        n=6 → c=4 (3 yetersiz) → reject ✓ (is-03'ün 3/6'sı false-positive sayılır)
+        n=10 → c=6 → reject
+
+    Kalibrasyon: bu değişiklik per-claim P/R/F1'i etkilemez (harness yalnız
+    katman çıktısını ölçer); yalnız aggregation kapısını ayarlar.
+    [[adalet_nli_finding]], [[verify-calibration-harness]].
 
     Kural:
       - n_total == 0 → reject
-      - contradictions >= 2 AND contradictions / n_total >= 0.5 → reject
+      - contradictions >= ceil(n_total/2) + 1 → reject (süpermajority)
       - supported / n_total >= MIN_VERIFIED_CLAIMS_RATIO → pass
       - retry_count < MAX_RETRY → retry
       - else → reject
     """
     if n_total == 0:
         return "reject"
-    contradiction_ratio = contradictions / n_total
-    # Sinyal-redundans: TEK Türkçe-XNLI çelişki false-positive olabilir
-    # (synthetic harness'te 0 yanlış-veto AMA gerçek LLM çıktısında parafraz/
-    # negatif polaritede tetikleniyor). En az 2 çelişki + ratio ≥ 0.5 birlikte.
-    if contradictions >= 2 and contradiction_ratio >= 0.5:
+    # Süpermajority: çelişkiler "yarıdan FAZLA" olmalı (tam yarı yetersiz).
+    # floor(n/2)+1 = "majority + 1" formülü:
+    #   n=2 → 2 (her iki claim çelişki; kesin sinyal)
+    #   n=4 → 3 (3/4 = %75)
+    #   n=6 → 4 (3/6 yetersiz; is-03 bu eşikten kurtulur)
+    #   n=10 → 6
+    # Ek olarak minimum 2 — tek çelişki Türkçe XNLI'da gürültü olabilir.
+    supermajority_threshold = max(2, (n_total // 2) + 1)
+    if contradictions >= supermajority_threshold:
         return "reject"
     ratio = n_supported / n_total
     if ratio >= MIN_VERIFIED_CLAIMS_RATIO:

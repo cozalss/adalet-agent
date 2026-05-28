@@ -155,10 +155,19 @@ def test_verdict_isolated_contradiction_does_not_block_pass(base_state):
     assert v == "pass"
 
 
-def test_verdict_majority_contradiction_rejects(base_state):
-    """contradictions/n_total >= 0.5 → reject (genuine bulk falsehood)."""
+def test_verdict_half_contradiction_at_n4_does_not_reject(base_state):
+    """n=4, c=2 (tam %50) — süpermajority eşiği floor(4/2)+1=3 talep eder.
+    2 yetersiz → veto tetiklenmez (yarı yarıya = belirsiz, false-pos riski)."""
     base_state["retry_count"] = 0
     v = _verdict_from_ratio(2, 4, base_state, contradictions=2)
+    # supported=2/4=0.5 > MIN_RATIO (0.20) → pass
+    assert v == "pass"
+
+
+def test_verdict_three_of_four_contradiction_rejects(base_state):
+    """n=4, c=3 (%75) — süpermajority eşiği 3 karşılandı → reject."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(1, 4, base_state, contradictions=3)
     assert v == "reject"
 
 
@@ -201,6 +210,29 @@ def test_verdict_single_contradiction_at_n1_falls_through(base_state):
     assert v == "retry"
 
 
+def test_verdict_half_contradictions_at_n6_does_not_reject(base_state):
+    """is-03 regresyonu: 3/6 çelişki = %50 yarı yarıya; süpermajority kuralı
+    floor(6/2)+1 = 4 talep eder, 3 yetersiz → veto tetiklenmez.
+    Supported 1/6 = %17 < MIN_RATIO (0.20) → retry (debate yeniden dener)."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(1, 6, base_state, contradictions=3)
+    assert v == "retry"
+
+
+def test_verdict_supermajority_contradictions_at_n6_rejects(base_state):
+    """n=6, 4 çelişki: floor(6/2)+1=4 eşiği karşılar → reject."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(1, 6, base_state, contradictions=4)
+    assert v == "reject"
+
+
+def test_verdict_supermajority_at_n4(base_state):
+    """n=4, 3 çelişki (75%): floor(4/2)+1=3 → reject; 2 çelişki → not."""
+    base_state["retry_count"] = 0
+    assert _verdict_from_ratio(1, 4, base_state, contradictions=3) == "reject"
+    assert _verdict_from_ratio(3, 4, base_state, contradictions=2) == "pass"
+
+
 def test_verdict_min_ratio_threshold_boundary(base_state):
     """MIN_VERIFIED_CLAIMS_RATIO sınırı (0.20) — 1/5 == 0.20 → pass."""
     from agents.config import MIN_VERIFIED_CLAIMS_RATIO
@@ -217,14 +249,14 @@ def test_verdict_below_min_ratio_retries_under_limit(base_state):
     assert v == "retry"
 
 
-def test_verdict_contradiction_takes_priority_over_support(base_state):
-    """Yarıdan fazla contradiction varsa, support yüksek olsa bile reject.
+def test_verdict_strong_contradiction_overrides_support(base_state):
+    """Süpermajority çelişki support'u devirmeli — n=4 c=3 sup=3 → reject.
 
-    Bu zorla yalan döküman senaryosu: 3/4 supported + 2/4 contradiction
-    (overlap mümkün) → contradiction ratio 50% → reject (güvenlik tarafı).
+    Önceki kural (ratio>=0.5) n=4 c=2 sup=3 → reject diyordu (false-pos riski).
+    Yeni süpermajority kuralı sadece "yarıdan FAZLA" tetikler: c=3 (75%) gerek.
     """
     base_state["retry_count"] = 0
-    v = _verdict_from_ratio(3, 4, base_state, contradictions=2)
+    v = _verdict_from_ratio(3, 4, base_state, contradictions=3)
     assert v == "reject"
 
 

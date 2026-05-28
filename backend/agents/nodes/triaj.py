@@ -144,6 +144,13 @@ async def triaj_node(state: AgentState) -> dict:
 
     domain, confidence, reasoning, facts = _parse_triage_json(response.content)
 
+    # Salvage olduğunda facts kayboldu (JSON kesildi) → eligibility atlanır → draft
+    # zayıf çıkar (tk-01 vakası). Ayrı kısa çağrı ile facts'ı kurtar; domain
+    # zaten regex'le kurtarılmıştı, bu sadece olguları geri getirir.
+    if reasoning == _SALVAGE_REASONING and not facts and domain != "unknown":
+        log.info("triaj_facts_retry", domain=domain)
+        facts = await _recover_facts(question)
+
     # Devam sorusunda LLM unknown derse, inherited'i fallback olarak kullan
     if domain == "unknown" and inherited_domain:
         log.info("triaj_inherited_from_history", inherited=inherited_domain)
@@ -252,8 +259,51 @@ def _salvage_triage_fields(raw: str) -> tuple[Domain, float, str] | None:
                 confidence = min(max(c, 0.0), 1.0)
         except ValueError:
             pass
-    reasoning = "JSON kesildi, domain regex ile kurtarıldı."
-    return domain, confidence, reasoning  # type: ignore[return-value]
+    return domain, confidence, _SALVAGE_REASONING  # type: ignore[return-value]
+
+
+# Salvage tetiklendiğinde reasoning bu sentinel olur — triaj_node "facts retry"
+# yolunu açmak için bunu kontrol eder. Public sabit (test'lerden de okunur).
+_SALVAGE_REASONING = "JSON kesildi, domain regex ile kurtarıldı."
+
+# Sadece facts isteyen ikinci-çağrı prompt'u — salvage sonrası eligibility'nin
+# atlanmasını önlemek için minimal, sıkı, Türkçe-only.
+_FACTS_RETRY_SYSTEM = (
+    "Sen Türk hukuk sorularından SOMUT OLGULARI çıkaran bir asistansın. "
+    "ÇIKTI YALNIZCA Türkçe ve geçerli JSON olmalı — Çince/İngilizce tek karakter yazma."
+)
+_FACTS_RETRY_USER = (
+    "Aşağıdaki sorudan soruda AÇIKÇA geçen somut olguları çıkar. Uydurma; yoksa boş bırak.\n"
+    "İzinli anahtarlar: sure, isci_sayisi, tutar, olay, taraf, tarih.\n"
+    "Çıktı yalnız JSON: {{\"facts\": {{\"<anahtar>\": \"<deger>\"}}}}\n\n"
+    "Soru: {question}"
+)
+
+
+async def _recover_facts(question: str) -> dict[str, str]:
+    """Triaj JSON kesilirse facts'ı ayrı kısa çağrı ile kurtar.
+
+    Salvage path'inde domain regex'le kurtarıldı ama facts tamamen kayboldu →
+    eligibility node atlandı → draft zayıf çıktı (tk-01 vakası). Bu kısa çağrı
+    yalnız facts ister, çıktı küçük olduğu için Çince sızıntı olasılığı çok
+    düşüktür. Hata olursa boş dict.
+    """
+    try:
+        llm = get_llm()
+        resp = await llm.chat(
+            messages=[
+                ChatMessage(role="system", content=_FACTS_RETRY_SYSTEM),
+                ChatMessage(role="user", content=_FACTS_RETRY_USER.format(question=question)),
+            ],
+            temperature=0.0,
+            max_tokens=200,
+            json_mode=True,
+        )
+        data = json.loads(resp.content)
+        return _sanitize_facts(data.get("facts") if isinstance(data, dict) else None)
+    except (json.JSONDecodeError, Exception) as exc:
+        log.warning("triaj_facts_retry_failed", error=str(exc) or type(exc).__name__)
+        return {}
 
 
 def _sanitize_facts(raw: object) -> dict[str, str]:
