@@ -6,12 +6,10 @@ Audit log'a + opsiyonel Langfuse score'a yazılır.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +20,7 @@ from api.audit import emit as emit_audit
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
 from api.pii import fingerprint, mask_pii
+from db.repositories.feedback import get_feedback_repo
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/feedback", tags=["feedback"])
@@ -45,11 +44,8 @@ class FeedbackResponse(BaseModel):
     feedback_id: str
 
 
-def _append_jsonl(log_path: Path, record: dict[str, Any]) -> None:
-    """mkdir + append-write — blocking I/O (asyncio.to_thread ile çağrılır)."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+# Backend seçimi repository factory'de: DATABASE_URL varsa Postgres, yoksa JSONL.
+# _append_jsonl artık db/repositories/feedback.py'de (FilesystemFeedbackRepo).
 
 
 @router.post("", response_model=FeedbackResponse)
@@ -89,7 +85,8 @@ async def submit_feedback(
     sub_fp = fingerprint(principal.sub, 12)
     feedback_id = f"fb_{ts}_{sub_fp}"
 
-    # Persist — production'da SQLite veya append-only log (mkdir+write helper'da)
+    # Persist — repository factory backend seçer: DATABASE_URL varsa Postgres
+    # (kalıcı + sorgulanabilir), yoksa JSONL dosya (dev/test/CI fallback).
     record = {
         "feedback_id": feedback_id,
         "ts": datetime.now(UTC).isoformat(),
@@ -100,9 +97,8 @@ async def submit_feedback(
         "rating": req.rating,
         "comment_masked": safe_comment,
     }
-    log_path = FEEDBACK_LOG_PATH / f"feedback_{datetime.now(UTC).strftime('%Y%m%d')}.jsonl"
-    # Blocking dosya yazımı thread pool'da — event loop'u bloke etme.
-    await asyncio.to_thread(_append_jsonl, log_path, record)
+    repo = get_feedback_repo(FEEDBACK_LOG_PATH)
+    await repo.save(record)
 
     emit_audit(AuditEvent(
         event=f"feedback_{req.rating}",

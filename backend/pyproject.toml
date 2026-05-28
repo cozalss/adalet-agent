@@ -47,6 +47,12 @@ dependencies = [
     # Dilekçe Ajanı (6. ajan) — jinja2 template render + reportlab PDF gen.
     "jinja2>=3.1.4",
     "reportlab>=4.2.0",
+    # İlişkisel DB (production backbone) — feedback/user/api_key/audit/eval.
+    # SQLModel (SQLAlchemy+Pydantic), async Postgres driver, Alembic migration.
+    # DATABASE_URL set DEĞİLSE DB katmanı no-op → dosya fallback (dev/test/CI).
+    "sqlmodel>=0.0.22",
+    "asyncpg>=0.30.0",
+    "alembic>=1.13.0",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +62,8 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.6.9",
     "mypy>=1.11.2",
+    # Test/CI DB sürücüsü — Postgres yerine async SQLite (container'sız repo testleri)
+    "aiosqlite>=0.20.0",
 ]
 # Sprint-4 eval ek — Ragas + Cohere rerank A/B (opsiyonel)
 eval = [

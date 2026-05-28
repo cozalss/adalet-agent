@@ -45,6 +45,21 @@ from api.schemas import HealthResponse
 log = structlog.get_logger()
 
 
+async def _init_db_if_enabled() -> None:
+    """DATABASE_URL set ise tabloları idempotent oluştur (best-effort).
+
+    Production'da Alembic tercih edilir; create_all ilk boot'u güvenceye alır.
+    DB kapalıysa no-op (dosya fallback). Hata startup'ı bloke etmez.
+    """
+    try:
+        from db import create_all, is_db_enabled
+        if is_db_enabled():
+            await create_all()
+            log.info("db_ready")
+    except Exception as exc:
+        log.warning("db_init_failed", error=str(exc))
+
+
 def _log_auth_visibility() -> None:
     """Boot'ta auth durumunu görünür logla — sessiz prod misconfig'i önler."""
     with contextlib.suppress(Exception):
@@ -157,6 +172,9 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         log.warning("warmup_store_failed", error=str(exc))
 
+    # İlişkisel DB (DATABASE_URL set ise) — idempotent tablo oluştur.
+    await _init_db_if_enabled()
+
     try:
         from api.routes.ask import _get_graph
         _get_graph()
@@ -198,6 +216,10 @@ async def lifespan(app: FastAPI):
         log.info("qdrant_shared_client_closed")
     except Exception as exc:
         log.warning("qdrant_close_failed_on_shutdown", error=str(exc))
+    # DB engine dispose (best-effort)
+    with contextlib.suppress(Exception):
+        from db import aclose_engine
+        await aclose_engine()
     log.info("adalet_shutting_down")
 
 
