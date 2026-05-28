@@ -17,6 +17,7 @@ etkilenmez (yalnız display). Belirsizken uydurma kazanma oranı verilmez.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 
 import structlog
@@ -25,6 +26,29 @@ from agents.state import Prediction, PredictionClass
 from retrieval.turkish_text import tr_lower
 
 log = structlog.get_logger()
+
+# mle-reviewer kritik bulgu: heuristic tüm metni tarayarak gerekçe bölümündeki
+# alt-mahkeme atıflarını ("ilk derece reddine") oyluyor → false-label. HÜKÜM
+# bölümü genelde "HÜKÜM:" / "SONUÇ:" / "Karar:" başlığıyla başlar. Bu regex
+# bölümü izole eder; bulunmazsa son 800 karaktere düşeriz (hüküm tipik olarak
+# son paragraflarda).
+_HUKUM_HEADER_RE = re.compile(
+    r"(?i)\b(h\s*[üu]\s*k\s*[üu]\s*m|sonu[cç])\s*[:\.]\s*",
+)
+_HUKUM_TAIL_CHARS = 800     # başlık yoksa fallback
+
+
+def _isolate_hukum(text_low: str) -> str:
+    """Karar metninden hüküm bölümünü izole et.
+
+    Strateji: "hüküm:" / "sonuç:" başlığı varsa ondan sonrasını al; yoksa son
+    800 karakter (hüküm tipik olarak metnin sonundadır). Bu, gerekçe bölümündeki
+    "alt mahkeme reddine" gibi atıfların false-label etmesini önler.
+    """
+    m = _HUKUM_HEADER_RE.search(text_low)
+    if m:
+        return text_low[m.end():]
+    return text_low[-_HUKUM_TAIL_CHARS:]
 
 # Kesinlik ima etmemek için tavan — heuristic asla "%100 kazanırsın" demez.
 _MAX_CONFIDENCE = 0.85
@@ -92,10 +116,17 @@ def _belirsiz(case_ids: list[str], n_signal: int, n_total: int) -> Prediction:
 def _heuristic_predict(
     similar_case_texts: list[str], similar_case_ids: list[str],
 ) -> Prediction:
-    """Emsal sonuç-oylaması → tutucu tahmin. Saf fonksiyon (test edilebilir)."""
+    """Emsal sonuç-oylaması → tutucu tahmin. Saf fonksiyon (test edilebilir).
+
+    Düzeltme (mle-reviewer bulgusu): metnin tamamını tarama yerine HÜKÜM
+    bölümünü izole et. Gerekçe bölümündeki alt-mahkeme atıfları (örn.
+    "ilk derece reddine") false-label üretiyordu; hüküm bölümünde ise nihai
+    karar (örn. "bozularak kabulüne") yer alır.
+    """
     votes: Counter[PredictionClass] = Counter()
     for text in similar_case_texts:
-        outcome = _classify_outcome(tr_lower(text))
+        hukum_low = _isolate_hukum(tr_lower(text))
+        outcome = _classify_outcome(hukum_low)
         if outcome is not None:
             votes[outcome] += 1
 

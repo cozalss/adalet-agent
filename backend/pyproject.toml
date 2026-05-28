@@ -44,6 +44,9 @@ dependencies = [
     "apscheduler>=3.10.4",
     "faster-whisper>=1.2.1",
     "piper-tts>=1.4.2",
+    # Dilekçe Ajanı (6. ajan) — jinja2 template render + reportlab PDF gen.
+    "jinja2>=3.1.4",
+    "reportlab>=4.2.0",
 ]
 
 [project.optional-dependencies]

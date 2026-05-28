@@ -143,6 +143,12 @@ class AgentState(TypedDict):
     claims: list[Claim]
     verified_claims: list[Claim]
     dilekce_md: NotRequired[str]
+    # --- Dilekçe (6. ajan, want_dilekce=True + verdict=pass yolu) ---
+    # PDF in-memory bytes — API route base64-encode etmek yerine ayrı GET endpoint
+    # üzerinden stream eder (KVKK: disk persist yok, request-scope GC'lenir).
+    dilekce_pdf_bytes: NotRequired[bytes | None]
+    dilekce_template_id: NotRequired[str]    # audit + A/B test (örn "tuketici_iade_v1")
+    dilekce_filename: NotRequired[str]       # Content-Disposition için
 
     # --- Hakemlik / kalite döngüsü ---
     debate_verdict: DebateVerdict

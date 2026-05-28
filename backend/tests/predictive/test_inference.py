@@ -80,3 +80,33 @@ async def test_predict_outcome_async_interface():
     assert pred["verdict_class"] == "kaybetti"
     assert pred["similar_case_ids"] == ["a", "b", "c"]
     assert isinstance(pred["reasoning"], str) and pred["reasoning"]
+
+
+def test_hukum_isolation_ignores_gerekce_section():
+    """mle-reviewer kritik bulgusu: gerekçe bölümündeki alt-mahkeme atıfları
+    nihai etiketi etkilemez. HÜKÜM bölümündeki nihai karar baskın olur.
+    """
+    karar_metni = (
+        "GEREKÇE: Alt mahkemece davanın reddine karar verilmiş olup, dosya "
+        "incelendiğinde delillerin yeterince değerlendirilmediği görülmüştür. "
+        "Davacı kıdem tazminatını talep etmiştir. "
+        "HÜKÜM: Açıklanan nedenlerle alt mahkeme kararının bozularak "
+        "davanın kabulüne, davacı lehine 50.000 TL ödenmesine karar verildi."
+    )
+    pred = _heuristic_predict([karar_metni] * 3, ["c1", "c2", "c3"])
+    # Hüküm bölümünde "kabulüne" → "kazandi" baskın; gerekçedeki "reddine"
+    # yok sayılmalı.
+    assert pred["verdict_class"] == "kazandi", (
+        f"HÜKÜM izolasyonu çalışmadı; çıktı: {pred}"
+    )
+
+
+def test_hukum_isolation_fallback_to_last_800_chars():
+    """HÜKÜM başlığı yoksa son 800 karakter izole edilir."""
+    text = (
+        "Davacı işten çıkarılmış. Davalı işveren itiraz etmiş. "
+        "Mahkeme delilleri inceledi. " * 5
+        + "Sonuç olarak davanın kabulüne karar verildi."
+    )
+    pred = _heuristic_predict([text] * 3, ["a", "b", "c"])
+    assert pred["verdict_class"] == "kazandi"

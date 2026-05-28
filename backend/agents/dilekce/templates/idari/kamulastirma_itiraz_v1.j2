@@ -1,0 +1,14 @@
+{% extends "base.j2" %}
+{% set baslik = "KAMULAŞTIRMA BEDELİNE İTİRAZ DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " ASLİYE HUKUK MAHKEMESİ SAYIN HÂKİMLİĞİNE" %}
+{% block konu %}2942 sayılı Kamulaştırma Kanunu m.10 uyarınca kamulaştırma bedeline itirazımdır.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **Kamulaştırma Kanunu m.10** uyarınca taşınmaz için belirlenen kamulaştırma bedelinin **rayiç değere göre yeniden tespitini**,
+2. **Bilirkişi raporu** alınarak gerçek değerin saptanmasını,
+3. Fark bedelinin **yasal faizi ile birlikte** tarafıma ödenmesini,
+4. Yargılama giderleri ve vekâlet ücretinin idare üzerine bırakılmasına
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

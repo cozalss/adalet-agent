@@ -76,6 +76,16 @@ def get_ask_graph_timeout_s() -> float:
 DEBATE_REJECT_THRESHOLD = 0.30   # critique score < bu = hard reject
 MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max
 
+# --- Dilekçe Ajanı (6. ajan, want_dilekce=True + verdict=pass yolu) ---
+# Default ON (kontrat: state.want_dilekce zaten False default; kapı runtime'da
+# kontrol edilir). DILEKCE_ENABLED=0 ile node tamamen graph'tan dışlanır.
+DILEKCE_ENABLED = os.getenv("DILEKCE_ENABLED", "1") not in {"0", "false", "False"}
+# PDF byte tavanı (5MB) — reportlab patlamış template'te DoS riski.
+DILEKCE_MAX_PDF_BYTES = int(os.getenv("DILEKCE_MAX_PDF_BYTES", "5242880"))
+# In-memory cache TTL (saniye) — kullanıcı PDF'i istediğinden uzun süre sonra
+# açmasın diye 15 dk. Production'da Redis presigned URL ile değişebilir.
+DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
+
 # --- LLM ---
 LLM_MAX_TOKENS = 2048            # draft cevabı için (5 bölüm yapısal → daha uzun)
 LLM_TEMPERATURE = 0.1            # hukuki üretim — düşük sıcaklık şart

@@ -59,7 +59,14 @@ async def finalize_node(state: AgentState) -> dict:
 
     # Citation bloğu
     citations_md = _format_citations(state)
-    final = f"{filtered_draft}\n\n---\n**Kaynaklar:**\n{citations_md}\n\n{DISCLAIMER_TR}"
+    # Dilekçe linki (6. ajan üretmişse) — sadece markdown atıfı, bytes API'den
+    # GET /dilekce/{conversation_id} ile servis edilir (bkz. api/routes/dilekce).
+    dilekce_md_block = _format_dilekce_link(state)
+    final = (
+        f"{filtered_draft}"
+        f"{dilekce_md_block}"
+        f"\n\n---\n**Kaynaklar:**\n{citations_md}\n\n{DISCLAIMER_TR}"
+    )
 
     confidence = _compute_confidence(state, verified_claims)
 
@@ -171,6 +178,31 @@ def _reject_response(state: AgentState, reason: str | None = None) -> dict:
         "prediction": None,
         "debate_verdict": "reject",
     }
+
+
+def _format_dilekce_link(state: AgentState) -> str:
+    """Dilekçe Ajanı PDF üretmişse cevaba 'İndir' linki ekle.
+
+    State'te `dilekce_pdf_bytes` ve `conversation_id` varsa public endpoint
+    URL'i (kullanıcı klikleyince stream eder). Yoksa boş string (no-op).
+    Bytes'ı response içine gömmeyiz (KVKK + bandwidth — bkz. ADR/architect).
+    """
+    if not state.get("dilekce_pdf_bytes"):
+        return ""
+    cid = state.get("conversation_id") or ""
+    filename = state.get("dilekce_filename") or "dilekce.pdf"
+    template_id = state.get("dilekce_template_id") or ""
+    if cid:
+        url = f"/api/dilekce/{cid}"
+    else:
+        # conversation_id yoksa (eski client) görece path — frontend nasıl
+        # alacağına karar verir. KVKK: file_id veya token sunulmaz.
+        url = "(önizleme için conversation_id gerekli)"
+    return (
+        "\n\n---\n"
+        f"📂 **Hazır dilekçe:** [{filename}]({url})  \n"
+        f"*Şablon:* `{template_id}`"
+    )
 
 
 def _format_citations(state: AgentState) -> str:

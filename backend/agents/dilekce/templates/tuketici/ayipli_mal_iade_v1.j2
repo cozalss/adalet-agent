@@ -1,0 +1,16 @@
+{% extends "base.j2" %}
+{% set baslik = "AYIPLI MAL İADE / BEDEL İNDİRİMİ TALEP DİLEKÇESİ" %}
+{% set muhatap = (karsi_taraf | default("[SATICI / SAĞLAYICI UNVANI]")) + " 'NA" %}
+{% block konu %}6502 sayılı TKHK m.8 vd. uyarınca ayıplı mal sebebiyle iade / bedel indirimi / ücretsiz onarım talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Ayıplı malın **iadesi** ve **bedelin tarafıma iadesi**,
+   *veya* alternatif olarak **TKHK m.11** uyarınca:
+   - bedelden indirim, *veya*
+   - ayıbın ücretsiz olarak giderilmesi, *veya*
+   - aynı türden ayıpsız bir mal ile değiştirilmesi
+2. Bu talebimin **30 gün** içinde karşılanmasını, aksi hâlde Tüketici Hakem Heyetine başvuru hakkımın saklı tutulduğunu
+
+bildirir, saygıyla arz ederim.
+{% endblock %}

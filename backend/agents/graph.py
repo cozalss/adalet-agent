@@ -57,6 +57,7 @@ from agents.nodes.debate import debate_node
 from agents.nodes.draft import draft_node
 from agents.nodes.eligibility import eligibility_node
 from agents.nodes.emsal import emsal_node
+from agents.nodes.dilekce import dilekce_node
 from agents.nodes.finalize import finalize_node
 from agents.nodes.mevzuat import mevzuat_node
 from agents.nodes.self_rag import self_rag_node
@@ -71,14 +72,29 @@ def _predictive_enabled() -> bool:
     return os.environ.get("PREDICTIVE_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def _dilekce_enabled() -> bool:
+    """DILEKCE_ENABLED config flag wrapper — graph build-time karar.
+
+    Tek doğru kaynak: `agents.config.DILEKCE_ENABLED` (DRY). Node graph'a
+    EKLİ olsa bile `state.want_dilekce=False` olduğunda no-op'tur; bu fonksiyon
+    yalnız topology kararı içindir (regression toggle).
+    """
+    # Lazy import — config modül-seviyesinde ENV okuyor; testlerin
+    # monkeypatch.setenv ile sonradan değiştirebilmesi için her çağrıda re-eval.
+    return os.environ.get("DILEKCE_ENABLED", "1") not in {"0", "false", "False"}
+
+
 def _sink() -> str:
     """Finalize'dan ÖNCEKİ son durak.
 
-    PREDICTIVE_ENABLED=1 ise finalize-bound her yol önce `tahmin`'e uğrar
-    (tahmin → finalize). Kapalıyken doğrudan `finalize` — baseline topoloji
-    birebir korunur.
+    Sıralama: debate → [tahmin?] → [dilekce?] → finalize. Bayraklar kapalıysa
+    doğrudan finalize — baseline topoloji birebir korunur.
     """
-    return "tahmin" if _predictive_enabled() else "finalize"
+    if _predictive_enabled():
+        return "tahmin"
+    if _dilekce_enabled():
+        return "dilekce"
+    return "finalize"
 
 
 def _route_after_triaj(state: AgentState) -> list[str] | str:
@@ -149,6 +165,7 @@ def build_graph() -> Any:
     crag_on = _crag_enabled()
     self_rag_on = _self_rag_enabled()
     predictive_on = _predictive_enabled()
+    dilekce_on = _dilekce_enabled()
     eligibility_on = _eligibility_enabled()
     if eligibility_on:
         g.add_node("eligibility", eligibility_node)
@@ -156,13 +173,27 @@ def build_graph() -> Any:
         g.add_node("crag", crag_node)
     if self_rag_on:
         g.add_node("self_rag", self_rag_node)
+    # Finalize-öncesi zinciri: debate → [tahmin?] → [dilekce?] → finalize
+    # Node iç-guard'lar (want_dilekce, verdict, refs) gereksiz çağrıyı no-op
+    # yapar; conditional edge yerine in-node guard tercih edildi → graph
+    # topolojisi statik, runtime branching sade.
     if predictive_on:
-        # 8. ajan: finalize öncesi araya girer (tahmin → finalize).
         g.add_node("tahmin", tahmin_node)
+    if dilekce_on:
+        g.add_node("dilekce", dilekce_node)
+    if predictive_on and dilekce_on:
+        g.add_edge("tahmin", "dilekce")
+        g.add_edge("dilekce", "finalize")
+    elif predictive_on:
         g.add_edge("tahmin", "finalize")
+    elif dilekce_on:
+        g.add_edge("dilekce", "finalize")
 
-    # Finalize öncesi son durak — predictive açıksa "tahmin", değilse "finalize".
-    sink = "tahmin" if predictive_on else "finalize"
+    # Finalize öncesi son durak — sıralama: tahmin → dilekce → finalize.
+    sink = (
+        "tahmin" if predictive_on
+        else ("dilekce" if dilekce_on else "finalize")
+    )
 
     g.add_edge(START, "triaj")
 

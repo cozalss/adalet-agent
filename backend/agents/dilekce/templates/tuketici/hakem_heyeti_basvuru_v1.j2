@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "TÜKETİCİ HAKEM HEYETİ BAŞVURU DİLEKÇESİ" %}
+{% set muhatap = "T.C. " + (user_meta.sehir | default("[ŞEHİR]")) + " VALİLİĞİ TÜKETİCİ HAKEM HEYETİ BAŞKANLIĞINA" %}
+{% block konu %}6502 sayılı Tüketicinin Korunması Hakkında Kanun (TKHK) kapsamında satıcı/sağlayıcı ile aramda doğan uyuşmazlığın çözümü talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Uyuşmazlığın **TKHK m.68** kapsamında **Tüketici Hakem Heyeti** tarafından incelenmesini,
+2. Tarafıma satıcı/sağlayıcının yükümlülüklerini yerine getirmesi yönünde karar verilmesini,
+3. Yargılama gider ve masraflarının karşı tarafa yükletilmesini,
+
+saygıyla arz ve talep ederim.
+{% endblock %}

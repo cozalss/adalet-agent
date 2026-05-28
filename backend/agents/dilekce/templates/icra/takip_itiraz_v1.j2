@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "İCRA TAKİBİNE İTİRAZ DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " " + (user_meta.icra_dairesi | default("[NUMARA]")) + ". İCRA DAİRESİ MÜDÜRLÜĞÜNE" %}
+{% block konu %}{{ user_meta.dosya_no | default("[ESAS NO]") }} sayılı dosyaya 2004 sayılı İcra ve İflas Kanunu m.62 uyarınca itirazımdır.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Ödeme emrine, borcun **tamamına / aslına / faizine / fer'ilerine** **İİK m.62** uyarınca **7 gün** içinde **itiraz etmekteyim**,
+2. Takibin **durdurulmasına**,
+3. Alacaklı tarafça itirazın iptali davası açılması hâlinde tüm dava ve takip giderlerinin alacaklıya yükletilmesine
+
+karar verilmesini saygıyla arz ederim.
+{% endblock %}

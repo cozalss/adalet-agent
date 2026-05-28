@@ -1,0 +1,15 @@
+{% extends "base.j2" %}
+{% set baslik = "MİRASÇILIK BELGESİ (VERASET İLAMI) TALEP DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " " + (user_meta.sulh_hukuk_no | default("[NUMARA]")) + ". SULH HUKUK MAHKEMESİ SAYIN HÂKİMLİĞİNE" %}
+{% block konu %}4721 sayılı Türk Medeni Kanunu m.598 uyarınca mirasçılık belgesi (veraset ilamı) verilmesi talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **TMK m.598** uyarınca tarafıma **mirasçılık belgesi (veraset ilamı)** verilmesini,
+2. Belgede mirasçıların ad-soyadı, T.C. kimlik numarası ve hisse oranlarının gösterilmesini,
+3. Yargılama giderlerinin mirasçılar arasında hisseleri oranında paylaştırılmasına
+
+karar verilmesini saygıyla arz ve talep ederim.
+
+**EK:** Vefat eden murisin nüfus kayıt örneği, kendi nüfus cüzdanı sureti.
+{% endblock %}

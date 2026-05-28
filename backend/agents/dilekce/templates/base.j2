@@ -1,0 +1,88 @@
+{# ----------------------------------------------------------------------- #}
+{# Dilekçe base template — bütün dilekçeler bu yapıyı extend eder.         #}
+{# Yalnız VERIFIED claim ve KAYNAKLI mevzuat string interpolation;          #}
+{# LLM çağrısı yok (jinja deterministic). [[adalet_nli_finding]]            #}
+{# ----------------------------------------------------------------------- #}
+{%- macro madde_satir(ref) -%}
+- **{{ ref.title }}** — {{ ref.url }}
+{%- endmacro -%}
+
+{%- macro olgu_listesi(olgular) -%}
+{%- if olgular %}
+{%- for o in olgular %}
+- {{ o }}
+{%- endfor %}
+{%- else %}
+- (Somut olgu bildirilmedi — başvuruda doldurulacaktır.)
+{%- endif %}
+{%- endmacro -%}
+
+{%- block baslik -%}
+# {{ baslik | default("DİLEKÇE") }}
+{% endblock -%}
+
+**{{ muhatap | default("İLGİLİ MAKAMA") }}**
+
+**Başvuru Tarihi:** {{ tarih }}
+
+**Konu:** {% block konu %}{{ konu | default("Hukuki başvuru.") }}{% endblock %}
+
+---
+
+## I. TARAFLAR
+
+**Başvurucu:**
+- Ad-Soyad: {{ user_meta.ad_soyad | default("[AD SOYAD]") }}
+- T.C. Kimlik No: {{ user_meta.tc_kimlik | default("[T.C. KİMLİK NO]") }}
+- Adres: {{ user_meta.adres | default("[ADRES]") }}
+- Telefon: {{ user_meta.telefon | default("[TELEFON]") }}
+
+**Karşı Taraf:**
+- {{ karsi_taraf | default("[KARŞI TARAFIN AD/UNVANI VE ADRESİ]") }}
+
+## II. OLAYIN ÖZETİ
+
+{{ ozet_metin }}
+
+### Somut Olgular
+{{ olgu_listesi(olgular) }}
+
+## III. HUKUKİ DAYANAK
+
+{% block dayanak -%}
+{%- if hukuki_dayanak %}
+İşbu başvurunun dayanağı aşağıda sıralanan mevzuat hükümleridir:
+
+{% for ref in hukuki_dayanak -%}
+{{ madde_satir(ref) }}
+{% endfor %}
+{%- else %}
+*Bu konuda doğrulanmış mevzuat dayanağı sunulmamıştır — başvurudan önce bir avukatla görüşmeniz önerilir.*
+{%- endif %}
+
+{% if emsal_destek %}
+### Emsal Yargı Kararları
+{% for ref in emsal_destek[:3] -%}
+{{ madde_satir(ref) }}
+{% endfor %}
+{% endif -%}
+{% endblock %}
+
+## IV. TALEP
+
+{% block talep -%}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde,
+{{ talep_metni | default("hak ve menfaatlerimin korunmasına karar verilmesini") }} arz ve talep ederim.
+{%- endblock %}
+
+---
+
+**Saygılarımla,**
+
+{{ user_meta.ad_soyad | default("[AD SOYAD]") }}
+İmza: ____________________
+
+---
+
+> ⚠️ Bu dilekçe ADALET-AGENT tarafından bilgilendirme amaçlı otomatik üretilmiştir.
+> İmzalamadan önce bir avukata göstermeniz tavsiye edilir.

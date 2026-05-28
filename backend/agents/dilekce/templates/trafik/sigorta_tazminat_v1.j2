@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "TRAFİK KAZASI SİGORTA TAZMİNAT TALEP DİLEKÇESİ" %}
+{% set muhatap = (karsi_taraf | default("[SİGORTA ŞİRKETİ UNVANI]")) + " 'NA" %}
+{% block konu %}2918 sayılı Karayolları Trafik Kanunu m.97 uyarınca zorunlu trafik sigortasından tazminat talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Kaza tarihinde {{ user_meta.plaka | default("[PLAKA]") }} plakalı aracın sigortacısı sıfatınızla, **KTK m.97**'de düzenlenen zorunlu trafik sigortası kapsamında **maddi/manevi tazminatın** ödenmesini,
+2. **Ekspertiz raporu** ve **trafik kaza tespit tutanağına** istinaden zararın belirlenmesini,
+3. İşbu talebimin **karayolları zorunlu mali sorumluluk sigortası genel şartları** ve **KTK m.99** uyarınca **15 iş günü** içinde karşılanmasını
+
+saygıyla arz ve talep ederim.
+{% endblock %}

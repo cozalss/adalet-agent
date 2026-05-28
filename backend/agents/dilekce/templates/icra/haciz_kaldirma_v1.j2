@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "MAAŞ HACZİNİN SINIRLANDIRILMASI TALEP DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " " + (user_meta.icra_dairesi | default("[NUMARA]")) + ". İCRA DAİRESİ MÜDÜRLÜĞÜNE" %}
+{% block konu %}{{ user_meta.dosya_no | default("[ESAS NO]") }} sayılı dosya — maaşıma uygulanan haczin İİK m.83 uyarınca sınırlandırılması talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **İİK m.83** uyarınca maaşımdan haczedilebilecek miktarın **dörtte birden fazla olamayacağı** ve geçim için gerekli kısmın korunması gerektiği,
+2. Maaş hesabımdan uygulanmakta olan haczin **kanuni sınıra çekilmesini**,
+3. Fazla kesilen tutarın **tarafıma iadesini**
+
+saygıyla arz ve talep ederim.
+{% endblock %}

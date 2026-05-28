@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "KİRA BEDELİ TESPİT DAVASI DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " NÖBETÇİ SULH HUKUK MAHKEMESİ SAYIN HÂKİMLİĞİNE" %}
+{% block konu %}6098 sayılı TBK m.344 uyarınca kira bedelinin tespiti talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Kira artışının **TBK m.344**'te öngörülen **tüketici fiyat endeksindeki on iki aylık ortalama** sınırını aşmamak üzere **yeniden tespiti**,
+2. Yasal sınırı aşan kısmın geçersizliğine ve **fazla ödemelerin iadesi**ne,
+3. Yargılama giderleri ve vekâlet ücretinin karşı tarafa yükletilmesine
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

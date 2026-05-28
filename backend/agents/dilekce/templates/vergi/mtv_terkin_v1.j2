@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "MTV TERKİN / GECİKME FAİZİ HESABI DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " VERGİ DAİRESİ MÜDÜRLÜĞÜNE" %}
+{% block konu %}{{ user_meta.plaka | default("[PLAKA]") }} plakalı araç için ödenmemiş motorlu taşıtlar vergisi (MTV) ve gecikme faizine ilişkin başvurum.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **{{ user_meta.plaka | default("[PLAKA]") }}** plakalı araca ilişkin ödenmemiş **MTV** ve **VUK m.112** ile **AATUHK m.51** uyarınca gecikme faizinin **resmî hesaplamasının** tarafıma yazılı olarak bildirilmesini,
+2. Borcun **taksitlendirilmesi** veya **terkini** kapsamında değerlendirilmesini,
+3. Hesabımda hatalı tahakkuk varsa **VUK m.122** uyarınca **düzeltilmesini**
+
+saygıyla arz ederim.
+{% endblock %}

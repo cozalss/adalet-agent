@@ -1,0 +1,14 @@
+{% extends "base.j2" %}
+{% set baslik = "İDARİ İŞLEM İPTAL DAVA DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " İDARE MAHKEMESİ BAŞKANLIĞINA" %}
+{% block konu %}2577 sayılı İdari Yargılama Usulü Kanunu (İYUK) m.2 uyarınca {{ user_meta.idari_islem | default("[İDARİ İŞLEM]") }} işleminin iptali davası.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **İYUK m.2/1-a** uyarınca menfaat ihlali ve hukuka aykırılık sebebiyle dava konusu idari işlemin **iptaline**,
+2. **İYUK m.7** uyarınca dava açma süresinin (idare mahkemelerinde **60 gün**) içerisinde başvurulduğunun tespitine,
+3. Yürütmenin durdurulması için **İYUK m.27** uyarınca **uygulanması hâlinde telafisi güç ya da imkânsız zararlar doğacağı** dikkate alınarak yürütmenin durdurulmasına,
+4. Yargılama giderleri ve avukatlık ücretinin karşı idare üzerine bırakılmasına
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

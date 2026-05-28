@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "VERGİ CEZASINA İTİRAZ DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " VERGİ MAHKEMESİ BAŞKANLIĞINA" %}
+{% block konu %}{{ user_meta.ihbarname_no | default("[İHBARNAME NO]") }} sayılı ihbarname ile tarafıma tebliğ edilen vergi/cezaya 213 sayılı Vergi Usul Kanunu (VUK) m.378 uyarınca itirazımdır.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. **{{ user_meta.ihbarname_no | default("[İHBARNAME NO]") }}** sayılı ihbarname ile tahakkuk ettirilen vergi/cezanın **kaldırılmasına / düzeltilmesine**,
+2. **VUK m.368** uyarınca **dava açma süresinin (1 ay)** geçirilmediğine,
+3. Yargılama giderleri ve avukatlık ücretinin idare üzerine bırakılmasına
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

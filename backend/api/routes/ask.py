@@ -32,6 +32,7 @@ from agents.state import ConversationTurn
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
 from api.limiter import ask_rate_for, limiter
+from api.dilekce_store import store_pdf
 from api.middleware.auth import Principal, authenticate
 from api.middleware.sanitize import sanitize_question
 from api.pii import mask_pii
@@ -193,6 +194,17 @@ async def ask(
         ) from exc
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
+    # Dilekçe Ajanı PDF üretmişse in-memory cache'e koy (15 dk TTL); frontend
+    # /api/dilekce/{conv_id} ile indirir. KVKK + IDOR: owner_sub ile bağlanır,
+    # principal.sub == owner_sub kontrolü route'da yapılır.
+    if final_state.get("dilekce_pdf_bytes"):
+        store_pdf(
+            conversation_id=conv_id,
+            pdf_bytes=final_state["dilekce_pdf_bytes"],
+            filename=final_state.get("dilekce_filename") or "dilekce.pdf",
+            template_id=final_state.get("dilekce_template_id") or "",
+            owner_sub=principal.sub,
+        )
     response = _state_to_response(final_state, elapsed_ms, conv_id)
     # v4 — trace_id'yi yanıta ekle (frontend Langfuse dashboard linki üretebilir)
     response = response.model_copy(update={"trace_id": current_trace_id()})

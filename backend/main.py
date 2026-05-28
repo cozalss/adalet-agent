@@ -36,6 +36,7 @@ from slowapi.errors import RateLimitExceeded
 from api.limiter import limiter
 from api.routes.ask import router as ask_router
 from api.routes.auth import router as auth_router
+from api.routes.dilekce import router as dilekce_router
 from api.routes.feedback import router as feedback_router
 from api.routes.multimodal import router as multimodal_router
 from api.schemas import HealthResponse
@@ -218,6 +219,7 @@ app.include_router(ask_router)
 app.include_router(multimodal_router)
 app.include_router(auth_router)
 app.include_router(feedback_router)
+app.include_router(dilekce_router)
 
 
 @app.get("/health", response_model=HealthResponse)

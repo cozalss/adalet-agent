@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "TRAFİK İDARİ PARA CEZASINA İTİRAZ DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " NÖBETÇİ SULH CEZA HÂKİMLİĞİNE" %}
+{% block konu %}{{ user_meta.tutanak_no | default("[TUTANAK NO]") }} sayılı trafik idari para cezasına 5326 sayılı Kabahatler Kanunu m.27 uyarınca itirazımdır.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Tarafıma uygulanan **{{ user_meta.tutanak_no | default("[TUTANAK NO]") }}** sayılı trafik idari para cezasının **iptaline**,
+2. **Kabahatler Kanunu m.27** uyarınca itirazımın **tebliğden itibaren 15 gün içinde** yapıldığının tespitine,
+3. Yargılama giderlerinin kamuya yükletilmesine
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

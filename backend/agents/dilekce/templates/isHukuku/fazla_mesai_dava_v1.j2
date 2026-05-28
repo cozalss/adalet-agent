@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "FAZLA MESAİ ÜCRETİ DAVA DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " NÖBETÇİ İŞ MAHKEMESİ SAYIN HÂKİMLİĞİNE" %}
+{% block konu %}4857 sayılı İş Kanunu m.41 uyarınca ödenmeyen fazla mesai ücretlerinin tahsili davası.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Ödenmeyen **fazla mesai ücretlerinin** (haftalık 45 saati aşan çalışmalar için **%50 zamlı** olarak) hesaplanarak ödenmesine,
+2. İşbu alacağın **temerrüt tarihinden itibaren yasal faizi ile birlikte** karşı taraftan tahsiline,
+3. Yargılama giderleri ve vekâlet ücretinin karşı taraf üzerine bırakılmasına
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

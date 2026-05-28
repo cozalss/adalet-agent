@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "DEPOZİTO İADESİ TALEP DİLEKÇESİ (İHTARNAME)" %}
+{% set muhatap = (karsi_taraf | default("[EV SAHİBİ AD-SOYADI / ADRESİ]")) + " 'NA" %}
+{% block konu %}6098 sayılı Türk Borçlar Kanunu m.342 uyarınca verilen güvence (depozito) bedelinin iadesi talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Kira sözleşmesi sona ermiş ve taşınmaz tahliye edilmiş olduğundan, ödediğim **depozito bedelinin tarafıma iadesi**,
+2. **TBK m.342/3** uyarınca, ev sahibi kira sözleşmesiyle ilgili dava açtığına ilişkin tarafıma yazılı bildirim yapmadığı takdirde bankadaki depozito iadesinin durdurulamayacağı,
+3. İşbu ihtarımın **10 gün içinde** karşılanmaması hâlinde sulh hukuk mahkemesinde dava açma hakkımın saklı tutulduğunu
+
+saygıyla bildiririm.
+{% endblock %}

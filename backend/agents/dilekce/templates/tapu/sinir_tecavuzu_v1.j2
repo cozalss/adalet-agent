@@ -1,0 +1,14 @@
+{% extends "base.j2" %}
+{% set baslik = "EL ATMANIN ÖNLENMESİ (MÜDAHALENİN MENİ) DİLEKÇESİ" %}
+{% set muhatap = (user_meta.sehir | default("[ŞEHİR]")) + " NÖBETÇİ ASLİYE HUKUK MAHKEMESİ SAYIN HÂKİMLİĞİNE" %}
+{% block konu %}4721 sayılı Türk Medeni Kanunu m.683 ve m.737 uyarınca mülkiyet hakkına vâki tecavüzün önlenmesi davası.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. {{ karsi_taraf | default("[KOMŞU AD-SOYADI]") }} tarafından taşınmazıma yapılan **müdahalenin men edilmesine** (TMK m.683),
+2. Mevcut **tecavüzün giderilmesi** ve eski hâle iadesine,
+3. Komşuluk haklarının aşıldığı kabul edilerek **TMK m.737** uyarınca tarafıma maddi tazminat ödenmesine,
+4. Yargılama giderleri ve vekâlet ücretinin karşı tarafa yükletilmesine
+
+karar verilmesini saygıyla arz ve talep ederim.
+{% endblock %}

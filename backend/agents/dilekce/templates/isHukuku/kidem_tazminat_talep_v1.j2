@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+{% set baslik = "KIDEM TAZMİNATI TALEP DİLEKÇESİ" %}
+{% set muhatap = (karsi_taraf | default("[İŞVEREN UNVANI]")) + " 'NA" %}
+{% block konu %}4857 sayılı İş Kanunu ve 1475 sayılı eski İş Kanunu'nun 14. maddesi uyarınca kıdem tazminatı talebim.{% endblock %}
+{% block talep %}
+Yukarıda arz edilen olgular ve gösterilen hukuki dayanaklar çerçevesinde:
+
+1. Çalıştığım süre boyunca hak ettiğim **kıdem tazminatı**nın hesaplanarak tarafıma ödenmesini,
+2. Ödeme yapılmadığı takdirde yasal faizi ile birlikte tahsili için iş mahkemesinde dava açma hakkımın saklı tutulduğunu,
+3. Bu dilekçenin **işverene tebliğinden itibaren 15 gün** içinde ödeme yapılması gerektiğini
+
+saygıyla arz ederim.
+{% endblock %}
