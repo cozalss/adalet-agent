@@ -192,12 +192,9 @@ def _format_dilekce_link(state: AgentState) -> str:
     cid = state.get("conversation_id") or ""
     filename = state.get("dilekce_filename") or "dilekce.pdf"
     template_id = state.get("dilekce_template_id") or ""
-    if cid:
-        url = f"/api/dilekce/{cid}"
-    else:
-        # conversation_id yoksa (eski client) görece path — frontend nasıl
-        # alacağına karar verir. KVKK: file_id veya token sunulmaz.
-        url = "(önizleme için conversation_id gerekli)"
+    # conversation_id yoksa (eski client) placeholder — frontend nasıl alacağına
+    # karar verir. KVKK: file_id veya token sunulmaz.
+    url = f"/api/dilekce/{cid}" if cid else "(önizleme için conversation_id gerekli)"
     return (
         "\n\n---\n"
         f"📂 **Hazır dilekçe:** [{filename}]({url})  \n"

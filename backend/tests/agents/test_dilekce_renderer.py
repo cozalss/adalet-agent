@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from agents.dilekce import render_dilekce
-from agents.dilekce.template_registry import _REGISTRY  # noqa: PLC2701
+from agents.dilekce.template_registry import _REGISTRY
 from agents.state import Citation
 
 

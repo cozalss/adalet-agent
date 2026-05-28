@@ -202,13 +202,16 @@ def _print_summary(results: list[dict[str, Any]], mode: str) -> None:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rerank", action="store_true", help="Hybrid + cross-encoder rerank kullan")
+    parser.add_argument("--version", choices=["v1", "v2"], default="v1",
+                        help="Benchmark sürümü: v1 (50 vaka) | v2 (186 vaka, 8 domain)")
     parser.add_argument("--out", type=Path, default=None, help="Sonuçları JSON'a yaz")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING)
 
-    print(f"Benchmark yükleniyor: {BENCHMARK_PATH}")
-    cases = _load_benchmark()
+    path = BENCHMARK_V2_PATH if args.version == "v2" else BENCHMARK_PATH
+    print(f"Benchmark yükleniyor: {path}")
+    cases = _load_benchmark(args.version)
     print(f"Toplam {len(cases)} soru\n")
     print(f"Mode: {'HYBRID + RERANK' if args.rerank else 'HYBRID (no rerank)'}")
     print()

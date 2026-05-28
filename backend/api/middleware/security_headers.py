@@ -16,6 +16,7 @@ Başlıklar (web/security.md ECC kuralıyla uyumlu):
 from __future__ import annotations
 
 import os
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -38,7 +39,11 @@ _STATIC_HEADERS: dict[str, str] = {
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Her response'a güvenlik başlıklarını ekler."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         response = await call_next(request)
         for key, value in _STATIC_HEADERS.items():
             response.headers.setdefault(key, value)

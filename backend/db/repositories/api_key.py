@@ -23,6 +23,8 @@ log = structlog.get_logger()
 class ApiKeyRepo(Protocol):
     """Aktif API key haritasını döndürür: {key_hash_or_plaintext: label}."""
 
+    name: str
+
     async def list_active(self) -> dict[str, str]: ...
 
 
@@ -62,13 +64,16 @@ class PostgresApiKeyRepo:
 
     async def list_active(self) -> dict[str, str]:
         from sqlalchemy import select
+        from sqlmodel import col
 
         from db.engine import session_scope
         from db.models import ApiKey
 
+        # col() — SQLModel: alan-seviyesi `bool` tipini SQLAlchemy kolonuna sarar
+        # (mypy `ApiKey.active.is_()` görmesin; runtime'da doğru SQL üretir).
         async with session_scope() as session:
             rows = (
-                await session.execute(select(ApiKey).where(ApiKey.active.is_(True)))
+                await session.execute(select(ApiKey).where(col(ApiKey.active).is_(True)))
             ).scalars().all()
         return {row.key_hash: row.label for row in rows}
 
