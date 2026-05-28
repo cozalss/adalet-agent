@@ -345,17 +345,28 @@ class YargiClient:
         keyword: str,
         *,
         page_number: int = 1,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[YargitayDecision]:
         """UYAP emsal — Bölge Adliye + Asliye Mahkemesi kararları (keyword-relevance).
 
         Bedesten'in tarih-sıralı gevşek eşleşmesine karşılık UYAP gerçek keyword
         eşleşmesi yapar; tüketici ayıplı-mal gibi sorgularda alakalı kararları
         (Bölge Adliye Hukuk Daireleri, Asliye Ticaret/Hukuk) döndürür.
+
+        Date filters (DD.MM.YYYY) UYAP'ın "keyword × pencere" pagination'unu açar:
+        aynı keyword farklı tarih aralıklarında farklı doc setleri verir, dedup
+        cap'ini aşar.
         """
-        data = await self._call_tool(
-            "search_emsal_detailed_decisions",
-            {"keyword": keyword, "page_number": max(page_number, 1)},
-        )
+        args: dict[str, Any] = {
+            "keyword": keyword,
+            "page_number": max(page_number, 1),
+        }
+        if start_date:
+            args["start_date"] = start_date
+        if end_date:
+            args["end_date"] = end_date
+        data = await self._call_tool("search_emsal_detailed_decisions", args)
         items = data.get("decisions") or []
         out: list[YargitayDecision] = []
         for it in items:

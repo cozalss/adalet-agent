@@ -24,14 +24,26 @@ from retrieval.yargi_client import YargiClient
 logger = logging.getLogger("scripts.seed_gib_ozelge")
 
 VERGI_KEYWORDS: tuple[str, ...] = (
+    # Ana vergi türleri — broad
     "katma değer vergisi",
     "kurumlar vergisi",
     "gelir vergisi",
     "özel tüketim vergisi",
     "damga vergisi",
+    "motorlu taşıt vergisi",
+    "emlak vergisi",
+    "veraset intikal vergisi",
+    # İşlem-bazlı kavramlar — farklı topic
+    "stopaj",
+    "ihracat istisnası",
+    "kanunen kabul edilmeyen gider",
+    "transfer fiyatlandırması",
+    "indirim",
+    "iade",
+    "muhtasar beyan",
+    "sahte fatura",
     "vergi ziyaı",
     "vergi inceleme",
-    "stopaj",
 )
 
 

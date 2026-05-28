@@ -55,6 +55,17 @@ DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+# UYAP'ın keyword-relevance araması ilk sayfada en-alakalı ~10 sonuç verir;
+# pagination/dedup nedeniyle keyword bazında genelde ~9'da takılır. Tarih
+# pencereleri aynı keyword'ü farklı zaman dilimlerinde ayrı sonuç setleri olarak
+# döndürür → keyword × window matrisiyle gerçek N-katlı yield. DD.MM.YYYY format.
+DATE_WINDOWS: tuple[tuple[str, str], ...] = (
+    ("01.01.2024", "31.12.2026"),  # Güncel — son 2 yıl
+    ("01.01.2021", "31.12.2023"),  # 2-4 yıl önce
+    ("01.01.2018", "31.12.2020"),  # 5-7 yıl önce
+    ("01.01.2015", "31.12.2017"),  # 8-10 yıl önce — yerleşmiş içtihat
+)
+
 
 async def _seed_domain(
     client: YargiClient,
@@ -91,62 +102,69 @@ async def _seed_domain(
     for kw in keywords:
         if n_docs >= limit:
             break
-        page = 1
-        while n_docs < limit:
-            try:
-                decs: list[YargitayDecision] = await client.search_emsal(kw, page_number=page)
-            except Exception as exc:
-                logger.warning("search_failed", extra={"keyword": kw, "page": page, "err": str(exc)[:120]})
+        for date_start, date_end in DATE_WINDOWS:
+            if n_docs >= limit:
                 break
-            if not decs:
-                break
-            new_in_page = 0
-            for dec in decs:
-                if n_docs >= limit:
-                    break
-                if dec.document_id in seen_ids:
-                    continue
-                seen_ids.add(dec.document_id)
+            page = 1
+            while n_docs < limit:
                 try:
-                    text = await client.get_emsal_document(dec.document_id)
+                    decs: list[YargitayDecision] = await client.search_emsal(
+                        kw, page_number=page,
+                        start_date=date_start, end_date=date_end,
+                    )
                 except Exception as exc:
-                    logger.warning("fetch_failed", extra={"id": dec.document_id, "err": str(exc)[:120]})
-                    continue
-                if not text or len(text) < 200:
-                    continue
-                # NOT: per-domain content filtresi kaldırıldı — UYAP'ın keyword-match'i
-                # zaten relevance sinyali veriyor; istinaf prosedürel kararları bile
-                # konuya referans içeriyor ve cross-encoder retrieval'da gerçek alakayı
-                # sıralar. Yalın "non-empty + min 200 char" yeterli.
-                chunks = chunk_decision(text)
-                if not chunks:
-                    continue
-                base = {
-                    "doc_id": f"u-{dec.document_id}",
-                    "court": "uyap",
-                    "chamber": dec.chamber,
-                    "date": dec.date,
-                    "title": dec.title,
-                    "source": "uyap",
-                    "source_url": dec.source_url,
-                    "domain": domain,
-                    "doc_type": "case",
-                }
-                for seq, c in enumerate(chunks):
-                    cid = f"u-{dec.document_id}-c{seq}"
-                    payload = {
-                        **base, "chunk_id": cid, "chunk_seq": seq, "text": c.text,
-                        "section": c.metadata.get("section", "gerekce"),
+                    logger.warning("search_failed", extra={"keyword": kw, "page": page,
+                                                           "window": f"{date_start}..{date_end}",
+                                                           "err": str(exc)[:120]})
+                    break
+                if not decs:
+                    break
+                new_in_page = 0
+                for dec in decs:
+                    if n_docs >= limit:
+                        break
+                    if dec.document_id in seen_ids:
+                        continue
+                    seen_ids.add(dec.document_id)
+                    try:
+                        text = await client.get_emsal_document(dec.document_id)
+                    except Exception as exc:
+                        logger.warning("fetch_failed", extra={"id": dec.document_id, "err": str(exc)[:120]})
+                        continue
+                    if not text or len(text) < 200:
+                        continue
+                    # NOT: per-domain content filtresi kaldırıldı — UYAP'ın
+                    # keyword-match'i relevance sinyali; cross-encoder retrieval'da sıralar.
+                    chunks = chunk_decision(text)
+                    if not chunks:
+                        continue
+                    base = {
+                        "doc_id": f"u-{dec.document_id}",
+                        "court": "uyap",
+                        "chamber": dec.chamber,
+                        "date": dec.date,
+                        "title": dec.title,
+                        "source": "uyap",
+                        "source_url": dec.source_url,
+                        "domain": domain,
+                        "doc_type": "case",
                     }
-                    pending_chunks.append((c.text, cid, payload))
-                n_docs += 1
-                new_in_page += 1
-                if len(pending_chunks) >= batch_chunks:
-                    await _flush()
-                logger.info("doc_added", extra={"id": dec.document_id, "kw": kw, "domain": domain, "n_docs": n_docs})
-            if new_in_page == 0:
-                break  # bu sayfa hep duplicate veya filter-rejected → sonraki keyword
-            page += 1
+                    for seq, c in enumerate(chunks):
+                        cid = f"u-{dec.document_id}-c{seq}"
+                        payload = {
+                            **base, "chunk_id": cid, "chunk_seq": seq, "text": c.text,
+                            "section": c.metadata.get("section", "gerekce"),
+                        }
+                        pending_chunks.append((c.text, cid, payload))
+                    n_docs += 1
+                    new_in_page += 1
+                    if len(pending_chunks) >= batch_chunks:
+                        await _flush()
+                    if n_docs % 5 == 0:
+                        logger.info("progress n_docs=%d (kw=%s window=%s)", n_docs, kw, date_start)
+                if new_in_page == 0:
+                    break  # bu sayfa hep duplicate → sonraki pencereye geç
+                page += 1
     await _flush()
     return n_docs, n_chunks
 
