@@ -13,12 +13,22 @@ Dev'de okunabilirlik için renkli console.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import os
 import sys
 from typing import Any
 
 import structlog
+
+# Re-entrancy guard: `_mask_pii_in_strings` processor `mask_pii()` çağırır;
+# `mask_pii` PII bulduğunda kendisi `log.info("pii_masked")` emit eder. Bu
+# nested log event yine processor zincirinden geçince `mask_pii` tekrar
+# çağrılır → SONSUZ RECURSION. Bayrak processor zaten çalışırken nested
+# çağrıyı no-op'a düşürür (nested log'lar genelde sadece sayaç içerir, PII yok).
+_in_pii_processor: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_in_pii_processor", default=False,
+)
 
 # Sensitive key allow-list — log payload'larında bu anahtarlar redact
 SENSITIVE_KEYS: frozenset[str] = frozenset({
@@ -70,7 +80,7 @@ def _redact_sensitive(
     return _redact_dict(event_dict)
 
 
-# KVKK kritik: PII modülü import edilemezse log'lar maskesiz akar. Bunu sessizce
+# Gizlilik kritik: PII modülü import edilemezse log'lar maskesiz akar. Bunu sessizce
 # geçme — bir kez stdlib logging ile CRITICAL uyar (structlog henüz config
 # edilmemiş olabilir, döngüye girmemek için stdlib).
 _pii_unavailable_warned = False
@@ -81,7 +91,7 @@ def _warn_pii_unavailable(exc: Exception) -> None:
     if not _pii_unavailable_warned:
         _pii_unavailable_warned = True
         logging.getLogger(__name__).critical(
-            "PII maskeleme modülü yüklenemedi — loglar maskesiz akıyor (KVKK riski): %s",
+            "PII maskeleme modülü yüklenemedi — loglar maskesiz akıyor (gizlilik riski): %s",
             exc,
         )
 
@@ -104,23 +114,35 @@ def _mask_pii_nested(value: Any, mask_fn: Any) -> Any:
 def _mask_pii_in_strings(
     _logger: Any, _method_name: str, event_dict: dict[str, Any],
 ) -> dict[str, Any]:
-    """String değerlerde PII pattern'larını mask — nested dict/list dahil."""
+    """String değerlerde PII pattern'larını mask — nested dict/list dahil.
+
+    Re-entrancy guard: bu processor `mask_pii` çağırır, `mask_pii` ise PII
+    bulduğunda `log.info("pii_masked")` emit eder → nested log yine bu
+    processor'a girer → recursion. Bayrak set'liyken nested çağrı no-op döner
+    (nested "pii_masked" event'i sadece int sayaç içerir, PII yok — kaybı yok).
+    """
+    if _in_pii_processor.get():
+        return event_dict
     # Lazy import — log modülü PII modülünden bağımsız çağrılabilsin
     try:
         from api.pii import mask_pii
     except ImportError as exc:
         _warn_pii_unavailable(exc)
         return event_dict
-    for key, value in list(event_dict.items()):
-        if isinstance(value, str):
-            if len(value) > 8:
-                result = mask_pii(value)
-                if result.has_pii:
-                    event_dict[key] = result.masked_text
-                    event_dict[f"{key}_pii_counts"] = result.counts
-        elif isinstance(value, (dict, list)):
-            # Nested yapı içindeki PII de maskelensin (liste/dict içi TCKN vs).
-            event_dict[key] = _mask_pii_nested(value, mask_pii)
+    token = _in_pii_processor.set(True)
+    try:
+        for key, value in list(event_dict.items()):
+            if isinstance(value, str):
+                if len(value) > 8:
+                    result = mask_pii(value)
+                    if result.has_pii:
+                        event_dict[key] = result.masked_text
+                        event_dict[f"{key}_pii_counts"] = result.counts
+            elif isinstance(value, (dict, list)):
+                # Nested yapı içindeki PII de maskelensin (liste/dict içi TCKN vs).
+                event_dict[key] = _mask_pii_nested(value, mask_pii)
+    finally:
+        _in_pii_processor.reset(token)
     return event_dict
 
 

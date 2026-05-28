@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from api.routes.multimodal import _sanitize_filename
+from api.routes.multimodal import _detect_image_kind, _sanitize_filename
 
 
 @pytest.mark.parametrize("raw,expected_safe", [
@@ -45,3 +45,83 @@ def test_sanitize_filename_no_path_traversal():
         assert "/" not in out
         assert "\\" not in out
         assert ":" not in out
+
+
+# --- H1: magic-byte tabanlı dosya türü doğrulaması ---
+
+def test_detect_image_kind_valid_signatures():
+    """Geçerli görüntü/PDF magic byte'ları doğru tanınır."""
+    cases = {
+        "jpeg": b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x02\x03",
+        "png": b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0d",
+        "webp": b"RIFF\x24\x00\x00\x00WEBPVP8 ",
+        "tiff": b"II*\x00\x08\x00\x00\x00\x00\x00\x00\x00",
+        "pdf": b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n",
+    }
+    for expected, data in cases.items():
+        assert _detect_image_kind(data) == expected
+
+
+def test_detect_image_kind_rejects_fake_mime():
+    """Sahte içerik (HTML/SVG/script polyglot) reddedilir — None döner."""
+    for evil in (
+        b"<html><body>not an image</body></html>",
+        b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>",
+        b"#!/bin/sh\nrm -rf /\n",
+        b"GIF89a",  # GIF whitelist'te yok → desteklenmez
+        b"\x00\x01\x02",  # çok kısa
+        b"",
+    ):
+        assert _detect_image_kind(evil) is None
+
+
+def test_security_headers_present():
+    """SecurityHeadersMiddleware her response'a güvenlik başlıklarını ekler.
+
+    İzole minimal app — main.app lifespan/preload'unu tetiklemeden middleware'i
+    doğrular (unit test).
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from api.middleware.security_headers import SecurityHeadersMiddleware
+
+    app = FastAPI()
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    @app.get("/ping")
+    def _ping() -> dict:
+        return {"ok": True}
+
+    client = TestClient(app)
+    r = client.get("/ping")
+    assert r.status_code == 200
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("X-Frame-Options") == "DENY"
+    assert r.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    assert "Permissions-Policy" in r.headers
+
+
+def test_security_headers_hsts_toggle(monkeypatch):
+    """HSTS yalnız SECURITY_HSTS_ENABLED=1 ile eklenir (default kapalı)."""
+    import importlib
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("SECURITY_HSTS_ENABLED", "1")
+    import api.middleware.security_headers as sh_mod
+    importlib.reload(sh_mod)
+
+    app = FastAPI()
+    app.add_middleware(sh_mod.SecurityHeadersMiddleware)
+
+    @app.get("/ping")
+    def _ping() -> dict:
+        return {"ok": True}
+
+    r = TestClient(app).get("/ping")
+    assert "max-age=31536000" in r.headers.get("Strict-Transport-Security", "")
+    # cleanup — modülü default state'e geri döndür
+    monkeypatch.delenv("SECURITY_HSTS_ENABLED", raising=False)
+    importlib.reload(sh_mod)

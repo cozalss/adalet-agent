@@ -34,6 +34,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from api.limiter import limiter
+from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.routes.ask import router as ask_router
 from api.routes.auth import router as auth_router
 from api.routes.dilekce import router as dilekce_router
@@ -57,6 +58,14 @@ async def lifespan(app: FastAPI):
     istek soğuk başlamaz ve config hataları boot'ta yüzeye çıkar. Bu warm-up
     torch yüklemez, PRELOAD_MODELS'ten bağımsız çalışır.
     """
+    # Gizlilik kritik: structlog'u EN ÖNCE config et — redact + PII-mask
+    # processor zinciri devreye girsin. Bu çağrı olmadan structlog default
+    # config ile çalışır ve loglar maskesiz akar (KVKK riski; core/logging.py
+    # docstring bunu belirtiyordu ama çağrı eksikti).
+    with contextlib.suppress(Exception):
+        from core.logging import configure_logging
+        configure_logging()
+
     log.info(
         "adalet_starting",
         llm_mode=os.environ.get("LLM_MODE", "mock"),
@@ -214,6 +223,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Requested-With"],
 )
 log.info("cors_configured", origins=_allow_origins, credentials=_allow_credentials)
+
+# Güvenlik başlıkları — her response'a HSTS/nosniff/DENY/Referrer-Policy ekle.
+# CORS'tan SONRA eklenir → response'ta CORS başlıklarıyla birlikte döner.
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(ask_router)
 app.include_router(multimodal_router)

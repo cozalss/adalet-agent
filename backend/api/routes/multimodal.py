@@ -7,7 +7,7 @@
 Boyut sınırı: OCR 20MB, STT 25MB, TTS 8KB metin. Üst sınırı geçen request
 413 döner. MIME tipleri whitelist'li.
 
-KVKK: yüklenen dosyalar inference sonrası tutulmaz; geçici dosya finally
+Gizlilik: yüklenen dosyalar inference sonrası tutulmaz; geçici dosya finally
 bloğunda silinir.
 """
 
@@ -22,6 +22,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.middleware.auth import Principal, authenticate
+from api.pii import mask_pii
 from api.schemas import OCRUploadResponse, STTUploadResponse
 from multimodal.ocr import extract_text
 from multimodal.stt import transcribe_audio
@@ -57,9 +58,29 @@ def _sanitize_filename(name: str | None, default: str = "upload") -> str:
     """
     if not name:
         return default
-    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    # Null-byte explicit strip (regex'ten önce; defensive — path-traversal vektörü)
+    base = name.replace("\x00", "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     cleaned = _SAFE_FILENAME_RE.sub("_", base).strip("._")
     return cleaned[:128] or default
+
+
+# Magic-byte imzaları — istemci Content-Type header'ı sahte olabilir; gerçek
+# dosya içeriğini ilk byte'lardan doğrula (H1: client-controlled MIME bypass).
+def _detect_image_kind(data: bytes) -> str | None:
+    """İlk byte'lardan görüntü/PDF türünü tespit et. Tanınmazsa None."""
+    if len(data) < 12:
+        return None
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if data[:4] in (b"II*\x00", b"MM\x00*"):
+        return "tiff"
+    if data[:5] == b"%PDF-":
+        return "pdf"
+    return None
 
 
 class TTSRequest(BaseModel):
@@ -88,12 +109,23 @@ async def ocr_upload(
         raise HTTPException(
             413, f"Görüntü > {MAX_IMAGE_BYTES // (1024 * 1024)} MB",
         )
+    # H1: gerçek dosya türünü magic-byte'lardan doğrula (client MIME header'a güvenme)
+    kind = _detect_image_kind(data)
+    if kind is None:
+        raise HTTPException(
+            415, "Dosya içeriği tanınmadı (geçerli JPEG/PNG/WEBP/TIFF/PDF değil)",
+        )
 
     result = await extract_text(data, engine="auto")
+    # KVKK: çıkarılan metinde TCKN/IBAN/telefon olabilir — sızdırmadan tespit et,
+    # metni BOZMA (kullanıcı kendi belgesi; soruyu sormak için tam metne ihtiyaç var).
+    # Tespit edilen tür sayıları istemciyi uyarır.
+    pii = mask_pii(result.text) if result.text else None
     log.info(
         "ocr_request",
-        filename=safe_name, mime=image.content_type,
+        filename=safe_name, mime=image.content_type, detected_kind=kind,
         engine=result.engine, n_chars=result.n_chars,
+        pii_detected=bool(pii and pii.has_pii),
     )
     return OCRUploadResponse(
         text=result.text,
@@ -101,6 +133,8 @@ async def ocr_upload(
         n_chars=result.n_chars,
         elapsed_ms=result.elapsed_ms,
         error=result.error,
+        pii_detected=bool(pii and pii.has_pii),
+        pii_counts=dict(pii.counts) if pii and pii.has_pii else {},
     )
 
 

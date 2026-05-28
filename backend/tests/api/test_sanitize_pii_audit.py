@@ -136,7 +136,7 @@ def test_audit_disabled_silently_skips(monkeypatch):
     emit(AuditEvent(event="test", principal=p))
 
 
-# --- fingerprint (KVKK-safe ID) ---------------------------------------------
+# --- fingerprint (log-safe ID) ----------------------------------------------
 
 
 def test_fingerprint_deterministic_and_hides_pii():
@@ -149,3 +149,20 @@ def test_fingerprint_deterministic_and_hides_pii():
     assert "@" not in a and "alice" not in a and "beta" not in a
     assert fingerprint("x", 12) != fingerprint("y", 12)
     assert len(fingerprint("x", 12)) == 12
+
+
+# --- Regresyon: configure_logging aktifken mask_pii recursion'a girmemeli -----
+
+
+def test_mask_pii_no_recursion_under_configured_logging():
+    """configure_logging() PII-masking processor'ı kurar; processor mask_pii
+    çağırır, mask_pii PII bulunca log.info('pii_masked') emit eder. Re-entrancy
+    guard olmadan bu sonsuz recursion'a girerdi (latent prod bug). Guard ile
+    PII içeren metin sorunsuz maskelenir.
+    """
+    from core.logging import configure_logging
+
+    configure_logging()  # global structlog'u PII processor zinciriyle kur
+    r = mask_pii("IBAN TR12 0001 0017 1234 5678 9012 34 tel 0555 123 4567")
+    assert r.has_pii
+    assert "iban" in r.counts or "phone" in r.counts

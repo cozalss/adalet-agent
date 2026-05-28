@@ -119,13 +119,21 @@ class AskResponse(BaseModel):
 
 
 class OCRUploadResponse(BaseModel):
-    """POST /multimodal/ocr — belge fotoğrafı → metin."""
+    """POST /multimodal/ocr — belge fotoğrafı → metin.
+
+    KVKK: `text` kullanıcının kendi belgesinin metnidir (kendisine döner, sızıntı
+    değil) ama içinde TCKN/IBAN/telefon olabilir. `pii_detected` bayrağı istemciyi
+    uyarır; `pii_counts` tespit edilen tür sayılarını verir. Metin BOZULMAZ
+    (kullanıcı soruyu sormak için tam metne ihtiyaç duyar).
+    """
 
     text: str
     engine: str
     n_chars: int
     elapsed_ms: int
     error: str | None = None
+    pii_detected: bool = False
+    pii_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class STTUploadResponse(BaseModel):
