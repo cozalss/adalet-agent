@@ -303,6 +303,14 @@ exclude_dirs = [
     "_pro_*",
     "_e2e_*",
 ]
+# Proje seviyesinde kabul edilen bulgular (gerekçelerle):
+# - B615 (HF unsafe_download): from_pretrained çağrılarında revision pin yok.
+#   Üretime taşınınca model SHA'ları sabitlenmeli (Sprint-7 supply-chain task).
+#   Şu an model_name env-controlled (OCR_QWEN_VL_MODEL, NLI_MODEL_NAME vb.) ve
+#   HuggingFace official BAAI/Qwen/MoritzLaurer hesaplarına güveniyoruz.
+# - B301 (pickle.load): retrieval/raptor.py:262 — RAPTOR cache, kendi
+#   yazdığımız trusted yerel dosyadan okuyor (untrusted input değil).
+skips = ["B615", "B301"]
 
 [tool.coverage.report]
 exclude_lines = [
