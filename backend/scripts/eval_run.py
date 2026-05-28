@@ -27,6 +27,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from agents.config import DOMAIN_TO_KANUN_KODU
 from core import native_preload  # noqa: F401  — pyarrow'u torch'tan önce yükle (Windows)
 from retrieval.hybrid_search import search, search_with_rerank
 
@@ -34,6 +35,33 @@ logger = logging.getLogger("eval")
 BENCHMARK_DIR = Path(__file__).parent.parent / "data" / "eval_benchmark"
 BENCHMARK_PATH = BENCHMARK_DIR / "benchmark.jsonl"      # v1 (50 vaka, legacy)
 BENCHMARK_V2_PATH = BENCHMARK_DIR / "benchmark_v2.jsonl"  # v2 (186 vaka, Sprint-4 W2)
+
+# kanun_kodu → bu kodu içeren domain'ler (reverse map). Kanun (mevzuat) chunk'ında
+# `domain` payload alanı YOK → domain@1 metriği onları haksızca "miss" sayardı.
+# Bu map ile bir kanun chunk'ı, kanun_kodu'su expected domain'in setindeyse "doğru
+# domain" kabul edilir (adil ölçüm — retrieval doğru kanunu getirdiyse başarı).
+_KODU_TO_DOMAINS: dict[str, tuple[str, ...]] = defaultdict(tuple)
+for _dom, _kodlar in DOMAIN_TO_KANUN_KODU.items():
+    for _kod in _kodlar:
+        _KODU_TO_DOMAINS[_kod] = (*_KODU_TO_DOMAINS[_kod], _dom)
+
+
+def _effective_domain(result: Any, expected_domain: str) -> str:
+    """Chunk'ın efektif domain'i — case için payload.domain, kanun için kanun_kodu map.
+
+    Kanun chunk'ında domain yok; kanun_kodu expected domain'e aitse expected
+    döner (doğru kanun = doğru domain), değilse kodu içeren ilk domain.
+    """
+    dom = getattr(result, "domain", "") or ""
+    if dom:
+        return dom
+    kod = result.metadata.get("kanun_kodu") if hasattr(result, "metadata") else None
+    if kod:
+        doms = _KODU_TO_DOMAINS.get(kod, ())
+        if expected_domain in doms:
+            return expected_domain
+        return doms[0] if doms else ""
+    return ""
 
 # Retrieval modları — eval_one ve freeze_baseline ortak vocab
 SearchMode = str  # "hybrid" | "rerank" | "hyde" | "multi_query"
@@ -116,8 +144,9 @@ async def _eval_one(
         results = await search(question=soru, top_k=10)
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
-    # Metrik hesapla
-    domains = [r.domain for r in results]
+    # Metrik hesapla — efektif domain (kanun chunk'ları kanun_kodu→domain ile maplenir;
+    # ham r.domain kanunlarda boş olduğundan domain@1'i haksız düşürürdü).
+    domains = [_effective_domain(r, expected_domain) for r in results]
     domain_at_1 = domains[0] == expected_domain if domains else False
     domain_at_5 = expected_domain in domains[:5]
 
