@@ -185,6 +185,12 @@ async def lifespan(app: FastAPI):
     # İlişkisel DB (DATABASE_URL set ise) — idempotent tablo oluştur.
     await _init_db_if_enabled()
 
+    # API key cache'i repo'dan doldur (DB veya dosya). Auth hot-path'i sync
+    # cache kullanır; DB sorgusu yalnız burada (boot'ta) yapılır.
+    with contextlib.suppress(Exception):
+        from api.middleware.auth import refresh_api_key_cache
+        await refresh_api_key_cache()
+
     try:
         from api.routes.ask import _get_graph
         _get_graph()

@@ -92,10 +92,29 @@ _API_KEY_CACHE: dict[str, str] | None = None
 
 
 def get_api_keys() -> dict[str, str]:
+    """Aktif API key haritası (sync, cache'li) — auth hot-path.
+
+    Cache boşsa SENKRON dosyadan yükler (dev/test fallback). DB modunda cache
+    boot'ta `refresh_api_key_cache()` ile DB'den doldurulur (hot-path'te async
+    sorgu YOK).
+    """
     global _API_KEY_CACHE
     if _API_KEY_CACHE is None:
         _API_KEY_CACHE = _load_api_keys()
     return _API_KEY_CACHE
+
+
+async def refresh_api_key_cache() -> None:
+    """Cache'i repo'dan (DB veya dosya) yeniden yükle — boot'ta + revoke sonrası.
+
+    DATABASE_URL set ise ApiKey tablosundan aktif key'ler; değilse JSON dosya.
+    Lifespan startup'ta çağrılır; cache authoritative olur.
+    """
+    global _API_KEY_CACHE
+    from db.repositories.api_key import get_api_key_repo
+    repo = get_api_key_repo(API_KEYS_FILE)
+    _API_KEY_CACHE = await repo.list_active()
+    log.info("api_key_cache_refreshed", backend=repo.name, n_keys=len(_API_KEY_CACHE))
 
 
 def reset_api_key_cache() -> None:
@@ -259,5 +278,6 @@ __all__ = (
     "get_api_keys",
     "hash_api_key",
     "issue_token",
+    "refresh_api_key_cache",
     "reset_api_key_cache",
 )
