@@ -99,7 +99,9 @@ jobs:
       - name: pip-audit (dependency vulns)
         run: uv run pip-audit --strict || true
       - name: bandit (source vulns)
-        run: uv run bandit -r . -ll -ii --exclude tests,scripts,.venv
+        # pyproject.toml [tool.bandit] exclude_dirs — CLI --exclude .venv
+        # pattern match etmiyordu; config file sağlam.
+        run: uv run bandit -r . -c pyproject.toml -ll -ii
 
   docker-build:
     name: docker build smoke

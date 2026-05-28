@@ -287,6 +287,23 @@ omit = [
     "*/api/session_store.py",
 ]
 
+# Bandit config — CLI'da --exclude .venv pattern match etmiyor (tarfile_unsafe_members
+# plugin'i .venv/datasets'te crash veriyordu, internal error spam CI'da fail eder).
+# pyproject config ile sağlam exclude.
+# CI: `uv run bandit -r . -c pyproject.toml -ll -ii`
+[tool.bandit]
+exclude_dirs = [
+    "tests",
+    "scripts",
+    ".venv",
+    ".github",
+    "_ask_*",
+    "_batch_*",
+    "_retest_*",
+    "_pro_*",
+    "_e2e_*",
+]
+
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
