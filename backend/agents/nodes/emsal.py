@@ -10,6 +10,7 @@ yazılır. Yeni retrieval yapmaz; sadece referans zenginleştirir.
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import structlog
@@ -17,7 +18,8 @@ import structlog
 from agents.config import DOMAIN_PREFERRED_COURTS, RERANK_CANDIDATES, TOP_K_CASE
 from agents.state import AgentState, Citation
 from core.observability import observe_node
-from retrieval.hybrid_search import search_with_rerank
+from retrieval.hybrid_search import search, search_with_rerank
+from retrieval.reranker import get_reranker
 
 log = structlog.get_logger()
 
@@ -33,12 +35,35 @@ async def emsal_node(state: AgentState) -> dict:
     if domain == "unknown":
         return {"emsal_refs": []}
 
+    # Ana yol: mevcut search_with_rerank (hibrit + rerank). Anayasa hacmi (~9:1)
+    # dense'i boğduğunda preferred (DOMAIN_PREFERRED_COURTS) mahkemelerin
+    # adaylarını ayrı source-scoped search ile garanti et → tier-sort'a
+    # sıralayacak Yargıtay/UYAP malzemesi kalır. Mevzuat'taki kanun_kodu-scoped
+    # supplementary pattern'in emsal karşılığı.
     rerank_results = await search_with_rerank(
         question=question,
         top_k=TOP_K_CASE * 2,
         candidates_n=RERANK_CANDIDATES,
         domain=domain,
     )
+
+    preferred = DOMAIN_PREFERRED_COURTS.get(domain) or ()
+    n_scoped = 0
+    if preferred:
+        try:
+            scoped_search = await search(
+                question=question, top_k=RERANK_CANDIDATES,
+                prefetch_limit=RERANK_CANDIDATES, domain=domain,
+                source=list(preferred),
+            )
+            if scoped_search:
+                scoped_rerank = await asyncio.to_thread(
+                    get_reranker().rerank, question, scoped_search, TOP_K_CASE * 2,
+                )
+                rerank_results = _merge_dedup_rerank(rerank_results, scoped_rerank)
+                n_scoped = len(scoped_rerank)
+        except Exception as exc:
+            log.warning("emsal_scoped_search_failed", error=str(exc) or type(exc).__name__)
 
     # case adaylarını ayıkla (doc_type=='case' VEYA source ∈ mahkeme kümesi —
     # seed'lerde doc_type her zaman yazılmıyor, source field her zaman var).
@@ -94,12 +119,26 @@ async def emsal_node(state: AgentState) -> dict:
     log.info(
         "emsal_done",
         domain=domain, n=len(cases), graph_neighbors=len(graph_neighbors),
-        preferred=n_preferred,
+        preferred=n_preferred, scoped=n_scoped,
     )
     out: dict = {"emsal_refs": cases}
     if graph_neighbors:
         out["emsal_graph_neighbors"] = graph_neighbors
     return out
+
+
+def _merge_dedup_rerank(primary: list, secondary: list) -> list:
+    """İki rerank/SearchResult listesini chunk_id'ye göre tekilleştir.
+
+    Sıra: önce primary'dekiler, sonra secondary'den NEW olanlar. Tier-sort
+    sonradan kararı verir; bu adım sadece havuz çeşitliliği sağlar.
+    """
+    seen: dict[str, object] = {}
+    for r in [*primary, *secondary]:
+        cid = r.chunk_id
+        if cid not in seen:
+            seen[cid] = r
+    return list(seen.values())
 
 
 def _court_priority_sort(cases: list, domain: str) -> tuple[list, int]:

@@ -158,6 +158,12 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "KVKK",     # 6698 — Veri koruma
         "RKHK",     # 4054 — Rekabet
         "OHK",      # 6493 — Ödeme Hizmetleri
+        # Tüketici yönetmelikleri (seed_yonetmelik_direct ile eklendi)
+        "YON_MESAFELI",     # Mesafeli Sözleşmeler Yönetmeliği
+        "YON_GARANTI",      # Garanti Belgesi Yönetmeliği
+        "YON_SSH",          # Satış Sonrası Hizmetler Yönetmeliği
+        "YON_HAKEM",        # Tüketici Hakem Heyetleri Yönetmeliği (2022)
+        "YON_HAKEM_ESKI",   # Tüketici Hakem Heyetleri Yönetmeliği (2014)
     ),
     "isHukuku":  (
         "IK",       # 4857 — İş

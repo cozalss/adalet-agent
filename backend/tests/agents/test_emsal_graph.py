@@ -35,7 +35,7 @@ def _rr(
 
 @pytest.fixture
 def _mock_emsal_search(monkeypatch):
-    """search_with_rerank'i sahte kararlar dönecek şekilde mock."""
+    """search_with_rerank'i + source-scoped supplementary `search`'i mock."""
     async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
         # `_format_case_title` court/esas/karar'dan title üretir:
         # "Yargıtay 2019/1234" → _CASE_ID_RE match → case node seed
@@ -43,7 +43,11 @@ def _mock_emsal_search(monkeypatch):
             _rr("y-9HD-2019-1234", 0.92, esas="2019", karar="1234"),
             _rr("y-22HD-2020-567", 0.85, esas="2020", karar="567"),
         ]
+    async def fake_search(*_a, **_k):
+        # Scoped supplementary aramayı boş bırak — base mock'ı tek otorite.
+        return []
     monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
+    monkeypatch.setattr(emsal_mod, "search", fake_search)
 
 
 @pytest.fixture

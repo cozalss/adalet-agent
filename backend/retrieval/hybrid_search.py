@@ -80,6 +80,7 @@ async def search(
     prefetch_limit: int = 50,
     domain: str | None = None,
     kanun_kodu: list[str] | None = None,
+    source: list[str] | None = None,
 ) -> list[SearchResult]:
     """Hybrid search — dense + sparse (+ ColBERT) prefetch, RRF fusion, top_k.
 
@@ -92,6 +93,10 @@ async def search(
             law chunk'ları. Domain-scoped mevzuat retrieval için: triaj domain'i
             biliniyorsa o domain'in kanun setine daraltıp ilgili kanunları
             (örn. tüketici sorusunda TKHK) aday havuzuna garanti eder.
+        source: Filtre — verilirse yalnız bu source'lardaki (yargitay, uyap,
+            gib_ozelge…) chunk'lar. Source-scoped emsal supplementary retrieval
+            için: dense'in Anayasa-dominated olduğu sorgularda Yargıtay/UYAP
+            adaylarını candidate havuzuna garanti eder.
     """
     if not question.strip():
         return []
@@ -107,7 +112,7 @@ async def search(
         question, return_colbert=want_colbert,
     )
 
-    query_filter = _build_filter(domain, kanun_kodu)
+    query_filter = _build_filter(domain, kanun_kodu, source)
 
     prefetch_list: list[models.Prefetch] = [
         models.Prefetch(
@@ -204,6 +209,7 @@ async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:
 def _build_filter(
     domain: str | None,
     kanun_kodu: list[str] | None = None,
+    source: list[str] | None = None,
 ) -> models.Filter | None:
     conditions: list[models.FieldCondition] = []
     if domain:
@@ -218,6 +224,13 @@ def _build_filter(
             models.FieldCondition(
                 key="kanun_kodu",
                 match=models.MatchAny(any=list(kanun_kodu)),
+            )
+        )
+    if source:
+        conditions.append(
+            models.FieldCondition(
+                key="source",
+                match=models.MatchAny(any=list(source)),
             )
         )
     if not conditions:
