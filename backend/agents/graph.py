@@ -89,6 +89,13 @@ def _sink() -> str:
 
     Sıralama: debate → [tahmin?] → [dilekce?] → finalize. Bayraklar kapalıysa
     doğrudan finalize — baseline topoloji birebir korunur.
+
+    INVARIANT (code-review notu): `_sink()` ve build_graph()'taki `sink`
+    değişkeni AYNI ENV bayraklarını okur (PREDICTIVE/DILEKCE_ENABLED). Bu
+    bayraklar process-start'ta sabittir (runtime değişmez) → ikisi DAİMA
+    eşittir; conditional-edge target listesi ile router dönüşü desync olmaz.
+    Bu yüzden router'lar `_sink()` çağırır ama edge listesi `sink` kullanır —
+    güvenli. ENV runtime-mutable yapılırsa bu invariant bozulur (yapmayın).
     """
     if _predictive_enabled():
         return "tahmin"
@@ -123,6 +130,12 @@ def _route_after_debate(state: AgentState) -> list[str] | str:
     verdict = state.get("debate_verdict", "pass")
     retry_count = state.get("retry_count", 0)
 
+    # `<=` KASITLI (code-review notu): debate_node retry_count'u >= MAX_RETRY'de
+    # "reject"e çevirir (debate.py). retry_count==MAX_RETRY ile buraya "retry"
+    # verdict'iyle gelinir; `<=` ile bir tur daha re-retrieve → draft → debate'e
+    # döner, debate bu kez >= MAX_RETRY görüp "reject" üretir ve döngü kapanır.
+    # `<` yapılırsa finalize "retry" verdict'iyle biter (çözülmemiş) — YANLIŞ.
+    # test_graph_retry_limit_terminates bu invariant'ı doğrular.
     if verdict == "retry" and retry_count <= MAX_RETRY:
         return ["mevzuat", "emsal"]
     # pass veya reject veya retry-limit-doldu → finalize (veya tahmin → finalize)

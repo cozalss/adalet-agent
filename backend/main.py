@@ -45,6 +45,21 @@ from api.schemas import HealthResponse
 log = structlog.get_logger()
 
 
+def _configure_logging_safe() -> None:
+    """structlog'u config et — redact + PII-mask processor zinciri devreye girsin.
+
+    Sessiz suppress ETME (code-review): config başarısız olursa loglar MASKESİZ
+    akar (KVKK riski) ve kimse fark etmez. Hata stderr'e yazılır (structlog henüz
+    config edilmemiş olabilir → stdlib print).
+    """
+    try:
+        from core.logging import configure_logging
+        configure_logging()
+    except Exception as exc:
+        print(f"CRITICAL: configure_logging başarısız — loglar MASKESİZ: {exc}",
+              file=sys.stderr, flush=True)
+
+
 async def _init_db_if_enabled() -> None:
     """DATABASE_URL set ise tabloları idempotent oluştur (best-effort).
 
@@ -90,13 +105,8 @@ async def lifespan(app: FastAPI):
     istek soğuk başlamaz ve config hataları boot'ta yüzeye çıkar. Bu warm-up
     torch yüklemez, PRELOAD_MODELS'ten bağımsız çalışır.
     """
-    # Gizlilik kritik: structlog'u EN ÖNCE config et — redact + PII-mask
-    # processor zinciri devreye girsin. Bu çağrı olmadan structlog default
-    # config ile çalışır ve loglar maskesiz akar (KVKK riski; core/logging.py
-    # docstring bunu belirtiyordu ama çağrı eksikti).
-    with contextlib.suppress(Exception):
-        from core.logging import configure_logging
-        configure_logging()
+    # Gizlilik kritik: structlog'u EN ÖNCE config et — redact + PII-mask zinciri.
+    _configure_logging_safe()
 
     # Auth görünürlüğü: docker-compose AUTH_ENABLED=1 set eder; docker dışında
     # (uvicorn --reload) default 0 → endpoint'ler korumasız. Boot'ta GÖRÜNÜR
