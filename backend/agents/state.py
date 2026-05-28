@@ -46,6 +46,27 @@ class Citation(TypedDict):
     score: float            # rerank / hybrid skoru
 
 
+def merge_citations(
+    left: list[Citation], right: list[Citation],
+) -> list[Citation]:
+    """Citation listesi reducer — source_id'ye göre union-dedup.
+
+    `operator.add` yerine kullanılır. İki davranışı birden sağlar:
+    - Paralel fan-in (ilk koşu): mevzuat/emsal ayrı key'lere yazar; reducer
+      [] + yeni = yeni (etkisiz, baseline korunur).
+    - Retry re-retrieve (debate→mevzuat/emsal tekrar): mevcut + yeni, source_id
+      tekrarları atılır → ref birikmesi/duplikasyon olmaz, yeni kaynaklar eklenir
+      (architect A2 fix). HyDE/multi-query stokastik olduğu için retry yeni
+      alakalı kaynak getirebilir; dedup bunu güvenle biriktirir.
+    """
+    if not left:
+        return right
+    if not right:
+        return left
+    seen = {c["source_id"] for c in left}
+    return [*left, *(c for c in right if c["source_id"] not in seen)]
+
+
 class Claim(TypedDict):
     """LLM'in ürettiği tek bir hukuki iddia."""
 
@@ -132,8 +153,8 @@ class AgentState(TypedDict):
     eligibility: NotRequired[list[dict[str, Any]]]
 
     # --- Retrieval (paralel fan-in) ---
-    mevzuat_refs: Annotated[list[Citation], operator.add]
-    emsal_refs: Annotated[list[Citation], operator.add]
+    mevzuat_refs: Annotated[list[Citation], merge_citations]
+    emsal_refs: Annotated[list[Citation], merge_citations]
     # Sprint-4 W3.4: GraphRAG k-hop neighbor node id'leri (transparency için).
     # emsal_refs citation title'larından çıkarılıp graph_rag.expand() ile alınır.
     emsal_graph_neighbors: NotRequired[list[str]]

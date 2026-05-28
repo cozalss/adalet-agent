@@ -9,8 +9,53 @@ from __future__ import annotations
 
 import pytest
 
-from agents.graph import build_graph, make_initial_state
-from agents.state import Citation
+from agents.graph import _route_after_debate, build_graph, make_initial_state
+from agents.state import Citation, merge_citations
+
+# --- retry re-retrieve routing (Wave 4 / architect A1) ----------------------
+
+
+def _cit(sid: str, score: float = 0.5) -> Citation:
+    return Citation(
+        source_id=sid, doc_type="law", title=sid, snippet="", url="", score=score,
+    )
+
+
+def test_route_after_debate_retry_re_retrieves():
+    """retry verdict → mevzuat+emsal re-fan-out (eski: yalnız draft)."""
+    out = _route_after_debate({"debate_verdict": "retry", "retry_count": 0})
+    assert out == ["mevzuat", "emsal"]
+
+
+def test_route_after_debate_pass_and_reject_go_to_sink():
+    """pass/reject/retry-limit → sink (mevzuat/emsal'e dönmez)."""
+    from agents.config import MAX_RETRY
+
+    assert _route_after_debate({"debate_verdict": "pass", "retry_count": 0}) != [
+        "mevzuat", "emsal",
+    ]
+    assert _route_after_debate({"debate_verdict": "reject", "retry_count": 0}) != [
+        "mevzuat", "emsal",
+    ]
+    # retry ama limit aşıldı → sink
+    over = _route_after_debate(
+        {"debate_verdict": "retry", "retry_count": MAX_RETRY + 1},
+    )
+    assert over != ["mevzuat", "emsal"]
+
+
+def test_merge_citations_dedup_union():
+    """merge_citations: source_id union-dedup (retry ref birikmesini önler)."""
+    left = [_cit("A"), _cit("B")]
+    right = [_cit("B"), _cit("C")]   # B tekrar
+    out = merge_citations(left, right)
+    assert [c["source_id"] for c in out] == ["A", "B", "C"]  # B tek kez
+
+
+def test_merge_citations_empty_sides():
+    """Boş taraf → diğer taraf aynen (paralel fan-in baseline korunur)."""
+    assert merge_citations([], [_cit("A")]) == [_cit("A")]
+    assert merge_citations([_cit("A")], []) == [_cit("A")]
 
 
 @pytest.fixture

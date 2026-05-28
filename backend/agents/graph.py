@@ -54,10 +54,10 @@ from langgraph.graph import END, START, StateGraph
 from agents.config import MAX_RETRY
 from agents.nodes.crag import crag_node
 from agents.nodes.debate import debate_node
+from agents.nodes.dilekce import dilekce_node
 from agents.nodes.draft import draft_node
 from agents.nodes.eligibility import eligibility_node
 from agents.nodes.emsal import emsal_node
-from agents.nodes.dilekce import dilekce_node
 from agents.nodes.finalize import finalize_node
 from agents.nodes.mevzuat import mevzuat_node
 from agents.nodes.self_rag import self_rag_node
@@ -108,18 +108,23 @@ def _route_after_triaj(state: AgentState) -> list[str] | str:
     return ["mevzuat", "emsal"]
 
 
-def _route_after_debate(state: AgentState) -> str:
+def _route_after_debate(state: AgentState) -> list[str] | str:
     """Debate (veya self_rag override) verdict'ine göre yönlendir.
 
     - pass    → finalize
-    - retry   → draft (retry_count zaten artırıldı; MAX_RETRY guard burada)
+    - retry   → mevzuat + emsal RE-RETRIEVE (sonra draft) — retry_count artırıldı
     - reject  → finalize (reddedilmiş cevap)
+
+    Retry artık YENİDEN RETRIEVE eder (architect A1 fix): önceden yalnız draft'a
+    dönüyordu, aynı (yetersiz) kaynaklarla → verify garantili tekrar reject ederdi.
+    HyDE/multi-query stokastik olduğundan re-retrieve farklı/daha alakalı kaynak
+    getirebilir; merge_citations reducer dedup ile ref birikmesini önler.
     """
     verdict = state.get("debate_verdict", "pass")
     retry_count = state.get("retry_count", 0)
 
     if verdict == "retry" and retry_count <= MAX_RETRY:
-        return "draft"
+        return ["mevzuat", "emsal"]
     # pass veya reject veya retry-limit-doldu → finalize (veya tahmin → finalize)
     return _sink()
 
@@ -225,19 +230,22 @@ def build_graph() -> Any:
     g.add_edge("draft", "verify")
     g.add_edge("verify", "debate")
 
-    # Debate sonrası: (self_rag ek katmanı varsa) → router
+    # Debate sonrası: (self_rag ek katmanı varsa) → router.
+    # retry → mevzuat+emsal re-retrieve (sonra post_chain → draft → verify → debate);
+    # MAX_RETRY guard döngüyü sınırlar. pass/reject → sink.
+    _retry_targets = ["mevzuat", "emsal", sink]
     if self_rag_on:
         g.add_edge("debate", "self_rag")
         g.add_conditional_edges(
             "self_rag",
             _route_after_debate,
-            ["draft", sink],
+            _retry_targets,
         )
     else:
         g.add_conditional_edges(
             "debate",
             _route_after_debate,
-            ["draft", sink],
+            _retry_targets,
         )
 
     g.add_edge("finalize", END)
