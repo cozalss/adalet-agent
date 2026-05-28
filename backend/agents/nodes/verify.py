@@ -204,25 +204,34 @@ def _verdict_from_ratio(
     state: AgentState,
     contradictions: int = 0,
 ) -> DebateVerdict:
-    """Aggregate verdict — ratio-based, NLI tek-claim veto kaldırıldı.
+    """Aggregate verdict — ratio-based + small-n sinyal-redundans guard.
 
-    v9 ölçümünde bulgu: tek NLI contradiction tüm cevabı reddediyordu
-    (E3: 3/4 supported %75 ama 1 contradiction → reject). Türkçe XNLI
-    paraphrase'lerde 0.50-0.70 contradiction skoru sık üretiyor (false-pos).
+    Tarihçe:
+      - v9: tek NLI çelişki tüm cevabı reddediyordu (E3: 3/4 supported %75 ama
+        1 contradiction → reject). Türkçe XNLI paraphrase'lerde 0.50-0.70
+        contradiction skoru sık üretiyor (false-pos). → ratio kuralına geçildi.
+      - Ama small-n (örn. n=2) sorununda ratio kapısı hâlâ tek çelişkiyle
+        tetikleniyordu (1/2 = %50 → reject). Kira e2e'sinde gerçek doğru
+        cevap böyle reddedildi. Düzeltme: çelişki vetosu için EN AZ 2 çelişki
+        gerekli — bir tek çelişki signal redundancy şartını karşılamaz.
+        Kalibrasyon harness'i per-claim metrikleri ölçer (verdict aggregation
+        DEĞİL); bu değişiklik harness P/R/F1'i etkilemez, yalnız agregasyonu
+        doğru ayarlar. [[adalet_nli_finding]], [[verify-calibration-harness]].
 
-    Yeni kural:
+    Kural:
       - n_total == 0 → reject
-      - contradictions / n_total >= 0.5 → reject (çoğu çelişkili)
+      - contradictions >= 2 AND contradictions / n_total >= 0.5 → reject
       - supported / n_total >= MIN_VERIFIED_CLAIMS_RATIO → pass
       - retry_count < MAX_RETRY → retry
       - else → reject
-
-    [[adalet_nli_finding]] memory ile uyumlu.
     """
     if n_total == 0:
         return "reject"
     contradiction_ratio = contradictions / n_total
-    if contradiction_ratio >= 0.5:
+    # Sinyal-redundans: TEK Türkçe-XNLI çelişki false-positive olabilir
+    # (synthetic harness'te 0 yanlış-veto AMA gerçek LLM çıktısında parafraz/
+    # negatif polaritede tetikleniyor). En az 2 çelişki + ratio ≥ 0.5 birlikte.
+    if contradictions >= 2 and contradiction_ratio >= 0.5:
         return "reject"
     ratio = n_supported / n_total
     if ratio >= MIN_VERIFIED_CLAIMS_RATIO:

@@ -176,6 +176,31 @@ def test_verdict_contradiction_ratio_just_under_half_passes(base_state):
     assert v == "pass"
 
 
+# --- Small-n sinyal-redundans guard: tek çelişki kira-tipi false-positive'i ---
+
+def test_verdict_single_contradiction_at_n2_does_not_reject(base_state):
+    """Kira e2e regresyonu: 1/2 çelişki Türkçe-XNLI false-positive olabilir;
+    tek çelişki sinyal redundansı koşulunu (>=2) karşılamaz → reject etmemeli.
+    Supported 1/2 = %50 ≥ MIN_RATIO (0.20) → pass."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(1, 2, base_state, contradictions=1)
+    assert v == "pass"
+
+
+def test_verdict_two_contradictions_at_n2_still_rejects(base_state):
+    """2/2 çelişki: hem ≥2 hem ratio=1.0 → redundans var, reject."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(0, 2, base_state, contradictions=2)
+    assert v == "reject"
+
+
+def test_verdict_single_contradiction_at_n1_falls_through(base_state):
+    """n=1, 1 çelişki: tek çelişki veto yapamaz; 0 supported → retry (limit altında)."""
+    base_state["retry_count"] = 0
+    v = _verdict_from_ratio(0, 1, base_state, contradictions=1)
+    assert v == "retry"
+
+
 def test_verdict_min_ratio_threshold_boundary(base_state):
     """MIN_VERIFIED_CLAIMS_RATIO sınırı (0.20) — 1/5 == 0.20 → pass."""
     from agents.config import MIN_VERIFIED_CLAIMS_RATIO
