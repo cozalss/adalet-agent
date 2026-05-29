@@ -100,9 +100,15 @@ jobs:
           uv sync --frozen
           uv pip install pip-audit bandit
       - name: pip-audit (dependency vulns)
-        # Güvenlik kapısı: vuln bulunursa CI KIRILIR (eski `|| true` soft gate'ti).
-        # Düzeltilemeyen transitif vuln çıkarsa `--ignore-vuln <ID>` ekle.
-        run: uv run pip-audit --strict
+        # Vuln bulunursa CI KIRILIR (eski `|| true` soft gate kaldırıldı).
+        # `--strict` KULLANMA: torch+cu124 (local-version) ve editable proje
+        # PyPI'de olmadığından "auditable değil" → strict false-fail verir.
+        # Plain pip-audit gerçek vuln'da zaten exit 1 döner (güvenlik kapısı korunur).
+        # Düzeltilemeyen transitif vuln için: `--ignore-vuln <ID>` (gerekçeyle).
+        #   CVE-2025-69872 (diskcache 5.6.3): upstream fix YOK (proje dormant,
+        #   5.6.3 son sürüm); yalnız opsiyonel eval/llm extra'larından gelen
+        #   transitif dep. Fix çıkınca kaldır.
+        run: uv run pip-audit --ignore-vuln CVE-2025-69872
       - name: bandit (source vulns)
         # pyproject.toml [tool.bandit] exclude_dirs — CLI --exclude .venv
         # pattern match etmiyordu; config file sağlam.

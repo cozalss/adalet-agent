@@ -53,6 +53,7 @@ dependencies = [
     "sqlmodel>=0.0.22",
     "asyncpg>=0.30.0",
     "alembic>=1.13.0",
+    "lxml>=6.1.0",
 ]
 
 [project.optional-dependencies]
