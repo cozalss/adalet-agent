@@ -17,8 +17,14 @@ etkilenmez (yalnız display). Belirsizken uydurma kazanma oranı verilmez.
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
 import re
 from collections import Counter
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -26,6 +32,14 @@ from agents.state import Prediction, PredictionClass
 from retrieval.turkish_text import tr_lower
 
 log = structlog.get_logger()
+
+# Fine-tuned BERT checkpoint (train.py çıktısı). Dizin varsa model kullanılır,
+# yoksa heuristic fallback. PREDICTIVE_USE_MODEL=0 ile zorla heuristic.
+_MODEL_DIR = os.getenv("PREDICTIVE_MODEL_DIR", "predictive/checkpoints/best")
+# BERT inference cihazı — VARSAYILAN CPU: model küçük (110M, p95<200ms CPU),
+# production'da GPU llama-server/Qwen'e ayrılır (contention yok). GPU istenirse
+# PREDICTIVE_DEVICE=cuda.
+_MODEL_DEVICE = os.getenv("PREDICTIVE_DEVICE", "cpu").lower()
 
 # mle-reviewer kritik bulgu: heuristic tüm metni tarayarak gerekçe bölümündeki
 # alt-mahkeme atıflarını ("ilk derece reddine") oyluyor → false-label. HÜKÜM
@@ -157,6 +171,59 @@ def _heuristic_predict(
     )
 
 
+def _model_enabled() -> bool:
+    """Fine-tuned model kullanılsın mı? (toggle açık VE checkpoint dizini var)."""
+    if os.getenv("PREDICTIVE_USE_MODEL", "1").lower() not in {"1", "true", "yes"}:
+        return False
+    return Path(_MODEL_DIR).is_dir()
+
+
+@lru_cache(maxsize=1)
+def _load_model(model_dir: str) -> tuple[Any, Any, float]:
+    """BERT checkpoint + tokenizer + kalibrasyon sıcaklığı yükle (bir kez).
+
+    temperature.json varsa T okunur (calibrate.py çıktısı), yoksa 1.0 (kalibre
+    edilmemiş). Heavy import burada (lazy) — modül import'u hafif kalır.
+    """
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(model_dir)
+    model = AutoModelForSequenceClassification.from_pretrained(model_dir).to(_MODEL_DEVICE)
+    model.eval()
+    temp_path = Path(model_dir) / "temperature.json"
+    temperature = 1.0
+    if temp_path.exists():
+        temperature = float(json.loads(temp_path.read_text(encoding="utf-8"))["temperature"])
+    log.info("predict_model_loaded", model_dir=model_dir, temperature=temperature)
+    return tok, model, temperature
+
+
+def _model_predict(question: str, case_ids: list[str]) -> Prediction:
+    """Fine-tuned BERT-TR ile kalibre tahmin. Sync (to_thread'den çağrılır)."""
+    import torch
+
+    from predictive.calibrate import softmax
+    from predictive.data_loader import ID2LABEL
+
+    tok, model, temperature = _load_model(_MODEL_DIR)
+    enc = tok(question, truncation=True, max_length=512, return_tensors="pt").to(_MODEL_DEVICE)
+    with torch.no_grad():
+        logits = model(**enc).logits.cpu().numpy()
+    probs = softmax(logits, temperature)[0]
+    top = int(probs.argmax())
+    cls: PredictionClass = ID2LABEL[top]  # type: ignore[assignment]
+    # Kesinlik ima etmemek için tavan (heuristic ile aynı kural).
+    conf = round(min(float(probs[top]), _MAX_CONFIDENCE), 3)
+    return Prediction(
+        verdict_class=cls,
+        confidence=conf,
+        similar_case_ids=case_ids,
+        reasoning=(
+            f"Fine-tuned BERT-TR tahmini (kalibre, T={temperature}). Bu "
+            "istatistiksel bir tahmindir, mahkeme garantisi değildir."
+        ),
+    )
+
+
 async def predict_outcome(
     question: str,
     similar_case_texts: list[str],
@@ -164,17 +231,27 @@ async def predict_outcome(
 ) -> Prediction:
     """Soru + benzer emsal metinleri → dava sonucu tahmini.
 
-    Şu an heuristic (emsal oylaması). Sprint-7/8'de fine-tuned BERT-TR inference
-    bu fonksiyonun içine girer (arayüz değişmez). `question` heuristic'te şimdilik
-    kullanılmıyor ama imza model versiyonu için stabil tutuluyor.
+    Checkpoint varsa fine-tuned BERT-TR (kalibre) kullanılır; yoksa heuristic
+    (emsal oylaması). Model patlarsa heuristic'e graceful fallback. Arayüz STABİL.
     """
-    _ = question  # heuristic'te kullanılmıyor; BERT versiyonunda girdi olacak
     case_ids = list(similar_case_ids or [])
+
+    if _model_enabled():
+        try:
+            prediction = await asyncio.to_thread(_model_predict, question, case_ids)
+            log.info(
+                "predict_outcome", source="bert",
+                verdict=prediction["verdict_class"], confidence=prediction["confidence"],
+            )
+            return prediction
+        except Exception as exc:
+            # Model patlarsa cevabı bloke etme — heuristic'e düş (best-effort).
+            log.warning("predict_model_failed_fallback", error=str(exc))
+
     prediction = _heuristic_predict(similar_case_texts, case_ids)
     log.info(
-        "predict_outcome",
-        verdict=prediction["verdict_class"],
-        confidence=prediction["confidence"],
+        "predict_outcome", source="heuristic",
+        verdict=prediction["verdict_class"], confidence=prediction["confidence"],
         n_cases=len(similar_case_texts),
     )
     return prediction

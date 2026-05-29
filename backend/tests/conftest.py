@@ -67,6 +67,19 @@ def _reset_llm_singleton() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _force_heuristic_predictor(monkeypatch):
+    """Testler eğitilmiş BERT checkpoint'ini (varsa) YÜKLEMESİN — hermetic + hızlı.
+
+    train.py lokal bir checkpoint üretirse inference._model_enabled() True olur ve
+    predict_outcome torch+model yükler → testler yavaşlar + non-deterministik olur
+    (model çıktısı checkpoint'e bağlı). Model-path zaten smoke ile doğrulanıyor;
+    testler heuristic'i deterministik test eder. Model-toggle testleri kendi
+    monkeypatch'leriyle bunu override edebilir (delenv/setenv).
+    """
+    monkeypatch.setenv("PREDICTIVE_USE_MODEL", "0")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_feedback_writes(tmp_path, monkeypatch):
     """/feedback endpoint test'lerde gerçek `data/feedback/`'a satır yazmasın.
 

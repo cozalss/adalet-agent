@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import pytest
 
-from predictive.inference import _classify_outcome, _heuristic_predict, predict_outcome
+from predictive.inference import (
+    _classify_outcome,
+    _heuristic_predict,
+    _model_enabled,
+    predict_outcome,
+)
 
 
 def test_classify_kazandi():
@@ -80,6 +85,34 @@ async def test_predict_outcome_async_interface():
     assert pred["verdict_class"] == "kaybetti"
     assert pred["similar_case_ids"] == ["a", "b", "c"]
     assert isinstance(pred["reasoning"], str) and pred["reasoning"]
+
+
+def test_model_disabled_when_no_checkpoint(monkeypatch, tmp_path):
+    """Checkpoint dizini yoksa model devre dışı → heuristic yolu kullanılır."""
+    monkeypatch.setattr("predictive.inference._MODEL_DIR", str(tmp_path / "yok"))
+    monkeypatch.delenv("PREDICTIVE_USE_MODEL", raising=False)
+    assert _model_enabled() is False
+
+
+def test_model_disabled_by_env_toggle(monkeypatch, tmp_path):
+    """Dizin VAR olsa bile PREDICTIVE_USE_MODEL=0 → heuristic'e zorla."""
+    (tmp_path / "best").mkdir()
+    monkeypatch.setattr("predictive.inference._MODEL_DIR", str(tmp_path / "best"))
+    monkeypatch.setenv("PREDICTIVE_USE_MODEL", "0")
+    assert _model_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_predict_outcome_falls_back_to_heuristic_without_model(monkeypatch):
+    """Model yokken predict_outcome heuristic sonucu döner (BERT yolu atlanır)."""
+    monkeypatch.setattr("predictive.inference._MODEL_DIR", "/nonexistent/checkpoint")
+    pred = await predict_outcome(
+        "soru",
+        ["davanın kabulüne karar verildi", "talebin kabulüne karar verildi"],
+        ["x", "y"],
+    )
+    assert pred["verdict_class"] == "kazandi"
+    assert "BERT" not in pred["reasoning"]  # heuristic reasoning, model değil
 
 
 def test_hukum_isolation_ignores_gerekce_section():

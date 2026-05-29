@@ -12,6 +12,21 @@
 > korpus + fine-tune. `predict_outcome()` arayüzü STABİL — model geldiğinde
 > heuristic'in yerine bu fonksiyonun içine düşer, çağıranlar (tahmin_node,
 > graph, API) değişmez. Önceki durum (tasarım/plan) aşağıda korunmuştur.
+>
+> **GÜNCELLEME (2026-05-29) — veri + eğitim pipeline'ı plandan ÖNCE hazır (CPU'da):**
+> - ✅ `scripts/predictive/auto_label.py` — Yargıtay HÜKÜM'den otomatik silver-label.
+>   **Leak-free:** model girdisi (input_text) hükmü İÇERMEZ, label hükümden gelir
+>   (yoksa model hükmü okuyup sahte %99 accuracy verir). Test'li.
+> - ✅ `predictive/data_loader.py` — JSONL→split (label-stratified 80/10/10,
+>   deterministik, leak-free) + class-weights + `OutcomeDataset`. Saf fonksiyonlar
+>   torch'suz unit-test'li.
+> - ✅ `predictive/train.py` — BERT-TR (dbmdz/bert-base-turkish-cased) 3-class
+>   HF Trainer, fp16, f1_macro best-model. GPU'da koşar; import'u hafif.
+> - ⏳ Kalan: `auto_label` koş→veri üret (CPU) → `train` koş (GPU ~18h) →
+>   `calibrate.py` (Platt) → gold eval-set (Cohen's kappa).
+>
+> Koşum: `uv run python -m scripts.predictive.auto_label --shards 0,1,2` (CPU) →
+> `uv run python -m predictive.train --data data/predictive/labeled_v1.jsonl` (GPU).
 
 ## 🎯 Hedef
 
