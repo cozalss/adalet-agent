@@ -307,6 +307,10 @@ async def ask_stream(
         # /ask ile aynı uçtan uca tavan; 0 = devre dışı. nullcontext 3.10+ async
         # CM olarak çalışır → astream döngüsünü tek kopyayla sarmalar.
         guard: Any = asyncio.timeout(timeout_s) if timeout_s > 0 else contextlib.nullcontext()
+        # Ara event sentinel'leri — her event bir kez gönderilir.
+        _sent_triage = False
+        _sent_sources = False
+        _sent_drafting = False
         try:
             # stream_mode="values" → her node sonrası tüm state döner; en son
             # event final_state olur. İkinci graph.ainvoke gereksiz.
@@ -320,6 +324,30 @@ async def ask_stream(
                         "retry_count": state.get("retry_count", 0),
                     }
                     yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+                    # --- Algılanan gecikme azaltma: ara ilerleme event'leri ---
+                    # Triaj tamamlandı → domain belli (2-3s'de kullanıcıya bilgi)
+                    domain_val = state.get("domain")
+                    if not _sent_triage and domain_val and domain_val != "unknown":
+                        _sent_triage = True
+                        triage_evt = {
+                            "domain": domain_val,
+                            "confidence": state.get("domain_confidence", 0.0),
+                        }
+                        yield f"event: triage\ndata: {json.dumps(triage_evt, ensure_ascii=False)}\n\n"
+
+                    # Kaynaklar geldi → kaynak sayısı belli
+                    mevz = state.get("mevzuat_refs") or []
+                    emsal = state.get("emsal_refs") or []
+                    if not _sent_sources and (mevz or emsal):
+                        _sent_sources = True
+                        sources_evt = {"count": len(mevz) + len(emsal)}
+                        yield f"event: sources\ndata: {json.dumps(sources_evt, ensure_ascii=False)}\n\n"
+
+                    # Draft hazır → cevap yazılıyor
+                    if not _sent_drafting and state.get("draft_response"):
+                        _sent_drafting = True
+                        yield "event: drafting\ndata: {}\n\n"
 
             elapsed = int((time.perf_counter() - start) * 1000)
             resp = _state_to_response(final_state, elapsed, conv_id)

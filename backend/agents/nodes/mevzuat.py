@@ -11,6 +11,7 @@ Strateji:
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 import structlog
@@ -70,40 +71,37 @@ async def mevzuat_node(state: AgentState) -> dict:
     timeout_total = HYDE_TIMEOUT_S + 25.0
     results: list[SearchResult] = []
     retrieval_modes: list[str] = []
+
+    # HyDE ve Multi-Query bağımsız kaynakları sorgular → paralel çalıştır.
+    # Önceden sıralıydı: await HyDE (≤15s) → await MQ (≤8s) = 23s.
+    # gather ile: max(HyDE, MQ) ≈ 10-15s → 5-8s tasarruf.
+    _tasks: dict[str, Any] = {}
     if HYDE_ENABLED:
-        # HyDE: dense kanal LLM-üretimi hipotetik kanun maddesini embed eder
-        try:
-            hyde_results = await asyncio.wait_for(
-                search_with_hyde(
-                    question, top_k=target_k, domain=domain, qdrant_domain=None,
-                ),
-                timeout=timeout_total,
-            )
-            results = _merge_dedup(hyde_results, results)
-            retrieval_modes.append("hyde")
-        except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
-            log.warning("hyde_timeout_fallback",
-                        error=str(exc) or type(exc).__name__,
-                        exc_type=type(exc).__name__,
-                        timeout_s=timeout_total)
-            retrieval_modes.append("hyde_failed")
+        _tasks["hyde"] = search_with_hyde(
+            question, top_k=target_k, domain=domain, qdrant_domain=None,
+        )
     if MULTI_QUERY_ENABLED:
-        # Multi-query: N paraphrase fan-out + RRF merge (lexical recall)
-        try:
-            mq_results = await asyncio.wait_for(
-                search_multi_query(
-                    question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None,
-                ),
-                timeout=timeout_total,
-            )
-            results = _merge_dedup(results, mq_results)
-            retrieval_modes.append("multi_query")
-        except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
-            log.warning("multi_query_timeout_fallback",
-                        error=str(exc) or type(exc).__name__,
-                        exc_type=type(exc).__name__,
-                        timeout_s=timeout_total)
-            retrieval_modes.append("multi_query_failed")
+        _tasks["mq"] = search_multi_query(
+            question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None,
+        )
+    if _tasks:
+        _keys = list(_tasks.keys())
+        _coros = [asyncio.wait_for(c, timeout=timeout_total) for c in _tasks.values()]
+        _done = await asyncio.gather(*_coros, return_exceptions=True)
+        for _key, _result in zip(_keys, _done):
+            if isinstance(_result, BaseException):
+                if isinstance(_result, _RETRIEVAL_FALLBACK_EXCEPTIONS):
+                    log.warning(
+                        f"{_key}_timeout_fallback",
+                        error=str(_result) or type(_result).__name__,
+                        timeout_s=timeout_total,
+                    )
+                    retrieval_modes.append(f"{_key}_failed")
+                else:
+                    raise _result  # beklenmeyen hata propagate
+            else:
+                results = _merge_dedup(_result, results)  # type: ignore[arg-type]
+                retrieval_modes.append(_key.replace("mq", "multi_query"))
     if not results:
         results = await search(question=question, top_k=target_k, domain=None)
         retrieval_modes.append("hybrid")

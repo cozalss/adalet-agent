@@ -27,8 +27,8 @@ from pathlib import Path
 import structlog
 
 from agents.config import (
+    DEBATE_MAX_TOKENS,
     DEBATE_REJECT_THRESHOLD,
-    LLM_MAX_TOKENS,
     LLM_TEMPERATURE,
     MAX_RETRY,
 )
@@ -114,7 +114,7 @@ async def _llm_critique(state: AgentState) -> dict:
             ChatMessage(role="user", content=json.dumps(user_payload, ensure_ascii=False)),
         ],
         temperature=LLM_TEMPERATURE,
-        max_tokens=LLM_MAX_TOKENS,
+        max_tokens=DEBATE_MAX_TOKENS,
         json_mode=True,
     )
     return _parse_debate_json(resp.content)
