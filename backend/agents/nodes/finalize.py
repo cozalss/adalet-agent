@@ -28,6 +28,18 @@ async def finalize_node(state: AgentState) -> dict:
     domain = state.get("domain", "unknown")
     verdict = state.get("debate_verdict", "pass")
 
+    # Sohbet kısa-yolu (triaj set etti): hazır dostça yanıtı doğrudan bas.
+    # Hukuki içerik yok → soğuk ret yerine sıcak karşılama, hukuki disclaimer yok.
+    smalltalk = state.get("smalltalk_response")
+    if smalltalk:
+        log.info("finalize_smalltalk")
+        return {
+            "response": smalltalk,
+            "confidence": 1.0,
+            "disclaimers": [],
+            "prediction": None,
+        }
+
     # Reddedildi → boilerplate avukat tavsiyesi
     if domain == "unknown" or verdict != "pass":
         return _reject_response(state)

@@ -24,6 +24,7 @@ import structlog
 
 from agents.config import MIN_DOMAIN_CONFIDENCE, OUT_OF_SCOPE_KEYWORDS
 from agents.llm import ChatMessage, get_llm
+from agents.smalltalk import detect_smalltalk, smalltalk_reply
 from agents.state import AgentState, ConversationTurn, Domain
 from core.observability import observe_node
 
@@ -102,6 +103,21 @@ def _last_user_domain(history: list[ConversationTurn]) -> Domain | None:
 @observe_node(name="triaj")
 async def triaj_node(state: AgentState) -> dict:
     question = state["question"]
+
+    # Sohbet kısa-yolu: selamlaşma/teşekkür/"ne yaparsın" → LLM'siz anında dostça
+    # yanıt. Hukuki iddia yok (SIFIR HALÜSİNASYON güvenli); finalize bu metni basar.
+    # Yalnız ilk turda (geçmiş yoksa): konuşma ortasındaki "teşekkürler" yeni soru
+    # akışını kesmesin diye chat_history varsa atla.
+    if not (state.get("chat_history") or []):
+        category = detect_smalltalk(question)
+        if category is not None:
+            log.info("triaj_smalltalk", category=category, question=question[:60])
+            return {
+                "domain": "unknown",
+                "domain_confidence": 0.0,
+                "triage_reasoning": f"Sohbet girdisi ({category}) — hukuki akış atlandı.",
+                "smalltalk_response": smalltalk_reply(category),
+            }
 
     if _is_out_of_scope(question):
         log.info("triaj_out_of_scope", question=question[:60])

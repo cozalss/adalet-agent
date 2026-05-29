@@ -141,6 +141,9 @@ class AgentState(TypedDict):
     domain: Domain
     domain_confidence: float
     triage_reasoning: str
+    # Sohbet (selamlaşma/teşekkür/"ne yaparsın") tespit edilirse hazır yanıt.
+    # Set ise: triaj LLM atlandı, finalize bu metni doğrudan basar (hukuki akış yok).
+    smalltalk_response: NotRequired[str]
     # Sorudan çıkarılan somut olgular (çalışma süresi, işçi sayısı, tutar, olay,
     # taraf, tarih). Draft ajanı hakların ŞART/EŞİK'lerini bu olgularla karşılaştırır
     # (örn. kıdem tazminatı için kaynaktaki 1 yıl eşiği vs. kullanıcının 3 ayı).
