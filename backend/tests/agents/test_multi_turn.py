@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import pytest
 
+from agents.nodes.clarifier import clarifier_node
 from agents.nodes.triaj import (
+    _answered_clarifier,
     _format_history,
     _is_continuation,
     _last_user_domain,
     triaj_node,
 )
+from agents.policy import CLARIFY_MARKER, decide_path
 
 # --------------------------------------------------------------------------
 #  _is_continuation
@@ -141,3 +144,81 @@ async def test_triaj_no_inheritance_for_unrelated_new_question(base_state):
     result = await triaj_node(base_state)
     # MockLLM keyword "ayıplı" → tuketici (isHukuku DEĞİL)
     assert result["domain"] in {"tuketici", "unknown"}
+
+
+# --------------------------------------------------------------------------
+#  Clarifier ↔ Policy multi-turn ilerleme (sonsuz döngü kapanışı)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_clarify_then_answer_progression_closes_loop():
+    """Tur 1: eksik kira → clarify. Tur 2: kullanıcı cevap verdi (geçmişte
+    clarifier marker'ı var) → policy 'answer' der; ikinci kez netleştirmeye
+    DÜŞMEZ (sonsuz soru-sorma döngüsü kapanır)."""
+    # Tur 1 — eksik bilgi → clarify kararı + clarifier çıktısı.
+    turn1_state = {"domain": "kira", "response_intent": "legal_answer", "case_facts": {}}
+    assert decide_path(turn1_state) == "clarify"
+    clar = await clarifier_node(turn1_state)
+    assistant_turn = clar["clarify_response"]
+
+    # Tur 2 — kullanıcı yanıtladı; geçmişe clarifier turu (marker) yazıldı.
+    # Olgular HÂLÂ zayıf olsa bile policy ilerlemeli.
+    turn2_state = {
+        "domain": "kira",
+        "response_intent": "legal_answer",
+        "case_facts": {"olay": "depozito"},  # tek olgu — normalde clarify ederdi
+        "chat_history": [
+            {"role": "user", "content": "kira depozitomu alamıyorum"},
+            {"role": "assistant", "content": assistant_turn},
+        ],
+    }
+    assert decide_path(turn2_state) == "answer"
+
+
+def test_answered_clarifier_detects_marker():
+    """Son asistan turu CLARIFY_MARKER içeriyorsa True."""
+    history = [
+        {"role": "user", "content": "kira depozitomu alamıyorum"},
+        {"role": "assistant", "content": f"{CLARIFY_MARKER} birkaç bilgiye ihtiyacım var: ..."},
+    ]
+    assert _answered_clarifier(history) is True
+
+
+def test_answered_clarifier_false_for_normal_assistant_turn():
+    history = [
+        {"role": "user", "content": "kira sorum"},
+        {"role": "assistant", "content": "Kira hukukunda şöyle olur..."},
+    ]
+    assert _answered_clarifier(history) is False
+    assert _answered_clarifier([]) is False
+
+
+@pytest.mark.asyncio
+async def test_triaj_inherits_domain_after_clarifier_answer(base_state):
+    """multiturn t2 bug regresyonu: clarifier'a cevap turu domain devralmalı.
+
+    Turn-2 metni ('Evet, geçen ay sona erdi, teslim ettim') tek başına net domain
+    sinyali taşımaz → MockLLM unknown döner. Önceki asistan turu clarifier (marker)
+    olduğundan triaj önceki domain'i (kira) devralır; aksi halde unknown→redirect
+    ile t2 cevap veremezdi (t2-answer %45 → %100 düzeltmesi)."""
+    base_state["question"] = "Evet, geçen ay sona erdi ve evi temiz teslim ettim"
+    base_state["chat_history"] = [
+        {"role": "user", "content": "kira depozitomu alamıyorum", "domain": "kira"},
+        {"role": "assistant", "content": f"{CLARIFY_MARKER} birkaç bilgiye ihtiyacım var: ..."},
+    ]
+    result = await triaj_node(base_state)
+    assert result["domain"] == "kira"
+    assert result["response_intent"] == "legal_answer"
+
+
+@pytest.mark.asyncio
+async def test_clarification_round_counter_forces_answer():
+    """clarification_round limite ulaştıysa marker olmasa da answer (ek emniyet)."""
+    state = {
+        "domain": "kira",
+        "response_intent": "legal_answer",
+        "case_facts": {},
+        "clarification_round": 1,
+    }
+    assert decide_path(state) == "answer"

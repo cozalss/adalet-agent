@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import structlog
 
 from agents.config import MIN_DOMAIN_CONFIDENCE, OUT_OF_SCOPE_KEYWORDS
 from agents.llm import ChatMessage, get_llm
+from agents.policy import CLARIFY_MARKER
 from agents.smalltalk import detect_smalltalk, smalltalk_reply
 from agents.state import AgentState, ConversationTurn, Domain
 from core.observability import observe_node
@@ -45,6 +47,57 @@ _CONTINUATION_MARKERS = (
 
 MAX_HISTORY_TURNS_IN_PROMPT = 5
 
+# Türkçe ek alan, false-positive riski düşük kapsam-dışı çekirdek kelimeler.
+# "cinayetten", "nafakaya", "velayeti" gibi formlar \b tam-eşleşmeye takılmaz.
+_OUT_OF_SCOPE_PREFIX_KEYWORDS = frozenset({
+    "cinayet", "öldürme", "tutuklama", "tutuklu", "gözaltı",
+    "nafaka", "velayet",
+})
+
+_FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
+    "tuketici": (
+        "tüketici", "ayıplı", "bozuk ürün", "bozuk mal", "garanti",
+        "mesafeli satış", "internetten ald", "iade", "değişim", "satıcı",
+    ),
+    "isHukuku": (
+        "işten çıkar", "kıdem", "ihbar", "fazla mesai", "maaş", "ücret",
+        "mobbing", "işçi", "işveren", "sgk",
+    ),
+    "kira": (
+        "kira", "kiracı", "ev sahibi", "depozito", "tahliye",
+        "konut", "işyeri kir", "kira artış",
+    ),
+    "icra": (
+        "icra", "haciz", "ödeme emri", "takip", "borçlu", "alacaklı",
+        "itirazın kaldırılması",
+    ),
+    "trafik": (
+        "trafik", "kaza", "sigorta", "kasko", "ehliyet", "plaka",
+        "araç değer kaybı",
+    ),
+    "vergi": (
+        "vergi", "kdv", "ötv", "mtv", "gelir vergisi", "vergi cezası",
+        "gecikme faizi",
+    ),
+    "tapu": (
+        "tapu", "mülkiyet", "kat mülkiyeti", "arsa", "imar",
+        "site yönetimi", "apartman",
+    ),
+    "idari": (
+        "idari işlem", "idare mahkemesi", "kamulaştırma", "vatandaşlık",
+        "ruhsat", "belediye", "iptal davası",
+    ),
+}
+
+_SURE_RE = re.compile(
+    r"\b\d+\s*(?:gün|iş günü|hafta|ay|yıl|sene)\b",
+    re.IGNORECASE,
+)
+_TUTAR_RE = re.compile(
+    r"(?:%\s*\d+|yüzde\s+\d+|\b\d+[.,]?\d*\s*(?:tl|lira)\b)",
+    re.IGNORECASE,
+)
+
 
 def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
@@ -60,6 +113,13 @@ def _is_out_of_scope(question: str) -> bool:
     """
     import re as _re
     q_low = question.lower()
+    tokens = _re.findall(r"[a-zçğıöşü]+", q_low)
+    if any(
+        token.startswith(prefix)
+        for token in tokens
+        for prefix in _OUT_OF_SCOPE_PREFIX_KEYWORDS
+    ):
+        return True
     for kw in OUT_OF_SCOPE_KEYWORDS:
         # Çok-token ise (örn "ceza hukuku") aynen aranır; tek token ise \b ile
         if " " in kw:
@@ -76,6 +136,65 @@ def _is_continuation(question: str) -> bool:
     return any(q_low.startswith(m) or f" {m}" in q_low[:30] for m in _CONTINUATION_MARKERS)
 
 
+def _fast_domain(question: str) -> Domain | None:
+    """Açık anahtar kelimeli sorularda LLM triajını atla.
+
+    Belirsiz/çakışmalı durumda None döner ve eski JSON-mode LLM triaj çalışır.
+    """
+    q_low = question.lower()
+    scores: dict[Domain, int] = {}
+    for domain, keywords in _FAST_DOMAIN_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in q_low)
+        if score:
+            scores[domain] = score
+    if not scores:
+        return None
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return None
+    return ranked[0][0]
+
+
+def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
+    """LLM'siz küçük olgu çıkarımı; eksik olursa draft yine sorudan anlar."""
+    facts: dict[str, str] = {}
+    q_low = question.lower()
+    if m := _SURE_RE.search(question):
+        facts["sure"] = m.group(0)
+    if m := _TUTAR_RE.search(question):
+        facts["tutar"] = m.group(0)
+
+    taraf_map = {
+        "kirac": "kiracı",
+        "ev sahibi": "ev sahibi",
+        "işçi": "işçi",
+        "işveren": "işveren",
+        "tüketici": "tüketici",
+        "borçlu": "borçlu",
+        "alacaklı": "alacaklı",
+    }
+    for marker, label in taraf_map.items():
+        if marker in q_low:
+            facts["taraf"] = label
+            break
+
+    olay_by_domain = {
+        "kira": ("kira artış", "tahliye", "depozito"),
+        "tuketici": ("ayıplı", "bozuk", "iade", "değişim", "garanti"),
+        "isHukuku": ("işten çıkar", "kıdem", "ihbar", "maaş", "fazla mesai"),
+        "icra": ("icra", "haciz", "ödeme emri", "itiraz"),
+        "trafik": ("trafik kaz", "sigorta", "değer kaybı"),
+        "vergi": ("vergi cezası", "kdv", "ötv", "mtv"),
+        "tapu": ("tapu", "kat mülkiyeti", "mülkiyet"),
+        "idari": ("idari işlem", "kamulaştırma", "ruhsat"),
+    }
+    for marker in olay_by_domain.get(domain, ()):
+        if marker in q_low:
+            facts["olay"] = marker
+            break
+    return facts
+
+
 def _format_history(history: list[ConversationTurn]) -> str:
     """Son N turu prompt'a uygun string'e dök."""
     if not history:
@@ -90,6 +209,21 @@ def _format_history(history: list[ConversationTurn]) -> str:
             domain_hint = f"  [domain: {turn['domain']}]"
         lines.append(f"{role}{domain_hint}:\n{content}\n")
     return "\n".join(lines)
+
+
+def _answered_clarifier(history: list[ConversationTurn]) -> bool:
+    """Son asistan turu bir clarifier sorusu muydu? (CLARIFY_MARKER).
+
+    Öyleyse mevcut kullanıcı turu o sorulara CEVAPTIR → konuşma önceki domain'de
+    devam ediyordur. Bu turun metni ("evet evi teslim ettim") tek başına net
+    domain sinyali taşımayabilir; bu yüzden continuation-marker'ı beklemeden
+    önceki domain'i devralırız (yoksa triaj `unknown` → redirect → t2 cevap
+    veremez; multiturn t2-answer bug'ının kök nedeni buydu).
+    """
+    for turn in reversed(history):
+        if turn.get("role") == "assistant":
+            return CLARIFY_MARKER in (turn.get("content") or "")
+    return False
 
 
 def _last_user_domain(history: list[ConversationTurn]) -> Domain | None:
@@ -116,6 +250,7 @@ async def triaj_node(state: AgentState) -> dict:
                 "domain": "unknown",
                 "domain_confidence": 0.0,
                 "triage_reasoning": f"Sohbet girdisi ({category}) — hukuki akış atlandı.",
+                "response_intent": "smalltalk",
                 "smalltalk_response": smalltalk_reply(category),
             }
 
@@ -125,14 +260,35 @@ async def triaj_node(state: AgentState) -> dict:
             "domain": "unknown",
             "domain_confidence": 0.0,
             "triage_reasoning": "Kapsam dışı: ceza/aile hukuku desteklenmiyor.",
+            "response_intent": "out_of_scope_sensitive",
             "smalltalk_response": _out_of_scope_reply(question),
         }
 
     history: list[ConversationTurn] = state.get("chat_history", []) or []
+    # Domain devralma: ya pronominal devam sorusu ("peki, o zaman...") ya da
+    # önceki turun bir clarifier sorusu olması (kullanıcı şimdi onu yanıtlıyor).
+    inherited_domain = (
+        _last_user_domain(history)
+        if (_is_continuation(question) or _answered_clarifier(history))
+        else None
+    )
+    if (
+        not history
+        and os.getenv("TRIAJ_FAST_PATH", "1").lower() in {"1", "true", "yes"}
+        and (domain := _fast_domain(question))
+    ):
+        facts = _fast_facts(question, domain)
+        log.info("triaj_fast_path", domain=domain, n_facts=len(facts))
+        return {
+            "domain": domain,
+            "domain_confidence": 0.90,
+            "triage_reasoning": "Anahtar kelime hızlı triajı.",
+            "response_intent": "legal_answer",
+            "case_facts": facts,
+        }
 
     # Devam-sorusu kısa-yolu: önceki turun domain'ini koru, LLM çağrısı atlanmaz
     # ama hint olarak prompt'a girer.
-    inherited_domain = _last_user_domain(history) if _is_continuation(question) else None
 
     llm = get_llm()
     system_prompt = _load_prompt()
@@ -190,6 +346,7 @@ async def triaj_node(state: AgentState) -> dict:
         "domain": domain,
         "domain_confidence": confidence,
         "triage_reasoning": reasoning,
+        "response_intent": "redirect_to_scope" if domain == "unknown" else "legal_answer",
         "case_facts": facts,
     }
 
