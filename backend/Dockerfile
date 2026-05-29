@@ -49,10 +49,20 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HUB_OFFLINE=0 \
     HF_HOME=/models
 
-# Runtime'da sadece curl (HEALTHCHECK için) + libgomp (torch için) kalsın
+# Runtime deps:
+#  - curl: HEALTHCHECK
+#  - libgomp1: torch (OpenMP)
+#  - tesseract-ocr + -tur: OCR (pytesseract binary + Türkçe dil verisi ŞART;
+#    backend/models/tessdata .dockerignore'da → apt paketi gerekir)
+#  - ffmpeg: STT (faster-whisper mp3/m4a/ogg/webm decode güvencesi)
+# NOT: STT/TTS uçtan-uca (Piper espeak-ng-data wheel'de bundle) CONTAINER
+# SMOKE ile doğrulanmalı — henüz koşulmadı.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         libgomp1 \
+        tesseract-ocr \
+        tesseract-ocr-tur \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app \

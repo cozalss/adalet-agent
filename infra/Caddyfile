@@ -1,6 +1,10 @@
 {
 	# Sprint-4 W9.1 — Caddy 2 production config
 	email ops@adalet.app
+	# Admin API'yi KAPAT — default localhost:2019 açık olur; Caddy container
+	# adalet-net içindeyse kompromize bir container :2019/config ile upstream'i
+	# değiştirebilir (reverse-proxy hijack). Deploy CLI'ya gerek yok.
+	admin off
 	# ACME auto-TLS (Let's Encrypt prod by default)
 	# Test için: acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 	servers {
@@ -55,10 +59,19 @@ staging.adalet.app {
 			header_up Host {host}
 			# SSE stream için buffer kapat
 			flush_interval -1
+			# Takılı/yavaş backend Caddy worker'larını tüketmesin (slowloris).
+			# OCR/STT uzun sürebildiğinden read_timeout cömert; dial kısa.
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 120s
+				read_timeout 180s
+			}
 		}
 	}
 
-	# Docs (production'da kapatılabilir — staging için açık)
+	# Docs — staging'de BİLİNÇLİ açık (beta tester'lar Swagger kullanır).
+	# PRODUCTION'a kopyalarken bu bloğu KALDIR veya IP-whitelist'le: OpenAPI
+	# şeması endpoint/PII-field/internal-path yapısını ifşa eder (bilgi sızıntısı).
 	@docs path /docs /openapi.json /redoc
 	handle @docs {
 		reverse_proxy backend:8000

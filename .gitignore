@@ -26,6 +26,7 @@ mobile/ios/Pods/
 # Editör / OS
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 
@@ -46,6 +47,10 @@ data/training/raw/
 # Models (Qwen GGUF, Whisper bin, Piper ONNX, Tesseract tessdata)
 backend/models/
 
+# Predictive — eğitim verisi (büyük JSONL) + checkpoint dizini (16GB model artifact)
+backend/data/predictive/
+backend/predictive/checkpoints/
+
 # Smoke test artifacts (büyük JSON output)
 backend/data/smoke_runs/
 
@@ -62,3 +67,5 @@ htmlcov/
 # Geçici
 tmp/
 *.tmp
+_eval*.txt
+_eval*.json

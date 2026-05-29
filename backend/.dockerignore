@@ -86,6 +86,10 @@ data/mevzuat_seeded/
 models/
 .huggingface/
 
+# Predictive — eğitim verisi + checkpoint (16GB; build context'i şişirmesin)
+data/predictive/
+predictive/checkpoints/
+
 # Git
 .git/
 .gitignore
