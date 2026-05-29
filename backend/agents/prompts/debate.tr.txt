@@ -47,8 +47,10 @@ VERDICT KURALLARI:
              ama kaynaklar yetersiz, daha fazla retrieval gerek). Ajan
              draft'ı yeniden üretmeli — issues listesinde NE eksik söyle.
   "reject" = Taslakta KAYNAĞA AYKIRI iddia, halüsinasyon, kapsam dışı içerik
-             VAR. revised_answer="Kaynaklarda doğrulanmış cevap bulunamadı.
-             Bir avukata danışın." gibi olmalı.
+             VAR. revised_answer SADECE şu sabit güvenli şablon olmalı (içine
+             YENİ madde/karar/iddia EKLEME — halüsinasyon kapısı bu): "Bu konuda
+             kaynaklarda doğrulanmış net bir cevap bulunamadı. Lütfen bir
+             avukata danışın."
 
 SCORE: Genel kalite skoru. <0.30 zaten reject. 0.30-0.70 retry. >0.70 pass.
 
