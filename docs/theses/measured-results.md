@@ -98,22 +98,54 @@ kavramsal olarak diğer domainlerle örtüşmesi + küçük örneklem. Diğer 7 
   rerank + **domain-öncelikli tier-sort** (cross-encoder konuşma-dili TR'de
   noise-floor verdiğinden, triaj domain'i prior olarak kullanılır).
 
+## 3.5. Verify ON/OFF Ablasyon (paper §4.2 — 2026-05-29)
+
+**Yöntem:** 8 vatandaş sorusu (her domain), graph her soruda doğrulama katmanı
+**AÇIK** (`VERIFY_ENABLED=1`) ve **KAPALI** (`VERIFY_ENABLED=0` bypass) iki kez
+koşuldu — gerçek Qwen 2.5 14B (llamacpp), CPU embedder. Komut:
+`eval/verify_ablation.py`. Harness: `eval/runs/verify_ablation_*.json`.
+
+| Metrik | Değer |
+|---|---:|
+| Ort. claim-support — **verify ON** | **%41.9** |
+| Ort. claim-support — **verify OFF** | **%100** |
+| **Fark (verify ayırt etme gücü)** | **+58.1 puan** |
+| Verdict-flip (block-rate) | %0 (8/8 her iki arm `pass`) |
+
+### Soru bazında (claim-support ON / OFF)
+| Soru | ON | OFF | | Soru | ON | OFF |
+|---|---:|---:|---|---|---:|---:|
+| E1 | %38 | %100 | | E5 | %27 | %100 |
+| E2 | %46 | %100 | | E6 | %33 | %100 |
+| E3 | %33 | %100 | | E7 | %46 | %100 |
+| E4 | %54 | %100 | | E8 | %58 | %100 |
+
+**Bulgu (tezin çekirdek kanıtı):** Doğrulama katmanı, LLM'in ürettiği iddiaların
+**ortalama %58'inin kaynakla token-düzeyinde doğrulanmadığını** tespit ediyor
+(verify OFF iken hepsi sorgusuz "supported"). Bu, "iddia-doğrulamalı = uydurmaz"
+iddiasının doğrudan sayısal kanıtıdır.
+
+**Dürüst nüans (önemli):** Bu 8 **temiz, kapsam-içi** soruda verdict her iki arm'da
+da `pass` (block-rate %0). Çünkü (a) cevaplar makul ve en az %20 claim destekleniyor
+(`MIN_VERIFIED_CLAIMS_RATIO` eşiği), (b) NLI contradiction-veto bu sorularda
+tetiklenmedi. Yani verify burada cevabı **reddetmiyor**, **claim düzeyinde** ~%58
+iddiayı "kaynaksız" işaretliyor. Verify'ın RED gücü çelişki/adversarial girdide
+devreye girer → paper §4.3 (edge_cases, OWASP) ölçümünde gösterilecek. Aggregation
+eşiğinin gevşekliği gelecek-iş (eşik ablasyonu).
+
 ## 4. Ölçülen vs Bekleyen (dürüst durum)
 
 **Ölçüldü:**
 - Retrieval rerank modu (yukarıda) ✅
 - Retrieval hybrid-only modu + rerank karşılaştırması (10× latency bulgusu) ✅
 - Real-LLM smoke (paper-draft §4.4, 3 vaka, Qwen 14B) ✅
+- **Verify ON/OFF ablasyon (§3.5, 8 soru, gerçek Qwen)** — claim-support %41.9 vs
+  %100, +58.1 puan fark ✅
 
-**Harness hazır — yalnız GPU koşumu bekliyor (Üye 4):**
-- **Verify ON/OFF ablasyon (paper §4.2)** — harness kuruldu:
-  `eval/verify_ablation.py` + `VERIFY_ENABLED=0` bypass kaldıracı
-  (`agents/nodes/verify.py`). Aynı soruları doğrulama AÇIK/KAPALI koşar;
-  block-rate + claim-support Δ + [DOĞRULA] Δ ölçer. Çekirdek mantık unit-test'li
-  (`tests/eval/test_verify_ablation.py`). Koşum: `LLM_MODE=llamacpp_server
-  uv run python -m eval.verify_ablation --include-edge`.
-- **Edge-case (OWASP LLM Top-10, 24 vaka — paper §4.3)** — runner zaten vardı,
-  CLI eklendi: `uv run python -m eval.edge_cases` → `eval/runs/edge_cases_*.json`.
+**Harness hazır — GPU koşumu bekliyor (Üye 4):**
+- **Edge-case (OWASP LLM Top-10, 24 vaka — paper §4.3)** — runner + CLI hazır:
+  `uv run python -m eval.edge_cases` → `eval/runs/edge_cases_*.json`. (Verify'ın
+  RED gücü burada gösterilecek — adversarial/çelişki girdi.)
 
 **Ölçüldü — Tahmin modeli (BERT-TR), GPU baseline (2026-05-29):**
 

@@ -1,0 +1,263 @@
+{
+  "meta": {
+    "timestamp": "20260529_161458",
+    "llm_mode": "llamacpp",
+    "n_questions": 8,
+    "include_edge": false,
+    "note": "MockLLM ise sayılar tez sonucu değildir (canned çıktı)."
+  },
+  "summary": {
+    "n": 8,
+    "block_rate": 0.0,
+    "n_blocked": 0,
+    "avg_support_on": 0.419,
+    "avg_support_off": 1.0,
+    "support_delta": 0.581,
+    "total_dogrula_on": 0,
+    "total_dogrula_off": 0,
+    "verdicts_on": {
+      "pass": 8,
+      "retry": 0,
+      "reject": 0
+    },
+    "verdicts_off": {
+      "pass": 8,
+      "retry": 0,
+      "reject": 0
+    }
+  },
+  "rows": [
+    {
+      "id": "E1",
+      "question": "Kıdem tazminatı nasıl hesaplanır?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.623,
+        "n_claims": 13,
+        "n_verified": 5,
+        "support_ratio": 0.385,
+        "n_dogrula": 0,
+        "n_cjk": 10,
+        "answer_len": 3273
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.869,
+        "n_claims": 8,
+        "n_verified": 8,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2890
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 696504,
+        "off": 665498
+      }
+    },
+    {
+      "id": "E2",
+      "question": "İhbar tazminatı süreleri nelerdir?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.589,
+        "n_claims": 11,
+        "n_verified": 5,
+        "support_ratio": 0.455,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3212
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.807,
+        "n_claims": 10,
+        "n_verified": 10,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3612
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 855113,
+        "off": 807437
+      }
+    },
+    {
+      "id": "E3",
+      "question": "Ayıplı malda tüketici hangi haklara sahiptir?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.704,
+        "n_claims": 12,
+        "n_verified": 4,
+        "support_ratio": 0.333,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2669
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.971,
+        "n_claims": 15,
+        "n_verified": 15,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 4060
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 669357,
+        "off": 384458
+      }
+    },
+    {
+      "id": "E4",
+      "question": "Ev sahibi kira sözleşmesini hangi sebeplerle feshedebilir?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.785,
+        "n_claims": 13,
+        "n_verified": 7,
+        "support_ratio": 0.538,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 4698
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.969,
+        "n_claims": 15,
+        "n_verified": 15,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 4221
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 822433,
+        "off": 894920
+      }
+    },
+    {
+      "id": "E5",
+      "question": "Trafik kazasında sigorta tazminatı nasıl alınır?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.552,
+        "n_claims": 11,
+        "n_verified": 3,
+        "support_ratio": 0.273,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2804
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.842,
+        "n_claims": 9,
+        "n_verified": 9,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3154
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 459222,
+        "off": 446350
+      }
+    },
+    {
+      "id": "E6",
+      "question": "İcra takibine itiraz nasıl yapılır?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.71,
+        "n_claims": 9,
+        "n_verified": 3,
+        "support_ratio": 0.333,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2816
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.977,
+        "n_claims": 14,
+        "n_verified": 14,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3398
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 190486,
+        "off": 165220
+      }
+    },
+    {
+      "id": "E7",
+      "question": "Vergi cezasına itiraz süresi nedir?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.655,
+        "n_claims": 11,
+        "n_verified": 5,
+        "support_ratio": 0.455,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2635
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.873,
+        "n_claims": 5,
+        "n_verified": 5,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 2787
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 691423,
+        "off": 701179
+      }
+    },
+    {
+      "id": "E8",
+      "question": "Kat malikleri toplantısı nasıl yapılır?",
+      "on": {
+        "verdict": "pass",
+        "confidence": 0.782,
+        "n_claims": 12,
+        "n_verified": 7,
+        "support_ratio": 0.583,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3673
+      },
+      "off": {
+        "verdict": "pass",
+        "confidence": 0.948,
+        "n_claims": 10,
+        "n_verified": 10,
+        "support_ratio": 1.0,
+        "n_dogrula": 0,
+        "n_cjk": 0,
+        "answer_len": 3550
+      },
+      "verify_blocked": false,
+      "elapsed_ms": {
+        "on": 81028,
+        "off": 76178
+      }
+    }
+  ]
+}
