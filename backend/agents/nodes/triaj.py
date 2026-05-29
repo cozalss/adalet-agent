@@ -125,6 +125,7 @@ async def triaj_node(state: AgentState) -> dict:
             "domain": "unknown",
             "domain_confidence": 0.0,
             "triage_reasoning": "Kapsam dışı: ceza/aile hukuku desteklenmiyor.",
+            "smalltalk_response": _out_of_scope_reply(question),
         }
 
     history: list[ConversationTurn] = state.get("chat_history", []) or []
@@ -320,6 +321,56 @@ async def _recover_facts(question: str) -> dict[str, str]:
     except (json.JSONDecodeError, Exception) as exc:
         log.warning("triaj_facts_retry_failed", error=str(exc) or type(exc).__name__)
         return {}
+
+
+_CEZA_KEYWORDS = frozenset({
+    "ceza hukuku", "ceza davası", "ceza yargılaması", "ceza muhakemesi",
+    "ağır ceza", "asliye ceza", "ceza mahkemesi", "cinayet", "öldürme",
+    "kasten öldürme", "suç işle", "suç eylem", "tutuklama", "tutuklu", "gözaltı",
+})
+_AILE_KEYWORDS = frozenset({
+    "boşanma davası", "nafaka", "velayet", "evlat edinme",
+    "aile hukuku", "aile mahkemesi",
+})
+
+
+def _out_of_scope_reply(question: str) -> str:
+    """Kapsam-dışı soru için sıcak, yönlendirici yanıt.
+
+    Hangi kapsam-dışı alan olduğunu tespit eder (ceza/aile) ve kullanıcıya
+    neden yardım edemediğini insanca açıklar. Somut hukuki iddia içermez.
+    """
+    q_low = question.lower()
+    is_ceza = any(kw in q_low for kw in _CEZA_KEYWORDS)
+    is_aile = any(kw in q_low for kw in _AILE_KEYWORDS)
+
+    if is_ceza:
+        return (
+            "Ceza hukuku konularında yardımcı olamıyorum — bu alan uzmanlık ve "
+            "bireysel değerlendirme gerektirdiğinden sistemimizin kapsamı dışında. "
+            "Bu tür davalarda bir ceza avukatına başvurmanızı kesinlikle öneririm. "
+            "Baro'nun avukat bulma hizmetinden ya da adli yardım bürosundan "
+            "ücretsiz bilgi alabilirsiniz.\n\n"
+            "Tüketici hakları, iş hukuku, kira uyuşmazlıkları, icra, trafik, "
+            "vergi, tapu veya idari hukuk konularında sormak istediğiniz başka "
+            "bir şey var mı?"
+        )
+    if is_aile:
+        return (
+            "Boşanma, nafaka, velayet gibi aile hukuku konuları hem hukuken hem "
+            "insani açıdan hassas olduğundan sistemimizin kapsamı dışında tutuyoruz. "
+            "Bu tür davalarda bir aile hukuku avukatına danışmanız en sağlıklısı olacaktır; "
+            "Baro'dan ücretsiz ilk danışmanlık alabilirsiniz.\n\n"
+            "Tüketici hakları, iş hukuku, kira uyuşmazlıkları veya diğer sivil hukuk "
+            "konularında yardımcı olabilirim — sormak istediğiniz başka bir şey var mı?"
+        )
+    # Genel kapsam-dışı (keyword eşleşmedi ama domain unknown çıktı)
+    return (
+        "Bu konuda yardımcı olabilecek yetkinlikte olduğumdan emin değilim. "
+        "Tüketici, iş, kira, icra, trafik, vergi, tapu veya idari hukuk "
+        "konularında soru sormayı deneyebilirsiniz; bu alanlarda gerçek mevzuat "
+        "ve Yargıtay kararlarıyla destek olabilirim."
+    )
 
 
 def _sanitize_facts(raw: object) -> dict[str, str]:

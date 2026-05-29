@@ -78,11 +78,13 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     kaynaklar = _format_refs_for_prompt(refs)
     olgular = _format_facts_for_prompt(state.get("case_facts") or {})
     uygunluk = _format_eligibility_for_prompt(state.get("eligibility") or [])
+    gecmis = _format_history_for_prompt(state.get("chat_history") or [])
     user_prompt = (
         _DRAFT_TEMPLATE
         .replace("{kaynaklar_blogu}", kaynaklar)
         .replace("{olgular_blogu}", olgular)
         .replace("{uygunluk_blogu}", uygunluk)
+        .replace("{gecmis_blogu}", gecmis)
         .replace("{soru}", question)
     )
 
@@ -242,6 +244,32 @@ def _format_eligibility_for_prompt(assessments: list[dict[str, Any]]) -> str:
 _CHARS_PER_TOKEN_TR = 2.3
 _DRAFT_SNIPPET_CHARS = 450
 _MAX_DRAFT_REFS = 10
+
+
+_MAX_HISTORY_TURNS = 3      # son 3 tur yeterli; daha fazlası token boşa gider
+_MAX_HISTORY_CHAR = 300    # tur başına karakter sınırı (özet için yeterli)
+
+
+def _format_history_for_prompt(history: list[Any]) -> str:
+    """Son N konuşma turunu draft prompt'una bağlam olarak göm.
+
+    Amaç: "peki ya önceki durumda?" gibi devam sorularında LLM önceki
+    konuşmayı bilsin, tekrar anlatma gerekliliği doğmasın.
+    Yoksa boş string → template'teki {gecmis_blogu} silinir (degrade yok).
+    """
+    if not history:
+        return ""
+    recent = history[-_MAX_HISTORY_TURNS:]
+    lines = []
+    for turn in recent:
+        role = "Kullanıcı" if turn.get("role") == "user" else "Asistan"
+        content = str(turn.get("content", ""))[:_MAX_HISTORY_CHAR]
+        lines.append(f"{role}: {content}")
+    return (
+        "\n\nÖNCEKİ KONUŞMA (bağlam için — bu bilgileri tekrar etme, "
+        "konuşmaya devam ediyormuş gibi yanıt ver):\n"
+        + "\n".join(lines)
+    )
 
 
 def _format_refs_for_prompt(refs: list[Citation]) -> str:

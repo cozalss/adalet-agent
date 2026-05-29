@@ -176,17 +176,38 @@ def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, 
 
 
 def _reject_response(state: AgentState, reason: str | None = None) -> dict:
-    reason = reason or state.get("debate_notes") or state.get("triage_reasoning") or ""
-    body = (
-        "Bu soruya doğrulanmış kaynaklarla yanıt veremedim. "
-        "Lütfen bir avukata danışın.\n\n"
-        f"Detay: {reason}"
-    )
+    # Teknik iç nedeni kullanıcıya gösterme — yalnız logla (güven kırıcı jargon).
+    internal_reason = reason or state.get("debate_notes") or state.get("triage_reasoning") or ""
+    log.info("finalize_reject", internal_reason=internal_reason[:200])
+
+    verdict = state.get("debate_verdict", "pass")
+    domain = state.get("domain", "unknown")
+
+    # Yanıt tonu: neyin neden olmadığını kısaca, insanca açıkla; kullanıcıyı yönlendir.
+    if domain == "unknown":
+        body = (
+            "Bu soruyu yanıtlamak için yeterli bilgiye ulaşamadım. "
+            "Durumunuzu daha ayrıntılı anlatırsanız tekrar deneyebilirim; "
+            "ya da hukuki durumunuz için bir avukata başvurmanızı öneririm."
+        )
+    elif verdict == "retry":
+        # retry-limit doldu, debate "reject"e çevirdi
+        body = (
+            "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim "
+            "ancak kaynaklarla destekleyemedim. "
+            "Soruyu farklı bir şekilde sormayı ya da bir avukattan destek almayı deneyin."
+        )
+    else:
+        body = (
+            "Bu soruya şu an net bir yanıt veremiyorum. "
+            "Konuyu daha ayrıntılı anlatan ek bilgi paylaşırsanız yeniden deneyebilirim; "
+            "durumunuz karmaşıksa bir avukata danışmanızı öneririm."
+        )
+
     return {
         "response": f"{body}\n\n{DISCLAIMER_TR}",
         "confidence": 0.0,
         "disclaimers": [DISCLAIMER_TR],
-        # Reddedilen/kapsam-dışı cevapta kazanma tahmini gösterme (yanıltıcı olur).
         "prediction": None,
         "debate_verdict": "reject",
     }
