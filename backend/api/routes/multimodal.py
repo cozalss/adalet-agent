@@ -83,6 +83,32 @@ def _detect_image_kind(data: bytes) -> str | None:
     return None
 
 
+def _detect_audio_kind(data: bytes) -> str | None:
+    """İlk byte'lardan ses türünü tespit et. Tanınmazsa None.
+
+    OCR'daki magic-byte doğrulamasının ses karşılığı (input-validation tutarlılığı):
+    istemci `Content-Type: audio/wav` deyip executable/polyglot yollayabilir;
+    Whisper'a (ffmpeg/libsndfile) geçmeden önce gerçek içeriği doğrula.
+    """
+    if len(data) < 12:
+        return None
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return "wav"
+    if data[:4] == b"OggS":
+        return "ogg"
+    if data[:4] == b"fLaC":
+        return "flac"
+    if data[:4] == b"\x1aE\xdf\xa3":
+        return "webm"
+    if data[4:8] == b"ftyp":          # MP4/M4A container (ftyp box)
+        return "mp4"
+    if data[:3] == b"ID3":            # MP3 (ID3v2 tag)
+        return "mp3"
+    if data[0] == 0xFF and (data[1] & 0xE0) == 0xE0:  # MP3 frame sync
+        return "mp3"
+    return None
+
+
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_TTS_CHARS)
     strip_disclaimer: bool = True
@@ -158,6 +184,13 @@ async def stt_upload(
     if len(data) > MAX_AUDIO_BYTES:
         raise HTTPException(
             413, f"Ses > {MAX_AUDIO_BYTES // (1024 * 1024)} MB",
+        )
+    # Gerçek dosya türünü magic-byte'lardan doğrula (client MIME header'a güvenme,
+    # OCR ile tutarlı). Tanınmazsa 415 — Whisper/ffmpeg'e bozuk içerik gitmesin.
+    detected = _detect_audio_kind(data)
+    if detected is None:
+        raise HTTPException(
+            415, "Dosya içeriği tanınmadı (geçerli WAV/MP3/OGG/FLAC/M4A/WebM değil)",
         )
 
     # Sanitize edilmiş filename'den ext çıkar — whitelist

@@ -75,6 +75,71 @@ async def _init_db_if_enabled() -> None:
         log.warning("db_init_failed", error=str(exc))
 
 
+def _preload_heavy_models() -> None:
+    """Heavy ML model'leri sync olarak main-thread'de warm up et (boot'ta).
+
+    Request-time lazy load Windows'ta torch CPU init + asyncio çakışmasıyla
+    segfault üretebiliyor; ayrıca singleton'lar boot'ta oluşturulunca ilk
+    eşzamanlı istekler check-then-set yarışına girmez. Her blok best-effort:
+    biri patlasa diğerleri yüklenir (graceful degrade).
+    """
+    try:
+        from retrieval.embedding import Embedder
+        log.info("preload_embedder_start")
+        emb = Embedder()
+        _ = emb.encode(["warmup"], return_colbert=False)
+        log.info("preload_embedder_done")
+    except Exception as exc:
+        log.warning("preload_embedder_failed", error=str(exc))
+
+    try:
+        from retrieval.reranker import get_reranker
+        log.info("preload_reranker_start")
+        rer = get_reranker()
+        _ = rer._model  # force lazy load
+        log.info("preload_reranker_done")
+    except Exception as exc:
+        log.warning("preload_reranker_failed", error=str(exc))
+
+    # Qdrant client singleton'ını boot'ta oluştur: ilk eşzamanlı istekler
+    # check-then-set yarışına girmesin (tek client, orphan bağlantı yok).
+    try:
+        from retrieval.vector_store import get_shared_client
+        get_shared_client()
+        log.info("preload_qdrant_client_done")
+    except Exception as exc:
+        log.warning("preload_qdrant_client_failed", error=str(exc))
+
+    # Sprint-4 W3.2: RAPTOR pickle yüklemesi. RAPTOR_ENABLED=0 ise no-op,
+    # pickle yoksa boş index → query() [] döner. Build offline:
+    # `uv run python -m scripts.build_raptor`.
+    try:
+        from retrieval.raptor_runtime import get_raptor_index
+        log.info("preload_raptor_start")
+        idx = get_raptor_index()
+        if idx is not None:
+            log.info("preload_raptor_done", built=idx.built, n_nodes=len(idx.all_nodes()))
+        else:
+            log.info("preload_raptor_disabled")
+    except Exception as exc:
+        log.warning("preload_raptor_failed", error=str(exc))
+
+
+async def _refresh_api_key_cache_safe() -> None:
+    """API key cache'i repo'dan (DB/dosya) doldur — boot'ta bir kez.
+
+    Auth hot-path'i sync cache kullanır; DB sorgusu yalnız burada yapılır.
+    Sessizce yutMA: DB modunda refresh fail olursa cache boş kalır → tüm
+    X-API-Key istekleri 401 alır. Misconfig'in fark edilmesi için error logla.
+    """
+    try:
+        from api.middleware.auth import refresh_api_key_cache
+        await refresh_api_key_cache()
+        log.info("api_key_cache_refreshed")
+    except Exception as exc:
+        log.error("api_key_cache_refresh_failed", error=str(exc))
+
+
 def _log_auth_visibility() -> None:
     """Boot'ta auth durumunu görünür logla — sessiz prod misconfig'i önler."""
     with contextlib.suppress(Exception):
@@ -121,43 +186,7 @@ async def lifespan(app: FastAPI):
     )
 
     if os.environ.get("PRELOAD_MODELS", "1").lower() in {"1", "true", "yes"}:
-        # Heavy model'leri sync olarak main thread'de warm up et.
-        # Request-time lazy load Windows'ta segfault'a neden olabiliyor.
-        try:
-            from retrieval.embedding import Embedder
-            log.info("preload_embedder_start")
-            emb = Embedder()
-            _ = emb.encode(["warmup"], return_colbert=False)
-            log.info("preload_embedder_done")
-        except Exception as exc:
-            log.warning("preload_embedder_failed", error=str(exc))
-
-        try:
-            from retrieval.reranker import get_reranker
-            log.info("preload_reranker_start")
-            rer = get_reranker()
-            _ = rer._model  # force lazy load
-            log.info("preload_reranker_done")
-        except Exception as exc:
-            log.warning("preload_reranker_failed", error=str(exc))
-
-        # Sprint-4 W3.2: RAPTOR pickle yüklemesi. RAPTOR_ENABLED=0 ise no-op,
-        # pickle yoksa boş index → query() [] döner. Build offline:
-        # `uv run python -m scripts.build_raptor`.
-        try:
-            from retrieval.raptor_runtime import get_raptor_index
-            log.info("preload_raptor_start")
-            idx = get_raptor_index()
-            if idx is not None:
-                log.info(
-                    "preload_raptor_done",
-                    built=idx.built,
-                    n_nodes=len(idx.all_nodes()),
-                )
-            else:
-                log.info("preload_raptor_disabled")
-        except Exception as exc:
-            log.warning("preload_raptor_failed", error=str(exc))
+        _preload_heavy_models()
 
     # Request-path singleton'larını startup'ta eager warm-up et: compiled graph,
     # LLM client, session store. İki kazanç:
@@ -185,11 +214,8 @@ async def lifespan(app: FastAPI):
     # İlişkisel DB (DATABASE_URL set ise) — idempotent tablo oluştur.
     await _init_db_if_enabled()
 
-    # API key cache'i repo'dan doldur (DB veya dosya). Auth hot-path'i sync
-    # cache kullanır; DB sorgusu yalnız burada (boot'ta) yapılır.
-    with contextlib.suppress(Exception):
-        from api.middleware.auth import refresh_api_key_cache
-        await refresh_api_key_cache()
+    # API key cache (boot'ta repo'dan doldur — helper'da hata loglanır).
+    await _refresh_api_key_cache_safe()
 
     try:
         from api.routes.ask import _get_graph

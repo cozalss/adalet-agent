@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from api.routes.multimodal import _detect_image_kind, _sanitize_filename
+from api.routes.multimodal import (
+    _detect_audio_kind,
+    _detect_image_kind,
+    _sanitize_filename,
+)
 
 
 @pytest.mark.parametrize("raw,expected_safe", [
@@ -73,6 +77,34 @@ def test_detect_image_kind_rejects_fake_mime():
         b"",
     ):
         assert _detect_image_kind(evil) is None
+
+
+def test_detect_audio_kind_valid_signatures():
+    """Geçerli ses magic byte'ları doğru tanınır (STT input-validation)."""
+    cases = {
+        "wav": b"RIFF\x24\x08\x00\x00WAVEfmt ",
+        "ogg": b"OggS\x00\x02\x00\x00\x00\x00\x00\x00",
+        "flac": b"fLaC\x00\x00\x00\x22\x00\x00\x00\x00",
+        "webm": b"\x1aE\xdf\xa3\x9fB\x86\x81\x01\x00\x00\x00",
+        "mp4": b"\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00",
+        "mp3": b"ID3\x04\x00\x00\x00\x00\x00\x00\x00\x00",
+    }
+    for expected, data in cases.items():
+        assert _detect_audio_kind(data) == expected
+    # MP3 frame-sync (ID3 tag'sız) da tanınmalı
+    assert _detect_audio_kind(b"\xff\xfb\x90\x00" + b"\x00" * 8) == "mp3"
+
+
+def test_detect_audio_kind_rejects_fake_mime():
+    """Sahte/çok-kısa içerik reddedilir — None (Whisper'a bozuk içerik gitmesin)."""
+    for evil in (
+        b"<html>not audio</html>\x00\x00\x00",
+        b"#!/bin/sh\nrm -rf /\n",
+        b"RIFF\x00\x00\x00\x00AVI ",   # RIFF ama WAVE değil (AVI)
+        b"\x00\x01\x02",                # çok kısa
+        b"",
+    ):
+        assert _detect_audio_kind(evil) is None
 
 
 def test_security_headers_present():

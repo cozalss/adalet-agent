@@ -26,7 +26,7 @@ from typing import Any
 import structlog
 
 from api.middleware.auth import Principal
-from api.pii import hash_question
+from api.pii import fingerprint, hash_question
 
 AUDIT_LOG_DISABLED = os.getenv("AUDIT_LOG_DISABLED", "0").lower() in {"1", "true", "yes"}
 
@@ -72,7 +72,9 @@ def emit(event: AuditEvent) -> None:
     payload = {
         "audit_event": event.event,
         "principal_kind": event.principal.kind,
-        "principal_sub": event.principal.sub,
+        # KVKK: ham sub (email/beta:... içerebilir) YERİNE deterministik
+        # fingerprint — gruplanabilir ama kimliksiz (feedback/ask ile tutarlı).
+        "principal_sub_hash": fingerprint(event.principal.sub),
         "question_hash": hash_question(event.question) if event.question else "",
         "question_len": len(event.question),
         "domain": event.domain,

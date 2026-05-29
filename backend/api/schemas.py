@@ -11,9 +11,15 @@ Reject durumunda answer = boilerplate "avukata danışın" template.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# user_meta sınırları — sınırsız nested dict DoS'unu önle (deserializasyon
+# bellek/CPU baskısı). Opsiyonel metadata; küçük key:value beklenir.
+_MAX_USER_META_KEYS = 20
+_MAX_USER_META_BYTES = 4096
 
 # Domain enum — agents.state.Domain ile aynı küme
 Domain = Literal[
@@ -46,6 +52,18 @@ class AskRequest(BaseModel):
     )
     user_meta: dict[str, Any] | None = Field(None, description="Şehir, taraf, vb. opsiyonel metadata")
     stream: bool = Field(False, description="True → SSE stream'le aşama aşama dön")
+
+    @field_validator("user_meta")
+    @classmethod
+    def _bound_user_meta(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Anahtar sayısı + serileştirilmiş boyutu sınırla (DoS guard)."""
+        if v is None:
+            return v
+        if len(v) > _MAX_USER_META_KEYS:
+            raise ValueError(f"user_meta en fazla {_MAX_USER_META_KEYS} anahtar içerebilir")
+        if len(json.dumps(v, ensure_ascii=False)) > _MAX_USER_META_BYTES:
+            raise ValueError(f"user_meta çok büyük (max {_MAX_USER_META_BYTES} bayt)")
+        return v
 
 
 class CitationSchema(BaseModel):

@@ -9,7 +9,7 @@ Türkçe karakterler `chunker.sanitize_text` ile NFC normalize edilir; Tesseract
 
 PIL ile basit preprocess: grayscale + adaptive threshold (Otsu) kalite arttırır.
 
-KVKK: TCKN/telefon/isim test verilerinde sahte (`12345678901`, `0555...`).
+Gizlilik: TCKN/telefon/isim test verilerinde sahte (`12345678901`, `0555...`).
 
 Kullanım:
     result = await extract_text(image_bytes, lang="tur")
@@ -30,13 +30,29 @@ import io
 import os
 import time
 from dataclasses import dataclass
-from typing import Literal
+from functools import lru_cache
+from typing import Any, Literal
 
 import structlog
 
 from retrieval.chunker import sanitize_text
 
 log = structlog.get_logger()
+
+
+@lru_cache(maxsize=1)
+def _load_qwen_vl(model_name: str) -> tuple[Any, Any]:
+    """Qwen2-VL processor+model'i bir kez yükle, cache'le (~5GB).
+
+    Önceki kod HER OCR isteğinde from_pretrained çağırıyordu → her çağrıda 5GB
+    VRAM/RAM + deserialization → paralel isteklerde OOM. lru_cache(1) ile
+    process ömrü boyunca tek yükleme (STT/TTS cached_property'sinin OCR karşılığı).
+    """
+    from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+    processor = AutoProcessor.from_pretrained(model_name)
+    model = Qwen2VLForConditionalGeneration.from_pretrained(model_name)
+    log.info("qwen_vl_loaded", model=model_name)
+    return processor, model
 
 OCREngine = Literal["tesseract", "qwen-vl", "auto"]
 
@@ -208,10 +224,11 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             error="qwen-vl disabled (OCR_QWEN_VL_ENABLED=1 ile aç)",
         )
 
-    try:
-        from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
-    except ImportError as exc:
-        log.warning("ocr_qwen_import_failed", error=str(exc))
+    # transformers kurulu mu? (isim bağlamadan probe — gerçek yükleme cache'li
+    # _load_qwen_vl'de). Yoksa graceful fallback.
+    import importlib.util
+    if importlib.util.find_spec("transformers") is None:
+        log.warning("ocr_qwen_import_failed", error="transformers not installed")
         return OCRResult(
             text="", engine="qwen-vl", lang=lang, n_chars=0,
             elapsed_ms=0, error="OCR motoru kullanılamıyor",
@@ -222,8 +239,8 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             from PIL import Image
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             model_name = os.getenv("OCR_QWEN_VL_MODEL", "Qwen/Qwen2-VL-2B-Instruct")
-            processor = AutoProcessor.from_pretrained(model_name)
-            model = Qwen2VLForConditionalGeneration.from_pretrained(model_name)
+            # Cache'li yükleme — process başına bir kez (OOM fix).
+            processor, model = _load_qwen_vl(model_name)
 
             prompt = (
                 "Aşağıdaki Türkçe hukuk belgesinin metnini AYNEN yaz. "

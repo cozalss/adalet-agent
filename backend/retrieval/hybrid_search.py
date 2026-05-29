@@ -190,19 +190,33 @@ async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:
     if not pairs:
         return []
     client = get_shared_client()
-    out: list[SearchResult] = []
-    for kod, madde in pairs:
-        flt = models.Filter(must=[
+    # TEK scroll — her (kanun_kodu, madde_no) çifti nested `must`, hepsi `should`
+    # (OR) ile birleşir. Önceki N-round-trip (pair başına scroll) yük altında
+    # ciddi latency veriyordu; tek sorgu + Python-tarafı dedup ile aynı sonuç.
+    should = [
+        models.Filter(must=[
             models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kod)),
             models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
         ])
-        points, _ = await client.scroll(
-            collection_name=COLLECTION_NAME,
-            scroll_filter=flt,
-            limit=1,
-            with_payload=True,
-        )
-        out.extend(_to_result(p) for p in points)
+        for kod, madde in pairs
+    ]
+    points, _ = await client.scroll(
+        collection_name=COLLECTION_NAME,
+        scroll_filter=models.Filter(should=should),
+        # Madde başına birden fazla chunk olabilir; cushion + Python dedup ile
+        # (kanun_kodu, madde_no) başına ilk chunk'ı tut (eski limit=1/pair semantiği).
+        limit=max(len(pairs) * 4, 32),
+        with_payload=True,
+    )
+    seen: set[tuple[str | None, int | None]] = set()
+    out: list[SearchResult] = []
+    for p in points:
+        payload = p.payload or {}
+        key = (payload.get("kanun_kodu"), payload.get("madde_no"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(_to_result(p))
     return out
 
 

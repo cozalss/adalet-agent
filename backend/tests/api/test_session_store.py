@@ -160,3 +160,25 @@ async def test_bind_or_verify_owner_blocks_cross_user():
     anon = Principal(sub="dev", kind="anonymous", anonymous=True)
     await ask_mod._bind_or_verify_owner("conv-abc", anon)
     reset_store()
+
+
+@pytest.mark.asyncio
+async def test_bind_or_verify_owner_fails_closed_on_store_error(monkeypatch):
+    """Store get_owner patlarsa fail-CLOSED → 503 (fail-open IDOR penceresi açmaz)."""
+    from fastapi import HTTPException
+
+    from api.middleware.auth import Principal
+    from api.routes import ask as ask_mod
+
+    reset_store()
+
+    class _BrokenStore:
+        async def get_owner(self, conv_id: str):
+            raise RuntimeError("redis down")
+
+    monkeypatch.setattr(ask_mod, "get_store", lambda: _BrokenStore())
+    user = Principal(sub="beta:bob@x.com", kind="user")
+    with pytest.raises(HTTPException) as exc:
+        await ask_mod._bind_or_verify_owner("conv-xyz", user)
+    assert exc.value.status_code == 503
+    reset_store()

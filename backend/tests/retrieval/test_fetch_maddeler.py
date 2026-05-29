@@ -29,19 +29,26 @@ class _FakePoint:
 
 
 class _FakeClient:
-    """scroll(filter) → ilgili maddeyi döndüren sahte Qdrant istemcisi."""
+    """scroll(should-OR filter) → eşleşen tüm maddeleri TEK çağrıda döndürür.
+
+    Yeni sözleşme: fetch_maddeler N çifti tek scroll'da `should`(OR) ile sorar.
+    Mock, should içindeki her nested `must`'tan (kanun_kodu, madde_no) çıkarıp
+    store'dan eşleşenleri toplar. `calls` çağrı SAYISINI doğrular (N pair → 1).
+    """
 
     def __init__(self, store: dict[tuple[str, int], _FakePoint]) -> None:
         self._store = store
-        self.calls: list[tuple[str, int]] = []
+        self.calls: list[list[tuple[str, int]]] = []
 
     async def scroll(self, collection_name, scroll_filter, limit, with_payload):
-        # filtreden (kanun_kodu, madde_no) çıkar
-        kod = scroll_filter.must[0].match.value
-        madde = scroll_filter.must[1].match.value
-        self.calls.append((kod, madde))
-        pt = self._store.get((kod, madde))
-        return ([pt] if pt else [], None)
+        pairs: list[tuple[str, int]] = []
+        for sub in scroll_filter.should:
+            kod = sub.must[0].match.value
+            madde = sub.must[1].match.value
+            pairs.append((kod, madde))
+        self.calls.append(pairs)
+        found = [self._store[p] for p in pairs if p in self._store]
+        return (found, None)
 
 
 @pytest.fixture
@@ -59,10 +66,13 @@ async def test_fetch_maddeler_returns_matching_maddeler(_patch_client):
         ("IK", 17): _FakePoint("m-IK-17", "IK", 17),
         ("EIK", 14): _FakePoint("m-EIK-14", "EIK", 14),
     }
-    _patch_client(store)
+    client = _patch_client(store)
     out = await hs.fetch_maddeler([("IK", 17), ("EIK", 14)])
-    assert [r.chunk_id for r in out] == ["m-IK-17", "m-EIK-14"]
+    assert {r.chunk_id for r in out} == {"m-IK-17", "m-EIK-14"}
     assert all(r.score == 0.0 for r in out)  # skorsuz → 0.0
+    # N=2 çift TEK scroll'da çekilir (N+1 değil) — perf garantisi.
+    assert len(client.calls) == 1
+    assert client.calls[0] == [("IK", 17), ("EIK", 14)]
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@
 Türkçe PII pattern'ları:
   - TCKN (11 hane, ilk hane ≠ 0). NOT: checksum doğrulaması KASITLI olarak YOK.
     CLAUDE.md test verisinde geçersiz sahte TCKN (12345678901) kullanıyoruz;
-    checksum eklersek bunlar maskelenmez → KVKK için false-negative. Over-mask
+    checksum eklersek bunlar maskelenmez → gizlilik için false-negative. Over-mask
     (her 11 haneyi maskele) fail-safe tercih. — tek modül, eval/edge_cases.py
     ile paylaşılabilir
   - Telefon (TR +90 / 0xxx-xxx-xxxx)
@@ -85,7 +85,7 @@ def mask_pii(text: str) -> MaskResult:
 
 
 def fingerprint(text: str, length: int = 16) -> str:
-    """SHA-256 truncated hex — geri-dönüşümsüz kimlik (KVKK-safe).
+    """SHA-256 truncated hex — geri-dönüşümsüz kimlik (log-safe).
 
     email / principal sub gibi PII'yi log / ID / JSONL'e HAM yazmak yerine
     deterministik parmak izi üret: aynı girdi → aynı hash (gruplanabilir) ama

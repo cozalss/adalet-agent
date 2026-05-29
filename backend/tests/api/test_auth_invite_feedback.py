@@ -46,7 +46,7 @@ def staging_client(_auth_env_invite, monkeypatch):
 def test_invite_unknown_code_returns_404(staging_client):
     r = staging_client.post(
         "/auth/invite/no-such-code",
-        json={"kvkk_consent": True},
+        json={"privacy_consent": True},
     )
     assert r.status_code == 404
 
@@ -54,7 +54,7 @@ def test_invite_unknown_code_returns_404(staging_client):
 def test_invite_used_code_returns_409(staging_client):
     r = staging_client.post(
         "/auth/invite/code-used-1",
-        json={"kvkk_consent": True},
+        json={"privacy_consent": True},
     )
     assert r.status_code == 409
 
@@ -67,7 +67,7 @@ def test_invite_rate_limited(staging_client):
     """
     statuses = [
         staging_client.post(
-            "/auth/invite/no-such-code", json={"kvkk_consent": True},
+            "/auth/invite/no-such-code", json={"privacy_consent": True},
         ).status_code
         for _ in range(6)
     ]
@@ -75,10 +75,10 @@ def test_invite_rate_limited(staging_client):
     assert 429 not in statuses[:5]  # ilk 5 limit'e takılmamalı
 
 
-def test_invite_missing_kvkk_returns_400(staging_client):
+def test_invite_missing_privacy_consent_returns_400(staging_client):
     r = staging_client.post(
         "/auth/invite/code-alpha-1",
-        json={"kvkk_consent": False},
+        json={"privacy_consent": False},
     )
     assert r.status_code == 400
 
@@ -86,7 +86,7 @@ def test_invite_missing_kvkk_returns_400(staging_client):
 def test_invite_accept_returns_token(staging_client, _auth_env_invite):
     r = staging_client.post(
         "/auth/invite/code-alpha-1",
-        json={"kvkk_consent": True},
+        json={"privacy_consent": True},
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -102,12 +102,12 @@ def test_invite_accept_returns_token(staging_client, _auth_env_invite):
 def test_invite_second_acceptance_rejected(staging_client):
     r1 = staging_client.post(
         "/auth/invite/code-alpha-1",
-        json={"kvkk_consent": True},
+        json={"privacy_consent": True},
     )
     assert r1.status_code == 200
     r2 = staging_client.post(
         "/auth/invite/code-alpha-1",
-        json={"kvkk_consent": True},
+        json={"privacy_consent": True},
     )
     assert r2.status_code == 409
 
@@ -156,7 +156,7 @@ def test_feedback_thumbs_up(staging_client):
 
 
 def test_feedback_id_does_not_leak_sub(staging_client):
-    """KVKK: feedback_id principal.sub'ı (email) HAM içermemeli — fingerprint'li."""
+    """feedback_id principal.sub'ı (email) HAM içermemeli — fingerprint'li."""
     token = issue_token("beta:alice@example.com", role="beta")
     r = staging_client.post(
         "/feedback",
@@ -175,7 +175,7 @@ def test_feedback_thumbs_down_with_comment(staging_client):
         "/feedback",
         json={
             "conversation_id": "conv-2", "rating": "down",
-            "comment": "cevapta TC 12345678901 var, KVKK ihlali",
+            "comment": "cevapta TC 12345678901 var, gizlilik sorunu",
             "turn_index": 2,
         },
         headers={"Authorization": f"Bearer {token}"},

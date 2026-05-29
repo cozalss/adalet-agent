@@ -6,7 +6,8 @@ GET  /auth/me            — current principal info (token verify smoke)
 Davet kodu yönetimi:
   INVITE_CODES_FILE=path JSON: {"<code>": {"email": "...", "name": "...", "used": false}}
 
-KVKK: davet kodu kullanılırken kullanıcı consent verir; bu metadata audit log'a yazılır.
+Gizlilik: davet kodu kullanılırken kullanıcı veri işleme bilgilendirmesini onaylar;
+bu metadata audit log'a yazılır.
 """
 
 from __future__ import annotations
@@ -20,7 +21,8 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from fastapi import Path as PathParam  # pathlib.Path ile çakışmasın
+from pydantic import AliasChoices, BaseModel, Field
 
 from api.audit import AuditEvent
 from api.audit import emit as emit_audit
@@ -35,8 +37,16 @@ INVITE_CODES_FILE = os.getenv("INVITE_CODES_FILE", "")
 
 
 class InviteAcceptRequest(BaseModel):
-    """Davet kabul + KVKK consent."""
-    kvkk_consent: bool = Field(..., description="KVKK aydınlatma metnini okudum ve onaylıyorum")
+    """Davet kabul + gizlilik onayı.
+
+    Backward compatibility: eski istemciler `kvkk_consent` gönderebilir; yeni
+    API sözleşmesinde alan adı `privacy_consent`.
+    """
+    privacy_consent: bool = Field(
+        ...,
+        validation_alias=AliasChoices("privacy_consent", "kvkk_consent"),
+        description="Gizlilik ve veri işleme bilgilendirmesini okudum ve onaylıyorum",
+    )
     email: str | None = Field(default=None, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     name: str | None = Field(default=None, max_length=80)
 
@@ -113,15 +123,17 @@ def _consume_invite(
 @router.post("/invite/{code}", response_model=TokenResponse)
 @limiter.limit(INVITE_RATE)
 async def accept_invite(
-    request: Request, code: str, req: InviteAcceptRequest,
+    request: Request,
+    req: InviteAcceptRequest,
+    code: str = PathParam(..., min_length=6, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ) -> TokenResponse:
     """Davet kodu ile JWT alır. Kod tek kullanımlık (race-safe).
 
     Rate-limit (INVITE_RATE, IP başına): kod brute-force/enumerasyonunu sınırlar.
     """
     _ = request  # slowapi key_func request.state/IP'den okur — yan etki için tutulur
-    if not req.kvkk_consent:
-        raise HTTPException(400, "KVKK onayı şart")
+    if not req.privacy_consent:
+        raise HTTPException(400, "Gizlilik onayı şart")
 
     # Atomik tüketim + blocking dosya I/O thread pool'da (event loop bloke olmaz).
     result, invite = await asyncio.to_thread(_consume_invite, code, req.email)
@@ -146,7 +158,7 @@ async def accept_invite(
         principal=Principal(sub=sub, kind="user", role="beta"),
         domain="auth",
     ))
-    # KVKK: sub = "beta:email@..." — ham email log'a yazma; fingerprint yeterli.
+    # Gizlilik: sub = "beta:email@..." — ham email log'a yazma; fingerprint yeterli.
     log.info("invite_accepted", sub_hash=fingerprint(sub))
 
     from api.middleware.auth import JWT_TTL_SECONDS

@@ -100,7 +100,9 @@ jobs:
           uv sync --frozen
           uv pip install pip-audit bandit
       - name: pip-audit (dependency vulns)
-        run: uv run pip-audit --strict || true
+        # Güvenlik kapısı: vuln bulunursa CI KIRILIR (eski `|| true` soft gate'ti).
+        # Düzeltilemeyen transitif vuln çıkarsa `--ignore-vuln <ID>` ekle.
+        run: uv run pip-audit --strict
       - name: bandit (source vulns)
         # pyproject.toml [tool.bandit] exclude_dirs — CLI --exclude .venv
         # pattern match etmiyordu; config file sağlam.

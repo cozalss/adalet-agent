@@ -124,8 +124,14 @@ async def _bind_or_verify_owner(conv_id: str, principal: Principal) -> None:
     try:
         existing = await store.get_owner(conv_id)
     except Exception as exc:
+        # Fail-CLOSED: sahipliği doğrulayamıyorsak (store down) erişime izin
+        # VERME — fail-open bir IDOR penceresi açardı (saldırgan store'u
+        # düşürüp başkasının conv_id'sine erişebilir). 503 → geçici hata.
         log.warning("owner_check_failed", conv_id=conv_id, error=str(exc))
-        return
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Oturum doğrulaması geçici olarak yapılamıyor, tekrar deneyin.",
+        ) from exc
     if existing is None:
         with contextlib.suppress(Exception):
             await store.set_owner_if_absent(conv_id, owner)
