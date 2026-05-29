@@ -49,16 +49,19 @@ nano .env
 # Özellikle kontrol et:
 # - REDIS_PASSWORD, QDRANT_API_KEY, JWT_SECRET (init script doğru random verdi)
 # - ALLOWED_ORIGINS frontend URL'leriyle eşleşiyor
-# - LLM_MODE (llamacpp_server için W9.3 sonrası)
+# - LLM_MODE=llamacpp_server
+# - LLM_SERVER_URL=http://llama-server:8080
+# - LLAMA_MODEL_FILE=Qwen2.5-14B-Instruct-Q5_K_M.gguf
 ```
 
 ### 3. Model dosyaları
 ```bash
 # llama-server için GGUF modeli
-mkdir -p /opt/adalet-agent/models
-cd /opt/adalet-agent/models
-# 8.4GB indirme
-wget https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q4_k_m.gguf
+mkdir -p /opt/adalet-agent/backend/models
+cd /opt/adalet-agent/backend/models
+# compose default LLAMA_MODEL_FILE ile aynı isimde kaydet
+wget -O Qwen2.5-14B-Instruct-Q5_K_M.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q5_k_m.gguf
 
 # BGE-M3 + reranker + NLI — backend ilk run'da indirir (HF cache volume'a)
 ```
@@ -66,13 +69,13 @@ wget https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-
 ### 4. Compose up
 ```bash
 cd /opt/adalet-agent
-docker compose --env-file .env up -d
+docker compose --profile production --env-file .env up -d
 docker compose ps  # tüm servisler healthy bekle (~3 dk)
 ```
 
 ### 5. ACME / TLS doğrulama
 ```bash
-docker compose logs caddy | grep "certificate obtained"
+docker compose --profile production logs caddy | grep "certificate obtained"
 # "successfully obtained certificate for staging.adalet.app"
 curl -fsSL https://staging.adalet.app/health | jq .
 # {"status":"ok", "components": {"qdrant":"ok", "redis":"ok", "llm":"ok"}}
@@ -81,17 +84,17 @@ curl -fsSL https://staging.adalet.app/health | jq .
 ### 6. Veri seed'i
 ```bash
 # Qdrant collection'ları + chunks
-docker compose exec backend uv run python -m scripts.seed_mevzuat
-docker compose exec backend uv run python -m scripts.seed_emsal
+docker compose --profile production exec backend uv run python -m scripts.seed_mevzuat
+docker compose --profile production exec backend uv run python -m scripts.seed_emsal
 # RAPTOR offline build (opsiyonel, ~30dk)
-docker compose exec backend uv run python -m scripts.build_raptor --max-chunks 800
+docker compose --profile production exec backend uv run python -m scripts.build_raptor --max-chunks 800
 # GraphRAG build (LLM gerek yok, ~5dk)
-docker compose exec backend uv run python -m scripts.build_graph
+docker compose --profile production exec backend uv run python -m scripts.build_graph
 ```
 
 ### 7. Smoke E2E
 ```bash
-docker compose exec backend uv run python -m scripts.smoke_real_llm_mock_retrieval
+docker compose --profile production exec backend uv run python -m scripts.smoke_real_llm_mock_retrieval
 # 3/3 pass bekle
 ```
 
@@ -101,8 +104,8 @@ docker compose exec backend uv run python -m scripts.smoke_real_llm_mock_retriev
 sudo -iu adalet
 cd /opt/adalet-agent
 git pull --ff-only
-docker compose --env-file .env build backend
-docker compose --env-file .env up -d backend caddy
+docker compose --profile production --env-file .env build backend
+docker compose --profile production --env-file .env up -d backend caddy llama-server
 docker compose ps
 # health check
 curl -fsSL https://staging.adalet.app/health | jq .status
@@ -116,7 +119,7 @@ gerekirse 2 backend replica + Caddy load-balance.
 
 ### Davet kodu üret (admin host'tan)
 ```bash
-docker compose exec backend python -c "
+docker compose --profile production exec backend python -c "
 from api.middleware.auth import issue_token
 print(issue_token('beta-user-001', role='beta'))
 "
@@ -129,9 +132,9 @@ Veya `/auth/invite/{code}` endpoint'i (W9.4'te eklenir) ile self-service.
 
 ### Logs
 ```bash
-docker compose logs -f backend caddy
+docker compose --profile production logs -f backend caddy llama-server
 # Audit log ayrı stream (Filebeat → S3 production'da)
-docker compose exec backend tail -f /var/log/adalet/audit.log
+docker compose --profile production exec backend tail -f /var/log/adalet/audit.log
 ```
 
 ### Grafana (gelecek)
@@ -144,8 +147,8 @@ docker compose exec backend tail -f /var/log/adalet/audit.log
 ```bash
 cd /opt/adalet-agent
 git reset --hard HEAD~1
-docker compose --env-file .env build backend
-docker compose --env-file .env up -d backend
+docker compose --profile production --env-file .env build backend
+docker compose --profile production --env-file .env up -d backend caddy llama-server
 ```
 
 ### Veri rollback (Qdrant snapshot restore)

@@ -12,7 +12,7 @@ Avukat tutamayan vatandaşa (tüketici · işçi · kiracı) **uydurmadan**, **g
 [![Qdrant](https://img.shields.io/badge/Qdrant-159k%20vektör-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Lisans](https://img.shields.io/badge/Lisans-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-662-success)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-705-success)](backend/tests)
 [![ruff](https://img.shields.io/badge/ruff-passing-success?logo=ruff)](https://docs.astral.sh/ruff/)
 [![mypy](https://img.shields.io/badge/mypy-strict-blue)](https://mypy-lang.org)
 
@@ -40,7 +40,8 @@ Mevcut LLM'ler (ChatGPT, Gemini) hukukta **yasa uydurur** — madde numarası, k
 | **Retrieval Accuracy @1** | **%81.2** | top-1 doğru domain (186 vaka benchmark) |
 | **Retrieval Accuracy @5** | **%97.3** | top-5'te doğru domain |
 | **MRR** | **0.879** | mean reciprocal rank |
-| **Test** | 662 | ruff ✅ · mypy strict ✅ · bandit ✅ |
+| **Dava Sonucu Tahmini** | **f1_macro 0.825** | BERT-TR, 3-class, ECE 0.011 (kalibre); 18k dengeli silver-label |
+| **Test** | 705 | ruff ✅ · mypy strict (227 dosya) ✅ · bandit ✅ |
 
 </div>
 
@@ -148,11 +149,11 @@ adalet-agent/
 │   ├── alembic/             # DB migration (async)
 │   ├── retrieval/           # BGE-M3 hybrid + RAPTOR + GraphRAG + reranker
 │   ├── multimodal/          # OCR (Tesseract) + STT (Whisper) + TTS (Piper)
-│   ├── predictive/          # Tahmin modeli (BERT-TR — eğitim bekliyor)
+│   ├── predictive/          # Tahmin modeli (BERT-TR — eğitildi: f1_macro 0.825)
 │   ├── verifier/            # NLI + LettuceDetect + RARR
 │   ├── eval/                # Ragas + benchmark runner + verify kalibrasyon
 │   ├── scripts/             # Seed (mevzuat/HF/Danıştay/GİB) + bootstrap + cron
-│   └── tests/               # 662 test (api·agents·db·retrieval·verifier·multimodal)
+│   └── tests/               # 705 test (api·agents·db·retrieval·verifier·multimodal)
 ├── mobile/                  # Flutter iOS+Android (Üye 2 — yapım aşamasında)
 ├── docs/
 │   ├── decisions/           # ADR-001..009
@@ -173,7 +174,7 @@ adalet-agent/
 | **PostgreSQL** | feedback · api_key · audit · eval (kalıcı) | `DATABASE_URL` set ise (yoksa dosya fallback) |
 | **Redis** | session (multi-turn) · rate-limit · cache | `SESSION_STORE_KIND=redis` |
 
-**LLM mode** (`.env` → `LLM_MODE`): `mock` (dev default) · `llamacpp_server` (Qwen 14B HTTP) · `llamacpp` (in-proc CUDA). Gerçek LLM: [docs/runbooks/llm-production-setup.md](docs/runbooks/llm-production-setup.md)
+**LLM mode** (`.env` → `LLM_MODE`): `mock` (local dev/test) · `llamacpp_server` (production Qwen 14B HTTP) · `llamacpp` (in-proc CUDA). Gerçek LLM: [docs/runbooks/llm-production-setup.md](docs/runbooks/llm-production-setup.md)
 
 ---
 
@@ -193,9 +194,9 @@ uv run python -m scripts.eval_run --version v2 --rerank   # benchmark ölçümü
 
 ```powershell
 cd backend
-uv run --extra dev pytest tests/ -q                          # 662 test
+uv run --extra dev pytest tests/ -q                          # 705 test
 uv run --extra dev ruff check .                              # 0 hata
-uv run --extra dev mypy .                                    # 215 dosya, 0 hata
+uv run --extra dev mypy .                                    # 227 dosya, 0 hata
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii     # güvenlik taraması
 ```
 
@@ -209,7 +210,7 @@ uv run --extra dev bandit -r . -c pyproject.toml -ll -ii     # güvenlik taramas
 | 🔐 | **Test verisinde gerçek TCKN/telefon/isim YOK** — hep sahte (`Ayşe Yılmaz`, `0555-123-4567`) |
 | 🏠 | **Production'da bulut LLM YOK** — yalnız lokal model (KVKK) |
 | 🔑 | **Hardcoded secret YOK** — `.env` kullan |
-| ⚖️ | **Sadece tüketici + iş + kira hukuku** — ceza/aile kapsam dışı (etik + yetkinlik) |
+| ⚖️ | **8 sivil hukuk alanı** (tüketici·iş·kira·icra·trafik·vergi·tapu·idari) — **ceza/aile kapsam dışı** (etik + yetkinlik), triaj `unknown` döndürür |
 
 ---
 

@@ -197,8 +197,8 @@ flowchart LR
 
 | Metric | Değer |
 |---|---|
-| Test sayısı | **662** |
-| mypy --strict | 0 hata (**215 dosya**) · ruff ✅ · bandit ✅ |
+| Test sayısı | **705** |
+| mypy --strict | 0 hata (**227 dosya**) · ruff ✅ · bandit ✅ |
 | Corpus | **159k vektör** (8 domain; 62k→159k) |
 | Retrieval | **domain@1 %81.2 · @5 %97.3 · MRR 0.88** (186 vaka, ölçüldü) |
 | İlişkisel DB | **PostgreSQL** (feedback/api_key/audit, env-gated, Alembic) |

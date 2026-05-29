@@ -58,6 +58,24 @@ Komut: `uv run python -m scripts.eval_run --version v2 --rerank`.
 | tüketici | %66.7 | 28/42 |
 | idari | %40.0 | 4/10 |
 
+### Mod karşılaştırması — HYBRID vs +RERANK (186 vaka, 2026-05-29)
+Komut: `eval_run --version v2` (hybrid) vs `--version v2 --rerank`.
+
+| Mod | @1 | @5 | MRR | kw-recall | Ort. gecikme | P95 |
+|---|---:|---:|---:|---:|---:|---:|
+| **Hybrid** (BM25+dense+RRF) | %81.7 | %96.2 | 0.884 | %79.6 | **260 ms** | **69 ms** |
+| **+Rerank** (BGE-reranker-v2-m3) | %81.2 | %97.3 | 0.879 | %78.2 | 2780 ms | 12180 ms |
+
+**Bulgu (tez için kritik):** Cross-encoder rerank, domain@1'de **kazanç
+sağlamıyor** (hatta %81.7→%81.2 hafif düşüş) ve MRR/kw-recall'ı da iyileştirmiyor;
+yalnız @5'te marjinal (+%1.1). Buna karşın **~10× gecikme** (260→2780 ms ort.,
+69 ms→12.18 s P95) getiriyor. Bu, "cross-encoder Türkçe konuşma-diline zayıf →
+domain-öncelikli tier-sort" tasarım kararını (ADR/§3) **sayısal olarak doğrular**:
+rerank'in bu corpus + vatandaş-dili sorgularında maliyet/fayda oranı negatif.
+Production default `LLM_MODE` benzeri bir `RERANK_ENABLED` flag'iyle hybrid-only
+kullanım, kaliteden ödün vermeden P95'i ~177× düşürür. (hyde/multi_query modları
+gerçek LLM gerektirir → henüz koşulmadı, §4 bekleyen.)
+
 **Metodolojik not (önemli):** `domain@1` metriği, kanun (mevzuat) chunk'larında
 `domain` payload alanı bulunmadığından, kanun chunk'larını `kanun_kodu → domain`
 eşlemesiyle (`DOMAIN_TO_KANUN_KODU` ters haritası) sınıflar. Bu düzeltme olmadan
@@ -84,15 +102,55 @@ kavramsal olarak diğer domainlerle örtüşmesi + küçük örneklem. Diğer 7 
 
 **Ölçüldü:**
 - Retrieval rerank modu (yukarıda) ✅
+- Retrieval hybrid-only modu + rerank karşılaştırması (10× latency bulgusu) ✅
 - Real-LLM smoke (paper-draft §4.4, 3 vaka, Qwen 14B) ✅
 
+**Harness hazır — yalnız GPU koşumu bekliyor (Üye 4):**
+- **Verify ON/OFF ablasyon (paper §4.2)** — harness kuruldu:
+  `eval/verify_ablation.py` + `VERIFY_ENABLED=0` bypass kaldıracı
+  (`agents/nodes/verify.py`). Aynı soruları doğrulama AÇIK/KAPALI koşar;
+  block-rate + claim-support Δ + [DOĞRULA] Δ ölçer. Çekirdek mantık unit-test'li
+  (`tests/eval/test_verify_ablation.py`). Koşum: `LLM_MODE=llamacpp_server
+  uv run python -m eval.verify_ablation --include-edge`.
+- **Edge-case (OWASP LLM Top-10, 24 vaka — paper §4.3)** — runner zaten vardı,
+  CLI eklendi: `uv run python -m eval.edge_cases` → `eval/runs/edge_cases_*.json`.
+
+**Ölçüldü — Tahmin modeli (BERT-TR), GPU baseline (2026-05-29):**
+
+İlk uçtan-uca eğitim — `auto_label`(CPU, leak-free silver-label) → `train`(GPU,
+RTX 4070 fp16) → `calibrate_model`(temperature scaling + ECE). Pipeline doğrulandı.
+
+| Metrik | Değer | Not |
+|---|---:|---|
+| Test accuracy | **%82.6** | 3-class (kazandı/kaybetti/kısmi); random ≈%33 |
+| Test f1_macro | **0.825** | dengeli set → her sınıf adil temsil |
+| **ECE (kalibrasyon)** | **0.0825 → 0.0109** | temperature scaling (T=1.56) uygulandı; hedef ≤0.05 ✓ |
+| Eğitim verisi | 14400 train / 1800 val / 1800 test | **18.000 dengeli** silver-label (6000/sınıf, 613k karar tarandı, 9 shard) |
+| Model | dbmdz/bert-base-turkish-cased | 110M, 4 epoch, lr 2e-5, fp16, class-weighted CE |
+
+**Veri ölçeği ablasyonu (öğrenme):** 1-shard 3.3K imbalanced → f1 **0.656**;
+9-shard 18K **dengeli** → f1 **0.825**. İmbalanced 26K (class-weight) → 0.791.
+Bulgu: **denge > ham boyut**; dengeli 18K en iyi. ECE 0.0825 (fazla-güven) →
+temperature T=1.56 ile **0.0109** (model artık kalibre — "%X kazanırsın" gerçekten
+%X). `temperature.json: temperature_applied=true`.
+
+**Dürüst tavan notu:** f1_macro **0.825** facts-only (hüküm HARİÇ, leak-free) +
+**silver-label** (heuristic ~%70-90) için güçlü bir sonuç; daha yükseği (≥0.88)
+**gold eval-set** (insan-etiketli, Cohen's kappa — tez Hafta-2 planı) gerektirir.
+Label leakage (hükmü input'a koymak) f1'i şişirir ama modeli vatandaş için
+işe yaramaz kılar (leak-free tasarım metodolojik katkıdır). Model `inference.py`'de
+canlı: checkpoint varsa BERT (T=1.56 kalibre), yoksa heuristic fallback.
+
 **Henüz ölçülmedi (gelecek iş — Üye 4):**
-- Retrieval mod karşılaştırması (hybrid-only / hyde / multi_query / raptor) — yalnız
-  rerank koşuldu; paper §4.1 diğer satırları bunlarla dolacak.
+- HyDE / multi_query / raptor modları (gerçek LLM gerektirir) — paper §4.1
+  kalan satırları bunlarla dolacak.
 - Ragas faithfulness / answer_relevancy / context_precision tam koşum (186 vaka).
-- Verify ON/OFF halüsinasyon tespit oranı (paper §4.2).
-- Edge-case (OWASP LLM Top-10, 24 vaka) pass/reject doğruluğu (paper §4.3).
-- Tahmin modeli (BERT-TR) — eğitilmedi; tez deneyleri bekliyor.
+- Tahmin modeli: çok-shard ölçek + gold eval-set (hedef f1_macro ≥0.75).
+
+> **Not:** §4.2/§4.3 sayıları **gerçek Qwen 14B GPU** ile koşulmalı — MockLLM
+> canned cevap verir, ON/OFF farkı/adversarial tepki anlamsız olur. Harness'ler
+> MockLLM ile smoke-koşar ama ürettiği sayılar tez sonucu DEĞİLDİR (payload
+> `meta.note` bunu işaretler).
 
 ## 5. Reproducibility
 ```bash

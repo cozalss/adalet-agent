@@ -2,7 +2,7 @@
 
 > **Güncel durum (Mayıs 2026):** FastAPI + LangGraph üzerinde **doğrulamalı
 > çoklu-ajan Türkçe Hukuk RAG**.
-> **662 test** · ruff ✅ · mypy strict (215 dosya) ✅ · bandit ✅ · JWT+API-key auth.
+> **705 test** · ruff ✅ · mypy strict (227 dosya) ✅ · bandit ✅ · JWT+API-key auth.
 >
 > **Corpus:** 159k vektör (8 domain) · **Retrieval:** domain@1 %81.2, @5 %97.3, MRR 0.88
 > (186-vaka benchmark, ölçüldü → [docs/theses/measured-results.md](../docs/theses/measured-results.md)).
@@ -31,7 +31,7 @@ Detay: [`eval/runs/W{1..10}_changes.md`](eval/runs/).
 > **Sprint-5/6+ (güncel):** Corpus 62k→159k (HF Yargıtay 700k seed + Danıştay
 > idari/vergi + GİB özelge); PostgreSQL ilişkisel katman (repository pattern +
 > Alembic); retry artık re-retrieve eder; API/auth hardening (security headers,
-> IDOR owner-binding, API key hash); domain-öncelikli tier-sort. 662 test.
+> IDOR owner-binding, API key hash); domain-öncelikli tier-sort. 705 test.
 
 ## Modüller
 
@@ -59,7 +59,7 @@ backend/
 ├── eval/              eval_run, freeze_baseline, edge_cases, ragas_full, judge
 │   └── runs/          Sprint changelogs + JSON outputs + manifest.json
 ├── scripts/           Seed (mevzuat/HF/Danıştay/GİB/UYAP) + build + backup + smoke
-└── tests/             pytest — 662 test (api·agents·db·retrieval·verifier·multimodal)
+└── tests/             pytest — 705 test (api·agents·db·retrieval·verifier·multimodal)
 ```
 
 ## Quickstart
@@ -74,7 +74,7 @@ uv run uvicorn main:app --reload --port 8000
 ### Production smoke (real Qwen + mock retrieval)
 ```bash
 # 1) llama-server (RTX 4070, ~30s yükleme)
-./llama-server -m models/qwen2.5-14b-q4_k_m.gguf -ngl 20 --ctx-size 8192 --port 8080
+./llama-server -m models/Qwen2.5-14B-Instruct-Q5_K_M.gguf -ngl 20 --ctx-size 8192 --port 8080
 
 # 2) Smoke (Qdrant gerek yok)
 LLM_MODE=llamacpp_server PYTHONUTF8=1 \
@@ -89,7 +89,8 @@ cp ../.env.example ../.env
 nano ../.env  # REDIS_PASSWORD, QDRANT_API_KEY, JWT_SECRET doldur
 
 # Compose
-docker compose --env-file ../.env up -d
+cd ..
+docker compose --profile production --env-file .env up -d
 curl https://staging.adalet.app/health  # Caddy ACME alındıktan sonra
 ```
 
@@ -99,9 +100,9 @@ Detaylı deploy: [`docs/runbooks/deploy-staging.md`](../docs/runbooks/deploy-sta
 
 ```bash
 # Tam suite (mock LLM)
-uv run --extra dev pytest tests/ -q                  # 662 test
+uv run --extra dev pytest tests/ -q                  # 705 test
 uv run --extra dev ruff check .                      # 0 hata
-uv run --extra dev mypy .                            # 215 dosya, 0 hata
+uv run --extra dev mypy .                            # 227 dosya, 0 hata
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii   # güvenlik
 
 # DB katmanı (aiosqlite, container'sız)
