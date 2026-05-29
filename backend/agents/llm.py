@@ -154,6 +154,12 @@ class LlamaCppClient:
                 draft_model = LlamaPromptLookupDecoding(num_pred_tokens=10)
         flash_attn = _os2.getenv("LLM_FLASH_ATTN", "1").lower() in {"1", "true", "yes"}
 
+        # n_threads opsiyonel (LLM_N_THREADS); varsayılan = llama.cpp kendi seçer
+        # (fiziksel çekirdek). Düşük değer uzun-prompt prefill'ini YAVAŞLATIR
+        # (CPU-side batch ops), o yüzden default'a dokunmuyoruz.
+        _nt = _os2.getenv("LLM_N_THREADS")
+        n_threads = int(_nt) if _nt else None
+
         log.info(
             "llm_loading",
             model_path=self.model_path,
@@ -161,20 +167,25 @@ class LlamaCppClient:
             n_ctx=self.n_ctx,
             flash_attn=flash_attn,
             speculative=draft_model is not None,
+            n_threads=n_threads,
         )
-        return Llama(
-            model_path=self.model_path,
-            n_gpu_layers=self.n_gpu_layers,
-            n_ctx=self.n_ctx,
+        kwargs: dict[str, Any] = {
+            "model_path": self.model_path,
+            "n_gpu_layers": self.n_gpu_layers,
+            "n_ctx": self.n_ctx,
             # prompt-processing throughput; flash_attn KV-cache'i küçülttüğünden
             # 4070'te 1024 sığar. VRAM dararsa LLM_N_BATCH=512.
-            n_batch=int(_os2.getenv("LLM_N_BATCH", "1024")),
-            offload_kqv=True,
-            flash_attn=flash_attn,
-            draft_model=draft_model,
-            verbose=False,
-            chat_format=self.chat_format,
-        )
+            "n_batch": int(_os2.getenv("LLM_N_BATCH", "1024")),
+            "offload_kqv": True,
+            "flash_attn": flash_attn,
+            "draft_model": draft_model,
+            "verbose": False,
+            "chat_format": self.chat_format,
+        }
+        if n_threads is not None:
+            kwargs["n_threads"] = n_threads
+            kwargs["n_threads_batch"] = n_threads
+        return Llama(**kwargs)
 
     async def chat(
         self,

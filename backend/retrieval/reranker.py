@@ -33,6 +33,16 @@ RERANKER_FP16 = os.getenv("RERANKER_FP16", "true").lower() == "true"
 # production'da örn. 0.3 ile açılır.
 RERANK_SCORE_MIN = float(os.getenv("RERANK_SCORE_MIN", "0.0"))
 
+# Cross-encoder input token TAVANI. KRİTİK PERF: BGE-reranker-v2-m3 varsayılan
+# max_length 8192 token. Mevzuat corpus'unda bazı chunk'lar devasa (ölçüldü:
+# 48.000 / 27.000 karakter ≈ 16K+ token — chunking artefaktı). Truncation
+# olmadan cross-encoder bu dev metinleri 8192 token'a kesip O(8192²) attention
+# ile CPU'da işliyor → tek mevzuat rerank'ı 665s sürüyordu (emsal 29s). 512 token
+# rerank için standart + yeterli (alaka ilk pasajda belli olur); O(8192²)→O(512²)
+# ~256× daha az hesap. Quality-nötr: dev chunk zaten chunking hatası, ilk 512
+# token alaka sinyalini taşır. Uzun chunk'lar gerekirse RERANK_MAX_LENGTH artır.
+RERANK_MAX_LENGTH = int(os.getenv("RERANK_MAX_LENGTH", "512"))
+
 
 @dataclass(slots=True)
 class RerankResult:
@@ -81,8 +91,11 @@ class Reranker:
             self.model_name, use_fp16, resolved,
         )
         # CrossEncoder daha stabil — FlagReranker tokenizer bug yok
+        # max_length: dev chunk'ları kesip O(n²) attention patlamasını önler
+        # (bkz. RERANK_MAX_LENGTH — mevzuat rerank 665s→saniyeler).
         return CrossEncoder(
             self.model_name,
+            max_length=RERANK_MAX_LENGTH,
             device=resolved,
             automodel_args={"torch_dtype": "float16"} if use_fp16 else {},
             trust_remote_code=False,
