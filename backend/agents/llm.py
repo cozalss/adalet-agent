@@ -137,20 +137,41 @@ class LlamaCppClient:
             if hasattr(_os, "add_dll_directory") and _os.path.isdir(_lib):
                 _os.add_dll_directory(_lib)
 
+        import os as _os2
+
         from llama_cpp import Llama
+
+        # KAYIPSIZ hızlandırma (çıktı dağılımı DEĞİŞMEZ — kalite aynı, decode hızlı):
+        #  - prompt-lookup speculative decoding: taslak token'ları prompt'tan n-gram
+        #    lookup ile önerir, model doğrular. RAG'de cevap getirilen kanun/karar
+        #    metnini tekrar ettiğinden isabet yüksek → ~1.5-2× decode. (lossless)
+        #  - flash_attn: flash-attention kernel (bellek + hız).
+        # LLM_SPECULATIVE=0 / LLM_FLASH_ATTN=0 ile kapatılır (sorun çıkarsa).
+        draft_model = None
+        if _os2.getenv("LLM_SPECULATIVE", "1").lower() in {"1", "true", "yes"}:
+            with contextlib.suppress(Exception):
+                from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
+                draft_model = LlamaPromptLookupDecoding(num_pred_tokens=10)
+        flash_attn = _os2.getenv("LLM_FLASH_ATTN", "1").lower() in {"1", "true", "yes"}
 
         log.info(
             "llm_loading",
             model_path=self.model_path,
             n_gpu_layers=self.n_gpu_layers,
             n_ctx=self.n_ctx,
+            flash_attn=flash_attn,
+            speculative=draft_model is not None,
         )
         return Llama(
             model_path=self.model_path,
             n_gpu_layers=self.n_gpu_layers,
             n_ctx=self.n_ctx,
-            n_batch=512,
+            # prompt-processing throughput; flash_attn KV-cache'i küçülttüğünden
+            # 4070'te 1024 sığar. VRAM dararsa LLM_N_BATCH=512.
+            n_batch=int(_os2.getenv("LLM_N_BATCH", "1024")),
             offload_kqv=True,
+            flash_attn=flash_attn,
+            draft_model=draft_model,
             verbose=False,
             chat_format=self.chat_format,
         )

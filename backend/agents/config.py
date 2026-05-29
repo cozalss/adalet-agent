@@ -87,7 +87,10 @@ DILEKCE_MAX_PDF_BYTES = int(os.getenv("DILEKCE_MAX_PDF_BYTES", "5242880"))
 DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
 
 # --- LLM ---
-LLM_MAX_TOKENS = 2048            # draft cevabı için (5 bölüm yapısal → daha uzun)
+# draft cevabı için TAVAN (gerçek cevaplar EOS ile ~600 token'da durur; bu yalnız
+# runaway-tail'i bağlar — normal cevabı kısaltmaz/yavaşlatmaz, kalite-nötr).
+# env ile ayarlanır; uzun cevap truncate olursa LLM_MAX_TOKENS=2048.
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1536"))
 LLM_TEMPERATURE = 0.1            # hukuki üretim — düşük sıcaklık şart
 LLM_CONTEXT_BUDGET = 3000        # context'in retrieval'a ayrılan token oranı
 
