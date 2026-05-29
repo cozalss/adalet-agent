@@ -19,7 +19,7 @@ pipeline çalışmaya devam etsin. Fallback rapidfuzz token-coverage.
 Notlar:
 - Model ilk çağrıda indirilir (~700MB).
 - CPU çıkarımı ~150ms/cevap; GPU ~30ms.
-- KVKK uyumlu: yerel inference, dışa veri sızdırma yok.
+- Gizlilik odaklı: yerel inference, dış model servisine veri gönderimi yok.
 """
 
 from __future__ import annotations

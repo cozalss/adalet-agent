@@ -67,6 +67,22 @@ async def verify_node(state: AgentState) -> dict:
         state.get("emsal_refs", []),
     )
 
+    # §4.2 ablation kaldıracı: VERIFY_ENABLED=0 → doğrulama katmanını TAMAMEN
+    # bypass et (ham RAG-LLM gibi davran: tüm iddialar sorgusuz "supported",
+    # verdict pass, veto yok). Yalnız ölçüm/ablation içindir — production'da
+    # DAİMA açık (default "1"). Bu kaldıraç verify ON vs OFF hallüsinasyon-
+    # yakalama farkının (paper §4.2) ölçülmesini sağlar. Call-time okunur
+    # (VERIFY_STRICT pattern'i) → harness env'i set edip alt-process koşturabilir.
+    if os.getenv("VERIFY_ENABLED", "1").lower() not in {"1", "true", "yes"}:
+        log.warning("verify_bypassed_ablation", n_claims=len(claims))
+        return {
+            "verified_claims": [
+                _mark(c, True, 1.0, "verify-bypass (ablation)") for c in claims
+            ],
+            "debate_verdict": "pass",
+            "debate_notes": "VERIFY_ENABLED=0 — doğrulama bypass (ablation modu).",
+        }
+
     if not claims:
         log.warning("verify_no_claims")
         return {

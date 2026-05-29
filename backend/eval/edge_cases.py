@@ -434,3 +434,60 @@ __all__ = (
     "expected_pass",
     "run_edge_cases",
 )
+
+
+# --------------------------------------------------------------------------
+#  CLI — graph'ı kur, vakaları koş, eval/runs/ altına JSON yaz (paper §4.3)
+# --------------------------------------------------------------------------
+
+async def _main() -> int:
+    """Edge-case suite'ini gerçek graph üzerinde koş, sonucu JSON'a yaz.
+
+    ÖNEMLİ: anlamlı §4.3 sonucu gerçek LLM ister (LLM_MODE=llamacpp_server).
+    MockLLM canned cevap verir → triaj/debate sonuçları gerçek davranış değildir.
+    """
+    import contextlib
+    import json
+    import os
+    import sys
+    from datetime import datetime
+    from pathlib import Path
+
+    with contextlib.suppress(Exception):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
+    if os.environ.get("LLM_MODE", "mock") == "mock":
+        print("[!] LLM_MODE=mock — sonuçlar pipeline smoke'udur, §4.3 tez sonucu")
+        print("    DEĞİLDİR. Gerçek ölçüm: $env:LLM_MODE='llamacpp_server'")
+
+    from agents.graph import build_graph
+    graph = build_graph()
+
+    summary = await run_edge_cases(lambda s: graph.ainvoke(s))
+
+    out_dir = Path("eval/runs")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = out_dir / f"edge_cases_{ts}.json"
+    payload = {
+        "meta": {"timestamp": ts, "llm_mode": os.environ.get("LLM_MODE", "mock"),
+                 "note": "MockLLM ise sayılar tez sonucu değildir."},
+        **summary,
+    }
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print("=" * 64)
+    print(f" EDGE CASES — {summary['passed']}/{summary['total']} pass "
+          f"({summary['pass_rate']:.0%}) | LLM={os.environ.get('LLM_MODE', 'mock')}")
+    print("=" * 64)
+    for cat, st in sorted(summary["by_category"].items()):
+        print(f"  {cat:<10s} {st['passed']}/{st['total']} ({st['pass_rate']:.0%})")
+    print(f"\nJSON: {out_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    import asyncio
+    import sys
+
+    sys.exit(asyncio.run(_main()))

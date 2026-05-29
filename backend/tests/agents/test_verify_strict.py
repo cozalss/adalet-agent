@@ -144,3 +144,50 @@ async def test_non_strict_nli_failure_degrades(
     # Fail-closed tetiklenmemeli: verdict reject'e zorlanmadı, claim'ler işlendi.
     assert len(result["verified_claims"]) == 2
     assert "kullanılamadı" not in result["debate_notes"].lower()
+
+
+# --------------------------------------------------------------------------
+#  VERIFY_ENABLED=0 ablation bypass (paper §4.2 OFF-arm)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_verify_enabled_zero_bypasses_all_checks(
+    base_state, sample_claims, monkeypatch,
+):
+    """VERIFY_ENABLED=0 → doğrulama TAMAMEN bypass; tüm claim'ler supported, pass.
+
+    Ablation OFF-arm: ham RAG-LLM gibi davranmalı (hiçbir katman koşmaz).
+    Doğrulayıcıları bilerek patlat — bypass onlara hiç dokunmamalı (çağırsaydı
+    fixture-less ortamda farklı sonuç çıkardı). Bu, §4.2'nin "verify kapalıyken
+    uydurma iddialar geçer" ölçümünün temelini garanti eder.
+    """
+    monkeypatch.setenv("VERIFY_ENABLED", "0")
+    monkeypatch.delenv("VERIFY_STRICT", raising=False)
+    monkeypatch.setattr("agents.verifier_layers.get_lettuce", _BoomLettuce, raising=False)
+    monkeypatch.setattr("agents.verifier_layers.get_verifier", _nli_boom, raising=False)
+
+    base_state["claims"] = sample_claims[:3]
+    result = await verify_node(base_state)
+
+    assert result["debate_verdict"] == "pass"
+    assert len(result["verified_claims"]) == 3
+    assert all(c["verified"] for c in result["verified_claims"])
+    assert "bypass" in result["debate_notes"].lower()
+
+
+@pytest.mark.asyncio
+async def test_verify_enabled_default_does_not_bypass(
+    base_state, sample_claims, monkeypatch,
+):
+    """VERIFY_ENABLED set DEĞİLse (default ON) bypass tetiklenmez — normal yol koşar."""
+    monkeypatch.delenv("VERIFY_ENABLED", raising=False)
+    monkeypatch.delenv("VERIFY_STRICT", raising=False)
+    monkeypatch.setattr("agents.verifier_layers.get_lettuce", _OkLettuce, raising=False)
+    monkeypatch.setattr("agents.verifier_layers.get_verifier", _nli_boom, raising=False)
+
+    base_state["claims"] = sample_claims[:2]
+    result = await verify_node(base_state)
+
+    # Bypass notu OLMAMALI — normal aggregation çalıştı.
+    assert "bypass" not in result["debate_notes"].lower()
