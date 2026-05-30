@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -24,7 +25,7 @@ logger = logging.getLogger("sync_mursit")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
 SOURCE = "adalet"
-TARGET = "adalet_mursit"
+TARGET = os.getenv("QDRANT_COLLECTION", "adalet_mursit_hybrid")
 BATCH_SIZE = 64
 SCROLL_BATCH = 500
 

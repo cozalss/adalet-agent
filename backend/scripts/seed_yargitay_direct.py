@@ -115,6 +115,29 @@ DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
             "ön alım hakkı",
         ),
     ),
+    "vergi": (
+        ("7. Daire", "9. Daire", "Vergi Dava Daireleri Kurulu"),
+        (
+            "vergi cezası",
+            "katma değer vergisi",
+            "gelir vergisi",
+            "kurumlar vergisi",
+            "vergi incelemesi",
+            "re'sen tarhiyat",
+            "vergi ziyaı",
+            "özel usulsüzlük cezası",
+        ),
+    ),
+    "idari": (
+        ("5. Daire", "10. Daire", "İdari Dava Daireleri Kurulu"),
+        (
+            "iptal davası",
+            "idari işlem iptali",
+            "disiplin cezası",
+            "memuriyet ihraç",
+            "görevden uzaklaştırma",
+        ),
+    ),
 }
 
 DATE_WINDOWS: tuple[tuple[str, str], ...] = (
