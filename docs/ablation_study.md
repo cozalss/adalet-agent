@@ -261,9 +261,21 @@ NewMindAI'nin **Mecellem** koleksiyonundan Mursit-Base-TR-Retrieval (155M, Moder
 
 **Temel bulgu:** Mursit, BGE-M3'e göre ortalama **2,5× daha iyi** ilgili/ilgisiz ayrımı yapıyor. Kritik fark ilgisiz metin skorlarında: BGE-M3 0,315–0,463 aralığında kalırken Mursit 0,099–0,173'e düşüyor — Türkçe hukuk metinleri için çok daha keskin sınır.
 
-#### 4.3.3 Yeniden Index Planı
+#### 4.3.3 Üretim Benchmark Sonuçları
 
-Mevcut "adalet" koleksiyonu (BGE-M3, 1024-dim, 159K nokta) `scripts/reindex_mursit.py` ile yeniden index edilmekte. Yeni "adalet_mursit" koleksiyonu (768-dim) oluşturulduktan sonra `QDRANT_COLLECTION=adalet_mursit` çevre değişkeni ile benchmark karşılaştırması yapılacak.
+`adalet_mursit_hybrid` koleksiyonu (Mursit 768-dim dense + BGE-M3 sparse IDF, 159,591 nokta) ile v2 186 vakalık benchmark (2026-05-30):
+
+| Konfigürasyon | domain@1 | domain@5 | kanun@5 | MRR | P95 |
+|---|---|---|---|---|---|
+| BGE-M3 baseline (hibrit) | 81,2% | 96,2% | 43,5% | 0,881 | 78 ms |
+| Mursit dense-only | 79,0% | **97,8%** | 51,1% | 0,872 | 27 ms |
+| **Domain-aware dual** | **80,1%** | 96,8% | **50,5%** | **0,877** | **45 ms** |
+
+**Domain-aware dual:** Mursit dense + BGE-M3 sparse (yalnızca vergi/trafik/icra domainleri için). Bu konfigürasyon kanun@5'te +7pp, latansta -%42 iyileştirme sağlarken domain@1'de BGE-M3'e yakın performansı korumaktadır.
+
+**Spekülatif retrieval:** HyDE ve Multi-Query sorgu başına 2 saniye bütçeyle arka planda çalışır; bütçe aşılırsa sistem hybrid fallback döner. Kullanıcı latansı: 45ms (temel) ile 2045ms (spekülatif HyDE etkin) arasında.
+
+**Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
 
 ---
 
@@ -280,6 +292,12 @@ Bu ablasyon çalışması dört temel bulguyu ortaya koymaktadır:
 **Bulgu 3 — LettuceDetect tamamlayıcı değer taşır.** LettuceDetect'in ayırt edici gücünün bulanık eşleşmeden yüzde 75 daha yüksek olması, özellikle çelişki kategorisinde jeton düzeyi zemin tespitinin anlam bilgisi içerdiğini göstermektedir.
 
 **Bulgu 4 — Cross-encoder, Türkçe kayıt farkına karşı savunmasızdır.** Konuşma dili ile resmi hukuk dili arasındaki boşluk, mevcut cross-encoder'ın sıralama güvenilirliğini olumsuz etkilemektedir. Bu sorun kısa vadede alan sıralama sezgisiyle kısmen hafifletilmiş; uzun vadede Türkçe hukuk verisi üzerinde ince ayarlı bir yeniden sıralayıcı gereksinimini ortaya koymuştur.
+
+**Bulgu 5 — Mursit-Base, Türkçe hukuk için BGE-M3'ü geçiyor.** Embedding kalite testinde Mursit-Base ortalama +151% daha iyi ilgili/ilgisiz ayrımı sağlamaktadır. Üretim benchmark'ında domain-aware dual konfigürasyon kanun@5'te +7pp iyileştirme ve %42 latans azalması sunmaktadır.
+
+**Bulgu 6 — Adaptif routing domain kalite regresyonlarını önler.** Global HyDE/MQ açılması trafik -20pp, vergi -40pp gibi ciddi regresyonlara yol açmaktadır. Domain bazlı whitelist (tuketici/kira/vergi → HyDE; trafik/kira/idari → MQ) bu regresyonları ortadan kaldırırken kazanımlı domainlerde iyileşmeyi korumaktadır.
+
+**Bulgu 7 — Spekülatif retrieval kullanıcı latansını sınırlar.** HyDE'nin 4825ms ortalama latansı, spekülatif mod ile 45ms temel + 2000ms deadline = ~2045ms sınırına çekilmektedir. Deadline aşılırsa sistem hybrid sonucunu döner; kalite regresyonu yoktur.
 
 ### 5.2 Açık Sorunlar ve Gelecek Çalışmalar
 
