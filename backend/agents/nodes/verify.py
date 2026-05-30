@@ -190,6 +190,17 @@ async def verify_node(state: AgentState) -> dict:
         verified.append(_mark(claim, False, best, f"Yetersiz kanıt (best={best:.2f})"))
 
     verdict = _verdict_from_ratio(n_supported, len(claims), state, contradictions)
+
+    # Ölçüm-amaçlı hook: FORCE_RETRY_ONCE=1 → ilk geçişte (retry_count==0) verdict'i
+    # retry'a zorla. retry yolu latans maliyetini (P99) deterministik ölçmek için —
+    # production'da ASLA set edilmez (VERIFY_ENABLED ablation hook'u gibi).
+    if (
+        os.getenv("FORCE_RETRY_ONCE", "0").lower() in {"1", "true", "yes"}
+        and state.get("retry_count", 0) == 0
+        and verdict == "pass"
+    ):
+        verdict = "retry"
+
     notes = (
         f"{n_supported}/{len(claims)} iddia doğrulandı, "
         f"{contradictions} çelişki tespit edildi."

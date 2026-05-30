@@ -291,7 +291,20 @@ Tek sorgu ölçümü kuyruk (tail) latency hakkında yanıltıcıdır. `scripts/
 | P99 | 17.500 ms |
 | Min / Max | 2.400 / 17.500 ms |
 
-**Darboğaz:** Toplam sürenin ~%80'i LLM üretimidir (Qwen 14B, 320 token ≈ 9.5s; retrieval ≈ 1-2s; NLI ≈ 1s). P95'in P50'den 4 saniye yüksek olması LLM üretim süresinin değişkenliğinden kaynaklanır. **Not:** Bu örneklemde hiç debate-retry tetiklenmedi; retry yolu (mevzuat+emsal+draft+verify tekrarı) P99'u 25s+ seviyesine çıkarabilir — ayrı izlenmelidir.
+**Darboğaz:** Toplam sürenin ~%80'i LLM üretimidir (Qwen 14B, 320 token ≈ 9.5s; retrieval ≈ 1-2s; NLI ≈ 1s). P95'in P50'den 4 saniye yüksek olması LLM üretim süresinin değişkenliğinden kaynaklanır.
+
+#### 4.3.5 Retry Yolu Latansı (`--force-retry`)
+
+İlk örneklemde hiç retry tetiklenmedi. `scripts/latency_profile.py --force-retry` ile retry yolu deterministik ölçüldü (12 sorgu, 2026-05-30):
+
+| Yol | P50 | P95/P99 | Maks |
+|---|---|---|---|
+| Retry YOK (default config) | 13.100 ms | 17.000 ms | 17.500 ms |
+| Retry VAR (DEBATE_LLM_ON_RETRY=1) | 26.197 ms | **32.328 ms** | 32.328 ms |
+
+**Kritik bulgu — default config retry-fırtınasına karşı korumalıdır:** Varsayılan dağıtımda `DEBATE_LLM_ON_RETRY=0`'dır. Bu modda verify "retry" verdict'i üretse bile, debate node bunu **loop yapmadan** anında çözer (`agents/nodes/debate.py`): en az bir doğrulanmış iddia varsa `pass` (kısmi cevap), yoksa `reject`. Yani mevzuat+emsal+draft+verify tekrarı **gerçekleşmez** → retry latans kuyruğu yoktur.
+
+Gerçek retry döngüsü yalnızca `DEBATE_LLM_ON_RETRY=1` (opt-in) ile etkindir; bu modda bir LLM kritik çağrısı + tam pipeline tekrarı eklenir ve P99 ~2.4× artarak 32 saniyeye çıkar. Bu kalite-latans dengesi opt-in olarak bilinçli bırakılmıştır.
 
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 

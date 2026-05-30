@@ -31,6 +31,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core import native_preload  # noqa: F401
 
+# Windows cp1254 konsolda Türkçe/sembol (←, →) UnicodeEncodeError yapar — utf-8'e zorla.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 logger = logging.getLogger("latency_profile")
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s  %(message)s")
 
@@ -57,6 +61,13 @@ def _load_cases(version: str, n: int) -> list[dict]:
 async def main(args: argparse.Namespace) -> None:
     from agents.graph import build_graph
     from agents.state import AgentState
+
+    # --force-retry: her sorguyu retry yolundan geçir (mevzuat+emsal+draft+verify
+    # 2x koşar). Retry P99'unu ölçmek için — normal run'da retry doğal olarak nadir.
+    if args.force_retry:
+        import os
+        os.environ["FORCE_RETRY_ONCE"] = "1"
+        print("MOD: FORCE_RETRY_ONCE=1 — her sorgu 1 retry döngüsünden geçecek\n", flush=True)
 
     cases = _load_cases(args.version, args.n)
     graph = build_graph()
@@ -159,4 +170,6 @@ if __name__ == "__main__":
     parser.add_argument("--version", default="v1", choices=["v1", "v2"])
     parser.add_argument("--n", type=int, default=30, help="Sorgu sayısı (min örneklem)")
     parser.add_argument("--out", default=None, help="JSON çıktı yolu")
+    parser.add_argument("--force-retry", action="store_true",
+                        help="Her sorguyu retry yolundan geçir (retry P99 ölçümü)")
     asyncio.run(main(parser.parse_args()))

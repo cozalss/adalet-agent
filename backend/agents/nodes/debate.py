@@ -67,6 +67,15 @@ async def debate_node(state: AgentState) -> dict:
             f"Retry limiti ({MAX_RETRY}) doldu; doğrulanmış cevap üretilemedi.",
         )
 
+    # Ölçüm-amaçlı hook: FORCE_RETRY_ONCE=1 → ilk geçişte gerçek retry loop'unu
+    # zorla (mevzuat+emsal+draft+verify 2x). Retry P99 maliyetini deterministik
+    # ölçmek için — production'da ASLA set edilmez. verify.py'deki kardeş hook ile
+    # birlikte: verify "retry" der, debate burada loop'u garanti eder.
+    import os
+    if os.getenv("FORCE_RETRY_ONCE", "0").lower() in {"1", "true", "yes"} and retry_count == 0:
+        return _final(state, "retry", "FORCE_RETRY_ONCE — ölçüm retry loop'u",
+                      increment_retry=True)
+
     if not _retry_llm_enabled():
         verified = state.get("verified_claims") or []
         if any(c.get("verified", False) for c in verified):
