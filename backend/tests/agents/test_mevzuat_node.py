@@ -294,6 +294,8 @@ async def test_mevzuat_combines_hyde_and_multi_query(monkeypatch):
     monkeypatch.setattr(mevzuat_mod, "route_query", _both_enabled)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_DOMAIN_FILTER_ENABLED", False)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
+    # Spekülatif modu kapat → mock'lar eski gather yolunda çalışsın
+    monkeypatch.setattr(mevzuat_mod, "SPECULATIVE_ENABLED", False)
 
     async def _fake_hyde(question, **kw):
         return [_sr("hyde-hit", 0.9, kanun_kodu="TKHK")]

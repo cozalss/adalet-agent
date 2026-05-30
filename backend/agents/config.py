@@ -144,6 +144,11 @@ QUERY_COMPLEXITY_THRESHOLD = float(os.getenv("QUERY_COMPLEXITY_THRESHOLD", "0.4"
 # ADAPTIVE_ROUTING_ENABLED=1 → domain+complexity routing aktif (önerilen).
 # =0 → eski davranış: HYDE_ENABLED/MULTI_QUERY_ENABLED global flag'leri direkt kullan.
 ADAPTIVE_ROUTING_ENABLED = os.getenv("ADAPTIVE_ROUTING_ENABLED", "1") not in {"0", "false", "False"}
+# Spekülatif arama: hybrid hemen başlar, HyDE/MQ bu süre içinde biterse kullanılır.
+# Bitmezse hybrid sonucu döner. Kullanıcı max baseline + DEADLINE = ~2.3s bekler.
+# A/B: HyDE ort. 4825ms → spekülatif mod ile ~322ms-2322ms aralığına çekilir.
+SPECULATIVE_DEADLINE_S = float(os.getenv("SPECULATIVE_DEADLINE_S", "2.0"))
+SPECULATIVE_ENABLED = os.getenv("SPECULATIVE_ENABLED", "1") not in {"0", "false", "False"}
 
 # --- Sprint-7/8 (Tier-3) opsiyonel SOTA toggle'ları ---
 # Default OFF: ENV=1 ile etkin. Bayrak kapalıyken graph topolojisi Sprint-3 ile aynı.

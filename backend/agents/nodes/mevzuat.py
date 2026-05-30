@@ -24,6 +24,8 @@ from agents.config import (
     MEVZUAT_DOMAIN_FILTER_ENABLED,
     MEVZUAT_RERANK_ENABLED,
     MULTI_QUERY_N,
+    SPECULATIVE_DEADLINE_S,
+    SPECULATIVE_ENABLED,
     TOP_K_LAW,
 )
 from retrieval.adaptive_router import route_query
@@ -33,6 +35,7 @@ from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
 from retrieval.reranker import get_reranker
+from retrieval.speculative_search import search_speculative
 
 log = structlog.get_logger()
 
@@ -64,15 +67,8 @@ async def mevzuat_node(state: AgentState) -> dict:
         return {"mevzuat_refs": []}
 
     target_k = TOP_K_LAW * 4
-    # HYDE_TIMEOUT_S sadece LLM hipotetik üretimi içindi — toplam search süresine
-    # Qdrant + embedder de eklenince +6s buffer makul (v11 ölçümünde 14B Q4 ile
-    # 200-token üretim ortalama 15-20s sürüyor; eski 2s+8 buffer çok dar idi).
-    timeout_total = HYDE_TIMEOUT_S + 25.0
-    results: list[SearchResult] = []
-    retrieval_modes: list[str] = []
 
-    # Adaptive routing: global flag yerine domain + karmaşıklık bazlı karar.
-    # A/B sonucu: HyDE trafik -20pp, idari -17pp; MQ tuketici -18pp, vergi -40pp.
+    # Adaptive routing: domain + karmaşıklık bazlı HyDE/MQ kararı.
     routing = route_query(question, domain)
     log.info(
         "mevzuat_routing",
@@ -81,37 +77,50 @@ async def mevzuat_node(state: AgentState) -> dict:
         domain=domain,
     )
 
-    _tasks: dict[str, Any] = {}
-    if routing.use_hyde:
-        _tasks["hyde"] = search_with_hyde(
-            question, top_k=target_k, domain=domain, qdrant_domain=None,
+    # Spekülatif arama: hybrid HEMEN başlar, HyDE/MQ paralel arka planda.
+    # Kullanıcı max SPECULATIVE_DEADLINE_S ek bekler (~2s), sonra hybrid fallback.
+    # SPECULATIVE_ENABLED=0 ise eski gather davranışına dön (test/debug için).
+    results: list[SearchResult]
+    if SPECULATIVE_ENABLED and (routing.use_hyde or routing.use_mq):
+        results, retrieval_mode = await search_speculative(
+            question=question,
+            routing=routing,
+            top_k=target_k,
+            target_k=target_k,
+            multi_query_n=MULTI_QUERY_N,
+            hyde_timeout_s=HYDE_TIMEOUT_S,
+            deadline_s=SPECULATIVE_DEADLINE_S,
         )
-    if routing.use_mq:
-        _tasks["mq"] = search_multi_query(
-            question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None,
-        )
-    if _tasks:
+    elif routing.use_hyde or routing.use_mq:
+        # Eski davranış: gather ile tam HyDE/MQ bekleme
+        retrieval_modes: list[str] = []
+        results = []
+        timeout_total = HYDE_TIMEOUT_S + 25.0
+        _tasks: dict[str, Any] = {}
+        if routing.use_hyde:
+            _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain, qdrant_domain=None)
+        if routing.use_mq:
+            _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None)
         _keys = list(_tasks.keys())
         _coros = [asyncio.wait_for(c, timeout=timeout_total) for c in _tasks.values()]
         _done = await asyncio.gather(*_coros, return_exceptions=True)
         for _key, _result in zip(_keys, _done):
             if isinstance(_result, BaseException):
                 if isinstance(_result, _RETRIEVAL_FALLBACK_EXCEPTIONS):
-                    log.warning(
-                        f"{_key}_timeout_fallback",
-                        error=str(_result) or type(_result).__name__,
-                        timeout_s=timeout_total,
-                    )
+                    log.warning(f"{_key}_timeout_fallback", error=str(_result) or type(_result).__name__)
                     retrieval_modes.append(f"{_key}_failed")
                 else:
-                    raise _result  # beklenmeyen hata propagate
+                    raise _result
             else:
                 results = _merge_dedup(_result, results)  # type: ignore[arg-type]
-                retrieval_modes.append(_key.replace("mq", "multi_query"))
-    if not results:
+                retrieval_modes.append(_key)
+        if not results:
+            results = await search(question=question, top_k=target_k, domain=None)
+            retrieval_modes.append("hybrid")
+        retrieval_mode = "+".join(retrieval_modes)
+    else:
         results = await search(question=question, top_k=target_k, domain=None)
-        retrieval_modes.append("hybrid")
-    retrieval_mode = "+".join(retrieval_modes)
+        retrieval_mode = "hybrid"
 
     laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)
     return {"mevzuat_refs": laws}
