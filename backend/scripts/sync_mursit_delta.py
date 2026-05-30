@@ -86,16 +86,41 @@ async def main(args: argparse.Namespace) -> None:
     model = SentenceTransformer("newmindai/Mursit-Base-TR-Retrieval", trust_remote_code=True)
     logger.info("Mursit hazır.")
 
+    # adalet'ten sparse vektörleri de çek (hybrid koleksiyon için)
+    logger.info("adalet sparse vektörleri okunuyor (hybrid için)...")
+    missing_ids = {p.id for p in missing}
+    sparse_map: dict = {}
+    offset = None
+    while True:
+        result, next_offset = await q.scroll(
+            collection_name=SOURCE,
+            limit=SCROLL_BATCH,
+            offset=offset,
+            with_vectors=["sparse"],
+            with_payload=False,
+        )
+        for p in result:
+            if p.id in missing_ids and p.vector and "sparse" in p.vector:
+                sparse_map[p.id] = p.vector["sparse"]
+        if next_offset is None:
+            break
+        offset = next_offset
+    logger.info("Sparse okundu: %d/%d eşleşti", len(sparse_map), len(missing))
+
     n_added = 0
     for batch_start in range(0, len(missing), BATCH_SIZE):
         batch = missing[batch_start:batch_start + BATCH_SIZE]
         texts = [p.payload.get("text", "") or p.payload.get("snippet", "") for p in batch]
         vecs = model.encode(texts, batch_size=BATCH_SIZE, convert_to_numpy=True, show_progress_bar=False)
 
-        points = [
-            PointStruct(id=p.id, vector={"dense": v.tolist()}, payload=p.payload)
-            for p, v in zip(batch, vecs)
-        ]
+        from qdrant_client.http.models import SparseVector
+        points = []
+        for p, v in zip(batch, vecs):
+            vec: dict = {"dense": v.tolist()}
+            if p.id in sparse_map:
+                sv = sparse_map[p.id]
+                vec["sparse"] = SparseVector(indices=sv.indices, values=sv.values)
+            points.append(PointStruct(id=p.id, vector=vec, payload=p.payload))
         await q.upsert(collection_name=TARGET, points=points)
         n_added += len(points)
 
