@@ -173,7 +173,10 @@ async def run_scorecard(version: str, n: int) -> tuple[Scorecard, list[dict]]:
 
     cases = _load_benchmark(version)[:n]
     graph = build_graph()
-    await graph.ainvoke(AgentState(question="ısınma"))  # ölçüm-dışı
+    # 2 ısınma — ilk LLM çağrısı soğuk-start (model paging) P95'i şişirir.
+    # İki ısınma ile ölçüm penceresi tamamen ısınmış olur; A/B adil kalır.
+    for _w in ("ısınma bir", "ısınma iki"):
+        await graph.ainvoke(AgentState(question=_w))
 
     rows = []
     for i, case in enumerate(cases, 1):

@@ -345,6 +345,27 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 **Bulgu 2 — baskın ve tekrarlanabilir sorun cevap uzunluğudur:** Cevapların %100'ü 160-220 kelime hedefinin altında (45-117 kelime). Bu, prompt'un yetersiz detay üretmesinden veya hedefin yanlış kalibrasyonundan kaynaklanır — kalite iyileştirmesinin birincil hedefi olmalıdır.
 
+#### 4.3.9 Prompt A/B — Kalite Kapısı (`eval/quality_gate.py`)
+
+"Prompt'u uzat" demeden önce ölçülü bir kapı kuruldu: 6 kriter (hedef-uzunluk↑, has_short_answer korunur, truncation↛, src_coverage korunur, unsupported↛, P95 ×1.20 tavan). Kapı saf/LLM'siz test edilebilir; baseline ve candidate scorecard'ları karşılaştırıp PASS/FAIL verir.
+
+**Kök neden tespiti:** Mevcut prompt 110-160 kelime istiyor ama eval hedefi 160-220; üstelik gerçek çıktılar (45-117) prompt'un kendi 110 tabanının bile altında. Prompt boyunca "kısa" çerçevesi ("kısa cevap", "kısa, doğru yanıt", "resmi rapor gibi uzatma") tek uzunluk talimatına baskın geliyor.
+
+**Candidate-1 (160-220 hedef + güçlü talimat + tek kompakt örnek):** Kapıdan **KALDI** ❌:
+
+| Kriter | Baseline | Candidate-1 | Sonuç |
+|---|---|---|---|
+| length_in_target | %0 | %0 | iyileşme YOK |
+| has_short_answer | %83 | %67 | ❌ format düştü |
+| truncation | %0 | %0 | ✅ |
+| src_coverage | %64 | **%74** | ✅ (örnek kaynaklamayı öğretti) |
+| unsupported | %25 | **%8** | ✅ (yan fayda) |
+| P95 | 52.050 ms | **87.077 ms** | ❌ örnek prompt'u şişirdi |
+
+**Negatif sonucun değeri:** (1) Tek örnek + güçlü talimat uzunluğu hiç iyileştirmedi — model bu sorgular için ~80 kelime üretmeye devam etti; (2) ~180 kelimelik örnek P95'i %67 bozdu (kullanıcının "few-shot latans artırır" uyarısı doğrulandı); (3) örnek kaynaklamayı iyileştirdi ama format işaretini düşürdü. Kapı, bu gerilemeyi production'a çıkmadan engelledi — prompt revert edildi.
+
+**Sıradaki hipotez:** Uzunluk sorununun kökü örnek eksikliği değil, prompt'taki yaygın "kısa" çerçevesidir. İkinci örnek eklemek (latansı daha da bozar) yerine, çelişen "kısa" sinyallerini kaldırıp bölüm-bazlı minimum-cümle talimatı denenmeli — örneksiz, latans-nötr.
+
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
 #### 4.3.8 Latans Gözlemleme (`/metrics/latency`)
