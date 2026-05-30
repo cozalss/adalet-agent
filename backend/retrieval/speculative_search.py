@@ -1,20 +1,23 @@
-"""Spekülatif retrieval — latans garantisi ile kalite iyileştirmesi.
+"""Spekülatif retrieval — sınırlı latans maliyetiyle kalite iyileştirmesi.
 
 Strateji:
-  1. Hybrid search HEMEN başlar (her zaman ~322ms, referans)
+  1. Hybrid search HEMEN başlar (baseline — her zaman döndürülecek sonuç)
   2. HyDE/MQ paralel başlar (potansiyel kalite artışı)
-  3. Kullanıcı max SPECULATIVE_DEADLINE_S bekler
-  4. HyDE/MQ deadline içinde biterse → kaliteli sonuç
-  5. Bitmezse → hybrid sonucu döner (ücretsiz fallback)
+  3. Advanced task'lar için bütçe = SPECULATIVE_DEADLINE_S WALL-CLOCK (request başından)
+  4. Bütçe içinde biten advanced → kaliteli sonuç; bitmeyenler iptal → hybrid fallback
 
-Garanti: kullanıcı asla baseline + deadline = ~2.3s'den fazla beklemez.
-A/B'de HyDE ortalama 4825ms iken; spekülatif mod ile:
-  - Kısa Qwen yanıtı (~2s): HyDE devreye girer → kalite kazanımı
-  - Uzun Qwen yanıtı (>2s): hybrid döner → sıfır latans regresyon
+Latans davranışı (wall-clock bütçe — DİKKAT: "garanti" değil, üst sınır):
+    toplam ≤ max(hybrid_ms, deadline_s)
+  - hybrid hızlı (örn. 50ms), deadline 2s → advanced'e ~1.95s, tavan 2s
+  - hybrid YAVAŞ (örn. 2.5s) → advanced anında iptal, spekülasyon 0 ek maliyet
+    → bu durumda toplam = hybrid_ms (baseline kadar; spekülasyon kötüleştirmez)
+
+ÖNEMLİ: hybrid'in kendisinin yavaşlaması (Qdrant GC, embedder cold, CE contention)
+toplam süreyi uzatabilir; spekülasyon bunu maskelemez. hybrid_ms ve advanced_ms
+ayrı loglanır (speculative_done event) ki darboğaz net görülsün.
 
 Yapılandırma:
-    SPECULATIVE_DEADLINE_S (env) = HyDE/MQ için ek bekleme süresi
-    default 2.0s → kullanıcı max ~2.3s bekler (baseline 322ms + 2000ms)
+    SPECULATIVE_DEADLINE_S (env, default 2.0) = advanced için wall-clock bütçe
 """
 
 from __future__ import annotations
@@ -65,6 +68,12 @@ async def search_speculative(
 
     loop = asyncio.get_event_loop()
 
+    # Wall-clock bütçe: deadline request başından ölçülür, hybrid bitince sıfırlanmaz.
+    # Garanti: toplam kullanıcı beklemesi ≤ max(hybrid_ms, deadline_s).
+    # - hybrid hızlıysa → advanced'e (deadline_s - hybrid_ms) kalır, tavan deadline_s.
+    # - hybrid yavaşsa → advanced anında iptal, spekülasyon 0 ek maliyet getirir.
+    t_start = loop.time()
+
     # --- 1. Hybrid HEMEN başlat ---
     hybrid_task: asyncio.Task = loop.create_task(
         search(question=question, top_k=target_k, domain=None),
@@ -87,13 +96,16 @@ async def search_speculative(
     # Sadece hybrid istendiyse (routing basit → hemen dön)
     if not advanced_tasks:
         results = await hybrid_task
+        hybrid_ms = (loop.time() - t_start) * 1000
+        log.info("speculative_done", strategy="hybrid", hybrid_ms=round(hybrid_ms),
+                 advanced_ms=0, domain=routing.domain)
         return results[:top_k], "hybrid"
 
-    # --- 3. Hybrid'i bekle (hızlı) ---
+    # --- 3. Hybrid'i bekle (baseline — her zaman döndürülecek) ---
     hybrid_results = await hybrid_task
-    t_hybrid = loop.time()
+    hybrid_ms = (loop.time() - t_start) * 1000
 
-    # --- 4. Deadline kontrolü: advanced task'lar bitti mi? ---
+    # --- 4. Advanced task'lar zaten bitti mi? ---
     remaining = []
     done_results: list[Any] = []
     done_keys: list[str] = []
@@ -111,9 +123,12 @@ async def search_speculative(
         else:
             remaining.append((key, task))
 
-    # --- 5. Deadline içinde bitenleri bekle ---
+    # --- 5. Wall-clock kalan bütçe içinde bitenleri bekle ---
+    # KRİTİK: wait_left, hybrid'in TÜKETTİĞİ süreyi düşer. hybrid yavaşsa ≤0 olur
+    # ve advanced anında iptal edilir → spekülasyon ek latans getirmez.
     if remaining:
-        wait_left = deadline_s  # kalan bütçe
+        elapsed_s = loop.time() - t_start
+        wait_left = deadline_s - elapsed_s
         if wait_left > 0:
             pending_tasks = [t for _, t in remaining]
             done, pending = await asyncio.wait(
@@ -122,14 +137,12 @@ async def search_speculative(
                 return_when=asyncio.ALL_COMPLETED,
             )
             for task in pending:
-                task.cancel()  # deadline doldu, iptal
-                log.debug("speculative_deadline_exceeded", timeout_s=deadline_s)
+                task.cancel()  # bütçe doldu, iptal
             for task in done:
                 exc = task.exception()
                 if exc is None:
                     res = task.result()
                     done_results = _dedup(list(res), done_results) if done_results else list(res)
-                    # find key by task name
                     for key, t in remaining:
                         if t is task:
                             done_keys.append(key)
@@ -137,26 +150,38 @@ async def search_speculative(
                 else:
                     log.warning("speculative_task_error", error=str(exc))
         else:
-            # Bütçe zaten tükendi, iptal et
+            # hybrid zaten bütçeyi yedi → advanced'i bekleme, iptal et
             for _, task in remaining:
                 task.cancel()
+            log.info("speculative_budget_exhausted_by_hybrid",
+                     hybrid_ms=round(hybrid_ms), deadline_ms=round(deadline_s * 1000))
+
+    total_ms = (loop.time() - t_start) * 1000
+    advanced_ms = round(total_ms - hybrid_ms)
 
     # --- 6. Sonuç seç ---
     if done_results:
-        # HyDE/MQ en az biri bitti → kaliteli sonuç
+        # HyDE/MQ en az biri bütçe içinde bitti → kaliteli sonuç
         final_results = done_results[:top_k]
         strategy = "+".join(done_keys) if done_keys else "hybrid_fallback"
         log.info(
-            "speculative_advanced_win",
+            "speculative_done",
             strategy=strategy,
+            hybrid_ms=round(hybrid_ms),
+            advanced_ms=advanced_ms,
+            total_ms=round(total_ms),
             n_results=len(final_results),
             domain=routing.domain,
         )
         return final_results, strategy
 
-    # Hiçbir advanced task deadline içinde bitmedi → hybrid fallback
+    # Hiçbir advanced task bütçe içinde bitmedi → hybrid fallback
     log.info(
-        "speculative_hybrid_fallback",
+        "speculative_done",
+        strategy="hybrid_fallback",
+        hybrid_ms=round(hybrid_ms),
+        advanced_ms=advanced_ms,
+        total_ms=round(total_ms),
         domain=routing.domain,
         complexity=routing.complexity,
         deadline_s=deadline_s,

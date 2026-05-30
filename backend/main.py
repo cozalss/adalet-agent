@@ -211,6 +211,17 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         log.warning("warmup_store_failed", error=str(exc))
 
+    # Embedding/koleksiyon boyut tutarlılığı — fail-fast (sessiz 768×1024 crash'i
+    # boot'ta görünür yap). Koleksiyon yoksa veya model bilinmiyorsa sessizce geçer.
+    try:
+        from retrieval.vector_store import assert_collection_dim
+        await assert_collection_dim()
+    except RuntimeError as exc:
+        log.error("collection_dim_mismatch", error=str(exc))
+        raise  # production'da boot'u durdur — yanlış config ile çalışmaktansa patla
+    except Exception as exc:
+        log.warning("collection_dim_check_error", error=str(exc))
+
     # İlişkisel DB (DATABASE_URL set ise) — idempotent tablo oluştur.
     await _init_db_if_enabled()
 

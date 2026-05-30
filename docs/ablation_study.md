@@ -273,7 +273,27 @@ NewMindAI'nin **Mecellem** koleksiyonundan Mursit-Base-TR-Retrieval (155M, Moder
 
 **Domain-aware dual:** Mursit dense + BGE-M3 sparse (yalnızca vergi/trafik/icra domainleri için). Bu konfigürasyon kanun@5'te +7pp, latansta -%42 iyileştirme sağlarken domain@1'de BGE-M3'e yakın performansı korumaktadır.
 
-**Spekülatif retrieval:** HyDE ve Multi-Query sorgu başına 2 saniye bütçeyle arka planda çalışır; bütçe aşılırsa sistem hybrid fallback döner. Kullanıcı latansı: 45ms (temel) ile 2045ms (spekülatif HyDE etkin) arasında.
+**Spekülatif retrieval:** HyDE ve Multi-Query, request başından **wall-clock** 2 saniye bütçeyle arka planda çalışır; bütçe aşılırsa sistem hybrid fallback döner. Latans davranışı garanti değil, üst sınırdır: `toplam_retrieval ≤ max(hybrid_ms, deadline_s)`. hybrid'in kendisi yavaşlarsa (Qdrant GC, embedder cold) spekülasyon ek maliyet getirmez ama bu yavaşlamayı da maskelemez (`hybrid_ms` ve `advanced_ms` ayrı loglanır).
+
+#### 4.3.4 Uçtan Uca Latans Profili (P50/P95/P99)
+
+Tek sorgu ölçümü kuyruk (tail) latency hakkında yanıltıcıdır. `scripts/latency_profile.py` ile 30 sorgu üzerinde ölçüm (2026-05-30, Mursit + adaptive + spekülatif, Qwen 14B Q5):
+
+**Dağılım bimodaldir:**
+- **Kapsam-dışı / smalltalk** (5/30): ~2ms (draft/verify atlanır)
+- **Gerçek hukuki cevap** (25/30): kullanıcının asıl deneyimi
+
+| Metrik | Gerçek hukuki cevap |
+|---|---|
+| Ortalama | 11.800 ms |
+| P50 | 13.100 ms |
+| P95 | **17.000 ms** |
+| P99 | 17.500 ms |
+| Min / Max | 2.400 / 17.500 ms |
+
+**Darboğaz:** Toplam sürenin ~%80'i LLM üretimidir (Qwen 14B, 320 token ≈ 9.5s; retrieval ≈ 1-2s; NLI ≈ 1s). P95'in P50'den 4 saniye yüksek olması LLM üretim süresinin değişkenliğinden kaynaklanır. **Not:** Bu örneklemde hiç debate-retry tetiklenmedi; retry yolu (mevzuat+emsal+draft+verify tekrarı) P99'u 25s+ seviyesine çıkarabilir — ayrı izlenmelidir.
+
+**Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
 

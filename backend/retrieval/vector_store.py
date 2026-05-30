@@ -63,6 +63,59 @@ def get_client() -> AsyncQdrantClient:
     return AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 
+# EMBEDDING_MODEL adı → ürettiği dense vektör boyutu. Startup fail-fast için.
+_EMBEDDER_DIMS: dict[str, int] = {
+    "BAAI/bge-m3": 1024,
+    "newmindai/Mursit-Base-TR-Retrieval": 768,
+    "newmindai/Mursit-Large-TR-Retrieval": 1024,
+}
+
+
+def _expected_embedder_dim(model_name: str) -> int | None:
+    """Bilinen model için dense boyutu; bilinmiyorsa None (assert atlanır)."""
+    for known, dim in _EMBEDDER_DIMS.items():
+        if model_name.startswith(known):
+            return dim
+    return None
+
+
+async def assert_collection_dim(client: AsyncQdrantClient | None = None) -> None:
+    """Startup fail-fast: EMBEDDING_MODEL boyutu ≠ koleksiyon boyutu ise patla.
+
+    Sessiz production bug'ını (768-dim model × 1024-dim koleksiyon) boot'ta
+    görünür hata yapar. Koleksiyon yoksa veya model bilinmiyorsa sessizce geçer
+    (seed henüz yapılmamış olabilir).
+    """
+    model_name = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+    expected = _expected_embedder_dim(model_name)
+    if expected is None:
+        log.warning("collection_dim_check_skipped", reason="unknown_model", model=model_name)
+        return
+
+    owns_client = client is None
+    client = client or get_client()
+    try:
+        existing = [c.name for c in (await client.get_collections()).collections]
+        if COLLECTION_NAME not in existing:
+            log.warning("collection_dim_check_skipped",
+                        reason="collection_absent", collection=COLLECTION_NAME)
+            return
+        info = await client.get_collection(COLLECTION_NAME)
+        vectors = info.config.params.vectors
+        # named vector dict ("dense") veya tek VectorParams olabilir
+        actual = vectors["dense"].size if isinstance(vectors, dict) else vectors.size
+        if actual != expected:
+            raise RuntimeError(
+                f"BOYUT UYUŞMAZLIĞI: EMBEDDING_MODEL={model_name} {expected}-dim üretir "
+                f"ama QDRANT_COLLECTION={COLLECTION_NAME} {actual}-dim. "
+                f"Doğru koleksiyonu set et veya modeli değiştir."
+            )
+        log.info("collection_dim_ok", model=model_name, collection=COLLECTION_NAME, dim=actual)
+    finally:
+        if owns_client:
+            await client.close()
+
+
 # Process-ömürlü paylaşılan client — request path (hybrid_search/hyde) için.
 # Eskiden her search çağrısı yeni client+pool açıp finally'de kapatıyordu →
 # her /ask'ta TCP/gRPC handshake churn'ü. Tek client'ı yeniden kullan.

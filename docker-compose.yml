@@ -145,12 +145,27 @@ services:
       LLM_MODE: ${LLM_MODE:-llamacpp_server}
       # production profilinde llama-server servisi (adalet-net içi DNS).
       LLM_SERVER_URL: ${LLM_SERVER_URL:-http://llama-server:8080}
-      # Retrieval feature toggles
-      HYDE_ENABLED: ${HYDE_ENABLED:-0}
-      MULTI_QUERY_ENABLED: ${MULTI_QUERY_ENABLED:-0}
+      # --- Retrieval stack — TEK DOĞRU KAYNAK (dev .env ile aynı olmalı) ---
+      # KRİTİK: EMBEDDING_MODEL ve QDRANT_COLLECTION boyutları UYUŞMALI.
+      #   Mursit-Base = 768-dim → adalet_mursit_hybrid (768-dim)
+      #   BGE-M3      = 1024-dim → adalet (1024-dim)
+      # Uyuşmazlık startup'ta assert_collection_dim() ile fail-fast yakalanır.
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-newmindai/Mursit-Base-TR-Retrieval}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-adalet_mursit_hybrid}
+      # Domain-aware dual sparse — vergi/trafik/icra için BGE-M3 sparse
+      SPARSE_EMBEDDER_MODEL: ${SPARSE_EMBEDDER_MODEL:-BAAI/bge-m3}
+      SPARSE_ENABLED_DOMAINS: ${SPARSE_ENABLED_DOMAINS:-vergi,trafik,icra}
+      # Adaptive routing + spekülatif retrieval (dev .env ile aynı default)
+      ADAPTIVE_ROUTING_ENABLED: ${ADAPTIVE_ROUTING_ENABLED:-1}
+      SPECULATIVE_ENABLED: ${SPECULATIVE_ENABLED:-1}
+      SPECULATIVE_DEADLINE_S: ${SPECULATIVE_DEADLINE_S:-2.0}
+      # Retrieval feature toggles (production default: adaptive routing AÇIK)
+      HYDE_ENABLED: ${HYDE_ENABLED:-1}
+      MULTI_QUERY_ENABLED: ${MULTI_QUERY_ENABLED:-1}
       ELIGIBILITY_ENABLED: ${ELIGIBILITY_ENABLED:-0}
       DEBATE_LLM_ON_RETRY: ${DEBATE_LLM_ON_RETRY:-0}
-      COLBERT_QUERY_ENABLED: "1"
+      # Mursit dense-only collection → ColBERT YOK (BGE-M3 collection için "1" yap)
+      COLBERT_QUERY_ENABLED: ${COLBERT_QUERY_ENABLED:-0}
       MEVZUAT_DOMAIN_FILTER: "1"
       PYTHONUTF8: "1"
     volumes:

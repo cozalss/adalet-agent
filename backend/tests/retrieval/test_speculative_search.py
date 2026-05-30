@@ -130,6 +130,48 @@ async def test_hyde_timeout_fallback_to_hybrid():
 
 
 # ---------------------------------------------------------------------------
+# 3b. Wall-clock bütçe: hybrid yavaşsa advanced anında iptal, spekülasyon 0 maliyet
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_slow_hybrid_cancels_advanced_no_extra_latency():
+    """hybrid bütçeyi yerse, fast advanced bile beklenmemeli (wall-clock garanti).
+
+    Önceki bug: deadline hybrid bittikten SONRA sıfırlanıyordu → total = hybrid + deadline.
+    Doğru: deadline request başından sayılır → hybrid yavaşsa advanced iptal.
+    """
+    import time
+    hybrid_results = [_FakeResult("h_slow")]
+    advanced_started = {"hyde": False}
+
+    async def _slow_hybrid(*args, **kw):
+        await asyncio.sleep(0.3)  # hybrid bütçeyi (0.1s) aşar
+        return hybrid_results
+
+    async def _fast_hyde(*args, **kw):
+        advanced_started["hyde"] = True
+        return [_FakeResult("hyde_fast")]
+
+    with patch("retrieval.speculative_search.search", side_effect=_slow_hybrid), \
+         patch("retrieval.speculative_search.search_with_hyde", side_effect=_fast_hyde), \
+         patch("retrieval.speculative_search.search_multi_query", new_callable=AsyncMock):
+        from retrieval.speculative_search import search_speculative
+
+        t0 = time.perf_counter()
+        results, strategy = await search_speculative(
+            question="sorgu",
+            routing=_routing(use_hyde=True, use_mq=False),
+            top_k=10,
+            deadline_s=0.1,  # hybrid (0.3s) > deadline (0.1s) → bütçe hybrid tarafından yenir
+        )
+        elapsed = time.perf_counter() - t0
+
+    # hybrid 0.3s sürdü; deadline 0.1s. Spekülasyon EK süre getirmemiş olmalı.
+    # total ≈ hybrid_ms (0.3s), deadline_s (0.1s) eklenmemiş → < 0.5s.
+    assert elapsed < 0.5, f"spekülasyon ek latans getirdi: {elapsed:.2f}s"
+
+
+# ---------------------------------------------------------------------------
 # 4. MQ deadline içinde biterse → MQ sonucu döner
 # ---------------------------------------------------------------------------
 
