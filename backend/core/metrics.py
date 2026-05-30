@@ -74,6 +74,8 @@ _REGISTRY: dict[str, RollingPercentiles] = {
     "llm.generation_ms": RollingPercentiles(),    # llama_server_call_done.elapsed_ms
     "retrieval.total_ms": RollingPercentiles(),   # speculative_done.total_ms
     "retrieval.hybrid_ms": RollingPercentiles(),  # speculative_done.hybrid_ms
+    "verify.duration_ms": RollingPercentiles(),   # verify_done.elapsed_ms (NLI maliyeti)
+    "finalize.duration_ms": RollingPercentiles(), # finalize_done.elapsed_ms
 }
 
 
@@ -96,6 +98,8 @@ _EVENT_TAPS: dict[str, list[tuple[str, str]]] = {
     "llama_server_call_done": [("llm.generation_ms", "elapsed_ms")],
     "speculative_done": [("retrieval.total_ms", "total_ms"),
                          ("retrieval.hybrid_ms", "hybrid_ms")],
+    "verify_done": [("verify.duration_ms", "elapsed_ms")],
+    "finalize_done": [("finalize.duration_ms", "elapsed_ms")],
 }
 
 
@@ -115,6 +119,38 @@ def record_event(event_name: str, event_dict: dict) -> None:
 def snapshot_all() -> dict:
     """Tüm metriklerin yüzdelik snapshot'ı — /metrics/latency için."""
     return {name: m.snapshot() for name, m in _REGISTRY.items()}
+
+
+def render_prometheus() -> str:
+    """Snapshot'ı Prometheus text exposition format'a çevir — GET /metrics için.
+
+    Bağımlılıksız (prometheus_client gerekmez). Önceden hesaplanmış yüzdelikleri
+    quantile-etiketli gauge olarak yayar; Prometheus scrape eder, Grafana çizer.
+    Self-hosted → veri kutudan çıkmaz (KVKK uyumlu).
+
+    Format:
+      adalet_stage_latency_ms{stage="llm.generation_ms",quantile="0.95"} 38802
+      adalet_stage_latency_samples{stage="llm.generation_ms"} 2
+    """
+    lines: list[str] = [
+        "# HELP adalet_stage_latency_ms Pipeline stage latans yüzdelikleri (rolling 500).",
+        "# TYPE adalet_stage_latency_ms gauge",
+    ]
+    sample_lines: list[str] = [
+        "# HELP adalet_stage_latency_samples Stage başına pencere örnek sayısı.",
+        "# TYPE adalet_stage_latency_samples gauge",
+    ]
+    for name, m in _REGISTRY.items():
+        snap = m.snapshot()
+        sample_lines.append(f'adalet_stage_latency_samples{{stage="{name}"}} {snap["n"]}')
+        if snap["n"] == 0:
+            continue
+        for q_label, key in (("0.5", "p50"), ("0.95", "p95"), ("0.99", "p99")):
+            val = snap[key]
+            if val is not None:
+                lines.append(
+                    f'adalet_stage_latency_ms{{stage="{name}",quantile="{q_label}"}} {val}')
+    return "\n".join([*lines, *sample_lines]) + "\n"
 
 
 def reset_all() -> None:

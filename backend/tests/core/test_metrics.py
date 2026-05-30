@@ -8,6 +8,7 @@ from core.metrics import (
     RollingPercentiles,
     record_event,
     record_stream_timings,
+    render_prometheus,
     reset_all,
     snapshot_all,
 )
@@ -104,6 +105,7 @@ def test_snapshot_all_has_all_stages():
         "stream.first_event_ms", "stream.retrieval_done_ms",
         "stream.first_token_ms", "stream.final_ms",
         "llm.generation_ms", "retrieval.total_ms", "retrieval.hybrid_ms",
+        "verify.duration_ms", "finalize.duration_ms",
     }
 
 
@@ -148,3 +150,41 @@ def test_metrics_tap_via_structlog():
     log = structlog.get_logger()
     log.info("llama_server_call_done", elapsed_ms=8800, tokens_out=300)
     assert snapshot_all()["llm.generation_ms"]["n"] >= 1
+
+
+def test_record_event_verify_and_finalize():
+    record_event("verify_done", {"elapsed_ms": 1200, "verdict": "pass"})
+    record_event("finalize_done", {"elapsed_ms": 30, "confidence": 0.7})
+    snap = snapshot_all()
+    assert snap["verify.duration_ms"]["p50"] == 1200
+    assert snap["finalize.duration_ms"]["p50"] == 30
+
+
+# --- Prometheus exposition format ---
+
+def test_prometheus_empty_has_help_and_samples():
+    text = render_prometheus()
+    assert "# HELP adalet_stage_latency_ms" in text
+    assert "# TYPE adalet_stage_latency_ms gauge" in text
+    # boş registry → her stage için samples=0 satırı olmalı
+    assert 'adalet_stage_latency_samples{stage="llm.generation_ms"} 0' in text
+
+
+def test_prometheus_emits_quantiles_after_record():
+    record_event("llama_server_call_done", {"elapsed_ms": 9500})
+    record_event("llama_server_call_done", {"elapsed_ms": 12000})
+    text = render_prometheus()
+    assert 'adalet_stage_latency_ms{stage="llm.generation_ms",quantile="0.5"}' in text
+    assert 'adalet_stage_latency_ms{stage="llm.generation_ms",quantile="0.95"}' in text
+    assert 'adalet_stage_latency_samples{stage="llm.generation_ms"} 2' in text
+
+
+def test_prometheus_lines_well_formed():
+    record_event("verify_done", {"elapsed_ms": 1000})
+    text = render_prometheus()
+    # Her metrik satırı: ad{etiketler} değer — boşlukla ayrık 2 alan
+    for line in text.splitlines():
+        if line.startswith("adalet_stage_latency"):
+            parts = line.rsplit(" ", 1)
+            assert len(parts) == 2
+            float(parts[1])  # değer parse edilebilmeli

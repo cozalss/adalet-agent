@@ -420,3 +420,24 @@ async def metrics_latency() -> dict:
     """
     from core.metrics import snapshot_all
     return {"window": 500, "stages": snapshot_all()}
+
+
+@app.get("/metrics")
+async def metrics_prometheus():
+    """Prometheus exposition format — Grafana scrape path (self-hosted, KVKK-safe).
+
+    Pipeline stage latans yüzdelikleri (P50/P95/P99) gauge olarak. Prometheus
+    bu endpoint'i scrape eder, Grafana trend çizer. Veri kutudan ÇIKMAZ
+    (Langfuse cloud yerine — CLAUDE.md §3 KVKK kuralı). PII/soru içeriği YOK,
+    yalnız zamanlama sayıları.
+
+    PRODUCTION: internal-only olmalı — Caddy/reverse-proxy public rotaya AÇMAMALI;
+    Prometheus özel ağ (adalet-net) içinden scrape etsin.
+
+    İnsan-okuması için JSON sürüm: GET /metrics/latency.
+    """
+    from fastapi.responses import PlainTextResponse
+
+    from core.metrics import render_prometheus
+    return PlainTextResponse(render_prometheus(),
+                             media_type="text/plain; version=0.0.4; charset=utf-8")

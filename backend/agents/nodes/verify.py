@@ -62,6 +62,8 @@ RARR_ENABLED = os.getenv("RARR_ENABLED", "0").lower() in {"1", "true", "yes"}
 @observe_node(name="verify")
 async def verify_node(state: AgentState) -> dict:
     """4 katmanlı verifier. state['claims']'i alır, verified_claims + verdict üretir."""
+    import time as _time
+    _t0 = _time.perf_counter()
     claims = state.get("claims", []) or []
     refs: list[Citation] = list(state.get("mevzuat_refs", [])) + list(
         state.get("emsal_refs", []),
@@ -212,6 +214,7 @@ async def verify_node(state: AgentState) -> dict:
         n_supported=n_supported,
         contradictions=contradictions,
         verdict=verdict,
+        elapsed_ms=round((_time.perf_counter() - _t0) * 1000),
     )
 
     return {

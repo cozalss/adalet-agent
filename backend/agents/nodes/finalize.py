@@ -26,6 +26,8 @@ _NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof
 
 @observe_node(name="finalize")
 async def finalize_node(state: AgentState) -> dict:
+    import time as _time
+    _t0 = _time.perf_counter()
     domain = state.get("domain", "unknown")
     verdict = state.get("debate_verdict", "pass")
 
@@ -110,6 +112,7 @@ async def finalize_node(state: AgentState) -> dict:
     log.info(
         "finalize_done",
         confidence=confidence, n_claims=len(verified_claims), dropped=n_dropped,
+        elapsed_ms=round((_time.perf_counter() - _t0) * 1000),
     )
     return {
         "response": final,

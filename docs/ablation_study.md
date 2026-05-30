@@ -365,7 +365,20 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 **Canlı doğrulama (2 gerçek sorgu):** Tap, `llm.generation_ms` örneklerini otomatik yakaladı: ilk sorgu **38.802 ms** (soğuk-start — model paging + ilk çağrı), ikinci **7.966 ms** (normal). Bu, P95/P99 görünürlüğünün somut gerekçesidir: soğuk-start tek başına kuyruğu (P99) onlarca saniye şişirir; yalnız ortalamaya bakan bir operatör bunu göremez.
 
-**Kısıt:** tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot verir. Kalıcı/birleşik trend için JSON `stream_timings`/`llama_server_call_done` log'ları bir aggregator'a (Langfuse, ELK, Loki) aktarılmalıdır.
+**Kısıt:** tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot verir.
+
+**Prometheus exposition (`GET /metrics`):** Kalıcı dashboard için, in-process yüzdelikler Prometheus text format'ında da yayılır — Prometheus scrape eder, Grafana trend çizer. **KVKK kararı:** Langfuse cloud (cloud.langfuse.com) trace'lere soru içeriğini gönderir → yurt dışı sunucu → CLAUDE.md §3 ("veri Türkiye'de kalır") ihlali. Bu yüzden self-hosted Prometheus tercih edildi; `/metrics` yalnız zamanlama sayıları içerir (PII/soru içeriği yok), production'da internal-only (adalet-net) tutulur.
+
+**Canlı pipeline kırılımı** (gerçek sorgular, `GET /metrics`):
+
+| Stage | P50 | P95 | Yorum |
+|---|---|---|---|
+| `llm.generation_ms` | 2.895 ms | 32.913 ms | Baskın maliyet (P95 soğuk-start) |
+| `verify.duration_ms` | 574 ms | 6.029 ms | NLI maliyeti — ölçülebilir ikincil yük |
+| `retrieval.total_ms` | 2.000 ms | 33.141 ms | Spekülatif arama (P95 soğuk-start) |
+| `finalize.duration_ms` | 0 ms | 1 ms | İhmal edilebilir (string birleştirme) |
+
+Bu kırılım, latans bütçesinin nereye gittiğini operatöre gösterir: LLM üretimi baskın, NLI doğrulaması gerçek ikincil yük, finalize ihmal edilebilir. Soğuk-start P95'leri yalnız ortalamaya bakan bir operatörün göremeyeceği kuyruğu açığa çıkarır.
 
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
 

@@ -79,7 +79,27 @@ def test_metrics_latency_endpoint():
         assert set(stages) == {"stream.first_event_ms", "stream.retrieval_done_ms",
                                "stream.first_token_ms", "stream.final_ms",
                                "llm.generation_ms", "retrieval.total_ms",
-                               "retrieval.hybrid_ms"}
+                               "retrieval.hybrid_ms", "verify.duration_ms",
+                               "finalize.duration_ms"}
+    reset_all()
+
+
+def test_metrics_prometheus_endpoint():
+    """GET /metrics — Prometheus exposition format (Grafana scrape path)."""
+    from core.metrics import record_event, reset_all
+    from main import app
+
+    reset_all()
+    record_event("llama_server_call_done", {"elapsed_ms": 9500})
+    record_event("llama_server_call_done", {"elapsed_ms": 12000})
+    with TestClient(app) as client:
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+        assert "text/plain" in resp.headers["content-type"]
+        body = resp.text
+        assert "# TYPE adalet_stage_latency_ms gauge" in body
+        assert 'adalet_stage_latency_ms{stage="llm.generation_ms",quantile="0.95"}' in body
+        assert 'adalet_stage_latency_samples{stage="llm.generation_ms"} 2' in body
     reset_all()
 
 
