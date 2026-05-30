@@ -117,13 +117,16 @@ ELIGIBILITY_MAX_TOKENS = int(os.getenv("ELIGIBILITY_MAX_TOKENS", "700"))
 
 # --- HyDE & Multi-Query ---
 HYDE_ENABLED = os.getenv("HYDE_ENABLED", "0") not in {"0", "false", "False"}
-# Sprint-4 W1: 2.0s → 15.0s. v1_hyde_ab0773c.json ölçümünde Qwen 14B Q4 -ngl 20
-# partial-offload ile 200 token üretim ortalama 14-17s; 2s default tüm 50 vakayı
-# silent timeout'a düşürüp HyDE'ı pratik olarak hybrid'e degrade etti. ENV ile
-# override edilebilir (hızlı LLM'lerde 5s yeterli). Ek 25s buffer (Qdrant+embed)
-# mevzuat_node.timeout_total üzerinde toplam ~40s — production p95 limiti.
+# Sprint-4 W1: 2.0s → 15.0s. Qwen 14B Q5_K_M ölçümü (v1 50 vaka, 2026-05-30):
+# ortalama latans 4825ms (+4503ms vs baseline 322ms). A/B sonucu: domain@1 +2pp
+# global; tüketici +12.5pp, kira +14.3pp, vergi +20pp — ama trafik -20pp, idari -17pp.
+# Öneri: HYDE_ENABLED_DOMAINS ile alana özgü etkinleştir.
 HYDE_TIMEOUT_S = float(os.getenv("HYDE_TIMEOUT_S", "15.0"))
 HYDE_MAX_TOKENS = 200
+# A/B bulgusu (2026-05-30): HyDE bu domainlerde pozitif, diğerlerinde negatif etki.
+HYDE_ENABLED_DOMAINS: frozenset[str] = frozenset(
+    os.getenv("HYDE_ENABLED_DOMAINS", "tuketici,kira,isHukuku,vergi").split(",")
+)
 MULTI_QUERY_ENABLED = os.getenv("MULTI_QUERY_ENABLED", "0") not in {"0", "false", "False"}
 # Sprint-4 W1: 4 → 5. Literatürde N=5-8 standard, paraphrase çeşitliliği +Recall@20.
 # Cache hit'lerde maliyetsiz. Per-paraphrase 1.5s + RRF merge yeterli.

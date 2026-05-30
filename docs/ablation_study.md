@@ -2,8 +2,10 @@
 
 **Proje:** ADALET-AGENT — Türkçe Hukuk için Çok Ajanlı Doğrulamalı Yapay Zeka Sistemi  
 **Tarih:** 2026-05-30  
-**Veri Seti:** `data/eval_benchmark/verify_gold.jsonl` (59 vaka)  
-**Kaynak Kod:** `eval/verify_calibration.py`, `agents/nodes/verify.py`, `agents/config.py`
+**Veri Seti:** `data/eval_benchmark/verify_gold.jsonl` (59 vaka) + `benchmark_v2.jsonl` (186 vaka)  
+**Kaynak Kod:** `eval/verify_calibration.py`, `agents/nodes/verify.py`, `agents/config.py`, `scripts/eval_run.py`  
+**LLM:** Qwen 2.5 14B Q5_K_M (yerel, llama-server)  
+**Retrieval:** BGE-M3 hibrit (BM25 + yoğun), Qdrant `adalet` koleksiyonu (159.362 nokta)
 
 ---
 
@@ -44,10 +46,17 @@ Altın küme, beş kategoriye ayrılmış 59 sentetik (iddia, kanıt) çiftinden
 | `exact` | 11 | 0,91 | Düz yeniden ifadelerde yüksek performans |
 | `format_bad` | 5 | 1,00 | Kural tabanlı, mükemmel |
 | `unsupported` | 16 | 0,94 | Kapsam dışı tespiti güçlü |
-| `paraphrase` | 14 | **0,21** | KRİTİK: Paraphrase desteklenmiş sayılamıyor |
-| `contradiction` | 13 | **0,23** | KRİTİK: Çelişki tespit edilemiyor |
+| `paraphrase` | 14 | **0,86** | 0,45 eşiğiyle yüksek geri çağırma (eski 0,55: 0,21) |
+| `contradiction` | 13 | **0,00** | KRİTİK: Tüm çelişkiler yanlışlıkla desteklenmiş sayılıyor |
 
-Bu sonuçlar temel bir yapısal kısıtlamayı ortaya koymaktadır: bulanık karakter örtüşmesi, olumsuzlama jetonlarını (örn. "değil", "olmaz") cümle düzeyinde anlam değişikliğinden ayırt edememektedir. Doğruluk değeri yaklaşık 0,22, bu iki kritik kategoride neredeyse rastgele tahmin düzeyine karşılık gelmektedir. NLI katmanı (`VERIFY_STRICT=1`), bu eksikliği telafi etmek için mimari olarak zorunludur.
+> **Not — Eşik etkisi:** Eşik 0,55'ten 0,45'e düşürüldüğünde paraphrase doğruluğu 0,21'den 0,86'ya yükselirken contradiction doğruluğu 0,23'ten 0,00'a düşmektedir. Bu iki ölçüm birlikte kritik bir tasarım kısıtını ortaya koyar: bulanık eşleşme geri çağırma-kesinlik dengesi için optimize edilebilir ancak anlambilimsel olumsuzlama tespiti yapamamaktadır. **NLI katmanı (`VERIFY_STRICT=1`) contradiction kategorisi için yapısal zorunluluktur — olmaksızın sistem tüm çelişkileri kabul eder.**
+
+Bu bulgu `agents/config.py` içindeki koda şu şekilde yansımıştır:
+
+```python
+# Kalibrasyon notu: model-free pipeline (L1+fuzzy) contradiction da acc=0.00 —
+# NLI zorunlu (VERIFY_STRICT=1 production da açık olmalı).
+```
 
 Bu bulgu `agents/config.py` içindeki koda şu şekilde yansımıştır:
 
@@ -122,7 +131,58 @@ Uygulama `retrieval/hyde.py` içinde mevcuttur. Hibrit aramanın yoğun kolu HyD
 
 **Kısıt:** `agents/config.py` içindeki ölçüm notları, Qwen 2.5 14B Q5_K_M ile kısmi GPU offload (ngl 20) yapılandırmasında 200 jeton üretiminin ortalama 14–17 saniye sürdüğünü göstermektedir. `HYDE_TIMEOUT_S = 15.0` değeri bu gerçekliği yansıtmakta, HyDE'ın yalnızca yeterince hızlı LLM altyapısında verimli çalışacağını ortaya koymaktadır.
 
-[A/B SONUCU: `scripts/ab_retrieval_compare.py` çalıştırılınca doldurulacak — Recall@20 ve MRR@10 karşılaştırması: Hibrit (temel) vs. HyDE+Hibrit]
+**Retrieval temel performansı** (2026-05-30, `scripts/eval_run.py`, v2 benchmark 186 vaka):
+
+| Metrik | Değer |
+|---|---|
+| Domain@1 | 81,2% |
+| Domain@5 | 96,2% |
+| Kanun@5 | **43,5%** ← düşük (corpus eksikliği) |
+| MRR | 0,881 |
+| Keyword Recall | 79,4% |
+| Ortalama Latans | 176 ms |
+
+Domain kırılımı (zayıf alanlar öne çıkartılmıştır):
+
+| Domain | domain@1 |
+|---|---|
+| isHukuku | 90,7% |
+| vergi | 90,9% |
+| tapu | 90,0% |
+| trafik | 81,8% |
+| tuketici | 81,0% |
+| kira | 78,8% |
+| icra | 73,1% |
+| **idari** | **50,0%** ← en düşük |
+
+Kanun@5 değerinin 43,5%'te kalması, corpus'un Anayasa Mahkemesi kararlarına ağırlık verdiğini ve Yargıtay içtihadının yetersiz temsil edildiğini doğrulamaktadır (§3.1 cross-encoder bulgusuyla uyumlu). Yargıtay tüketici/iş kararı seed işlemi (`seed_yargitay_direct.py`) bu boşluğu gidermeye yöneliktir.
+
+**A/B Sonuçları** (2026-05-30, v1 benchmark 50 vaka, Qwen 2.5 14B Q5_K_M):
+
+| Metrik | Baseline (Hibrit) | HyDE+Hibrit | Delta |
+|---|---|---|---|
+| Domain@1 | 78,0% | **80,0%** | **+2,0 pp** |
+| Domain@5 | 92,0% | 94,0% | +2,0 pp |
+| Kanun@5 | 46,0% | 44,0% | -2,0 pp |
+| MRR | 0,848 | **0,863** | **+0,015** |
+| Keyword Recall | 87,0% | 85,8% | -1,2 pp |
+| Latans (ort.) | 322 ms | **4825 ms** | **+4503 ms (15×)** |
+| Latans (P95) | 88 ms | 7318 ms | — |
+
+**Domain kırılımı — kazananlar ve kaybedenler:**
+
+| Domain | Baseline | HyDE | Delta |
+|---|---|---|---|
+| vergi | 80,0% | **100,0%** | **+20 pp** |
+| kira | 71,4% | **85,7%** | **+14,3 pp** |
+| tuketici | 75,0% | **87,5%** | **+12,5 pp** |
+| isHukuku | 100,0% | 100,0% | = |
+| icra | 100,0% | 100,0% | = |
+| tapu | 83,3% | 83,3% | = |
+| trafik | 60,0% | **40,0%** | **-20 pp** |
+| idari | 50,0% | **33,3%** | **-16,7 pp** |
+
+**Yorumlama:** HyDE, vatandaş diline özgü alanlarda (tüketici, kira, vergi) anlamlı iyileştirme sağlarken idari ve trafik alanlarında performansı düşürmektedir. Bu bulgu, HyDE'nin alana özgü etkinleştirilmesini önermektedir: `HYDE_ENABLED_DOMAINS = {"tuketici", "kira", "isHukuku", "vergi"}` gibi bir yapılandırma, 15× latans maliyetini yalnızca kazanç sağlanan alanlara sınırlandıracaktır.
 
 ### 4.2 Çoklu-Sorgu Genişletmesi (Multi-Query)
 
@@ -138,7 +198,7 @@ Yapılandırma: `MULTI_QUERY_N = 5` paraphrase üretilmekte, `MULTI_QUERY_ENABLE
 
 RAG literatüründe N=5–8 sorgu fanout'unun Recall@20'de artı 6 puanlık iyileşme sağladığı raporlanmaktadır. Bu iyileşmenin sistemimizde Türkçe hukuk corpus'una ve konuşma dili ile formal dil arasındaki kayıt farkına bağlı olarak nasıl gerçekleştiği ölçülecektir.
 
-[A/B SONUCU: `scripts/ab_retrieval_compare.py` çalıştırılınca doldurulacak — Hibrit (temel) vs. Çoklu-Sorgu+Hibrit ve Çoklu-Sorgu+HyDE+Hibrit üçlü karşılaştırma; Recall@20, MRR@10, uçtan uca latans]
+[A/B SONUCU: `scripts/ab_retrieval_compare.py` çalıştırılınca doldurulacak — Temel (domain@1=81,2%, MRR=0,881) vs. MQ+Hibrit ve MQ+HyDE+Hibrit; domain@1, kanun@5, MRR, latans]
 
 ---
 
