@@ -239,6 +239,32 @@ MULTI_QUERY_DOMAINS     = {"trafik", "kira", "idari"}                  # +14-20p
 
 Bu yapılandırma, latans maliyetini yalnızca kazanç sağlanan alanlara sınırlandırır.
 
+### 4.3 Embedding Modeli: BGE-M3 vs Mursit-Base-TR-Retrieval
+
+#### 4.3.1 Neden Mursit?
+
+NewMindAI'nin **Mecellem** koleksiyonundan Mursit-Base-TR-Retrieval (155M, ModernBERT tabanlı) modeli, 112.7 milyar token Türkçe-ağırlıklı corpus üzerinde eğitilmiştir; bu corpus Yargıtay'dan 10.3M sekans (~3.43B token) içermektedir (arXiv 2601.16018). Mevcut BGE-M3 modeli (569M) İngilizce-öncelikli çok dilli eğitime sahiptir.
+
+#### 4.3.2 Embedding Kalite Testi
+
+**Yöntem:** Her domain için (sorgu, ilgili kanun metni) ve (sorgu, ilgisiz kanun metni) çiftleri oluşturuldu. İki model için cosine benzerlik hesaplandı. "Gap" = ilgili_skoru - ilgisiz_skoru; yüksek gap = daha iyi ayrım gücü.
+
+**Sonuçlar** (2026-05-30, Mursit-Base 768-dim, BGE-M3 1024-dim):
+
+| Domain | BGE-M3 (ilgili) | BGE-M3 (ilgisiz) | BGE-M3 gap | Mursit (ilgili) | Mursit (ilgisiz) | Mursit gap | Artış |
+|---|---|---|---|---|---|---|---|
+| tuketici | 0,555 | 0,375 | +0,180 | 0,452 | 0,115 | **+0,337** | +87% |
+| isHukuku | 0,674 | 0,355 | +0,319 | 0,745 | 0,105 | **+0,641** | +101% |
+| kira | 0,449 | 0,315 | +0,134 | 0,488 | 0,099 | **+0,389** | +190% |
+| trafik | 0,605 | 0,463 | +0,142 | 0,749 | 0,173 | **+0,576** | +306% |
+| **Ortalama** | — | — | **+0,194** | — | — | **+0,486** | **+151%** |
+
+**Temel bulgu:** Mursit, BGE-M3'e göre ortalama **2,5× daha iyi** ilgili/ilgisiz ayrımı yapıyor. Kritik fark ilgisiz metin skorlarında: BGE-M3 0,315–0,463 aralığında kalırken Mursit 0,099–0,173'e düşüyor — Türkçe hukuk metinleri için çok daha keskin sınır.
+
+#### 4.3.3 Yeniden Index Planı
+
+Mevcut "adalet" koleksiyonu (BGE-M3, 1024-dim, 159K nokta) `scripts/reindex_mursit.py` ile yeniden index edilmekte. Yeni "adalet_mursit" koleksiyonu (768-dim) oluşturulduktan sonra `QDRANT_COLLECTION=adalet_mursit` çevre değişkeni ile benchmark karşılaştırması yapılacak.
+
 ---
 
 ## 5. Sonuçlar ve Gelecek Çalışmalar
