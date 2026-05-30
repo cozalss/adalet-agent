@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from eval.draft_quality import (
     has_short_answer,
+    is_truncated,
     length_in_target,
     measure,
     src_tag_coverage,
@@ -97,6 +98,36 @@ def test_strip_boilerplate_removes_kaynaklar_tail():
 
 def test_measure_returns_all_dimensions():
     out = measure("**Kısa cevap:** Tüketici iade hakkına sahiptir [src: m-TKHK-11].")
-    assert set(out) >= {"has_short_answer", "turkish_purity", "src_coverage", "word_count"}
+    assert set(out) >= {"has_short_answer", "turkish_purity", "src_coverage", "word_count",
+                        "is_truncated"}
     assert out["has_short_answer"] is True
     assert 0.0 <= out["turkish_purity"] <= 1.0
+
+
+# --------------------------------------------------------------------------
+#  is_truncated — cevap kesilme tespiti
+# --------------------------------------------------------------------------
+
+
+def test_truncated_when_ends_mid_sentence():
+    # Token cap'e takılmış: cümle ortasında, noktalama yok
+    assert is_truncated("**Kısa cevap:** Tüketici olarak iade talebinizi satıcıya") is True
+
+
+def test_not_truncated_with_terminal_punctuation():
+    assert is_truncated("**Kısa cevap:** Tüketici iade hakkına sahiptir.") is False
+
+
+def test_not_truncated_ending_with_src_tag():
+    assert is_truncated("**Kısa cevap:** Hakkınız var [src: m-TKHK-11]") is False
+
+
+def test_not_truncated_when_boilerplate_tail_present():
+    # Gövde düzgün bitiyor, sonra finalize boilerplate eklenmiş → truncation değil
+    full = "**Kısa cevap:** İade hakkınız var.\n\n---\n**Kaynaklar:**\n- ...\n\n⚠️ Bu cevap..."
+    assert is_truncated(full) is False
+
+
+def test_empty_body_not_truncated():
+    # Boş gövde ayrı bir hata; truncation sayılmaz
+    assert is_truncated("") is False

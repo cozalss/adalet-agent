@@ -169,6 +169,24 @@ def length_in_target(wc: int) -> bool:
     return TARGET_WORD_MIN <= wc <= TARGET_WORD_MAX
 
 
+# Düzgün biten cümle: terminal noktalama (. ! ? ) veya kapanış (kaynak etiketi/parantez).
+_PROPER_END_RE = re.compile(r"[.!?…»)\]]\s*$|\[src:[^\]]+\]\s*$")
+
+
+def is_truncated(text: str) -> bool:
+    """Cevap LLM token limiti nedeniyle ortada kesilmiş mi (heuristik).
+
+    Sinyal: gövde anlamlı bir cümle sonu noktalamasıyla bitmiyorsa (örn. cümle
+    ortasında, yarım kelimede biterse) token cap'e takılmış demektir. tokens_out
+    == LLM_MAX_TOKENS doğrudan ölçülemediğinden (graph LLM'i sarmalıyor) metin-
+    tabanlı proxy. Boş gövde truncation sayılmaz (ayrı hata).
+    """
+    body = strip_boilerplate_block(text).rstrip()
+    if not body:
+        return False
+    return not bool(_PROPER_END_RE.search(body))
+
+
 def measure(text: str) -> dict:
     """Tek cevap için 4 boyutlu kalite ölçümü (boilerplate kuyruğu kesilmiş)."""
     body = strip_boilerplate_block(text)
@@ -179,6 +197,7 @@ def measure(text: str) -> dict:
         "src_coverage": src_tag_coverage(body),
         "word_count": wc,
         "length_in_target": length_in_target(wc),
+        "is_truncated": is_truncated(text),
         "chars": len(body),
     }
 
@@ -278,6 +297,7 @@ def _aggregate(rows: list[dict]) -> dict:
         "avg_src_coverage": round(sum(r["src_coverage"] for r in ok) / n, 4),
         "length_in_target_rate": round(sum(r["length_in_target"] for r in ok) / n, 4),
         "avg_word_count": round(sum(r["word_count"] for r in ok) / n, 1),
+        "truncation_rate": round(sum(r.get("is_truncated", False) for r in ok) / n, 4),
     }
 
 

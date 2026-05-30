@@ -306,6 +306,21 @@ Tek sorgu ölçümü kuyruk (tail) latency hakkında yanıltıcıdır. `scripts/
 
 Gerçek retry döngüsü yalnızca `DEBATE_LLM_ON_RETRY=1` (opt-in) ile etkindir; bu modda bir LLM kritik çağrısı + tam pipeline tekrarı eklenir ve P99 ~2.4× artarak 32 saniyeye çıkar. Bu kalite-latans dengesi opt-in olarak bilinçli bırakılmıştır.
 
+#### 4.3.6 LLM Token Bütçesi A/B (`scripts/ab_llm_tokens.py`)
+
+LLM üretimi uçtan uca latansın ~%80'i olduğundan, `LLM_MAX_TOKENS` en doğrudan latans kaldıracıdır. 15 vaka üzerinde 320 vs 240 token (Qwen 14B Q5_K_M sabit, 2026-05-30):
+
+| Token | P50 | P95 | Kesilme | Kısa-cevap | TR-saflık | Kaynak-bağı | Hedef-uzunluk | Ort. kelime |
+|---|---|---|---|---|---|---|---|---|
+| 320 | 13.394 ms | 19.061 ms | %0 | %83 | %100 | %68 | %0 | 81 |
+| **240** | **11.097 ms** | **14.577 ms** | %0 | %83 | %100 | %78 | %0 | 63 |
+
+**Bulgu 1 — 240 daha iyi çalışma noktasıdır:** P95 %23 düşerken (19s→14.6s) cevap kesilme oranı %0'da kalır ve kalite metrikleri korunur (kaynak-bağı hatta 68%→78% artar). Tek maliyet ortalama kelime sayısının düşmesidir (81→63). N=15 ve LLM örnekleme varyansı nedeniyle P95 farkının bir kısmı gürültü olabilir; ancak yön tüm yüzdeliklerde tutarlıdır.
+
+**Bulgu 2 — kritik kalite açığı (cevaplar spec'in yarısı uzunlukta):** `length_in_target = %0` her iki ayarda da. Cevaplar 45-117 kelime aralığında, oysa `draft.tr.txt` hedefi 160-220 kelimedir. Sistem kendi uzunluk spec'inin ~yarısını üretiyor. Bu, prompt'un yeterli detay üretmediğini veya hedef aralığın yanlış kalibre edildiğini gösterir — kalite eval'inin (§sonraki) ele alacağı bir açık.
+
+**Model kısıtı:** Bu ölçümde yalnız Qwen 14B Q5_K_M mevcut. Qwen 7B (daha hızlı, potansiyel kalite düşüşü) karşılaştırması için ayrı GGUF + farklı portta llama-server gerekir — yapılmadı.
+
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
