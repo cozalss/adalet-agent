@@ -246,8 +246,13 @@ def _plain_search_env(monkeypatch):
     `fetch_maddeler` boş döndürülür ki anchor merge bu testlerin (rerank/boost)
     çıktısını kirletmesin — çapa mantığı kendi testlerinde ayrıca sınanır.
     """
-    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", False)
-    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", False)
+    from retrieval.adaptive_router import RoutingDecision
+
+    def _no_expansion(question, domain):
+        return RoutingDecision(use_hyde=False, use_mq=False, strategy="hybrid",
+                               complexity=0.0, domain=domain)
+
+    monkeypatch.setattr(mevzuat_mod, "route_query", _no_expansion)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", True)
 
     async def _no_anchors(pairs):
@@ -280,8 +285,13 @@ async def test_mevzuat_rerank_promotes_relevant_over_noise(monkeypatch):
 @pytest.mark.asyncio
 async def test_mevzuat_combines_hyde_and_multi_query(monkeypatch):
     """HyDE ve multi-query birlikte açıksa iki aday havuzu da final'e girmeli."""
-    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", True)
-    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", True)
+    from retrieval.adaptive_router import RoutingDecision
+
+    def _both_enabled(question, domain):
+        return RoutingDecision(use_hyde=True, use_mq=True, strategy="hyde+mq",
+                               complexity=0.9, domain=domain)
+
+    monkeypatch.setattr(mevzuat_mod, "route_query", _both_enabled)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_DOMAIN_FILTER_ENABLED", False)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
 
@@ -389,8 +399,13 @@ def test_ensure_core_anchor_already_in_topk_no_dup():
 async def test_anchor_madde_guaranteed_in_output(monkeypatch):
     """İş Hukuku ihbar maddesi (İK m.17) cross-encoder onu sıralamadan düşürse
     bile çapa-fetch ile final çıktıda görünür."""
-    monkeypatch.setattr(mevzuat_mod, "HYDE_ENABLED", False)
-    monkeypatch.setattr(mevzuat_mod, "MULTI_QUERY_ENABLED", False)
+    from retrieval.adaptive_router import RoutingDecision
+
+    def _no_expansion(question, domain):
+        return RoutingDecision(use_hyde=False, use_mq=False, strategy="hybrid",
+                               complexity=0.0, domain=domain)
+
+    monkeypatch.setattr(mevzuat_mod, "route_query", _no_expansion)
     monkeypatch.setattr(mevzuat_mod, "MEVZUAT_RERANK_ENABLED", False)
     # Çapa mantığı domain-filter bayrağına bağlı; conftest test'te kapatır,
     # production'da "1" (açık). Bu testte gerçek prod davranışını sınamak için açıyoruz.

@@ -19,15 +19,14 @@ import structlog
 from agents.config import (
     DOMAIN_CORE_MADDELER,
     DOMAIN_TO_KANUN_KODU,
-    HYDE_ENABLED,
     HYDE_TIMEOUT_S,
     MEVZUAT_DOMAIN_BOOST,
     MEVZUAT_DOMAIN_FILTER_ENABLED,
     MEVZUAT_RERANK_ENABLED,
-    MULTI_QUERY_ENABLED,
     MULTI_QUERY_N,
     TOP_K_LAW,
 )
+from retrieval.adaptive_router import route_query
 from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
@@ -72,15 +71,22 @@ async def mevzuat_node(state: AgentState) -> dict:
     results: list[SearchResult] = []
     retrieval_modes: list[str] = []
 
-    # HyDE ve Multi-Query bağımsız kaynakları sorgular → paralel çalıştır.
-    # Önceden sıralıydı: await HyDE (≤15s) → await MQ (≤8s) = 23s.
-    # gather ile: max(HyDE, MQ) ≈ 10-15s → 5-8s tasarruf.
+    # Adaptive routing: global flag yerine domain + karmaşıklık bazlı karar.
+    # A/B sonucu: HyDE trafik -20pp, idari -17pp; MQ tuketici -18pp, vergi -40pp.
+    routing = route_query(question, domain)
+    log.info(
+        "mevzuat_routing",
+        strategy=routing.strategy,
+        complexity=routing.complexity,
+        domain=domain,
+    )
+
     _tasks: dict[str, Any] = {}
-    if HYDE_ENABLED:
+    if routing.use_hyde:
         _tasks["hyde"] = search_with_hyde(
             question, top_k=target_k, domain=domain, qdrant_domain=None,
         )
-    if MULTI_QUERY_ENABLED:
+    if routing.use_mq:
         _tasks["mq"] = search_multi_query(
             question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None,
         )

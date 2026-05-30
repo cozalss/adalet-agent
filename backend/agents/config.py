@@ -131,6 +131,19 @@ MULTI_QUERY_ENABLED = os.getenv("MULTI_QUERY_ENABLED", "0") not in {"0", "false"
 # Sprint-4 W1: 4 → 5. Literatürde N=5-8 standard, paraphrase çeşitliliği +Recall@20.
 # Cache hit'lerde maliyetsiz. Per-paraphrase 1.5s + RRF merge yeterli.
 MULTI_QUERY_N = int(os.getenv("MULTI_QUERY_N", "5"))
+# A/B bulgusu (2026-05-30): MQ bu domainlerde pozitif, diğerlerinde negatif etki.
+# trafik +20pp, kira +14.3pp, idari +0pp — tuketici -18pp, vergi -40pp.
+MULTI_QUERY_ENABLED_DOMAINS: frozenset[str] = frozenset(
+    os.getenv("MULTI_QUERY_ENABLED_DOMAINS", "trafik,kira,idari").split(",")
+)
+
+# --- Adaptive Routing ---
+# Sorgu karmaşıklığı eşiği: bu değerin altındaki sorgular (kısa/spesifik/kanun referanslı)
+# HyDE ve MQ'dan yararlanamaz. 0.4 = 5+ kelime, kanun kodu yok.
+QUERY_COMPLEXITY_THRESHOLD = float(os.getenv("QUERY_COMPLEXITY_THRESHOLD", "0.4"))
+# ADAPTIVE_ROUTING_ENABLED=1 → domain+complexity routing aktif (önerilen).
+# =0 → eski davranış: HYDE_ENABLED/MULTI_QUERY_ENABLED global flag'leri direkt kullan.
+ADAPTIVE_ROUTING_ENABLED = os.getenv("ADAPTIVE_ROUTING_ENABLED", "1") not in {"0", "false", "False"}
 
 # --- Sprint-7/8 (Tier-3) opsiyonel SOTA toggle'ları ---
 # Default OFF: ENV=1 ile etkin. Bayrak kapalıyken graph topolojisi Sprint-3 ile aynı.
