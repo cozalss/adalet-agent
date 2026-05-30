@@ -311,6 +311,7 @@ async def ask_stream(
         _sent_triage = False
         _sent_sources = False
         _sent_drafting = False
+        _sent_clarify = False
         try:
             # stream_mode="values" → her node sonrası tüm state döner; en son
             # event final_state olur. İkinci graph.ainvoke gereksiz.
@@ -326,15 +327,26 @@ async def ask_stream(
                     yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
                     # --- Algılanan gecikme azaltma: ara ilerleme event'leri ---
-                    # Triaj tamamlandı → domain belli (2-3s'de kullanıcıya bilgi)
-                    domain_val = state.get("domain")
-                    if not _sent_triage and domain_val and domain_val != "unknown":
+                    # Triaj tamamlandı → intent + domain belli (2-3s'de kullanıcıya
+                    # bilgi). response_intent set olur olmaz yayılır; böylece
+                    # smalltalk/redirect/clarify yolları da (domain=unknown olsa bile)
+                    # frontend'e erken sinyal verir — yol türünü ayırt edebilir.
+                    intent = state.get("response_intent")
+                    if not _sent_triage and intent:
                         _sent_triage = True
                         triage_evt = {
-                            "domain": domain_val,
+                            "intent": intent,
+                            "domain": state.get("domain"),
                             "confidence": state.get("domain_confidence", 0.0),
                         }
                         yield f"event: triage\ndata: {json.dumps(triage_evt, ensure_ascii=False)}\n\n"
+
+                    # Netleştirme yolu → frontend soruları "yanıt" değil "soru" olarak
+                    # render etsin (stalled-answer ile karışmasın).
+                    if not _sent_clarify and state.get("clarify_response"):
+                        _sent_clarify = True
+                        n_q = len(state.get("clarifying_questions") or [])
+                        yield f"event: clarify\ndata: {json.dumps({'questions': n_q}, ensure_ascii=False)}\n\n"
 
                     # Kaynaklar geldi → kaynak sayısı belli
                     mevz = state.get("mevzuat_refs") or []
