@@ -30,7 +30,8 @@ _GREETINGS: frozenset[str] = frozenset({
 _THANKS: frozenset[str] = frozenset({
     "teşekkürler", "teşekkür ederim", "teşekkür", "teşekkurler",
     "sağ ol", "sağol", "sağ olun", "sağolun", "eyvallah",
-    "çok teşekkür ederim", "çok teşekkürler", "tşk", "tşkler", "teşekür ederim",
+    "çok teşekkür ederim", "çok teşekkürler", "çok yardımcı oldun sağ ol",
+    "çok yardımcı oldun sağol", "tşk", "tşkler", "teşekür ederim",
 })
 _FAREWELL: frozenset[str] = frozenset({
     "görüşürüz", "hoşça kal", "hoşçakal", "güle güle", "kendine iyi bak",
@@ -101,7 +102,7 @@ def _tr_lower(text: str) -> str:
 _NORM_STRIP_RE = re.compile(r"[^0-9a-zçğıöşü\s]", re.UNICODE)
 
 # En fazla bu kadar kelimelik girdiler sohbet adayı sayılır; uzunlar gerçek soru.
-_MAX_SMALLTALK_WORDS = 6
+_MAX_SMALLTALK_WORDS = 8
 
 
 def _normalize(text: str) -> str:

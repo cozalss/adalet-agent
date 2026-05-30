@@ -7,6 +7,18 @@ import pytest
 from agents.nodes.finalize import _split_sentences, finalize_node
 
 
+def _asciiish(text: str) -> str:
+    return text.translate(str.maketrans({
+        "ç": "c", "Ç": "C",
+        "ğ": "g", "Ğ": "G",
+        "ı": "i", "I": "I",
+        "İ": "I", "i": "i",
+        "ö": "o", "Ö": "O",
+        "ş": "s", "Ş": "S",
+        "ü": "u", "Ü": "U",
+    })).lower()
+
+
 @pytest.mark.asyncio
 async def test_finalize_strips_unverified_keeps_verified(base_state):
     """Bazı claim'ler doğrulanmamışsa: tüm cevap reddedilmez — doğrulanmamış
@@ -47,6 +59,30 @@ async def test_finalize_strips_unverified_keeps_verified(base_state):
 
 
 @pytest.mark.asyncio
+async def test_finalize_emits_clarify_response_directly():
+    """needs_clarification: hazır takip soruları doğrudan basılır — hukuki
+    assembly/disclaimer YOK, reject yoluna düşmez (domain geçerli olsa bile)."""
+    clarify = (
+        "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n"
+        "1. Kira sözleşmesi sona erdi mi?\n2. Evi teslim ettiniz mi?"
+    )
+    state = {
+        "domain": "kira",
+        "debate_verdict": "pass",
+        "response_intent": "needs_clarification",
+        "clarify_response": clarify,
+        "clarifying_questions": ["Kira sözleşmesi sona erdi mi?", "Evi teslim ettiniz mi?"],
+    }
+
+    out = await finalize_node(state)
+
+    assert out["response"] == clarify
+    assert out["disclaimers"] == []
+    assert out["confidence"] == 0.0
+    assert "Kaynaklar" not in out["response"]
+
+
+@pytest.mark.asyncio
 async def test_finalize_rejects_when_all_claims_unverified(base_state):
     """Hiçbir iddia doğrulanmadıysa gösterilecek güvenli içerik yok → reddet."""
     claims = [
@@ -70,7 +106,28 @@ async def test_finalize_rejects_when_all_claims_unverified(base_state):
 
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
-    assert "Yetersiz kanıt" in out["response"]
+    assert "Bu soruya şu an net bir yanıt veremiyorum" in out["response"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_unknown_domain_redirects_to_scope_without_disclaimer(base_state):
+    state = {
+        **base_state,
+        "question": "Film onerir misin?",
+        "domain": "unknown",
+        "domain_confidence": 0.0,
+        "triage_reasoning": "Kapsam disi genel soru",
+    }
+
+    out = await finalize_node(state)
+
+    assert out["debate_verdict"] == "reject"
+    assert out["confidence"] == 0.0
+    assert out["disclaimers"] == []
+    response = _asciiish(out["response"])
+    assert "guvenilir bir cevap verecek sekilde tasarlanmadim" in response
+    assert "benim ana amacim" in response
+    assert "hukuki durumu" in response
 
 
 @pytest.mark.asyncio
@@ -201,4 +258,4 @@ async def test_finalize_rejects_retry_verdict(base_state):
 
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
-    assert "Retry limiti doldu" in out["response"]
+    assert "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim" in out["response"]

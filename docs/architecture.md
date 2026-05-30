@@ -145,9 +145,10 @@ Triaj artık domain'in yanı sıra bir `response_intent` üretir (`agents/state.
 3. domain == unknown               → "redirect"
 4. clarification_round >= 1         → "answer"  (loop-guard: sonsuz soru-sorma kapanır)
 5. kullanıcı clarifier'a cevap verdi (chat_history'de CLARIFY_MARKER) → "answer"
-6. olgular yeterli (REQUIRED_FACTS + MIN_FACTS_FOR_ANSWER) → "answer"
-7. soru genel/tanımsal ("nedir", "nasıl hesaplanır") → "answer"
-8. aksi (olgu-eksik durumsal şikâyet) → "clarify"
+6. kısa durumsal şikâyet ("alamıyorum", "geldi", "sorunum var") → "clarify"
+7. olgular yeterli (REQUIRED_FACTS + MIN_FACTS_FOR_ANSWER) → "answer"
+8. soru genel/tanımsal ("nedir", "nasıl hesaplanır") → "answer"
+9. aksi (olgu-eksik durumsal şikâyet) → "clarify"
 ```
 
 ### Clarifier (dur-ve-sor dalı)
@@ -171,13 +172,26 @@ intent'lerde (şu an `redirect_to_scope`) kullanıcıya görünen metni LLM ile 
 doğal yazar. LLM başarısız/uygunsuz olursa deterministik `redirect_to_scope_fallback()`
 metnine düşer. Hukuki cevap yolunda **no-op** (`return {}`) → baseline davranış korunur.
 
-### Memory facts (hedef)
+### Memory facts
 
 `case_facts` (triaj'ın çıkardığı somut olgular: sure, isci_sayisi, tutar, olay,
 taraf, tarih) clarifier'ın hangi soruları soracağını ve policy'nin yeterlilik
-kararını besler. Hedef: clarifier'a verilen cevapların `case_facts`'e turlar
-arası birikmesi (şu an chat_history triaj prompt'una enjekte ediliyor; structured
-persistence sonraki iterasyon).
+kararını besler. Session store artık user turn'lerinde `case_facts` saklar; yeni
+turn başlarken geçmiş facts oldest→newest merge edilip initial state'e konur.
+Triaj, clarifier'a verilen yeni cevaptaki olguları da önceki facts ile birleştirir.
+Örnek: "Depozitomu alamıyorum" → `olay=depozito`; "Sözleşme sona erdi, evi teslim
+ettim" → `sozlesme_durumu=sona erdi`, `teslim=evi teslim etti`; sistem artık
+marker ile sadece "ilerle" demekle kalmaz, structured facts'i de draft'a taşır.
+
+### SSE stream sözleşmesi
+
+`POST /ask/stream` graph'ı tek kez `astream(stream_mode="values")` ile çalıştırır;
+son state'ten final response üretir, ikinci `ainvoke` yoktur. Event adları:
+`node`, `triage`, `clarify`, `sources`, `drafting`, `final`, `error`.
+
+Ara event payload'ları `v: 1` schema version alanı taşır. `final` event'in `data`
+alanı doğrudan `AskResponse` JSON'udur. `error` event'i de `v: 1`, `code`
+(`stream_timeout` veya `stream_failed`) ve kullanıcıya güvenli `detail` döner.
 
 ### Güncellenmiş akış
 

@@ -181,7 +181,7 @@ async def lifespan(app: FastAPI):
     log.info(
         "adalet_starting",
         llm_mode=os.environ.get("LLM_MODE", "mock"),
-        hyde=os.environ.get("HYDE_ENABLED", "1"),
+        hyde=os.environ.get("HYDE_ENABLED", "0"),
         embedding=os.environ.get("EMBEDDING_MODEL", "BAAI/bge-m3"),
     )
 
@@ -332,7 +332,7 @@ async def health() -> HealthResponse:
     """
     components: dict[str, str] = {
         "llm_mode": os.environ.get("LLM_MODE", "mock"),
-        "hyde_enabled": os.environ.get("HYDE_ENABLED", "1"),
+        "hyde_enabled": os.environ.get("HYDE_ENABLED", "0"),
     }
     status_levels: list[str] = []
 

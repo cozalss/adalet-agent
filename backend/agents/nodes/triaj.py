@@ -51,17 +51,22 @@ MAX_HISTORY_TURNS_IN_PROMPT = 5
 # "cinayetten", "nafakaya", "velayeti" gibi formlar \b tam-eşleşmeye takılmaz.
 _OUT_OF_SCOPE_PREFIX_KEYWORDS = frozenset({
     "cinayet", "öldürme", "tutuklama", "tutuklu", "gözaltı",
-    "nafaka", "velayet",
+    "hırsız", "dolandırıc", "savcılık", "suç", "darp",
+    "nafaka", "velayet", "boşan",
 })
 
 _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
     "tuketici": (
         "tüketici", "ayıplı", "bozuk ürün", "bozuk mal", "garanti",
         "mesafeli satış", "internetten ald", "iade", "değişim", "satıcı",
+        "cayma hakkı", "abonelik", "taksitli satış", "haksız şart",
+        "tüketici kredisi", "erken ödeme", "hakem heyeti", "ürün",
+        "hizmet", "arızalı", "ayıplı hizmet",
     ),
     "isHukuku": (
         "işten çıkar", "kıdem", "ihbar", "fazla mesai", "maaş", "ücret",
-        "mobbing", "işçi", "işveren", "sgk",
+        "mobbing", "işçi", "işveren", "sgk", "yıllık izin", "deneme süresi",
+        "doğum izni", "genel tatil", "iş kazası", "haklı fesih", "işe iade",
     ),
     "kira": (
         "kira", "kiracı", "ev sahibi", "depozito", "tahliye",
@@ -69,23 +74,31 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
     ),
     "icra": (
         "icra", "haciz", "ödeme emri", "takip", "borçlu", "alacaklı",
-        "itirazın kaldırılması",
+        "itirazın kaldırılması", "itirazın iptali", "ilamsız", "kambiyo",
+        "senet", "maaş haczi", "haczedilemeyen", "borca itiraz", "imzaya itiraz",
+        "satış talebi",
     ),
     "trafik": (
         "trafik", "kaza", "sigorta", "kasko", "ehliyet", "plaka",
-        "araç değer kaybı",
+        "araç değer kaybı", "değer kaybı", "trafik cezası", "hız ihlali",
+        "pert araç", "zorunlu trafik", "tespit tutanağı",
     ),
     "vergi": (
         "vergi", "kdv", "ötv", "mtv", "gelir vergisi", "vergi cezası",
-        "gecikme faizi",
+        "gecikme faizi", "uzlaşma", "vergi ziyaı", "usulsüzlük",
+        "tarhiyat", "tecil", "taksitlendirme", "pişmanlık", "ıslah",
     ),
     "tapu": (
         "tapu", "mülkiyet", "kat mülkiyeti", "arsa", "imar",
-        "site yönetimi", "apartman",
+        "site yönetimi", "apartman", "intifa", "ipotek", "muvazaalı",
+        "geçit hakkı", "şufa", "ortaklığın giderilmesi", "tescil",
+        "kat irtifakı",
     ),
     "idari": (
         "idari işlem", "idare mahkemesi", "kamulaştırma", "vatandaşlık",
-        "ruhsat", "belediye", "iptal davası",
+        "ruhsat", "belediye", "iptal davası", "tam yargı", "yürütmeyi durdurma",
+        "zımni ret", "disiplin cezası", "idari para cezası", "kamu görevlisi",
+        "idari dava", "idareye başvuru", "istinaf", "temyiz",
     ),
 }
 
@@ -98,9 +111,16 @@ _TUTAR_RE = re.compile(
     re.IGNORECASE,
 )
 
+_ISCI_SAYISI_RE = re.compile(r"\b\d+\s*(?:kişi|işçi|çalışan|personel)\b", re.IGNORECASE)
+
 
 def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
+
+
+def _tr_lower(text: str) -> str:
+    """Türkçe-güvenli küçült (İ→i, I→ı) — keyword eşleşmeleri için."""
+    return text.replace("I", "ı").replace("İ", "i").lower()
 
 
 def _is_out_of_scope(question: str) -> bool:
@@ -112,7 +132,7 @@ def _is_out_of_scope(question: str) -> bool:
     bağlamında match etmeli — bu yüzden multi-token form'lar tercih edilir.
     """
     import re as _re
-    q_low = question.lower()
+    q_low = _tr_lower(question)
     tokens = _re.findall(r"[a-zçğıöşü]+", q_low)
     if any(
         token.startswith(prefix)
@@ -132,7 +152,7 @@ def _is_out_of_scope(question: str) -> bool:
 
 
 def _is_continuation(question: str) -> bool:
-    q_low = question.lower().strip()
+    q_low = _tr_lower(question).strip()
     return any(q_low.startswith(m) or f" {m}" in q_low[:30] for m in _CONTINUATION_MARKERS)
 
 
@@ -141,7 +161,7 @@ def _fast_domain(question: str) -> Domain | None:
 
     Belirsiz/çakışmalı durumda None döner ve eski JSON-mode LLM triaj çalışır.
     """
-    q_low = question.lower()
+    q_low = _tr_lower(question)
     scores: dict[Domain, int] = {}
     for domain, keywords in _FAST_DOMAIN_KEYWORDS.items():
         score = sum(1 for kw in keywords if kw in q_low)
@@ -158,11 +178,13 @@ def _fast_domain(question: str) -> Domain | None:
 def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
     """LLM'siz küçük olgu çıkarımı; eksik olursa draft yine sorudan anlar."""
     facts: dict[str, str] = {}
-    q_low = question.lower()
+    q_low = _tr_lower(question)
     if m := _SURE_RE.search(question):
         facts["sure"] = m.group(0)
     if m := _TUTAR_RE.search(question):
         facts["tutar"] = m.group(0)
+    if m := _ISCI_SAYISI_RE.search(question):
+        facts["isci_sayisi"] = m.group(0)
 
     taraf_map = {
         "kirac": "kiracı",
@@ -192,7 +214,39 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
         if marker in q_low:
             facts["olay"] = marker
             break
+    if domain == "kira":
+        if any(x in q_low for x in ("sözleşme bitti", "sözleşme sona erdi", "sona erdi")):
+            facts["sozlesme_durumu"] = "sona erdi"
+        elif "sözleşme devam" in q_low:
+            facts["sozlesme_durumu"] = "devam ediyor"
+        if any(x in q_low for x in ("teslim ettim", "evi teslim", "tahliye ettim")):
+            facts["teslim"] = "evi teslim etti"
+        if any(x in q_low for x in ("gerekçe göstermiyor", "gerekçe sunmuyor", "hiçbir gerekçe")):
+            facts["gerekce"] = "gerekçe gösterilmedi"
     return facts
+
+
+def _history_case_facts(history: list[ConversationTurn]) -> dict[str, str]:
+    """Önceki user turn'lerinden structured facts'i taşı."""
+    merged: dict[str, str] = {}
+    for turn in history:
+        raw = turn.get("case_facts") or {}
+        if isinstance(raw, dict):
+            for key, val in raw.items():
+                if val is not None and str(val).strip():
+                    merged[str(key)] = str(val)[:_MAX_FACT_VALUE_LEN]
+    return merged
+
+
+def _merge_case_facts(*parts: dict[str, str]) -> dict[str, str]:
+    """Soldan sağa merge: eski olgu korunur, yeni açık cevaplar üzerine yazar."""
+    merged: dict[str, str] = {}
+    for part in parts:
+        for key, val in part.items():
+            sval = str(val).strip()
+            if sval:
+                merged[key] = sval[:_MAX_FACT_VALUE_LEN]
+    return merged
 
 
 def _format_history(history: list[ConversationTurn]) -> str:
@@ -265,6 +319,10 @@ async def triaj_node(state: AgentState) -> dict:
         }
 
     history: list[ConversationTurn] = state.get("chat_history", []) or []
+    prior_facts = _merge_case_facts(
+        _history_case_facts(history),
+        {str(k): str(v) for k, v in (state.get("case_facts") or {}).items() if str(v).strip()},
+    )
     # Domain devralma: ya pronominal devam sorusu ("peki, o zaman...") ya da
     # önceki turun bir clarifier sorusu olması (kullanıcı şimdi onu yanıtlıyor).
     inherited_domain = (
@@ -277,7 +335,7 @@ async def triaj_node(state: AgentState) -> dict:
         and os.getenv("TRIAJ_FAST_PATH", "1").lower() in {"1", "true", "yes"}
         and (domain := _fast_domain(question))
     ):
-        facts = _fast_facts(question, domain)
+        facts = _merge_case_facts(prior_facts, _fast_facts(question, domain))
         log.info("triaj_fast_path", domain=domain, n_facts=len(facts))
         return {
             "domain": domain,
@@ -316,13 +374,16 @@ async def triaj_node(state: AgentState) -> dict:
     )
 
     domain, confidence, reasoning, facts = _parse_triage_json(response.content)
+    facts = _merge_case_facts(prior_facts, facts)
+    if inherited_domain:
+        facts = _merge_case_facts(facts, _fast_facts(question, inherited_domain))
 
     # Salvage olduğunda facts kayboldu (JSON kesildi) → eligibility atlanır → draft
     # zayıf çıkar (tk-01 vakası). Ayrı kısa çağrı ile facts'ı kurtar; domain
     # zaten regex'le kurtarılmıştı, bu sadece olguları geri getirir.
     if reasoning == _SALVAGE_REASONING and not facts and domain != "unknown":
         log.info("triaj_facts_retry", domain=domain)
-        facts = await _recover_facts(question)
+        facts = _merge_case_facts(prior_facts, await _recover_facts(question))
 
     # Devam sorusunda LLM unknown derse, inherited'i fallback olarak kullan
     if domain == "unknown" and inherited_domain:
@@ -353,7 +414,17 @@ async def triaj_node(state: AgentState) -> dict:
 
 # facts dict'inde kabul edilen anahtarlar — LLM serbest anahtar üretse de
 # yalnız bunları tutarız (gürültü/halüsinasyon anahtar sızıntısını engeller).
-_ALLOWED_FACT_KEYS = {"sure", "isci_sayisi", "tutar", "olay", "taraf", "tarih"}
+_ALLOWED_FACT_KEYS = {
+    "sure",
+    "isci_sayisi",
+    "tutar",
+    "olay",
+    "taraf",
+    "tarih",
+    "sozlesme_durumu",
+    "teslim",
+    "gerekce",
+}
 _MAX_FACT_VALUE_LEN = 120
 
 

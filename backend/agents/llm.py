@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -332,6 +333,7 @@ class LlamaCppServerClient:
             # llama.cpp server OpenAI uyumlu — response_format ile JSON grammar
             payload["response_format"] = {"type": "json_object"}
 
+        started = time.perf_counter()
         try:
             resp = await self._client.post(
                 f"{self.base_url}/v1/chat/completions", json=payload,
@@ -344,6 +346,15 @@ class LlamaCppServerClient:
 
         choice = data["choices"][0]
         usage = data.get("usage", {})
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        log.info(
+            "llama_server_call_done",
+            elapsed_ms=elapsed_ms,
+            json_mode=json_mode,
+            max_tokens=max_tokens,
+            tokens_in=usage.get("prompt_tokens", 0),
+            tokens_out=usage.get("completion_tokens", 0),
+        )
         return LLMResponse(
             content=choice["message"]["content"],
             raw=data,

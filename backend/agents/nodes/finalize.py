@@ -10,6 +10,7 @@ import re
 import structlog
 
 from agents.config import DISCLAIMER_TR
+from agents.nodes.compose import redirect_to_scope_fallback
 from agents.state import AgentState
 from core.observability import observe_node
 
@@ -32,10 +33,33 @@ async def finalize_node(state: AgentState) -> dict:
     # Hukuki içerik yok → soğuk ret yerine sıcak karşılama, hukuki disclaimer yok.
     smalltalk = state.get("smalltalk_response")
     if smalltalk:
+        if state.get("response_intent") == "out_of_scope_sensitive":
+            log.info("finalize_out_of_scope_sensitive")
+            return {
+                "response": smalltalk,
+                "confidence": 0.0,
+                "disclaimers": [],
+                "prediction": None,
+                "debate_verdict": "reject",
+            }
         log.info("finalize_smalltalk")
         return {
             "response": smalltalk,
             "confidence": 1.0,
+            "disclaimers": [],
+            "prediction": None,
+        }
+
+    # Netleştirme (clarifier set etti): hazır takip sorularını doğrudan bas.
+    # Hukuki iddia yok → disclaimer yok. SIRA KRİTİK: clarify domaini geçerli +
+    # verdict default "pass" olduğundan, bu dal aşağıdaki reject/legal-assembly
+    # yolundan ÖNCE gelmeli; aksi halde boş draft'tan reject'e düşer.
+    clarify = state.get("clarify_response")
+    if state.get("response_intent") == "needs_clarification" and clarify:
+        log.info("finalize_clarify")
+        return {
+            "response": clarify,
+            "confidence": 0.0,
             "disclaimers": [],
             "prediction": None,
         }
@@ -185,12 +209,15 @@ def _reject_response(state: AgentState, reason: str | None = None) -> dict:
 
     # Yanıt tonu: neyin neden olmadığını kısaca, insanca açıkla; kullanıcıyı yönlendir.
     if domain == "unknown":
-        body = (
-            "Bu soruyu yanıtlamak için yeterli bilgiye ulaşamadım. "
-            "Durumunuzu daha ayrıntılı anlatırsanız tekrar deneyebilirim; "
-            "ya da hukuki durumunuz için bir avukata başvurmanızı öneririm."
-        )
-    elif verdict == "retry":
+        body = state.get("composed_response") or redirect_to_scope_fallback()
+        return {
+            "response": body,
+            "confidence": 0.0,
+            "disclaimers": [],
+            "prediction": None,
+            "debate_verdict": "reject",
+        }
+    if verdict == "retry":
         # retry-limit doldu, debate "reject"e çevirdi
         body = (
             "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim "

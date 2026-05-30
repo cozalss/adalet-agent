@@ -36,6 +36,23 @@ async def test_append_then_get_roundtrip():
 
 
 @pytest.mark.asyncio
+async def test_case_facts_roundtrip():
+    """Clarifier sonrası structured facts session içinde turdan tura taşınır."""
+    s = InMemorySessionStore()
+    await s.append_turn(
+        "c1",
+        {
+            "role": "user",
+            "content": "kira depozitomu alamıyorum",
+            "domain": "kira",
+            "case_facts": {"olay": "depozito"},
+        },
+    )
+    h = await s.get_history("c1")
+    assert h[0]["case_facts"] == {"olay": "depozito"}
+
+
+@pytest.mark.asyncio
 async def test_sliding_window_max_turns():
     s = InMemorySessionStore(max_turns=3)
     for i in range(5):

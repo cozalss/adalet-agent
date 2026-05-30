@@ -52,6 +52,8 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from agents.config import MAX_RETRY
+from agents.nodes.clarifier import clarifier_node
+from agents.nodes.compose import compose_node
 from agents.nodes.crag import crag_node
 from agents.nodes.debate import debate_node
 from agents.nodes.dilekce import dilekce_node
@@ -64,6 +66,7 @@ from agents.nodes.self_rag import self_rag_node
 from agents.nodes.tahmin import tahmin_node
 from agents.nodes.triaj import triaj_node
 from agents.nodes.verify import verify_node
+from agents.policy import decide_path
 from agents.state import AgentState
 
 
@@ -87,8 +90,9 @@ def _dilekce_enabled() -> bool:
 def _sink() -> str:
     """Finalize'dan ÖNCEKİ son durak.
 
-    Sıralama: debate → [tahmin?] → [dilekce?] → finalize. Bayraklar kapalıysa
-    doğrudan finalize — baseline topoloji birebir korunur.
+    Sıralama: debate → [tahmin?] → [dilekce?] → compose → finalize.
+    `compose` hukuki cevaplarda no-op, yönlendirme gibi özel niyetlerde doğal dil
+    üreticidir. Bayraklar kapalıysa sink doğrudan compose olur.
 
     INVARIANT (code-review notu): `_sink()` ve build_graph()'taki `sink`
     değişkeni AYNI ENV bayraklarını okur (PREDICTIVE/DILEKCE_ENABLED). Bu
@@ -101,18 +105,26 @@ def _sink() -> str:
         return "tahmin"
     if _dilekce_enabled():
         return "dilekce"
-    return "finalize"
+    return "compose"
 
 
 def _route_after_triaj(state: AgentState) -> list[str] | str:
-    """Triaj sonrası fan-out:
+    """Triaj sonrası fan-out — KARAR merkezi policy engine'de (deterministik).
 
-    - domain=unknown        → finalize (reject)
-    - aksi                  → mevzuat + emsal paralel
+    `decide_path` (agents.policy) cevap-yolunu seçer:
+    - clarify  → clarifier (retrieval/draft YOK; takip soruları döner, finalize basar)
+    - answer   → mevzuat + emsal paralel (baseline hukuki akış)
+    - aksi      → _sink() (redirect/reject_sensitive/smalltalk → finalize)
+
+    Bu, önceden buraya gömülü olan `domain==unknown` kontrolünü policy'ye taşır;
+    karar tek yerde toplanır (triaj yalnız sınıflandırır).
     """
-    if state.get("domain", "unknown") == "unknown":
-        return _sink()
-    return ["mevzuat", "emsal"]
+    decision = decide_path(state)
+    if decision == "clarify":
+        return "clarifier"
+    if decision == "answer":
+        return ["mevzuat", "emsal"]
+    return _sink()
 
 
 def _route_after_debate(state: AgentState) -> list[str] | str:
@@ -153,8 +165,8 @@ def _self_rag_enabled() -> bool:
 
 
 def _eligibility_enabled() -> bool:
-    """ENV ile etkin: ELIGIBILITY_ENABLED (default ON; testlerde conftest kapatır)."""
-    return os.environ.get("ELIGIBILITY_ENABLED", "1") not in {"0", "false", "False"}
+    """ENV ile etkin: ELIGIBILITY_ENABLED (default OFF; derin modda açılır)."""
+    return os.environ.get("ELIGIBILITY_ENABLED", "0") not in {"0", "false", "False"}
 
 
 def build_graph() -> Any:
@@ -169,6 +181,10 @@ def build_graph() -> Any:
     g = StateGraph(AgentState)
 
     g.add_node("triaj", triaj_node)
+    # Clarifier: policy "clarify" derse buraya gelinir; retrieval/draft'a
+    # dokunmadan finalize'a akar (takip soruları döner). Baseline'da (policy=answer)
+    # bu node hiç ziyaret edilmez → topoloji davranışı korunur.
+    g.add_node("clarifier", clarifier_node)
     # HyDE/multi-query mevzuat_node içinde env-toggle (HYDE_ENABLED,
     # MULTI_QUERY_ENABLED) ile ele alınır; iç asyncio.wait_for + plain-hybrid
     # fallback ile latency güvende.
@@ -177,6 +193,7 @@ def build_graph() -> Any:
     g.add_node("draft", draft_node)
     g.add_node("verify", verify_node)
     g.add_node("debate", debate_node)
+    g.add_node("compose", compose_node)
     g.add_node("finalize", finalize_node)
 
     # Opsiyonel SOTA node'lar
@@ -191,7 +208,7 @@ def build_graph() -> Any:
         g.add_node("crag", crag_node)
     if self_rag_on:
         g.add_node("self_rag", self_rag_node)
-    # Finalize-öncesi zinciri: debate → [tahmin?] → [dilekce?] → finalize
+    # Finalize-öncesi zinciri: debate → [tahmin?] → [dilekce?] → compose → finalize
     # Node iç-guard'lar (want_dilekce, verdict, refs) gereksiz çağrıyı no-op
     # yapar; conditional edge yerine in-node guard tercih edildi → graph
     # topolojisi statik, runtime branching sade.
@@ -201,16 +218,23 @@ def build_graph() -> Any:
         g.add_node("dilekce", dilekce_node)
     if predictive_on and dilekce_on:
         g.add_edge("tahmin", "dilekce")
-        g.add_edge("dilekce", "finalize")
+        g.add_edge("dilekce", "compose")
     elif predictive_on:
-        g.add_edge("tahmin", "finalize")
+        g.add_edge("tahmin", "compose")
     elif dilekce_on:
-        g.add_edge("dilekce", "finalize")
+        g.add_edge("dilekce", "compose")
+    else:
+        # Opsiyonel pre-final node yoksa da compose final kontrolünden önce çalışır.
+        # Legal cevaplarda no-op olduğu için baseline davranışı korunur.
+        pass
+    g.add_edge("compose", "finalize")
+    # Clarifier dur-ve-sor dalı: tek tur, doğrudan finalize'a.
+    g.add_edge("clarifier", "finalize")
 
-    # Finalize öncesi son durak — sıralama: tahmin → dilekce → finalize.
+    # Finalize öncesi son durak — sıralama: tahmin → dilekce → compose → finalize.
     sink = (
         "tahmin" if predictive_on
-        else ("dilekce" if dilekce_on else "finalize")
+        else ("dilekce" if dilekce_on else "compose")
     )
 
     g.add_edge(START, "triaj")
@@ -219,7 +243,7 @@ def build_graph() -> Any:
     g.add_conditional_edges(
         "triaj",
         _route_after_triaj,
-        ["mevzuat", "emsal", sink],
+        ["mevzuat", "emsal", "clarifier", sink],
     )
 
     # Fan-in: mevzuat ve emsal bittiğinde → retrieve-sonrası zincir → draft.
@@ -280,6 +304,10 @@ def make_initial_state(
         domain="unknown",
         domain_confidence=0.0,
         triage_reasoning="",
+        response_intent="legal_answer",
+        clarifying_questions=[],
+        clarify_response="",
+        clarification_round=0,
         mevzuat_refs=[],
         emsal_refs=[],
         draft_response="",

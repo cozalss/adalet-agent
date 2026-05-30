@@ -44,7 +44,10 @@ _DRAFT_SYSTEM = (
     "bir avukata danışmanızı öneririm' de.\n"
     "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle.\n"
     "5. Yanıtının TAMAMI Türkçe olmalı. İngilizce, Çince veya başka hiçbir "
-    "dilde tek kelime bile yazma; tüm cevabı baştan sona Türkçe ver."
+    "dilde tek kelime bile yazma; tüm cevabı baştan sona Türkçe ver.\n"
+    "6. İspat yükünü veya üst sınır yönünü ters yazma: kaynak satıcı/işveren/idare "
+    "ispat eder diyorsa kullanıcıya ispat yükleme; kaynak 'aşamaz' diyorsa "
+    "aşanı kabul etmek zorunda olduğunu söyleme."
 )
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
@@ -75,7 +78,7 @@ async def draft_node(state: AgentState) -> dict[str, object]:
             "errors": ["draft: kaynak bulunamadı"],
         }
 
-    kaynaklar = _format_refs_for_prompt(refs)
+    kaynaklar = _format_refs_for_prompt(refs, question)
     olgular = _format_facts_for_prompt(state.get("case_facts") or {})
     uygunluk = _format_eligibility_for_prompt(state.get("eligibility") or [])
     gecmis = _format_history_for_prompt(state.get("chat_history") or [])
@@ -242,8 +245,8 @@ def _format_eligibility_for_prompt(assessments: list[dict[str, Any]]) -> str:
 # aşıp `llama_decode -1` ile ÇÖKÜYORDU). Gerçekçi oran + ref sayısı + snippet cap ile
 # prompt güvenli sınırda tutulur; ayrıca LLM client max_tokens clamp guard'ı var.
 _CHARS_PER_TOKEN_TR = 2.3
-_DRAFT_SNIPPET_CHARS = 450
-_MAX_DRAFT_REFS = 10
+_DRAFT_SNIPPET_CHARS = 260
+_MAX_DRAFT_REFS = 4
 
 
 _MAX_HISTORY_TURNS = 3      # son 3 tur yeterli; daha fazlası token boşa gider
@@ -272,12 +275,22 @@ def _format_history_for_prompt(history: list[Any]) -> str:
     )
 
 
-def _format_refs_for_prompt(refs: list[Citation]) -> str:
+_PROMPT_REF_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("kira art", "yüzde", "tüfe", "tüketici fiyat"), ("m-TBK-344",)),
+    (("seçimlik", "iade", "değişim", "bedel indir"), ("m-TKHK-11",)),
+    (("ayıpl", "arız", "bozuk", "teslim", "10 gün"), ("m-TKHK-10", "m-TKHK-8")),
+    (("kıdem",), ("m-EIK-14",)),
+    (("ihbar",), ("m-IK-17",)),
+    (("işe iade",), ("m-IK-18",)),
+)
+
+
+def _format_refs_for_prompt(refs: list[Citation], question: str = "") -> str:
     """LLM'e verilecek kaynak bloğu — ref sayısı + token bütçesi sınırında kal."""
     lines = []
     budget = int(LLM_CONTEXT_BUDGET * _CHARS_PER_TOKEN_TR)
     used = 0
-    for r in refs[:_MAX_DRAFT_REFS]:
+    for r in _prioritize_refs_for_prompt(refs, question)[:_MAX_DRAFT_REFS]:
         chunk = (
             f"[{r['source_id']}] {r['title']}\n"
             f"  Kaynak: {r['url']}\n"
@@ -288,6 +301,34 @@ def _format_refs_for_prompt(refs: list[Citation]) -> str:
         lines.append(chunk)
         used += len(chunk)
     return "\n".join(lines)
+
+
+def _prioritize_refs_for_prompt(refs: list[Citation], question: str) -> list[Citation]:
+    """Prompt bütçesi dar; soru için kritik maddeler ilk slotlara girmeli."""
+    law_refs = [r for r in refs if r.get("doc_type") == "law"]
+    if law_refs:
+        refs = law_refs
+    q_low = question.lower()
+
+    def score(ref: Citation) -> float:
+        sid = ref["source_id"]
+        title = ref["title"].lower()
+        snippet = (ref["snippet"] or "").lower()
+        val = float(ref.get("score", 0.0) or 0.0)
+        for markers, source_ids in _PROMPT_REF_HINTS:
+            if any(marker in q_low for marker in markers) and sid in source_ids:
+                val += 100.0
+        if "seçimlik" in q_low and sid == "m-TKHK-11":
+            val += 80.0
+        if ("arız" in q_low or "ayıpl" in q_low) and sid == "m-TKHK-10":
+            val += 60.0
+        q_terms = {t for t in re.findall(r"[a-zçğıöşü0-9]+", q_low) if len(t) >= 4}
+        if q_terms:
+            haystack = f"{title} {snippet}"
+            val += sum(1.0 for term in q_terms if term in haystack)
+        return val
+
+    return sorted(refs, key=score, reverse=True)
 
 
 def _extract_claims(text: str, refs: list[Citation]) -> list[Claim]:

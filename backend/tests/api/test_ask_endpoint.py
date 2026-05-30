@@ -6,6 +6,8 @@ hata yolları test edilir.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -161,3 +163,58 @@ def test_ask_rate_limit_wired():
     # slowapi `_limits` veya benzeri attribute ekler; en azından callable
     assert callable(ask)
     assert callable(ask_stream)
+
+
+def test_ask_stream_success_contract(monkeypatch):
+    """Başarı yolunda SSE event adları + payload şekli kilitli kalsın."""
+    from api.routes import ask as ask_mod
+
+    class _OnePassGraph:
+        async def astream(self, _initial, stream_mode="values"):
+            assert stream_mode == "values"
+            yield {
+                "domain": "kira",
+                "domain_confidence": 0.9,
+                "response_intent": "legal_answer",
+                "retry_count": 0,
+                "mevzuat_refs": [],
+                "emsal_refs": [],
+                "response": "Kısa cevap: Test.",
+                "confidence": 0.9,
+                "debate_verdict": "pass",
+                "verified_claims": [],
+                "disclaimers": [],
+                "errors": [],
+            }
+
+        async def ainvoke(self, _initial):  # pragma: no cover - stream bunu çağırmamalı
+            raise AssertionError("/ask/stream graph.ainvoke çağırmamalı")
+
+    monkeypatch.setenv("ASK_GRAPH_TIMEOUT_S", "0")
+    monkeypatch.setattr(ask_mod, "_get_graph", lambda: _OnePassGraph())
+    from main import app
+
+    client = TestClient(app)
+    resp = client.post("/ask/stream", json={"question": "Kira depozitosu nedir?"})
+    assert resp.status_code == 200, resp.text
+    events = _parse_sse(resp.text)
+    assert [e for e, _ in events] == ["node", "triage", "final"]
+    node = events[0][1]
+    triage = events[1][1]
+    final = events[2][1]
+    assert node["v"] == 1
+    assert node["domain"] == "kira"
+    assert triage["v"] == 1
+    assert triage["intent"] == "legal_answer"
+    assert final["domain"] == "kira"
+    assert final["answer"] == "Kısa cevap: Test."
+
+
+def _parse_sse(text: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    for block in [b for b in text.strip().split("\n\n") if b.strip()]:
+        lines = block.splitlines()
+        event = next(line.removeprefix("event: ") for line in lines if line.startswith("event: "))
+        data = next(line.removeprefix("data: ") for line in lines if line.startswith("data: "))
+        events.append((event, json.loads(data)))
+    return events

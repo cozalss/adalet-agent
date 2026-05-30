@@ -82,11 +82,13 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl --fail --silent --output /dev/null http://127.0.0.1:8000/health || exit 1
 
-# Production default: HyDE+multi-query açık, llamacpp_server modunu compose'da set et.
+# Production default: low-latency profile; deep retrieval compose/env ile açılır.
 # Sprint-5 W16: SCHEDULER_ENABLED=1 default (APScheduler RG + Yargıtay cron).
 # Test/CI'da SCHEDULER_ENABLED=0 ile devre dışı bırakılabilir.
-ENV HYDE_ENABLED=1 \
-    MULTI_QUERY_ENABLED=1 \
+ENV HYDE_ENABLED=0 \
+    MULTI_QUERY_ENABLED=0 \
+    ELIGIBILITY_ENABLED=0 \
+    DEBATE_LLM_ON_RETRY=0 \
     LLM_MODE=mock \
     SCHEDULER_ENABLED=1 \
     SCHEDULER_TIMEZONE=Europe/Istanbul

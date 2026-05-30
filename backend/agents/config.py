@@ -87,24 +87,24 @@ DILEKCE_MAX_PDF_BYTES = int(os.getenv("DILEKCE_MAX_PDF_BYTES", "5242880"))
 DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
 
 # --- LLM ---
-# draft cevabı için TAVAN (gerçek cevaplar EOS ile ~600 token'da durur; bu yalnız
-# runaway-tail'i bağlar — normal cevabı kısaltmaz/yavaşlatmaz, kalite-nötr).
-# env ile ayarlanır; uzun cevap truncate olursa LLM_MAX_TOKENS=2048.
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1536"))
+# Draft cevabı için üretim tavanı. Lokal 14B modelde asıl gecikme draft
+# üretiminde olduğu için default "lean answer" profili kısa ama tam cevap verir.
+# Derin/uzun yanıt gereken ortamda LLM_MAX_TOKENS=1000+ yapılabilir.
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "240"))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.
 DEBATE_MAX_TOKENS = int(os.getenv("DEBATE_MAX_TOKENS", "350"))
-LLM_TEMPERATURE = 0.1            # hukuki üretim — düşük sıcaklık şart
-LLM_CONTEXT_BUDGET = 3000        # context'in retrieval'a ayrılan token oranı
+LLM_TEMPERATURE = 0.0            # hukuki üretim — deterministik ve düşük halüsinasyon
+LLM_CONTEXT_BUDGET = 1400        # draft prompt'una ayrılan retrieval token bütçesi
 
 # --- Uygunluk geçişi (yapılandırılmış akıl yürütme) ---
 # Eşik-uygulama (kıdem 1 yıl, işe iade 6 ay+30 işçi) tek draft prompt'unda
 # küçük modelde güvenilir olmuyor; ayrı, odaklı bir JSON-mode LLM çağrısı her
 # madde için "eşik çıkar → olguyla karşılaştır → VAR/YOK" kararı üretir. Draft
-# bu kararları prose'a çevirir. Default ON (asıl akıl-yürütme fix'i); testlerde
-# conftest kapatır (baseline topoloji korunur). E2E/production'da açık.
-ELIGIBILITY_ENABLED = os.getenv("ELIGIBILITY_ENABLED", "1") not in {"0", "false", "False"}
+# bu kararları prose'a çevirir. Lokal latency hedefi için default OFF; derin
+# muhakeme istenen deployment'ta ELIGIBILITY_ENABLED=1 ile açılır.
+ELIGIBILITY_ENABLED = os.getenv("ELIGIBILITY_ENABLED", "0") not in {"0", "false", "False"}
 ELIGIBILITY_MAX_TOKENS = int(os.getenv("ELIGIBILITY_MAX_TOKENS", "700"))
 # Not: 12-kanun seed sonrası retrieval blok büyüdü (8 law + 8 case × 600 char
 # = ~10KB ≈ 2500 token). System+soru+template ile 4096 token llama-server -c
@@ -112,7 +112,7 @@ ELIGIBILITY_MAX_TOKENS = int(os.getenv("ELIGIBILITY_MAX_TOKENS", "700"))
 # ≈ 3000 token + 1000 sistem/template = 4000 → güvenli sınır içinde.
 
 # --- HyDE & Multi-Query ---
-HYDE_ENABLED = os.getenv("HYDE_ENABLED", "1") not in {"0", "false", "False"}
+HYDE_ENABLED = os.getenv("HYDE_ENABLED", "0") not in {"0", "false", "False"}
 # Sprint-4 W1: 2.0s → 15.0s. v1_hyde_ab0773c.json ölçümünde Qwen 14B Q4 -ngl 20
 # partial-offload ile 200 token üretim ortalama 14-17s; 2s default tüm 50 vakayı
 # silent timeout'a düşürüp HyDE'ı pratik olarak hybrid'e degrade etti. ENV ile
@@ -120,7 +120,7 @@ HYDE_ENABLED = os.getenv("HYDE_ENABLED", "1") not in {"0", "false", "False"}
 # mevzuat_node.timeout_total üzerinde toplam ~40s — production p95 limiti.
 HYDE_TIMEOUT_S = float(os.getenv("HYDE_TIMEOUT_S", "15.0"))
 HYDE_MAX_TOKENS = 200
-MULTI_QUERY_ENABLED = os.getenv("MULTI_QUERY_ENABLED", "1") not in {"0", "false", "False"}
+MULTI_QUERY_ENABLED = os.getenv("MULTI_QUERY_ENABLED", "0") not in {"0", "false", "False"}
 # Sprint-4 W1: 4 → 5. Literatürde N=5-8 standard, paraphrase çeşitliliği +Recall@20.
 # Cache hit'lerde maliyetsiz. Per-paraphrase 1.5s + RRF merge yeterli.
 MULTI_QUERY_N = int(os.getenv("MULTI_QUERY_N", "5"))

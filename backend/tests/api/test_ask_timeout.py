@@ -8,6 +8,7 @@ ile tamamen kapatılabilir (baseline davranış).
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -49,8 +50,11 @@ def test_ask_stream_times_out_emits_timeout_event(slow_client):
         "/ask/stream", json={"question": "İşten çıkarıldım, tazminat alır mıyım?"},
     )
     assert resp.status_code == 200  # SSE bağlantısı açılır, hata event ile gelir
-    assert "stream_timeout" in resp.text
-    assert "zaman aşımı" in resp.text.lower()
+    assert "event: error" in resp.text
+    payload = _first_event_payload(resp.text, "error")
+    assert payload["v"] == 1
+    assert payload["code"] == "stream_timeout"
+    assert "zaman aşımı" in payload["detail"].lower()
 
 
 def test_ask_timeout_disabled_does_not_trip(monkeypatch):
@@ -76,3 +80,12 @@ def test_ask_timeout_disabled_does_not_trip(monkeypatch):
     client = TestClient(app)
     resp = client.post("/ask", json={"question": "Kira sözleşmem bitti, ne yapmalıyım?"})
     assert resp.status_code == 200, resp.text
+
+
+def _first_event_payload(text: str, event: str) -> dict:
+    marker = f"event: {event}\n"
+    start = text.index(marker) + len(marker)
+    data_line = next(
+        line for line in text[start:].splitlines() if line.startswith("data: ")
+    )
+    return json.loads(data_line.removeprefix("data: "))

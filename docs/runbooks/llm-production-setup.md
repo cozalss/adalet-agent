@@ -49,6 +49,7 @@ Alternatif: tarayıcıdan https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-
   --flash-attn `
   -ctk q8_0 -ctv q8_0 `
   --parallel 2 `
+  --lookup-ngram-min 2 `
   --host 0.0.0.0 --port 8080 `
   --mlock
 ```
@@ -84,8 +85,10 @@ Beklenen: 5-10 saniyede Türkçe cevap döner.
 
 ```powershell
 $env:LLM_MODE="llamacpp_server"
-$env:HYDE_ENABLED="1"
-$env:MULTI_QUERY_ENABLED="1"
+$env:HYDE_ENABLED="0"
+$env:MULTI_QUERY_ENABLED="0"
+$env:ELIGIBILITY_ENABLED="0"
+$env:DEBATE_LLM_ON_RETRY="0"
 $env:COLBERT_QUERY_ENABLED="1"
 $env:RAPTOR_ENABLED="1"
 $env:GRAPH_RAG_ENABLED="1"

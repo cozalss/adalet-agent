@@ -104,3 +104,17 @@ async def test_finalize_returns_smalltalk_without_disclaimer(base_state) -> None
     assert out["disclaimers"] == []          # sohbette hukuki disclaimer yok
     assert "avukata danışın" not in out["response"].lower()  # soğuk ret değil
     assert out["confidence"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_finalize_out_of_scope_sensitive_is_reject_not_smalltalk(base_state) -> None:
+    state = {
+        **base_state,
+        "domain": "unknown",
+        "response_intent": "out_of_scope_sensitive",
+        "smalltalk_response": "Ceza hukuku konularında yardımcı olamıyorum.",
+    }
+    out = await finalize_node(state)
+    assert out["response"] == "Ceza hukuku konularında yardımcı olamıyorum."
+    assert out["confidence"] == 0.0
+    assert out["debate_verdict"] == "reject"

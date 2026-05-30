@@ -54,6 +54,9 @@ backend/predictive/checkpoints/
 # Smoke test artifacts (büyük JSON output)
 backend/data/smoke_runs/
 
+# Eval run çıktıları (generated; .md audit raporları tracked kalır)
+backend/eval/runs/*.json
+
 # /feedback endpoint test/runtime artifacts (her gün YYYYMMDD.jsonl)
 # Test'ler conftest.py autouse fixture ile tmp'ye yönlendirilir; ama eski
 # committed dosyalar varsa ignore et — production'da named volume kullanılır.

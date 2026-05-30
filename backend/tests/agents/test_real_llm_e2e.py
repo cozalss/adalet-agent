@@ -1,9 +1,11 @@
 """Real-LLM end-to-end testleri — Sprint-4 W5.3.
 
-`pytest -m llm_integration` ile yalnız llama-server localhost:8080 ayakta iken
-çalışır. CI'da default skip — gece run veya manuel:
+`pytest -m llm_integration` ile yalnız RUN_LLM_INTEGRATION=1 verilmiş ve
+llama-server localhost:8080 ayakta iken çalışır. CI'da default skip — gece run
+veya manuel:
 
-    LLM_MODE=llamacpp_server LLM_SERVER_URL=http://127.0.0.1:8080 \
+    RUN_LLM_INTEGRATION=1 LLM_MODE=llamacpp_server \
+      LLM_SERVER_URL=http://127.0.0.1:8080 \
       uv run pytest -m llm_integration -v
 
 Amaç: Mock LLM testleri ekstra-katı verdict mantığını test eder, gerçek model
@@ -27,9 +29,12 @@ from agents.graph import build_graph
 from agents.llm import reset_llm
 
 LLM_URL = os.environ.get("LLM_SERVER_URL", "http://127.0.0.1:8080")
-
-
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")
+RUN_LLM_INTEGRATION = os.environ.get("RUN_LLM_INTEGRATION", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 
 def _llm_alive() -> bool:
@@ -50,10 +55,10 @@ def _qdrant_alive() -> bool:
 
 
 pytestmark = pytest.mark.skipif(
-    not (_llm_alive() and _qdrant_alive()),
+    not (RUN_LLM_INTEGRATION and _llm_alive() and _qdrant_alive()),
     reason=(
-        f"real-LLM suite needs both LLM ({LLM_URL}) "
-        f"and Qdrant ({QDRANT_URL}); skipping"
+        "real-LLM suite needs RUN_LLM_INTEGRATION=1, "
+        f"LLM ({LLM_URL}) and Qdrant ({QDRANT_URL}); skipping"
     ),
 )
 

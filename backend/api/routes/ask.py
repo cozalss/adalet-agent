@@ -55,6 +55,7 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/ask", tags=["ask"])
 
 _graph_singleton: Any = None
+SSE_SCHEMA_VERSION = 1
 
 
 def _get_graph() -> Any:
@@ -68,6 +69,22 @@ def _get_graph() -> Any:
 def _new_conversation_id() -> str:
     """Yeni session için UUID4."""
     return uuid.uuid4().hex
+
+
+def _merge_history_facts(history: list[ConversationTurn]) -> dict[str, Any]:
+    """Session geçmişindeki structured olguları oldest->newest birleştir."""
+    merged: dict[str, Any] = {}
+    for turn in history:
+        facts = turn.get("case_facts") or {}
+        if isinstance(facts, dict):
+            merged.update({k: v for k, v in facts.items() if str(v).strip()})
+    return merged
+
+
+def _sse_event(event: str, payload: dict[str, Any]) -> str:
+    """Tek SSE serializer. `final` dışındaki payload'lar v=1 sözleşmesini taşır."""
+    data = {"v": SSE_SCHEMA_VERSION, **payload}
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
@@ -87,12 +104,17 @@ async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
     )
     initial["conversation_id"] = conv_id
     initial["chat_history"] = history
+    initial["case_facts"] = _merge_history_facts(history)
     initial["want_tts"] = req.want_tts
     return initial, conv_id
 
 
 async def _persist_turn(
-    conv_id: str, role: str, content: str, domain: str | None = None,
+    conv_id: str,
+    role: str,
+    content: str,
+    domain: str | None = None,
+    case_facts: dict[str, Any] | None = None,
 ) -> None:
     """Session store'a tek tur yaz."""
     if not content:
@@ -101,6 +123,10 @@ async def _persist_turn(
     turn: ConversationTurn = {"role": role, "content": content[:2000]}  # type: ignore[typeddict-item]
     if domain and domain != "unknown":
         turn["domain"] = domain  # type: ignore[typeddict-unknown-key]
+    if case_facts:
+        turn["case_facts"] = {
+            str(k): v for k, v in case_facts.items() if str(v).strip()
+        }  # type: ignore[typeddict-unknown-key]
     try:
         await store.append_turn(conv_id, turn)
     except Exception as exc:
@@ -253,7 +279,13 @@ async def ask(
     response = response.model_copy(update={"trace_id": current_trace_id()})
 
     # Persist ile audit PII'siz
-    await _persist_turn(conv_id, "user", safe_for_log, final_state.get("domain"))
+    await _persist_turn(
+        conv_id,
+        "user",
+        safe_for_log,
+        final_state.get("domain"),
+        final_state.get("case_facts") or None,
+    )
     await _persist_turn(conv_id, "assistant", response.answer, final_state.get("domain"))
     emit_audit(AuditEvent(
         event="ask_response", principal=principal,
@@ -324,7 +356,7 @@ async def ask_stream(
                         "domain": state.get("domain"),
                         "retry_count": state.get("retry_count", 0),
                     }
-                    yield f"event: node\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    yield _sse_event("node", payload)
 
                     # --- Algılanan gecikme azaltma: ara ilerleme event'leri ---
                     # Triaj tamamlandı → intent + domain belli (2-3s'de kullanıcıya
@@ -339,14 +371,14 @@ async def ask_stream(
                             "domain": state.get("domain"),
                             "confidence": state.get("domain_confidence", 0.0),
                         }
-                        yield f"event: triage\ndata: {json.dumps(triage_evt, ensure_ascii=False)}\n\n"
+                        yield _sse_event("triage", triage_evt)
 
                     # Netleştirme yolu → frontend soruları "yanıt" değil "soru" olarak
                     # render etsin (stalled-answer ile karışmasın).
                     if not _sent_clarify and state.get("clarify_response"):
                         _sent_clarify = True
                         n_q = len(state.get("clarifying_questions") or [])
-                        yield f"event: clarify\ndata: {json.dumps({'questions': n_q}, ensure_ascii=False)}\n\n"
+                        yield _sse_event("clarify", {"questions": n_q})
 
                     # Kaynaklar geldi → kaynak sayısı belli
                     mevz = state.get("mevzuat_refs") or []
@@ -354,19 +386,25 @@ async def ask_stream(
                     if not _sent_sources and (mevz or emsal):
                         _sent_sources = True
                         sources_evt = {"count": len(mevz) + len(emsal)}
-                        yield f"event: sources\ndata: {json.dumps(sources_evt, ensure_ascii=False)}\n\n"
+                        yield _sse_event("sources", sources_evt)
 
                     # Draft hazır → cevap yazılıyor
                     if not _sent_drafting and state.get("draft_response"):
                         _sent_drafting = True
-                        yield "event: drafting\ndata: {}\n\n"
+                        yield _sse_event("drafting", {})
 
             elapsed = int((time.perf_counter() - start) * 1000)
             resp = _state_to_response(final_state, elapsed, conv_id)
             yield f"event: final\ndata: {resp.model_dump_json()}\n\n"
 
             # PII-masked persist (raw req.question DEĞIL)
-            await _persist_turn(conv_id, "user", safe_for_log, final_state.get("domain"))
+            await _persist_turn(
+                conv_id,
+                "user",
+                safe_for_log,
+                final_state.get("domain"),
+                final_state.get("case_facts") or None,
+            )
             await _persist_turn(conv_id, "assistant", resp.answer, final_state.get("domain"))
             emit_audit(AuditEvent(
                 event="ask_stream_response", principal=principal,
@@ -386,7 +424,7 @@ async def ask_stream(
                 errors=(f"timeout>{timeout_s}s",),
             ))
             err_payload = {"detail": "İstek zaman aşımına uğradı", "code": "stream_timeout"}
-            yield f"event: error\ndata: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+            yield _sse_event("error", err_payload)
         except Exception as exc:
             log.exception("ask_stream_failed", error=str(exc))
             emit_audit(AuditEvent(
@@ -396,7 +434,7 @@ async def ask_stream(
             ))
             # İç exception detayını SSE ile istemciye sızdırma — log/audit yeterli.
             err_payload = {"detail": "İstek işlenemedi", "code": "stream_failed"}
-            yield f"event: error\ndata: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+            yield _sse_event("error", err_payload)
 
     return StreamingResponse(
         event_source(),

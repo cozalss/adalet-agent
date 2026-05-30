@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 
 import structlog
@@ -66,6 +67,20 @@ async def debate_node(state: AgentState) -> dict:
             f"Retry limiti ({MAX_RETRY}) doldu; doğrulanmış cevap üretilemedi.",
         )
 
+    if not _retry_llm_enabled():
+        verified = state.get("verified_claims") or []
+        if any(c.get("verified", False) for c in verified):
+            return _final(
+                state,
+                "pass",
+                "Verifier kısmi destek buldu; hızlı modda yalnız doğrulanmış kısım döndürülür.",
+            )
+        return _final(
+            state,
+            "reject",
+            "Verifier yeterli destek bulamadı; hızlı modda tekrar üretim yapılmadı.",
+        )
+
     # LLM debate çağrısı
     try:
         debate_result = await _llm_critique(state)
@@ -102,6 +117,11 @@ async def debate_node(state: AgentState) -> dict:
 # --------------------------------------------------------------------------
 #  LLM call
 # --------------------------------------------------------------------------
+
+def _retry_llm_enabled() -> bool:
+    """Retry verdict'inde pahalı LLM debate/retry döngüsünü aç/kapat."""
+    return os.getenv("DEBATE_LLM_ON_RETRY", "0").lower() in {"1", "true", "yes"}
+
 
 async def _llm_critique(state: AgentState) -> dict:
     """LLM'e JSON-mode debate prompt'u gönder, JSON parse et."""

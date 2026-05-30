@@ -30,8 +30,8 @@ _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "eligibility.tr.txt"
 _TEMPLATE = _PROMPT_PATH.read_text(encoding="utf-8")
 
 # Çok madde → tek çağrı; en alakalı ilk N law maddesiyle sınırla (latency + odak).
-_MAX_MADDELER = 8
-_SNIPPET_CHARS = 600
+_MAX_MADDELER = 4
+_SNIPPET_CHARS = 450
 _VALID_VERDICTS = {"evet", "hayir", "belirsiz"}
 
 _FACT_LABELS = {

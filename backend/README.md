@@ -149,6 +149,11 @@ uv run python -m scripts.backup_qdrant --s3
 | GET | `/auth/me` | required | Principal echo |
 | POST | `/feedback` | required | Thumbs up/down + comment |
 
+`/ask/stream` SSE sözleşmesi: ara event'ler `node`, `triage`, `clarify`,
+`sources`, `drafting`, `error` ve `data.v=1` taşır. `final` event'inin `data`
+alanı doğrudan `AskResponse` JSON'udur. Stream path graph'ı tek kez
+`astream(values)` ile çalıştırır; ikinci `ainvoke` yoktur.
+
 ## Güvenlik (Sprint-4 W6+W7)
 
 - **JWT** (HS256, 24h TTL) — kullanıcı flow

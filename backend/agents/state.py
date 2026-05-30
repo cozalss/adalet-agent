@@ -32,6 +32,14 @@ Domain = Literal[
 
 DocType = Literal["law", "case"]
 DebateVerdict = Literal["pass", "retry", "reject"]
+ResponseIntent = Literal[
+    "legal_answer",
+    "needs_clarification",
+    "redirect_to_scope",
+    "smalltalk",
+    "out_of_scope_sensitive",
+    "reject_unverified",
+]
 Role = Literal["user", "assistant"]
 
 
@@ -108,6 +116,7 @@ class ConversationTurn(TypedDict):
     content: str
     timestamp: NotRequired[str]   # ISO8601, opsiyonel
     domain: NotRequired[Domain]   # önceki turda triaj kararı (debug)
+    case_facts: NotRequired[dict[str, Any]]  # o turdan çıkarılan/taşınan olgular
 
 
 class ImageAttachment(TypedDict):
@@ -141,6 +150,9 @@ class AgentState(TypedDict):
     domain: Domain
     domain_confidence: float
     triage_reasoning: str
+    # Cevabın davranış niyeti. Güvenlik/alan kararı deterministik node'larda verilir;
+    # kullanıcıya görünen doğal dil metni gerekirse compose node'u tarafından yazılır.
+    response_intent: NotRequired[ResponseIntent]
     # Sohbet (selamlaşma/teşekkür/"ne yaparsın") tespit edilirse hazır yanıt.
     # Set ise: triaj LLM atlandı, finalize bu metni doğrudan basar (hukuki akış yok).
     smalltalk_response: NotRequired[str]
@@ -149,6 +161,12 @@ class AgentState(TypedDict):
     # (örn. kıdem tazminatı için kaynaktaki 1 yıl eşiği vs. kullanıcının 3 ayı).
     # Anahtarlar serbest; LLM neyi bulursa onu doldurur, yoksa boş dict.
     case_facts: NotRequired[dict[str, Any]]
+    # Clarifier (eksik bilgide takip sorusu): Policy engine "clarify" derse
+    # clarifier_node 2-4 SABİT Türkçe soru üretir, retrieval/draft YOK, finalize
+    # bu metni doğrudan basar. clarification_round loop-guard (max 1 tur).
+    clarifying_questions: NotRequired[list[str]]
+    clarify_response: NotRequired[str]
+    clarification_round: NotRequired[int]
     # Uygunluk değerlendirmesi (yapılandırılmış akıl yürütme): retrieve edilen her
     # madde için {madde, hak, kosul, saglaniyor: evet|hayir|belirsiz, gerekce}.
     # Draft bu önceden-hesaplanmış kararları prose'a çevirir (eşik aritmetiğini
@@ -164,6 +182,7 @@ class AgentState(TypedDict):
 
     # --- Üretim ---
     draft_response: str
+    composed_response: NotRequired[str]
     claims: list[Claim]
     verified_claims: list[Claim]
     dilekce_md: NotRequired[str]

@@ -146,8 +146,10 @@ services:
       # production profilinde llama-server servisi (adalet-net içi DNS).
       LLM_SERVER_URL: ${LLM_SERVER_URL:-http://llama-server:8080}
       # Retrieval feature toggles
-      HYDE_ENABLED: "1"
-      MULTI_QUERY_ENABLED: "1"
+      HYDE_ENABLED: ${HYDE_ENABLED:-0}
+      MULTI_QUERY_ENABLED: ${MULTI_QUERY_ENABLED:-0}
+      ELIGIBILITY_ENABLED: ${ELIGIBILITY_ENABLED:-0}
+      DEBATE_LLM_ON_RETRY: ${DEBATE_LLM_ON_RETRY:-0}
       COLBERT_QUERY_ENABLED: "1"
       MEVZUAT_DOMAIN_FILTER: "1"
       PYTHONUTF8: "1"
@@ -237,6 +239,17 @@ services:
       - "0.0.0.0"
       - "-ngl"
       - "${LLAMA_NGL:-99}"   # tüm layer'lar GPU'ya (VRAM yeterliyse)
+      - "--flash-attn"
+      - "-ctk"
+      - "q8_0"
+      - "-ctv"
+      - "q8_0"
+      - "--batch-size"
+      - "512"
+      - "--ubatch-size"
+      - "512"
+      - "--lookup-ngram-min"
+      - "2"
     networks:
       - adalet-net
     healthcheck:

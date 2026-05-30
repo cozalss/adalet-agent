@@ -34,8 +34,9 @@ async def test_debate_hard_reject_propagates(base_state):
 
 
 @pytest.mark.asyncio
-async def test_debate_retry_increments_counter(base_state):
+async def test_debate_retry_increments_counter(base_state, monkeypatch):
     """verify retry → LLM çağrılır; MockLLM debate JSON döndürür, score 0.78 → pass."""
+    monkeypatch.setenv("DEBATE_LLM_ON_RETRY", "1")
     base_state["debate_verdict"] = "retry"
     base_state["retry_count"] = 0
     base_state["draft_response"] = "Bir taslak [src: m-TKHK-11]"
@@ -60,6 +61,7 @@ async def test_debate_rejects_when_retry_limit_reached(base_state):
 @pytest.mark.asyncio
 async def test_debate_handles_llm_failure_gracefully(base_state, monkeypatch):
     """LLM exception → deterministic retry + retry_count artar."""
+    monkeypatch.setenv("DEBATE_LLM_ON_RETRY", "1")
     base_state["debate_verdict"] = "retry"
     base_state["retry_count"] = 0
 

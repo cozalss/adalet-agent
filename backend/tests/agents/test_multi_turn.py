@@ -8,6 +8,7 @@ from agents.nodes.clarifier import clarifier_node
 from agents.nodes.triaj import (
     _answered_clarifier,
     _format_history,
+    _history_case_facts,
     _is_continuation,
     _last_user_domain,
     triaj_node,
@@ -123,6 +124,15 @@ async def test_triaj_without_history_works(base_state):
 
 
 @pytest.mark.asyncio
+async def test_triaj_fast_path_handles_turkish_capital_i(base_state):
+    """Vatandaş cümlesindeki büyük İ fast-domain'i kaçırmamalı."""
+    base_state["question"] = "İşten çıkarıldım."
+    base_state.pop("chat_history", None)
+    result = await triaj_node(base_state)
+    assert result["domain"] == "isHukuku"
+
+
+@pytest.mark.asyncio
 async def test_triaj_out_of_scope_short_circuits_history(base_state):
     """Kapsam dışı keyword → history bakılmaz, hemen reject."""
     base_state["question"] = "Cinayet davası nasıl açılır?"
@@ -210,6 +220,37 @@ async def test_triaj_inherits_domain_after_clarifier_answer(base_state):
     result = await triaj_node(base_state)
     assert result["domain"] == "kira"
     assert result["response_intent"] == "legal_answer"
+
+
+@pytest.mark.asyncio
+async def test_clarifier_answer_merges_structured_case_facts(base_state):
+    """Tur2 cevabı önceki olay olgusunu korur ve yeni cevapları case_facts'e ekler."""
+    base_state["question"] = "Sözleşme geçen ay sona erdi ve evi temiz teslim ettim"
+    base_state["chat_history"] = [
+        {
+            "role": "user",
+            "content": "kira depozitomu alamıyorum",
+            "domain": "kira",
+            "case_facts": {"olay": "depozito"},
+        },
+        {"role": "assistant", "content": f"{CLARIFY_MARKER} birkaç bilgiye ihtiyacım var: ..."},
+    ]
+    result = await triaj_node(base_state)
+    assert result["domain"] == "kira"
+    assert result["case_facts"]["olay"] == "depozito"
+    assert result["case_facts"]["sozlesme_durumu"] == "sona erdi"
+    assert result["case_facts"]["teslim"] == "evi teslim etti"
+
+
+def test_history_case_facts_merges_oldest_to_newest():
+    history = [
+        {"role": "user", "content": "q1", "case_facts": {"olay": "depozito"}},
+        {"role": "user", "content": "q2", "case_facts": {"teslim": "evi teslim etti"}},
+    ]
+    assert _history_case_facts(history) == {
+        "olay": "depozito",
+        "teslim": "evi teslim etti",
+    }
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,20 @@
+{"id": "CLR_kira_001", "soru": "kira depozitomu alamıyorum", "expected_domain": "kira", "expected_decision": "clarify"}
+{"id": "CLR_kira_002", "soru": "ev sahibim beni evden çıkarmak istiyor", "expected_domain": "kira", "expected_decision": "clarify"}
+{"id": "CLR_kira_003", "soru": "kira sözleşmemle ilgili bir sorun var", "expected_domain": "kira", "expected_decision": "clarify"}
+{"id": "CLR_is_001", "soru": "işten çıkarıldım", "expected_domain": "isHukuku", "expected_decision": "clarify"}
+{"id": "CLR_is_002", "soru": "maaşımı alamıyorum ne yapabilirim", "expected_domain": "isHukuku", "expected_decision": "clarify"}
+{"id": "CLR_is_003", "soru": "işyerinde sorun yaşıyorum", "expected_domain": "isHukuku", "expected_decision": "clarify"}
+{"id": "CLR_tuketici_001", "soru": "aldığım ürün bozuk çıktı", "expected_domain": "tuketici", "expected_decision": "clarify"}
+{"id": "CLR_tuketici_002", "soru": "satıcı arızalı ürünü değiştirmiyor", "expected_domain": "tuketici", "expected_decision": "clarify"}
+{"id": "CLR_icra_001", "soru": "icra takibiyle ilgili sorum var", "expected_domain": "icra", "expected_decision": "clarify"}
+{"id": "CLR_icra_002", "soru": "hakkımda icra başlatılmış", "expected_domain": "icra", "expected_decision": "clarify"}
+{"id": "CLR_trafik_001", "soru": "trafik cezası yedim itiraz edebilir miyim", "expected_domain": "trafik", "expected_decision": "clarify"}
+{"id": "CLR_trafik_002", "soru": "kaza yaptım ne yapmalıyım", "expected_domain": "trafik", "expected_decision": "clarify"}
+{"id": "CLR_vergi_001", "soru": "vergi cezası geldi", "expected_domain": "vergi", "expected_decision": "clarify"}
+{"id": "CLR_vergi_002", "soru": "vergiyle ilgili bir sorunum var", "expected_domain": "vergi", "expected_decision": "clarify"}
+{"id": "CLR_tapu_001", "soru": "tapu devriyle ilgili sorum var", "expected_domain": "tapu", "expected_decision": "clarify"}
+{"id": "CLR_tapu_002", "soru": "tapuda sorun yaşıyorum", "expected_domain": "tapu", "expected_decision": "clarify"}
+{"id": "CLR_idari_001", "soru": "belediyeyle sorun yaşıyorum", "expected_domain": "idari", "expected_decision": "clarify"}
+{"id": "CLR_idari_002", "soru": "idari para cezası kesildi", "expected_domain": "idari", "expected_decision": "clarify"}
+{"id": "CLR_kira_004", "soru": "kira artışı çok yüksek geldi", "expected_domain": "kira", "expected_decision": "clarify"}
+{"id": "CLR_is_004", "soru": "fazla mesai ücretimi alamadım", "expected_domain": "isHukuku", "expected_decision": "clarify"}
