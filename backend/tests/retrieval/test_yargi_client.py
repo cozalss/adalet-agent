@@ -18,11 +18,7 @@ import httpx
 import pytest
 
 from retrieval.mcp_base import SESSION_HEADER
-from retrieval.yargi_client import (
-    RegulatorDecision,
-    YargitayDecision,
-    YargiClient,
-)
+from retrieval.yargi_client import RegulatorDecision, YargiClient, YargitayDecision
 
 _SESSION_ID = "test-session-yargi-xyz"
 

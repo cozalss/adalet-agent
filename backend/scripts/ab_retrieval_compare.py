@@ -186,15 +186,15 @@ def _markdown_table(summaries: dict[str, dict[str, Any]]) -> str:
         if not s:
             continue
 
-        def _fmt(k: str) -> str:
-            v = s.get(k, 0.0)
+        def _fmt(k: str, _s: dict = s, _mode: str = mode) -> str:  # bind loop vars
+            v = _s.get(k, 0.0)
             b = baseline.get(k, 0.0)
             delta = v - b
             if k.startswith("lat"):
                 sign = "+" if delta > 0 else ""
                 return f"{v:.0f}ms ({sign}{delta:.0f})"
             sign = "+" if delta > 0 else ""
-            pct = f" ({sign}{delta * 100:.1f}pp)" if mode != "baseline" else ""
+            pct = f" ({sign}{delta * 100:.1f}pp)" if _mode != "baseline" else ""
             return f"{v:.3f}{pct}"
 
         lines.append("| " + mode + " | " + " | ".join(_fmt(c) for c in cols) + " |")
@@ -212,7 +212,9 @@ def _build_report(
     domain_header = "| Domain | " + " | ".join(modes) + " |"
     domain_sep = "|" + "|".join(["---"] * (len(modes) + 1)) + "|"
     domain_rows = [
-        "| " + dom + " | " + " | ".join(f"{per_domain_all[m].get(dom, 0.0):.3f}" for m in modes) + " |"
+        "| " + dom + " | "
+        + " | ".join(f"{per_domain_all[m].get(dom, 0.0):.3f}" for m in modes)
+        + " |"
         for dom in domains
     ]
     return "\n".join([
@@ -277,8 +279,9 @@ async def main(args: argparse.Namespace) -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     json_path = out_dir / f"ab_retrieval_{ts}.json"
+    payload = {"summaries": summaries, "per_domain": per_domain_all, "raw": raw}
     json_path.write_text(
-        json.dumps({"summaries": summaries, "per_domain": per_domain_all, "raw": raw}, indent=2, ensure_ascii=False),
+        json.dumps(payload, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     md_path = out_dir / f"ab_retrieval_{ts}.md"
