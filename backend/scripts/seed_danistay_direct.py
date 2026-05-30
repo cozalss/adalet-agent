@@ -112,6 +112,8 @@ async def _search(client: httpx.AsyncClient, chamber: str, kw: str,
 
 
 async def _fetch_doc(client: httpx.AsyncClient, doc_id: str, keyword: str = "") -> str:
+    """Danıştay karar metnini çek — HTML response, iç HTML entity-encoded."""
+    import html as html_lib
     for attempt, wait_s in enumerate([0, 5, 15], start=1):
         if wait_s:
             await asyncio.sleep(wait_s)
@@ -121,9 +123,16 @@ async def _fetch_doc(client: httpx.AsyncClient, doc_id: str, keyword: str = "") 
             if r.status_code == 429:
                 continue
             r.raise_for_status()
-            data = r.json()
-            text = (data.get("data") or "")
+            # Dış HTML → iç HTML entity-encoded karar içeriğini bul
+            outer = r.text
+            # İç içe HTML entity'leri decode et
+            inner = html_lib.unescape(outer)
+            # HTML taglarını temizle
+            text = re.sub(r"<script[^>]*>.*?</script>", " ", inner, flags=re.DOTALL)
+            text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL)
             text = re.sub(r"<[^>]+>", " ", text)
+            # Yine entity decode (çift kodlama)
+            text = html_lib.unescape(text)
             text = re.sub(r"\s{2,}", " ", text).strip()
             return text
         except Exception as exc:
@@ -214,10 +223,12 @@ async def main(args: argparse.Namespace) -> None:
         texts = [c["text"] for c in batch]
         out = await asyncio.to_thread(embedder.encode, texts, 8)
         for c, dense, sparse in zip(batch, out.dense, out.sparse):
+            si, sv = sparse
             points.append(ChunkPoint(
                 id=c["id"],
                 dense_vector=dense,
-                sparse_vector=sparse,
+                sparse_indices=si,
+                sparse_values=sv,
                 payload={k: v for k, v in c.items() if k != "id"},
             ))
 
