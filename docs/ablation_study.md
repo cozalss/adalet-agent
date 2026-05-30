@@ -347,6 +347,19 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
+#### 4.3.8 Latans Gözlemleme (`/metrics/latency`)
+
+"P95/P99 trendi görünmezse kör uçarız." `core/metrics.py` in-process yuvarlanan pencere (son 500 istek) tutar; `/metrics/latency` endpoint'i dış scraper (Prometheus) gerektirmeden P50/P95/P99'u JSON döndürür. SSE stream her tamamlandığında stage timing'leri (`first_event_ms`, `retrieval_done_ms`, `first_token_ms`, `final_ms`) hem yapılandırılmış log'a (`stream_timings`, ELK/Vector için) hem bu aggregator'a kaydedilir.
+
+| Stage | Anlam |
+|---|---|
+| `stream.first_event_ms` | İlk node — graph başladı |
+| `stream.retrieval_done_ms` | Mevzuat + emsal geldi |
+| `stream.first_token_ms` | Draft başladı (token-stream yok → proxy) |
+| `stream.final_ms` | Uçtan uca toplam |
+
+**Kısıt:** tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot verir. Kalıcı/birleşik trend için JSON `stream_timings` log'ları bir aggregator'a (Langfuse, ELK, Loki) aktarılmalıdır. Langfuse v4 entegrasyonu (`core/observability.py`) opsiyonel request-level trace de sağlar.
+
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
 
 ---

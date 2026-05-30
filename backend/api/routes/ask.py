@@ -417,11 +417,17 @@ async def ask_stream(
                 "final_ms": elapsed,
             }
             yield _sse_event("timing", timings)
-            # Structured log — dashboard/metrics aggregation için (event: stream_timings).
+            # Structured log — log aggregation (ELK/Vector) için.
             log.info("stream_timings", conversation_id=conv_id,
                      domain=final_state.get("domain"),
                      verdict=final_state.get("debate_verdict"),
                      retry_count=final_state.get("retry_count", 0), **timings)
+            # In-process rolling metrics — /metrics/latency P50/P95/P99 görünürlüğü.
+            try:
+                from core.metrics import record_stream_timings
+                record_stream_timings(timings)
+            except Exception as exc:  # metrics asla request'i bozmasın
+                log.debug("metrics_record_failed", error=str(exc))
 
             resp = _state_to_response(final_state, elapsed, conv_id)
             yield f"event: final\ndata: {resp.model_dump_json()}\n\n"

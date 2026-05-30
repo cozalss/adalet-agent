@@ -1,0 +1,95 @@
+"""In-process rolling latans metrikleri — P50/P95/P99 görünürlüğü.
+
+"P95/P99 trendi görünmezse kör uçarız." Bu modül dış altyapı (Prometheus/Grafana)
+gerektirmeden, son N örneğin yuvarlanan yüzdeliklerini tutar ve `/metrics/latency`
+endpoint'i üzerinden okutur.
+
+Kaynak: SSE stream stage timing'leri (first_event_ms, retrieval_done_ms,
+first_token_ms, final_ms) + ileride speculative_done/verify_done eklenebilir.
+
+Kapsam/kısıt:
+  - Tek-process: her uvicorn worker'ı kendi penceresini tutar (multi-worker'da
+    her worker ayrı snapshot verir). Tek-worker dev/prod için yeterli.
+  - Bounded deque (default 500 örnek) → bellek sabit, eski örnekler düşer.
+  - asyncio tek-thread → kilit gerekmez (record/snapshot atomik sayılır).
+"""
+
+from __future__ import annotations
+
+import math
+from collections import deque
+from threading import Lock
+
+# Pencere boyutu — son N örnek üzerinden yüzdelik. Sabit bellek.
+_WINDOW = 500
+
+
+class RollingPercentiles:
+    """Bir metrik için bounded pencere + yüzdelik snapshot."""
+
+    __slots__ = ("_samples", "_lock")
+
+    def __init__(self, window: int = _WINDOW) -> None:
+        self._samples: deque[float] = deque(maxlen=window)
+        # threading.Lock — gunicorn sync worker veya thread pool senaryosuna karşı
+        # ucuz güvence. asyncio tek-thread'de çekişme yok.
+        self._lock = Lock()
+
+    def record(self, value: float | int | None) -> None:
+        if value is None:
+            return
+        with self._lock:
+            self._samples.append(float(value))
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            vals = sorted(self._samples)
+        n = len(vals)
+        if n == 0:
+            return {"n": 0, "p50": None, "p95": None, "p99": None,
+                    "max": None, "avg": None}
+
+        def _pct(p: float) -> float:
+            return round(vals[max(0, math.ceil(n * p) - 1)], 1)
+
+        return {
+            "n": n,
+            "p50": _pct(0.50),
+            "p95": _pct(0.95),
+            "p99": _pct(0.99),
+            "max": round(vals[-1], 1),
+            "avg": round(sum(vals) / n, 1),
+        }
+
+
+# --- Modül-seviyesi registry ---
+# SSE stream stage'leri. İsim → RollingPercentiles.
+_REGISTRY: dict[str, RollingPercentiles] = {
+    "stream.first_event_ms": RollingPercentiles(),
+    "stream.retrieval_done_ms": RollingPercentiles(),
+    "stream.first_token_ms": RollingPercentiles(),
+    "stream.final_ms": RollingPercentiles(),
+}
+
+
+def record_stream_timings(timings: dict) -> None:
+    """SSE `timing` event payload'unu metriklere kaydet.
+
+    timings = {first_event_ms, retrieval_done_ms, first_token_ms, final_ms}.
+    None değerler (kısa-devre yolunda retrieval/draft yok) atlanır.
+    """
+    _REGISTRY["stream.first_event_ms"].record(timings.get("first_event_ms"))
+    _REGISTRY["stream.retrieval_done_ms"].record(timings.get("retrieval_done_ms"))
+    _REGISTRY["stream.first_token_ms"].record(timings.get("first_token_ms"))
+    _REGISTRY["stream.final_ms"].record(timings.get("final_ms"))
+
+
+def snapshot_all() -> dict:
+    """Tüm metriklerin yüzdelik snapshot'ı — /metrics/latency için."""
+    return {name: m.snapshot() for name, m in _REGISTRY.items()}
+
+
+def reset_all() -> None:
+    """Tüm pencereleri sıfırla (test izolasyonu)."""
+    for m in _REGISTRY.values():
+        m._samples.clear()

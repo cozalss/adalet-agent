@@ -400,3 +400,23 @@ async def health() -> HealthResponse:
         return JSONResponse(status_code=503, content=body)  # type: ignore[return-value]
     status_value = "degraded" if status_levels else "ok"
     return HealthResponse(status=status_value, components=components)
+
+
+@app.get("/metrics/latency")
+async def metrics_latency() -> dict:
+    """SSE stream stage latans yüzdelikleri — P50/P95/P99 görünürlüğü.
+
+    "P95/P99 trendi görünmezse kör uçarız." In-process rolling pencere (son 500
+    istek). Dış scraper (Prometheus) yerine doğrudan okunabilir JSON.
+
+    Çıktı: her stage için {n, p50, p95, p99, max, avg} (ms).
+      stream.first_event_ms    — ilk node (graph başladı)
+      stream.retrieval_done_ms — mevzuat+emsal geldi
+      stream.first_token_ms    — draft başladı (token-stream yok → proxy)
+      stream.final_ms          — uçtan uca toplam
+
+    KISIT: tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot.
+    Kalıcı trend için JSON log'ları (stream_timings) bir aggregator'a aktarın.
+    """
+    from core.metrics import snapshot_all
+    return {"window": 500, "stages": snapshot_all()}

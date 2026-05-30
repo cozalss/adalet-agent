@@ -94,6 +94,21 @@ DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
 # Draft cevabı için üretim tavanı. Lokal 14B modelde asıl gecikme draft
 # üretiminde olduğu için default "lean answer" profili kısa ama tam cevap verir.
 # Derin/uzun yanıt gereken ortamda LLM_MAX_TOKENS=1000+ yapılabilir.
+#
+# 320 BİLİNÇLİ KORUNDU (A/B 2026-05-30, scripts/ab_llm_tokens.py):
+#   240 token: P95 14.6s (320'ye göre -%23), cevap kesilme %0, kalite eşit.
+#   320 token: P95 19.0s, cevap kesilme %0.
+# Latans açısından 240 cazip GÖRÜNÜYOR ama YANLIŞ yön:
+#   - Mevcut cevaplar zaten hedefin (160-220 kelime, draft.tr.txt) altında
+#     (%100'ü < hedef, ort 45-117 kelime) → asıl kalite açığı "fazla kısa".
+#   - Hedef-uzunluk cevap (~200 kelime) + [src:] etiketleri + başlık yapısı
+#     Türkçe'de ~350-450 token tutar. 320 zaten hedef üst-sınırı için SIKI;
+#     240 hedefin ALTINDA kapatır → kısalık sorununu kalıcılaştırır + ileride
+#     prompt uzatılınca truncation yaratır.
+#   - Doğru yön: prompt'u hedef-uzunluğa çekerken cap'i ~400'e ÇIKARMAK,
+#     düşürmek değil. Latans 240 ile değil, model hızıyla (Qwen 7B / daha hızlı
+#     GPU / quantization) çözülmeli.
+# Latans-öncelikli dağıtımda LLM_MAX_TOKENS=240 env ile override edilebilir.
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale

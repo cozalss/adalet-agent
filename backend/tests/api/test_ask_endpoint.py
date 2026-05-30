@@ -57,6 +57,29 @@ def test_health_returns_ok():
         assert "llm" in body["components"]
 
 
+def test_metrics_latency_endpoint():
+    """SSE stage latans yüzdelikleri — P50/P95/P99 görünürlüğü (#5 dashboard)."""
+    from core.metrics import record_stream_timings, reset_all
+    from main import app
+
+    reset_all()
+    record_stream_timings({"first_event_ms": 10, "retrieval_done_ms": 1500,
+                           "first_token_ms": 3000, "final_ms": 12000})
+    record_stream_timings({"first_event_ms": 20, "retrieval_done_ms": 1800,
+                           "first_token_ms": 3500, "final_ms": 15000})
+    with TestClient(app) as client:
+        resp = client.get("/metrics/latency")
+        assert resp.status_code == 200
+        body = resp.json()
+        stages = body["stages"]
+        assert stages["stream.final_ms"]["n"] == 2
+        assert stages["stream.final_ms"]["p50"] == 12000
+        assert stages["stream.final_ms"]["p95"] == 15000
+        assert set(stages) == {"stream.first_event_ms", "stream.retrieval_done_ms",
+                               "stream.first_token_ms", "stream.final_ms"}
+    reset_all()
+
+
 def test_ask_validates_minimum_question_length(client_with_mocked_retrieval):
     resp = client_with_mocked_retrieval.post("/ask", json={"question": "Aa"})
     assert resp.status_code == 422
