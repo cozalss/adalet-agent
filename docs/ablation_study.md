@@ -321,6 +321,30 @@ LLM üretimi uçtan uca latansın ~%80'i olduğundan, `LLM_MAX_TOKENS` en doğru
 
 **Model kısıtı:** Bu ölçümde yalnız Qwen 14B Q5_K_M mevcut. Qwen 7B (daha hızlı, potansiyel kalite düşüşü) karşılaştırması için ayrı GGUF + farklı portta llama-server gerekir — yapılmadı.
 
+#### 4.3.7 İçerik-Risk Ölçümü (`eval/answer_risk.py`)
+
+Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answer_risk.py`, halüsinasyon-eğilimli cümle türlerini tespit eder — otomatik doğrulama (ground-truth hukuk tabanı gerektirir) yerine insan-incelemesi için bayraklar:
+
+1. **Süre-uygunluk iddiası:** sayı + süre-birimi + uygunluk yargısı (örn. "2 yıl ... yeterli değil")
+2. **Uydurma kanun adı:** Türk hukukunda olmayan kanun adları (örn. "İşçilik Kanunu")
+3. **Kaynaksız hukuki iddia:** `[src:]` etiketi olmayan kesin iddia cümlesi
+
+**Gerçek çıktıda gözlemlenen kritik hata** (tek-örnek, 2026-05-30): *"belirttiğiniz 2 yıllık süre, kanunlara göre kıdem tazminatı için yeterli değildir"* — İş Kanunu md.14 minimum **1 yıl** şart koşar; 2 yıl fazlasıyla hak kazandırır. Aynı cevapta uydurma "İşçilik Kanunu" adı geçti.
+
+**Sistematik ölçüm** (12 gerçek tüketici/iş/kira cevabı):
+
+| Risk türü | Oran |
+|---|---|
+| Riskli cevap (herhangi) | 1/12 (%8) |
+| Süre-uygunluk iddiası | 0 cümle |
+| Uydurma kanun adı | 0 kez |
+| Kaynaksız iddia | 4 cümle |
+| **Fazla-kısa cevap** | **12/12 (%100)** |
+
+**Bulgu 1 — halüsinasyonlar stokastiktir:** İlk gözlemde çıkan süre-hatası ve uydurma kanun adı, 12-vakalık tekrarda hiç görülmedi. LLM örnekleme varyansı nedeniyle tek koşum içerik hatalarını undersample eder; güvenilir tespit için soru başına çoklu-örnekleme veya `temperature=0` gerekir. Detektör bu hataları oluştuklarında yakalar (birim testlerle doğrulandı).
+
+**Bulgu 2 — baskın ve tekrarlanabilir sorun cevap uzunluğudur:** Cevapların %100'ü 160-220 kelime hedefinin altında (45-117 kelime). Bu, prompt'un yetersiz detay üretmesinden veya hedefin yanlış kalibrasyonundan kaynaklanır — kalite iyileştirmesinin birincil hedefi olmalıdır.
+
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
