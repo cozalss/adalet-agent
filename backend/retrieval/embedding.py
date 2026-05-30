@@ -30,6 +30,10 @@ from functools import cached_property
 
 import structlog
 
+# Windows native import-order guard: bu modül API dışı script'lerden de import
+# edilebilir; main.py preload'una güvenmeyelim.
+from core import native_preload  # noqa: F401
+
 log = structlog.get_logger()
 
 MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
@@ -99,6 +103,16 @@ class Embedder:
             model=self.model_name, fp16=use_fp16, device=resolved_device,
         )
         return BGEM3FlagModel(self.model_name, **kwargs)
+
+    def ensure_loaded(self) -> None:
+        """Modeli çağıran thread'de yükle.
+
+        Windows'ta FlagEmbedding/pyarrow/torch import zinciri worker thread içinde
+        lazy-load olursa native access violation oluşturabiliyor. Async wrapper'lar
+        encode'u thread pool'a atmadan önce modeli ana event-loop thread'inde
+        yükleyerek bu çakışmayı engeller.
+        """
+        _ = self._model
 
     def encode(
         self,
@@ -174,6 +188,7 @@ class Embedder:
         return_colbert: bool | None = None,
     ) -> EmbedOutput:
         """encode() — thread pool'da (event loop bloke olmaz)."""
+        self.ensure_loaded()
         return await asyncio.to_thread(
             self.encode, texts, batch_size, max_length, return_colbert,
         )
@@ -184,6 +199,7 @@ class Embedder:
         return_colbert: bool | None = None,
     ) -> tuple[list[float], tuple[list[int], list[float]], list[list[float]] | None]:
         """encode_query() — thread pool'da (event loop bloke olmaz)."""
+        self.ensure_loaded()
         return await asyncio.to_thread(self.encode_query, text, return_colbert)
 
 

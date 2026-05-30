@@ -102,8 +102,9 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
     ),
 }
 
+_DURATION_UNIT_RE = r"(?:iş\s+günü|gün|hafta|ay|yıl|sene)"
 _SURE_RE = re.compile(
-    r"\b\d+\s*(?:gün|iş günü|hafta|ay|yıl|sene)\b",
+    rf"\b\d+\s*{_DURATION_UNIT_RE}(?:\s+\d+\s*{_DURATION_UNIT_RE})*\b",
     re.IGNORECASE,
 )
 _TUTAR_RE = re.compile(
@@ -214,6 +215,18 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
         if marker in q_low:
             facts["olay"] = marker
             break
+    if domain == "isHukuku":
+        unpaid = []
+        if "kıdem" in q_low:
+            unpaid.append("kıdem tazminatı")
+        if "ihbar" in q_low:
+            unpaid.append("ihbar tazminatı")
+        if unpaid and any(x in q_low for x in ("ödenmedi", "ödenmedi.", "ödemedi", "yatmadı")):
+            facts["odenmeyen_haklar"] = ", ".join(unpaid)
+        if any(x in q_low for x in ("yazılı gerekçe göstermeden", "gerekçe göstermeden", "sebep göstermeden")):
+            facts["fesih_bildirimi"] = "yazılı gerekçe gösterilmedi"
+        if any(x in q_low for x in ("işe iade", "ise iade")):
+            facts["olay"] = "işe iade"
     if domain == "kira":
         if any(x in q_low for x in ("sözleşme bitti", "sözleşme sona erdi", "sona erdi")):
             facts["sozlesme_durumu"] = "sona erdi"
@@ -424,6 +437,8 @@ _ALLOWED_FACT_KEYS = {
     "sozlesme_durumu",
     "teslim",
     "gerekce",
+    "fesih_bildirimi",
+    "odenmeyen_haklar",
 }
 _MAX_FACT_VALUE_LEN = 120
 

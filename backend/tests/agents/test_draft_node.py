@@ -119,7 +119,7 @@ def test_format_facts_empty_returns_empty_string():
 def test_format_facts_renders_labels():
     import agents.nodes.draft as draft_mod
     out = draft_mod._format_facts_for_prompt({"sure": "3 ay", "olay": "fesih"})
-    assert "Süre: 3 ay" in out
+    assert "Kullanıcının belirttiği süre (kanuni süre değildir): 3 ay" in out
     assert "Olay: fesih" in out
 
 
@@ -178,6 +178,127 @@ def test_format_refs_caps_count_and_snippet():
     assert out.count("[m-TBK-") <= draft_mod._MAX_DRAFT_REFS
     # Hiçbir tek snippet 450+pay'ı aşmamalı (kabaca: toplam budget sınırı)
     assert len(out) <= int(draft_mod.LLM_CONTEXT_BUDGET * draft_mod._CHARS_PER_TOKEN_TR) + 800
+
+
+def test_clean_draft_removes_model_source_block_and_incomplete_tail():
+    import agents.nodes.draft as draft_mod
+
+    raw = (
+        "**Kısa cevap:** Depozito istenebilir [src: m-TBK-372].\n\n"
+        "**Ne yapmalı:** Yazılı talep gönderin [src: m-TBK-372]. Yarım kalan cümle [src: m-TBK-37"
+        "\n\n---\n**Kaynaklar:**\n- modelin yazdığı gereksiz liste"
+    )
+
+    out = draft_mod._clean_draft_response(raw)
+
+    assert "Kaynaklar" not in out
+    assert "[src: m-TBK-37" not in out.replace("[src: m-TBK-372]", "")
+    assert out.endswith("[src: m-TBK-372].")
+
+
+def test_prioritize_refs_keeps_one_case_when_laws_exist():
+    import agents.nodes.draft as draft_mod
+
+    refs = [
+        Citation(source_id=f"m-IK-{i}", doc_type="law", title=f"IK Madde {i}",
+                 snippet="iş hukuku", url="https://mevzuat/x", score=0.5)
+        for i in range(1, 6)
+    ]
+    refs.append(Citation(
+        source_id="y-9hd-1", doc_type="case", title="Yargıtay 9.HD",
+        snippet="emsal karar", url="", score=0.4,
+    ))
+
+    out = draft_mod._prioritize_refs_for_prompt(refs, "kıdem ihbar tazminatı")
+
+    assert any(r["doc_type"] == "case" for r in out[:draft_mod._MAX_DRAFT_REFS])
+
+
+def test_extract_claims_splits_structured_sections(sample_citations):
+    import agents.nodes.draft as draft_mod
+
+    text = (
+        "**Kısa cevap:** Hak isteyebilirsiniz [src: m-TKHK-11].\n\n"
+        "**Dayanak:** TKHK Madde 11 seçimlik hakları düzenler [src: m-TKHK-11].\n\n"
+        "**Ne yapmalı:** Satıcıya yazılı başvurun [src: m-TKHK-11]."
+    )
+
+    claims = draft_mod._extract_claims(text, sample_citations)
+
+    assert len(claims) == 3
+    assert all("\n\n" not in c["text"] for c in claims)
+
+
+def test_backfill_missing_source_tags_uses_relevant_existing_ref():
+    import agents.nodes.draft as draft_mod
+
+    refs = [
+        Citation(source_id="m-TBK-342", doc_type="law", title="TBK Madde 342",
+                 snippet="güvence bedeli depozito", url="https://mevzuat/342", score=0.5),
+        Citation(source_id="m-TBK-315", doc_type="law", title="TBK Madde 315",
+                 snippet="temerrüt", url="https://mevzuat/315", score=0.9),
+    ]
+    text = (
+        "**Kısa cevap:** Depozito iade edilmelidir.\n\n"
+        "**Ne yapmalı:** Ev sahibine yazılı talep gönderin."
+    )
+
+    out = draft_mod._backfill_missing_source_tags(text, refs, "depozito iade edilmiyor")
+
+    assert "Depozito iade edilmelidir. [src: m-TBK-342]" in out
+    assert "Ev sahibine yazılı talep gönderin. [src:" not in out
+
+
+def test_prioritize_refs_prefers_tkhk_for_defective_goods_over_service_regulation():
+    import agents.nodes.draft as draft_mod
+
+    refs = [
+        Citation(source_id="y-YON_SSH-c9", doc_type="law", title="YON_SSH Madde chunk-9",
+                 snippet="servis süresi", url="https://mevzuat/ssh", score=0.95),
+        Citation(source_id="m-TKHK-11", doc_type="law", title="TKHK Madde 11",
+                 snippet="ayıplı malda tüketicinin seçimlik hakları", url="https://mevzuat/11", score=0.5),
+        Citation(source_id="m-TKHK-8", doc_type="law", title="TKHK Madde 8",
+                 snippet="ayıplı mal", url="https://mevzuat/8", score=0.5),
+    ]
+
+    out = draft_mod._prioritize_refs_for_prompt(
+        refs,
+        "İnternetten 10 gün önce telefon aldım, arızalı çıktı, iade veya değişim istiyorum.",
+    )
+
+    assert [r["source_id"] for r in out[:2]] == ["m-TKHK-11", "m-TKHK-8"]
+
+
+def test_remove_unsafe_duration_inferences_without_eligibility():
+    import agents.nodes.draft as draft_mod
+
+    text = (
+        "**Kısa cevap:** İade hakkınız olabilir [src: m-TKHK-11].\n\n"
+        "**Durumuna uygulama:** Belirtilen süre geçtiği için bu şartı karşılamadınız. [src: m-TKHK-11]\n\n"
+        "10 gün süresi geçerli değildir. [src: m-TKHK-11]\n\n"
+        "**Ne yapmalı:** Satıcıya yazılı başvurun."
+    )
+
+    out = draft_mod._remove_unsafe_duration_inferences(text, {"sure": "10 gün"}, [])
+
+    assert "şartı karşılamadınız" not in out
+    assert "süresi geçerli değildir" not in out
+    assert "İade hakkınız olabilir" in out
+    assert "Satıcıya yazılı başvurun" in out
+
+
+def test_keep_duration_inferences_when_eligibility_supplied():
+    import agents.nodes.draft as draft_mod
+
+    text = "Belirtilen süre geçtiği için bu şartı karşılamadınız. [src: m-X]"
+
+    out = draft_mod._remove_unsafe_duration_inferences(
+        text,
+        {"sure": "10 gün"},
+        [{"saglaniyor": "hayir", "madde": "m-X"}],
+    )
+
+    assert out == text
 
 
 @pytest.mark.asyncio

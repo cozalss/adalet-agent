@@ -62,13 +62,19 @@ def test_lexical_to_sparse_token_id_int_conversion():
 @pytest.mark.asyncio
 async def test_aencode_query_delegates_to_encode(monkeypatch):
     emb = Embedder()
+    loaded = {"called": False}
 
     def fake_encode(texts, batch_size=12, max_length=8192, return_colbert=None):
         assert texts == ["soru"]
         return EmbedOutput(dense=[[0.1, 0.2]], sparse=[([1], [0.5])], colbert=None)
 
+    def fake_ensure_loaded():
+        loaded["called"] = True
+
     monkeypatch.setattr(emb, "encode", fake_encode)
+    monkeypatch.setattr(emb, "ensure_loaded", fake_ensure_loaded)
     dense, (idx, val), colbert = await emb.aencode_query("soru")
+    assert loaded["called"] is True
     assert dense == [0.1, 0.2]
     assert idx == [1] and val == [0.5]
     assert colbert is None
@@ -78,6 +84,7 @@ async def test_aencode_query_delegates_to_encode(monkeypatch):
 async def test_aencode_batches_all_texts(monkeypatch):
     emb = Embedder()
     captured: dict = {}
+    loaded = {"called": False}
 
     def fake_encode(texts, batch_size=12, max_length=8192, return_colbert=None):
         captured["texts"] = texts
@@ -85,8 +92,13 @@ async def test_aencode_batches_all_texts(monkeypatch):
             dense=[[1.0], [2.0]], sparse=[([1], [0.1]), ([2], [0.2])], colbert=None,
         )
 
+    def fake_ensure_loaded():
+        loaded["called"] = True
+
     monkeypatch.setattr(emb, "encode", fake_encode)
+    monkeypatch.setattr(emb, "ensure_loaded", fake_ensure_loaded)
     out = await emb.aencode(["a", "b"])
+    assert loaded["called"] is True
     # Tek forward'da iki metin birden (HyDE batch yolu).
     assert captured["texts"] == ["a", "b"]
     assert out.dense == [[1.0], [2.0]]

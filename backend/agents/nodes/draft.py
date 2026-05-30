@@ -47,7 +47,14 @@ _DRAFT_SYSTEM = (
     "dilde tek kelime bile yazma; tüm cevabı baştan sona Türkçe ver.\n"
     "6. İspat yükünü veya üst sınır yönünü ters yazma: kaynak satıcı/işveren/idare "
     "ispat eder diyorsa kullanıcıya ispat yükleme; kaynak 'aşamaz' diyorsa "
-    "aşanı kabul etmek zorunda olduğunu söyleme."
+    "aşanı kabul etmek zorunda olduğunu söyleme.\n"
+    "7. Ayrı 'Kaynaklar' listesi yazma; yalnız gövdeyi yaz ve her iddiaya [src: ID] koy. "
+    "Yanıtı yarım cümleyle veya yarım [src: ...] etiketiyle bitirme.\n"
+    "8. Kullanıcıya 'siz' diliyle hitap et; argo, devrik veya bozuk Türkçe cümle kurma.\n"
+    "9. Ayıplı mal/iade/değişim sorusunda TKHK 8 ve TKHK 11'i esas al; "
+    "servis/garanti yönetmeliğini yalnız soru servis veya garanti süreciyle ilgiliyse kullan.\n"
+    "10. Kullanıcının söylediği süreyi kanuni süre gibi yorumlama. Kaynakta açık süre yoksa "
+    "'bu süre geçtiği için hakkınız yok' veya 'şu gün içinde hakkınız var' deme."
 )
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
@@ -112,7 +119,13 @@ async def draft_node(state: AgentState) -> dict[str, object]:
             "errors": [f"draft: LLM hatası ({type(exc).__name__})"],
         }
 
-    draft_text = response.content.strip()
+    draft_text = _clean_draft_response(response.content)
+    draft_text = _backfill_missing_source_tags(draft_text, refs, question)
+    draft_text = _remove_unsafe_duration_inferences(
+        draft_text,
+        state.get("case_facts") or {},
+        state.get("eligibility") or [],
+    )
     claims: list[Claim] = []
     if LLM_CLAIM_EXTRACTION_ENABLED:
         try:
@@ -176,12 +189,17 @@ async def _extract_claims_llm(
 
 # Triaj olgu anahtarları → kullanıcı-dostu Türkçe etiket (prompt okunurluğu).
 _FACT_LABELS = {
-    "sure": "Süre",
+    "sure": "Kullanıcının belirttiği süre (kanuni süre değildir)",
     "isci_sayisi": "İşçi sayısı",
     "tutar": "Tutar",
     "olay": "Olay",
     "taraf": "Taraf",
     "tarih": "Tarih",
+    "sozlesme_durumu": "Sözleşme durumu",
+    "teslim": "Teslim",
+    "gerekce": "Gerekçe",
+    "fesih_bildirimi": "Fesih bildirimi",
+    "odenmeyen_haklar": "Ödenmeyen haklar",
 }
 
 
@@ -277,12 +295,106 @@ def _format_history_for_prompt(history: list[Any]) -> str:
 
 _PROMPT_REF_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("kira art", "yüzde", "tüfe", "tüketici fiyat"), ("m-TBK-344",)),
-    (("seçimlik", "iade", "değişim", "bedel indir"), ("m-TKHK-11",)),
-    (("ayıpl", "arız", "bozuk", "teslim", "10 gün"), ("m-TKHK-10", "m-TKHK-8")),
+    (("depozito", "güvence bedeli", "kira teminatı"), ("m-TBK-342", "m-TBK-372")),
+    (("seçimlik", "iade", "değişim", "bedel indir"), ("m-TKHK-11", "m-TKHK-8")),
+    (("ayıpl", "arız", "bozuk", "teslim", "10 gün"), ("m-TKHK-11", "m-TKHK-8", "m-TKHK-10")),
     (("kıdem",), ("m-EIK-14",)),
     (("ihbar",), ("m-IK-17",)),
     (("işe iade",), ("m-IK-18",)),
 )
+
+
+_MODEL_SOURCE_BLOCK_RE = re.compile(
+    r"\n\s*(?:---\s*)?(?:\*\*)?Kaynaklar(?:\*\*)?\s*:.*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_COMPLETE_SRC_AT_END_RE = re.compile(r"\[src:\s*[A-Za-z0-9_\-]+\s*\]\s*$")
+_INCOMPLETE_SRC_AT_END_RE = re.compile(r"\s*\[src:\s*[^\]]*$")
+_SENTENCE_END_RE = re.compile(r"[.!?](?:\s|$)")
+_LEGAL_CLAIM_MARKERS = (
+    "hak", "iade", "yüküml", "gerek", "edebilir", "etmeli", "zorunda",
+    "tazminat", "fesih", "başvur", "talep", "ispat",
+)
+_UNSAFE_DURATION_MARKERS = (
+    "süre geçti",
+    "süreniz kalmam",
+    "şartı karşılamadınız",
+    "hakkınız olmayabilir",
+    "geçtiği için",
+    "kanuni süre değildir",
+    "süre geçerli değildir",
+    "süresi geçerli değildir",
+)
+
+
+def _clean_draft_response(raw: str) -> str:
+    """Model çıktısını final aşamasına girmeden önce güvenli, tam gövdeye indir.
+
+    Llama.cpp token sınırında kesilirse kaynak etiketi veya son cümle yarım kalabilir.
+    Ayrıca model bazen prompt'a rağmen kendi "Kaynaklar" bloğunu üretir; kaynak listesi
+    finalize_node tarafından tekilleştirilerek ekleneceği için burada gövde dışına atılır.
+    """
+    text = _MODEL_SOURCE_BLOCK_RE.sub("", raw.strip())
+    text = _INCOMPLETE_SRC_AT_END_RE.sub("", text).rstrip()
+    if not text:
+        return ""
+    if text[-1] in ".!?" or _COMPLETE_SRC_AT_END_RE.search(text):
+        return text
+    matches = list(_SENTENCE_END_RE.finditer(text))
+    if not matches:
+        return text
+    return text[: matches[-1].end()].strip()
+
+
+def _backfill_missing_source_tags(text: str, refs: list[Citation], question: str) -> str:
+    """Kaynak etiketi eksik hukuki cümleleri mevcut en alakalı kaynakla iliştir.
+
+    Bu yeni iddia üretmez; yalnızca modelin atladığı `[src: ...]` bağını ekler.
+    Son söz yine verifier'dadır: yanlış iliştirilirse claim desteklenmez ve finalize
+    güvenli tarafta cümleyi düşürür.
+    """
+    if not text.strip() or not refs:
+        return text
+    ranked = _prioritize_refs_for_prompt(refs, question)
+    if not ranked:
+        return text
+    default_id = ranked[0]["source_id"]
+    out = text
+    for sent in _split_claim_candidates(text):
+        if _SRC_TAG_RE.search(sent):
+            continue
+        clean = sent.strip()
+        low = clean.lower()
+        if not clean or "**ne yapmalı" in low:
+            continue
+        if not any(marker in low for marker in _LEGAL_CLAIM_MARKERS):
+            continue
+        replacement = f"{clean} [src: {default_id}]"
+        out = out.replace(sent, replacement, 1)
+    return out
+
+
+def _remove_unsafe_duration_inferences(
+    text: str,
+    facts: dict[str, object],
+    eligibility: list[dict[str, Any]],
+) -> str:
+    """Kullanıcının verdiği süreyi hak düşürücü süreye çeviren cümleleri sil.
+
+    Eligibility node açık ve yapılandırılmış karar verdiyse bu filtreden geçmeyiz.
+    Eligibility yokken küçük model, "10 gün önce aldım" bilgisini kaynakta olmayan
+    kanuni deadline gibi yorumlayabiliyor; bu cümleler güvenli tarafta atılır.
+    """
+    if not facts.get("sure") or eligibility:
+        return text
+    out = text
+    for sent in _split_claim_candidates(text):
+        low = sent.lower()
+        if any(marker in low for marker in _UNSAFE_DURATION_MARKERS):
+            out = out.replace(sent, "", 1)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
 
 
 def _format_refs_for_prompt(refs: list[Citation], question: str = "") -> str:
@@ -305,9 +417,6 @@ def _format_refs_for_prompt(refs: list[Citation], question: str = "") -> str:
 
 def _prioritize_refs_for_prompt(refs: list[Citation], question: str) -> list[Citation]:
     """Prompt bütçesi dar; soru için kritik maddeler ilk slotlara girmeli."""
-    law_refs = [r for r in refs if r.get("doc_type") == "law"]
-    if law_refs:
-        refs = law_refs
     q_low = question.lower()
 
     def score(ref: Citation) -> float:
@@ -322,13 +431,46 @@ def _prioritize_refs_for_prompt(refs: list[Citation], question: str) -> list[Cit
             val += 80.0
         if ("arız" in q_low or "ayıpl" in q_low) and sid == "m-TKHK-10":
             val += 60.0
+        if ("arız" in q_low or "ayıpl" in q_low or "iade" in q_low or "değişim" in q_low) and sid == "m-TKHK-11":
+            val += 120.0
+        if ("arız" in q_low or "ayıpl" in q_low) and sid == "m-TKHK-8":
+            val += 90.0
+        if (
+            "YON_SSH" in sid
+            and any(marker in q_low for marker in ("iade", "değişim", "ayıpl", "arız"))
+            and not any(marker in q_low for marker in ("servis", "garanti", "onarım"))
+        ):
+            val -= 80.0
         q_terms = {t for t in re.findall(r"[a-zçğıöşü0-9]+", q_low) if len(t) >= 4}
         if q_terms:
             haystack = f"{title} {snippet}"
             val += sum(1.0 for term in q_terms if term in haystack)
         return val
 
-    return sorted(refs, key=score, reverse=True)
+    deduped: list[Citation] = []
+    seen: set[str] = set()
+    for ref in refs:
+        sid = ref["source_id"]
+        if sid in seen:
+            continue
+        seen.add(sid)
+        deduped.append(ref)
+
+    ranked_laws = sorted(
+        [r for r in deduped if r.get("doc_type") == "law"],
+        key=score,
+        reverse=True,
+    )
+    ranked_cases = sorted(
+        [r for r in deduped if r.get("doc_type") == "case"],
+        key=score,
+        reverse=True,
+    )
+    if not ranked_laws:
+        return ranked_cases
+    if not ranked_cases:
+        return ranked_laws
+    return [*ranked_laws[: max(_MAX_DRAFT_REFS - 1, 1)], ranked_cases[0], *ranked_laws[_MAX_DRAFT_REFS - 1:]]
 
 
 def _extract_claims(text: str, refs: list[Citation]) -> list[Claim]:
@@ -361,7 +503,7 @@ def _extract_claims(text: str, refs: list[Citation]) -> list[Claim]:
         "kesin işlem için",
     )
 
-    sentences = _SENT_SPLIT_RE.split(text)
+    sentences = _split_claim_candidates(text)
     for sent in sentences:
         cite_ids = [s for s in _SRC_TAG_RE.findall(sent) if s in known_ids]
         clean = _SRC_TAG_RE.sub("", sent).strip()
@@ -385,3 +527,23 @@ def _extract_claims(text: str, refs: list[Citation]) -> list[Claim]:
             break
 
     return claims
+
+
+def _split_claim_candidates(text: str) -> list[str]:
+    """Draft gövdesini claim adaylarına böl.
+
+    LLM yapısal cevapta başlıklar ve boş satırlar kullanıyor. Sadece nokta sonrası
+    büyük harf bölücüsü, başlıklar arasında uzun birleşik claim üretip verifier'ı
+    yanıltıyordu; bu yüzden önce blokları, sonra cümleleri ayırıyoruz.
+    """
+    candidates: list[str] = []
+    blocks = re.split(r"\n{2,}|\n(?=\*\*)", text)
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        for sent in _SENT_SPLIT_RE.split(block):
+            sent = sent.strip()
+            if sent:
+                candidates.append(sent)
+    return candidates

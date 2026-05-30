@@ -49,7 +49,6 @@ Alternatif: tarayıcıdan https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-
   --flash-attn `
   -ctk q8_0 -ctv q8_0 `
   --parallel 2 `
-  --lookup-ngram-min 2 `
   --host 0.0.0.0 --port 8080 `
   --mlock
 ```
@@ -60,6 +59,8 @@ Flag açıklamaları:
 - `-ctk/-ctv q8_0` — KV cache 8-bit, %0 kalite kaybı, VRAM yarıya iner
 - `--parallel 2` — ADALET'in 7 ajan paralel çağrılarına slot
 - `--batch-size 512` — RTX 4070 CUDA cores doyurur
+- `--lookup-ngram-min 2` — yalnız destekleyen yeni llama.cpp build'lerinde opsiyonel;
+  mevcut Windows binary bu bayrağı reddediyorsa kullanma.
 
 ### 3. Backend .env Aktifleştirme
 

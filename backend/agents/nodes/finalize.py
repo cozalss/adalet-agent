@@ -19,8 +19,8 @@ log = structlog.get_logger()
 # Cümle ayraç + kaynak etiketi. Bölücü kısmen muhafazakar: "m. 11" gibi hukuk
 # kısaltmalarında parçalamaz, ama cümle küçük harf/rakam/bullet ile devam etse de
 # güvenlik filtresine daha küçük birim verir.
-_SENT_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
-_SRC_TAG_RE = re.compile(r"\[src:\s*[A-Za-z0-9_\-]+\s*\]")
+_SENT_BOUNDARY_RE = re.compile(r"(?<=[.!?\]])\s+")
+_SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
 _NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof", "doç"}
 
 
@@ -90,6 +90,7 @@ async def finalize_node(state: AgentState) -> dict:
     # ÇIKAR, doğrulanmış içeriği göster. Halüsinasyon kullanıcıya gitmez (CLAUDE.md §1)
     # ama tüm cevabı reddetmeyiz — vatandaş doğrulanmış kısımdan yararlanır.
     filtered_draft, n_dropped = _filter_to_verified(draft, claims, verified_claims)
+    filtered_draft = _remove_orphan_source_tags(filtered_draft)
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
 
@@ -126,24 +127,33 @@ def _normalize_sentence(text: str) -> str:
 
 def _split_sentences(text: str) -> list[str]:
     """Cümleleri ayır; hukuk kısaltmalarındaki noktaları boundary sayma."""
+    return [sent for _start, _end, sent in _sentence_spans(text)]
+
+
+def _sentence_spans(text: str) -> list[tuple[int, int, str]]:
+    """Cümleleri (start, end, text) olarak döndür; orijinal boşlukları korumaya yarar."""
     if not text.strip():
         return []
-    out: list[str] = []
+    out: list[tuple[int, int, str]] = []
     start = 0
     for match in _SENT_BOUNDARY_RE.finditer(text):
         if not _should_split_at(text, match.start()):
             continue
-        chunk = text[start:match.start()].strip()
+        end = match.start()
+        chunk = text[start:end].strip()
         if chunk:
-            out.append(chunk)
+            out.append((start, end, chunk))
         start = match.end()
     tail = text[start:].strip()
     if tail:
-        out.append(tail)
+        out.append((start, len(text), tail))
     return out
 
 
 def _should_split_at(text: str, boundary_pos: int) -> bool:
+    after = text[boundary_pos:].lstrip()
+    if after.startswith("[src:"):
+        return False
     prev = text[:boundary_pos].rstrip()
     if not prev:
         return False
@@ -178,12 +188,14 @@ def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, 
     if not unverified:
         return draft, 0
 
-    kept: list[str] = []
+    pieces: list[str] = []
+    cursor = 0
     dropped = 0
-    for sent in _split_sentences(draft):
+    for start, end, sent in _sentence_spans(draft):
         norm = _normalize_sentence(sent)
         if not norm:
-            kept.append(sent)
+            pieces.append(draft[cursor:end])
+            cursor = end
             continue
         # Yalnız tek yönlü substring: doğrulanmamış claim cümle İÇİNDE geçiyorsa
         # cümle atılır (halüsinasyon sızıntısı önlenir). Önceki çift-yönlü kural
@@ -194,9 +206,23 @@ def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, 
         is_unverified = any(u and u in norm for u in unverified)
         if is_unverified:
             dropped += 1
+            cursor = end
             continue
-        kept.append(sent)
-    return " ".join(s.strip() for s in kept if s.strip()).strip(), dropped
+        pieces.append(draft[cursor:start])
+        pieces.append(draft[start:end])
+        cursor = end
+    pieces.append(draft[cursor:])
+    filtered = "".join(pieces)
+    filtered = re.sub(r"\n{3,}", "\n\n", filtered)
+    filtered = re.sub(r"[ \t]{2,}", " ", filtered)
+    return filtered.strip(), dropped
+
+
+def _remove_orphan_source_tags(text: str) -> str:
+    """Cümle silme sonrası tek başına kalan [src: ...] etiketlerini temizle."""
+    text = re.sub(r"(^|\n)\s*\[src:\s*[A-Za-z0-9_\-]+\s*\]\s*(?=\n|$)", r"\1", text)
+    text = re.sub(r"^\s*\[src:\s*[A-Za-z0-9_\-]+\s*\]\s*", "", text)
+    return text.strip()
 
 
 def _reject_response(state: AgentState, reason: str | None = None) -> dict:
@@ -263,11 +289,26 @@ def _format_dilekce_link(state: AgentState) -> str:
 
 
 def _format_citations(state: AgentState) -> str:
+    cited_ids = set(_SRC_TAG_RE.findall(state.get("draft_response", "") or ""))
+    raw_refs = list(state.get("mevzuat_refs", []) or []) + list(state.get("emsal_refs", []) or [])
+    if cited_ids:
+        cited_refs = [r for r in raw_refs if r.get("source_id") in cited_ids]
+        if cited_refs:
+            raw_refs = cited_refs
+
     refs = []
-    for r in state.get("mevzuat_refs", []):
-        refs.append(f"- [Mevzuat] {r['title']} ({r['url']})")
-    for r in state.get("emsal_refs", []):
-        refs.append(f"- [Emsal] {r['title']} ({r['url']})")
+    seen: set[str] = set()
+    for r in raw_refs:
+        key = r.get("source_id") or f"{r.get('doc_type')}:{r.get('title')}:{r.get('url')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        kind = "Mevzuat" if r.get("doc_type") == "law" else "Emsal"
+        url = str(r.get("url") or "").strip()
+        suffix = f" ({url})" if url else ""
+        refs.append(f"- [{kind}] {r['title']}{suffix}")
+        if len(refs) >= 8:
+            break
     return "\n".join(refs) if refs else "(kaynak bulunamadı)"
 
 

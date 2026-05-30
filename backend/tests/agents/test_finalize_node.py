@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from agents.nodes.finalize import _split_sentences, finalize_node
+from agents.nodes.finalize import (
+    _format_citations,
+    _remove_orphan_source_tags,
+    _split_sentences,
+    finalize_node,
+)
 
 
 def _asciiish(text: str) -> str:
@@ -221,6 +226,17 @@ def test_split_sentences_keeps_madde_abbreviation_together():
     ]
 
 
+def test_split_sentences_keeps_source_tag_with_previous_sentence():
+    text = "Hak vardır. [src: m-TKHK-11]\n\nDayanak: TKHK m. 11 uygulanır."
+
+    out = _split_sentences(text)
+
+    assert out == [
+        "Hak vardır. [src: m-TKHK-11]",
+        "Dayanak: TKHK m. 11 uygulanır.",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_finalize_passes_when_all_claims_verified(base_state):
     claims = [
@@ -259,3 +275,58 @@ async def test_finalize_rejects_retry_verdict(base_state):
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
     assert "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim" in out["response"]
+
+
+def test_format_citations_keeps_only_cited_unique_sources(base_state):
+    state = {
+        **base_state,
+        "draft_response": "Hak var [src: m-TKHK-11].",
+        "mevzuat_refs": [
+            {
+                "source_id": "m-TKHK-11",
+                "doc_type": "law",
+                "title": "TKHK Madde 11",
+                "snippet": "...",
+                "url": "https://mevzuat/11",
+                "score": 0.9,
+            },
+            {
+                "source_id": "m-TKHK-11",
+                "doc_type": "law",
+                "title": "TKHK Madde 11 tekrar",
+                "snippet": "...",
+                "url": "https://mevzuat/11",
+                "score": 0.8,
+            },
+            {
+                "source_id": "m-TKHK-8",
+                "doc_type": "law",
+                "title": "TKHK Madde 8",
+                "snippet": "...",
+                "url": "https://mevzuat/8",
+                "score": 0.7,
+            },
+        ],
+        "emsal_refs": [
+            {
+                "source_id": "y-empty",
+                "doc_type": "case",
+                "title": "Yargıtay boş url",
+                "snippet": "...",
+                "url": "",
+                "score": 0.6,
+            },
+        ],
+    }
+
+    out = _format_citations(state)
+
+    assert out.count("TKHK Madde 11") == 1
+    assert "TKHK Madde 8" not in out
+    assert "Yargıtay boş url" not in out
+
+
+def test_remove_orphan_source_tags_after_sentence_filtering():
+    out = _remove_orphan_source_tags("[src: y-1]\n\nDayanak: Geçerli cümle.")
+
+    assert out == "Dayanak: Geçerli cümle."

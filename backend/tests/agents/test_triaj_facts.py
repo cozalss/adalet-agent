@@ -99,3 +99,16 @@ def test_sanitize_truncates_long_value():
     long_val = "a" * 500
     out = triaj_mod._sanitize_facts({"olay": long_val})
     assert len(out["olay"]) == triaj_mod._MAX_FACT_VALUE_LEN
+
+
+def test_fast_facts_extracts_compound_work_duration_and_unpaid_rights():
+    facts = triaj_mod._fast_facts(
+        "İşyerinde 2 yıl 6 ay çalıştım, işveren beni yazılı gerekçe göstermeden "
+        "çıkardı, işyerinde yaklaşık 40 çalışan var ve kıdem/ihbar tazminatım ödenmedi.",
+        "isHukuku",
+    )
+
+    assert facts["sure"] == "2 yıl 6 ay"
+    assert facts["isci_sayisi"] == "40 çalışan"
+    assert facts["fesih_bildirimi"] == "yazılı gerekçe gösterilmedi"
+    assert facts["odenmeyen_haklar"] == "kıdem tazminatı, ihbar tazminatı"

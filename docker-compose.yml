@@ -248,8 +248,6 @@ services:
       - "512"
       - "--ubatch-size"
       - "512"
-      - "--lookup-ngram-min"
-      - "2"
     networks:
       - adalet-net
     healthcheck:
