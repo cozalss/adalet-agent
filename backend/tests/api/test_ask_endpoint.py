@@ -198,14 +198,23 @@ def test_ask_stream_success_contract(monkeypatch):
     resp = client.post("/ask/stream", json={"question": "Kira depozitosu nedir?"})
     assert resp.status_code == 200, resp.text
     events = _parse_sse(resp.text)
-    assert [e for e, _ in events] == ["node", "triage", "final"]
+    # timing event final'dan hemen önce — stage latency (first_event/retrieval/first_token/final)
+    assert [e for e, _ in events] == ["node", "triage", "timing", "final"]
     node = events[0][1]
     triage = events[1][1]
-    final = events[2][1]
+    timing = events[2][1]
+    final = events[3][1]
     assert node["v"] == 1
     assert node["domain"] == "kira"
     assert triage["v"] == 1
     assert triage["intent"] == "legal_answer"
+    # timing event sözleşmesi: 4 stage alanı + schema version
+    assert timing["v"] == 1
+    assert "first_event_ms" in timing
+    assert "retrieval_done_ms" in timing
+    assert "first_token_ms" in timing
+    assert "final_ms" in timing
+    assert isinstance(timing["final_ms"], int)
     assert final["domain"] == "kira"
     assert final["answer"] == "Kısa cevap: Test."
 

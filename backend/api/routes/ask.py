@@ -344,12 +344,23 @@ async def ask_stream(
         _sent_sources = False
         _sent_drafting = False
         _sent_clarify = False
+
+        # Stage latency ölçümü — start'tan itibaren ms. Frontend "algılanan gecikme"
+        # ve production gözlemleme (P95/P99 trend) için. final event öncesi `timing`
+        # event'iyle gönderilir + structured log (stream_timings) emit edilir.
+        def _ms() -> int:
+            return int((time.perf_counter() - start) * 1000)
+        _t_first_event: int | None = None      # ilk node (graph başladı)
+        _t_retrieval_done: int | None = None    # mevzuat+emsal geldi
+        _t_first_token: int | None = None       # draft başladı (token-stream yok → proxy)
         try:
             # stream_mode="values" → her node sonrası tüm state döner; en son
             # event final_state olur. İkinci graph.ainvoke gereksiz.
             async with guard:
                 async for state in graph.astream(initial, stream_mode="values"):
                     final_state = state
+                    if _t_first_event is None:
+                        _t_first_event = _ms()
                     # NOT: iç state anahtarlarını (list(state.keys())) istemciye
                     # yayma — iç şema sızıntısı. Frontend yalnız ilerleme sinyali.
                     payload = {
@@ -385,15 +396,33 @@ async def ask_stream(
                     emsal = state.get("emsal_refs") or []
                     if not _sent_sources and (mevz or emsal):
                         _sent_sources = True
-                        sources_evt = {"count": len(mevz) + len(emsal)}
+                        _t_retrieval_done = _ms()
+                        sources_evt = {"count": len(mevz) + len(emsal),
+                                       "t_ms": _t_retrieval_done}
                         yield _sse_event("sources", sources_evt)
 
-                    # Draft hazır → cevap yazılıyor
+                    # Draft hazır → cevap yazılıyor (token-stream yok → first_token proxy)
                     if not _sent_drafting and state.get("draft_response"):
                         _sent_drafting = True
-                        yield _sse_event("drafting", {})
+                        _t_first_token = _ms()
+                        yield _sse_event("drafting", {"t_ms": _t_first_token})
 
             elapsed = int((time.perf_counter() - start) * 1000)
+
+            # Stage latency event — frontend + production gözlemleme (P95/P99 trend).
+            timings = {
+                "first_event_ms": _t_first_event,
+                "retrieval_done_ms": _t_retrieval_done,
+                "first_token_ms": _t_first_token,
+                "final_ms": elapsed,
+            }
+            yield _sse_event("timing", timings)
+            # Structured log — dashboard/metrics aggregation için (event: stream_timings).
+            log.info("stream_timings", conversation_id=conv_id,
+                     domain=final_state.get("domain"),
+                     verdict=final_state.get("debate_verdict"),
+                     retry_count=final_state.get("retry_count", 0), **timings)
+
             resp = _state_to_response(final_state, elapsed, conv_id)
             yield f"event: final\ndata: {resp.model_dump_json()}\n\n"
 

@@ -139,10 +139,16 @@ async def main(args: argparse.Namespace) -> None:
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
+        # Bimodal: legal (gerçek hukuki cevap) dağılımını ayrı raporla.
         out.write_text(json.dumps({
-            "n": n, "avg_ms": avg,
-            "p50": _percentile(totals, 0.50), "p95": _percentile(totals, 0.95),
-            "p99": _percentile(totals, 0.99), "max": totals[-1],
+            "n": n,
+            "legal_n": len(legal),
+            "legal_avg_ms": (sum(legal) / len(legal)) if legal else 0,
+            "legal_p50": _percentile(legal, 0.50),
+            "legal_p95": _percentile(legal, 0.95),
+            "legal_p99": _percentile(legal, 0.99),
+            "legal_max": legal[-1] if legal else 0,
+            "short_circuit_n": len(short),
             "samples": samples,
         }, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\n  Sonuc -> {out}")
