@@ -75,8 +75,11 @@ def test_metrics_latency_endpoint():
         assert stages["stream.final_ms"]["n"] == 2
         assert stages["stream.final_ms"]["p50"] == 12000
         assert stages["stream.final_ms"]["p95"] == 15000
+        # 4 stream stage + 3 darboğaz stage (LLM/retrieval)
         assert set(stages) == {"stream.first_event_ms", "stream.retrieval_done_ms",
-                               "stream.first_token_ms", "stream.final_ms"}
+                               "stream.first_token_ms", "stream.final_ms",
+                               "llm.generation_ms", "retrieval.total_ms",
+                               "retrieval.hybrid_ms"}
     reset_all()
 
 

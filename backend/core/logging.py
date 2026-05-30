@@ -146,6 +146,25 @@ def _mask_pii_in_strings(
     return event_dict
 
 
+def _metrics_tap(logger: Any, method_name: str, event_dict: dict) -> dict:
+    """Timing event'lerini in-process metrics aggregator'a besle (gözlem, mutasyon yok).
+
+    Tek tap noktası: JSON log'dan geçen her bilinen timing event'i
+    (llama_server_call_done, speculative_done, stream_timings) otomatik
+    /metrics/latency yüzdeliklerine katkı verir — streaming + non-streaming
+    + script koşumları dahil. event_dict DEĞİŞTİRİLMEZ; sadece okunur.
+    Metrics asla log'u/request'i bozmasın → geniş try/except.
+    """
+    try:
+        event_name = event_dict.get("event")
+        if isinstance(event_name, str):
+            from core.metrics import record_event
+            record_event(event_name, event_dict)
+    except Exception:  # noqa: BLE001 — gözlemleme log'u asla bozmamalı
+        pass
+    return event_dict
+
+
 def configure_logging() -> None:
     """Tek seferlik global config — main.py lifespan startup'unda çağrılır."""
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
@@ -153,6 +172,9 @@ def configure_logging() -> None:
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         timestamper,
+        # _metrics_tap redaction/PII-mask'tan ÖNCE: ham sayısal *_ms değerlerini
+        # okur (maskeleme bunları bozmadan). Tap event'i DEĞİŞTİRMEZ, sadece gözler.
+        _metrics_tap,
         _redact_sensitive,
         _mask_pii_in_strings,
     ]

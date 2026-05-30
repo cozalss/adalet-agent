@@ -6,6 +6,7 @@ import pytest
 
 from core.metrics import (
     RollingPercentiles,
+    record_event,
     record_stream_timings,
     reset_all,
     snapshot_all,
@@ -102,4 +103,48 @@ def test_snapshot_all_has_all_stages():
     assert set(snap) == {
         "stream.first_event_ms", "stream.retrieval_done_ms",
         "stream.first_token_ms", "stream.final_ms",
+        "llm.generation_ms", "retrieval.total_ms", "retrieval.hybrid_ms",
     }
+
+
+# --- record_event tap dispatcher (structlog tap'inin çağırdığı) ---
+
+def test_record_event_llm_generation():
+    record_event("llama_server_call_done", {"elapsed_ms": 9500, "tokens_out": 320})
+    assert snapshot_all()["llm.generation_ms"]["n"] == 1
+    assert snapshot_all()["llm.generation_ms"]["p50"] == 9500
+
+
+def test_record_event_speculative_retrieval():
+    record_event("speculative_done", {"hybrid_ms": 40, "total_ms": 1800, "strategy": "hyde"})
+    snap = snapshot_all()
+    assert snap["retrieval.total_ms"]["p50"] == 1800
+    assert snap["retrieval.hybrid_ms"]["p50"] == 40
+
+
+def test_record_event_stream_timings_dispatched():
+    record_event("stream_timings", {"first_event_ms": 10, "retrieval_done_ms": 1500,
+                                     "first_token_ms": 3000, "final_ms": 12000})
+    assert snapshot_all()["stream.final_ms"]["p50"] == 12000
+
+
+def test_record_event_unknown_ignored():
+    record_event("some_random_event", {"foo": 123})
+    # Hiçbir metrik etkilenmez
+    assert all(s["n"] == 0 for s in snapshot_all().values())
+
+
+def test_record_event_missing_field_skipped():
+    record_event("llama_server_call_done", {"tokens_out": 320})  # elapsed_ms yok
+    assert snapshot_all()["llm.generation_ms"]["n"] == 0
+
+
+def test_metrics_tap_via_structlog():
+    """core/logging._metrics_tap: structlog event'i otomatik aggregator'a beslemeli."""
+    import structlog
+
+    from core.logging import configure_logging
+    configure_logging()
+    log = structlog.get_logger()
+    log.info("llama_server_call_done", elapsed_ms=8800, tokens_out=300)
+    assert snapshot_all()["llm.generation_ms"]["n"] >= 1

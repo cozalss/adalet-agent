@@ -351,14 +351,21 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 "P95/P99 trendi görünmezse kör uçarız." `core/metrics.py` in-process yuvarlanan pencere (son 500 istek) tutar; `/metrics/latency` endpoint'i dış scraper (Prometheus) gerektirmeden P50/P95/P99'u JSON döndürür. SSE stream her tamamlandığında stage timing'leri (`first_event_ms`, `retrieval_done_ms`, `first_token_ms`, `final_ms`) hem yapılandırılmış log'a (`stream_timings`, ELK/Vector için) hem bu aggregator'a kaydedilir.
 
-| Stage | Anlam |
-|---|---|
-| `stream.first_event_ms` | İlk node — graph başladı |
-| `stream.retrieval_done_ms` | Mevzuat + emsal geldi |
-| `stream.first_token_ms` | Draft başladı (token-stream yok → proxy) |
-| `stream.final_ms` | Uçtan uca toplam |
+| Stage | Anlam | Kaynak event |
+|---|---|---|
+| `stream.first_event_ms` | İlk node — graph başladı | stream_timings |
+| `stream.retrieval_done_ms` | Mevzuat + emsal geldi | stream_timings |
+| `stream.first_token_ms` | Draft başladı (token-stream yok → proxy) | stream_timings |
+| `stream.final_ms` | Uçtan uca toplam | stream_timings |
+| `llm.generation_ms` | LLM üretim süresi (darboğaz) | llama_server_call_done |
+| `retrieval.total_ms` | Retrieval toplam | speculative_done |
+| `retrieval.hybrid_ms` | Hybrid arama süresi | speculative_done |
 
-**Kısıt:** tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot verir. Kalıcı/birleşik trend için JSON `stream_timings` log'ları bir aggregator'a (Langfuse, ELK, Loki) aktarılmalıdır. Langfuse v4 entegrasyonu (`core/observability.py`) opsiyonel request-level trace de sağlar.
+**Tek tap noktası mimarisi:** `core/logging._metrics_tap` bir structlog processor'dır — JSON log'dan geçen her bilinen timing event'ini (redaction'dan önce, ham sayısal değerler) otomatik aggregator'a besler. Böylece **streaming + non-streaming `/ask` + script koşumları** dahil tüm kod yolları, her çağrı noktasına manuel kod eklemeden `/metrics/latency`'ye katkı verir. Aynı event'ler JSON olarak da emit edildiğinden ELK/Vector feed'i zaten hazırdır; Langfuse v4 (`core/observability.py`) opsiyonel request-level trace sağlar.
+
+**Canlı doğrulama (2 gerçek sorgu):** Tap, `llm.generation_ms` örneklerini otomatik yakaladı: ilk sorgu **38.802 ms** (soğuk-start — model paging + ilk çağrı), ikinci **7.966 ms** (normal). Bu, P95/P99 görünürlüğünün somut gerekçesidir: soğuk-start tek başına kuyruğu (P99) onlarca saniye şişirir; yalnız ortalamaya bakan bir operatör bunu göremez.
+
+**Kısıt:** tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot verir. Kalıcı/birleşik trend için JSON `stream_timings`/`llama_server_call_done` log'ları bir aggregator'a (Langfuse, ELK, Loki) aktarılmalıdır.
 
 **Kısıt:** vergi domain %81,8 (domain-aware dual ile), idari %70,0 — Danıştay kararları corpus'ta yetersiz temsil edilmektedir. `scripts/seed_danistay_direct.py` ile giderilmektedir.
 

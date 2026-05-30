@@ -63,12 +63,17 @@ class RollingPercentiles:
 
 
 # --- Modül-seviyesi registry ---
-# SSE stream stage'leri. İsim → RollingPercentiles.
+# SSE stream stage'leri + LLM/retrieval darboğaz stage'leri. İsim → RollingPercentiles.
 _REGISTRY: dict[str, RollingPercentiles] = {
+    # SSE stream stage'leri (stream_timings event'inden)
     "stream.first_event_ms": RollingPercentiles(),
     "stream.retrieval_done_ms": RollingPercentiles(),
     "stream.first_token_ms": RollingPercentiles(),
     "stream.final_ms": RollingPercentiles(),
+    # Darboğaz stage'leri — TÜM yollardan (streaming + non-streaming /ask)
+    "llm.generation_ms": RollingPercentiles(),    # llama_server_call_done.elapsed_ms
+    "retrieval.total_ms": RollingPercentiles(),   # speculative_done.total_ms
+    "retrieval.hybrid_ms": RollingPercentiles(),  # speculative_done.hybrid_ms
 }
 
 
@@ -82,6 +87,29 @@ def record_stream_timings(timings: dict) -> None:
     _REGISTRY["stream.retrieval_done_ms"].record(timings.get("retrieval_done_ms"))
     _REGISTRY["stream.first_token_ms"].record(timings.get("first_token_ms"))
     _REGISTRY["stream.final_ms"].record(timings.get("final_ms"))
+
+
+# Tap dispatcher: structlog event adı → (metrik adı, event_dict alanı) eşlemeleri.
+# Tek nokta — JSON log'dan geçen her timing event'i otomatik yakalanır
+# (streaming /ask/stream + non-streaming /ask + script koşumları dahil).
+_EVENT_TAPS: dict[str, list[tuple[str, str]]] = {
+    "llama_server_call_done": [("llm.generation_ms", "elapsed_ms")],
+    "speculative_done": [("retrieval.total_ms", "total_ms"),
+                         ("retrieval.hybrid_ms", "hybrid_ms")],
+}
+
+
+def record_event(event_name: str, event_dict: dict) -> None:
+    """structlog tap'inden çağrılır — bilinen timing event'lerini aggregator'a yaz.
+
+    stream_timings ayrı (record_stream_timings ile 4 stage'e dağıtılır).
+    Bilinmeyen event/alan sessizce atlanır. ASLA exception fırlatmamalı.
+    """
+    if event_name == "stream_timings":
+        record_stream_timings(event_dict)
+        return
+    for metric_name, field in _EVENT_TAPS.get(event_name, ()):
+        _REGISTRY[metric_name].record(event_dict.get(field))
 
 
 def snapshot_all() -> dict:
