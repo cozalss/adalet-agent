@@ -41,30 +41,79 @@ HEADERS = {
 }
 
 # Domain → (chamber list, keyword list)
+# Emsal corpus gap analizi (2026-05-30): corpus %75 Anayasa, Yargıtay tüketici/iş
+# kararları eksik. Keyword listeleri genişletildi — her domain için 8-10 sorgu.
 DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "tuketici": (
-        ("3. Hukuk Dairesi", "13. Hukuk Dairesi", "11. Hukuk Dairesi"),
-        ("ayıplı mal", "tüketici hakem heyeti", "garanti süresi"),
+        ("3. Hukuk Dairesi", "13. Hukuk Dairesi", "11. Hukuk Dairesi", "Hukuk Genel Kurulu"),
+        (
+            "ayıplı mal",
+            "ayıplı hizmet",
+            "tüketici hakem heyeti",
+            "tüketici mahkemesi",
+            "garanti süresi",
+            "cayma hakkı",
+            "mesafeli sözleşme",
+            "TKHK madde",
+            "araç ayıplı",
+            "ayıplı yapı",
+        ),
     ),
     "isHukuku": (
-        ("9. Hukuk Dairesi", "22. Hukuk Dairesi", "21. Hukuk Dairesi"),
-        ("kıdem tazminatı", "haksız fesih", "fazla mesai"),
+        ("9. Hukuk Dairesi", "22. Hukuk Dairesi", "21. Hukuk Dairesi", "Hukuk Genel Kurulu"),
+        (
+            "kıdem tazminatı",
+            "ihbar tazminatı",
+            "haksız fesih",
+            "işe iade",
+            "fazla mesai",
+            "yıllık izin ücreti",
+            "iş akdi feshi",
+            "kötüniyet tazminatı",
+            "sendikal tazminat",
+            "mobbing",
+        ),
     ),
     "kira": (
-        ("3. Hukuk Dairesi", "6. Hukuk Dairesi"),
-        ("kira tahliye", "kira artış", "ecrimisil"),
+        ("3. Hukuk Dairesi", "6. Hukuk Dairesi", "Hukuk Genel Kurulu"),
+        (
+            "kira tahliye",
+            "kira artış",
+            "ecrimisil",
+            "kira tespiti",
+            "kiracı tahliye",
+            "depozito iadesi",
+        ),
     ),
     "trafik": (
         ("17. Hukuk Dairesi", "4. Hukuk Dairesi"),
-        ("trafik kazası", "kasko", "destekten yoksun kalma"),
+        (
+            "trafik kazası",
+            "kasko",
+            "destekten yoksun kalma",
+            "zorunlu trafik sigortası",
+            "bedensel zarar trafik",
+        ),
     ),
     "icra": (
         ("12. Hukuk Dairesi", "19. Hukuk Dairesi"),
-        ("ödeme emri", "haciz", "icra itirazı"),
+        (
+            "ödeme emri",
+            "haciz",
+            "icra itirazı",
+            "itirazın iptali",
+            "borçtan kurtulma",
+        ),
     ),
     "tapu": (
         ("1. Hukuk Dairesi", "8. Hukuk Dairesi", "14. Hukuk Dairesi"),
-        ("tapu iptali", "müdahalenin men'i", "izale-i şuyu"),
+        (
+            "tapu iptali",
+            "müdahalenin men'i",
+            "izale-i şuyu",
+            "tapu tescil",
+            "ön alım hakkı",
+        ),
     ),
 }
 

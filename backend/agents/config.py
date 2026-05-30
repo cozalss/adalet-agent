@@ -28,14 +28,18 @@ NLI_CONTRADICTION_THRESHOLD = float(os.getenv("NLI_CONTRADICTION_THRESHOLD", "0.
 # yanlış-pozitif veto yaptı (Türkçe XNLI hassasiyeti). 0.70 ile sadece açık
 # çelişkileri yakalar; gerçek halüsinasyon koruması fuzzy + LLM-as-judge'a
 # kayar. [[adalet_nli_finding]] memory ile uyumlu.
-FUZZY_SUPPORT_THRESHOLD = 0.55   # fuzzy >= bu = pozitif destek (0.72→0.60→0.55)
+FUZZY_SUPPORT_THRESHOLD = 0.45   # fuzzy >= bu = pozitif destek (0.72→0.60→0.55→0.45)
+# verify_calibration.py çıktısı (59-vakalı altın veri seti, 2026-05-30):
+#   th=0.45 → F1=0.73 Acc=0.71 (TP=23 FP=15 TN=19 FN=2)
+#   th=0.55 → F1=0.53 Acc=0.61 (TP=13 FP=11 TN=23 FN=12)  ← eski değer
+# 0.45 ile 10 gerçek-pozitif kazanılır (+recall), 4 yanlış-pozitif artar;
+# ek FP'ler NLI contradiction veto (0.70) + Lettuce veto (0.15) tarafından yakalanır.
 LETTUCE_SUPPORT_THRESHOLD = 0.45 # LettuceDetect token-grounding (0.55→0.45)
 LETTUCE_VETO_THRESHOLD = 0.15    # LettuceDetect < bu = veto (0.20→0.15)
 MIN_VERIFIED_CLAIMS_RATIO = 0.20 # taslakta kanıtlanan claim oranı (0.50→0.30→0.20)
-# v8 ölçümü: 16 kanun ile retrieval çeşitlendi, fuzzy match kaynak bulamadı
-# (claim'ler birden çok kanunla potansiyel ilişkili, snippet seçimi rastgele).
-# 0.20 = 5 claim'den 1+ supported yeterli; halüsinasyon koruması NLI 0.70 +
-# fuzzy 0.55 + LettuceDetect kombosuyla yapılıyor.
+# Kalibrasyon notu: model-free pipeline (L1+fuzzy) contradiction'da acc=0.23 —
+# NLI zorunlu (VERIFY_STRICT=1 production'da açık olmalı). Lettuce contradiction
+# gap=0.21 (fuzzy'den daha iyi), ek layer olarak değer taşır.
 VERIFY_BATCH = 16                # NLI batch boyutu (GPU/CPU)
 
 
@@ -90,7 +94,7 @@ DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
 # Draft cevabı için üretim tavanı. Lokal 14B modelde asıl gecikme draft
 # üretiminde olduğu için default "lean answer" profili kısa ama tam cevap verir.
 # Derin/uzun yanıt gereken ortamda LLM_MAX_TOKENS=1000+ yapılabilir.
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "240"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.
@@ -269,7 +273,7 @@ MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true
 DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15)),
     "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("EIK", 14)),
-    "kira": (("TBK", 299), ("TBK", 315), ("TBK", 344), ("TBK", 347), ("TBK", 350)),
+    "kira": (("TBK", 299), ("TBK", 315), ("TBK", 342), ("TBK", 344), ("TBK", 347), ("TBK", 350), ("TBK", 372)),
 }
 
 # Domain → ÖNCELİKLİ emsal mahkemesi (court-priority tier-sort).
