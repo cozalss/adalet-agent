@@ -36,6 +36,7 @@ from agents.config import (
     MIN_VERIFIED_CLAIMS_RATIO,
     NLI_ENTAILMENT_THRESHOLD,
 )
+from agents.risk_guard import verify_risk_veto
 from agents.state import AgentState, Citation, Claim, DebateVerdict
 from agents.verifier_layers import (
     VerifierUnavailableError,
@@ -193,6 +194,18 @@ async def verify_node(state: AgentState) -> dict:
 
     verdict = _verdict_from_ratio(n_supported, len(claims), state, contradictions)
 
+    # --- İÇERİK-RİSK VETO (SIFIR HALÜSİNASYON kırmızı çizgisi) ---
+    # NLI yalnız doğrudan ÇELİŞKİ yakalar; [src:]-etiketli yanlış ÇIKARIMI
+    # (örn. "2 yıl kıdem için yetersiz" — md.14 min 1 yıl) ve uydurma kanun adını
+    # ("İşçilik Kanunu") kaçırır. Bu veto draft metnini tarar; bloklayıcı risk
+    # varsa fail-closed REJECT (CLAUDE.md §1: doğrulanamazsa REDDEDİLİR).
+    # temp=0'da retry aynı çıktıyı üretir → retry değil, doğrudan reject.
+    draft_text = state.get("draft_response", "") or ""
+    blocked, risk_reasons = verify_risk_veto(draft_text)
+    if blocked:
+        log.warning("verify_risk_veto", reasons=risk_reasons, prev_verdict=verdict)
+        verdict = "reject"
+
     # Ölçüm-amaçlı hook: FORCE_RETRY_ONCE=1 → ilk geçişte (retry_count==0) verdict'i
     # retry'a zorla. retry yolu latans maliyetini (P99) deterministik ölçmek için —
     # production'da ASLA set edilmez (VERIFY_ENABLED ablation hook'u gibi).
@@ -203,9 +216,10 @@ async def verify_node(state: AgentState) -> dict:
     ):
         verdict = "retry"
 
+    _veto_note = f" RİSK-VETO: {'; '.join(risk_reasons)}." if blocked else ""
     notes = (
         f"{n_supported}/{len(claims)} iddia doğrulandı, "
-        f"{contradictions} çelişki tespit edildi."
+        f"{contradictions} çelişki tespit edildi.{_veto_note}"
     )
 
     log.info(

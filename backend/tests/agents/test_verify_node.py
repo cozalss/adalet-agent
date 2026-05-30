@@ -331,6 +331,49 @@ async def test_verify_node_rejects_on_contradiction(
 
 
 @pytest.mark.asyncio
+async def test_verify_node_risk_veto_rejects_hallucinated_draft(
+    base_state, sample_claims, monkeypatch,
+):
+    """SIFIR HALÜSİNASYON: draft'ta süre-reddi/uydurma kanun varsa NLI temiz
+    olsa bile verdict reject (risk veto). Gerçek regresyon vakası."""
+    # NLI hiç çelişki bulmuyor (claim'ler [src:]-etiketli, fuzzy/NLI geçiyor) —
+    # veto olmasa "pass" olurdu. Veto draft metnindeki yanlış-çıkarımı yakalamalı.
+    monkeypatch.setattr(
+        "agents.verifier_layers.get_verifier",
+        lambda: _FakeVerifier(contradiction=0.05, entailment=0.7),
+        raising=False,
+    )
+    base_state["claims"] = sample_claims[:2]
+    base_state["draft_response"] = (
+        "Kısa cevap: Belirttiğiniz 2 yıl süre, kanunlarda belirtilen minimum "
+        "çalışma süresini karşılamıyor [src: m-IK-21]. "
+        "İşçilik Kanunu'nun 21. maddesi uyarınca bu süre 5 yılın altında ise "
+        "tazminat verilmeyebilir [src: m-EIK-14]."
+    )
+    result = await verify_node(base_state)
+    assert result["debate_verdict"] == "reject"
+    assert "RİSK-VETO" in result["debate_notes"]
+
+
+@pytest.mark.asyncio
+async def test_verify_node_no_veto_for_clean_draft(
+    base_state, sample_claims, monkeypatch,
+):
+    """Temiz draft'ta veto tetiklenmemeli — false-positive guard."""
+    monkeypatch.setattr(
+        "agents.verifier_layers.get_verifier",
+        lambda: _FakeVerifier(contradiction=0.05, entailment=0.7),
+        raising=False,
+    )
+    base_state["claims"] = sample_claims[:2]
+    base_state["draft_response"] = (
+        "Kısa cevap: Ayıplı malda iade hakkınız bulunmaktadır [src: m-TKHK-11]."
+    )
+    result = await verify_node(base_state)
+    assert "RİSK-VETO" not in result["debate_notes"]
+
+
+@pytest.mark.asyncio
 async def test_verify_node_handles_empty_claims(base_state):
     base_state["claims"] = []
     result = await verify_node(base_state)

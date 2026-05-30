@@ -33,17 +33,13 @@ _DURATION_CLAIM_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# --- 2. Uydurma/yanlış kanun adları ---
-# Türk hukukunda OLMAYAN ama LLM'in uydurduğu kanun adları → kesin hata sinyali.
-_FABRICATED_LAW_RE = re.compile(
-    r"\b(?:"
-    r"İşçilik\s+Kanunu|"           # gerçek: İş Kanunu
-    r"Kiralama\s+Kanunu|"          # gerçek: TBK kira hükümleri
-    r"Tüketicilik\s+Kanunu|"       # gerçek: Tüketicinin Korunması Hk. Kanun
-    r"Trafik\s+Yasası|"            # gerçek: Karayolları Trafik Kanunu
-    r"Vergi\s+Yasası"              # gerçek: VUK/GVK/KVK
-    r")\b",
-    re.IGNORECASE,
+# --- 2. Uydurma kanun adları + denial veto: production guard'dan re-export ---
+# Bu detektörler artık production verify pipeline'ında da kullanılıyor →
+# tek kaynak agents/risk_guard.py. Eval geriye-uyumluluk için re-export eder.
+from agents.risk_guard import (  # noqa: E402
+    fabricated_law_names,
+    negative_eligibility_claims,
+    verify_risk_veto,
 )
 
 # --- 3. Kaynaksız hukuki iddia ---
@@ -65,11 +61,6 @@ def duration_eligibility_claims(text: str) -> list[str]:
         if _DURATION_CLAIM_RE.search(sent):
             flags.append(sent.strip()[:160])
     return flags
-
-
-def fabricated_law_names(text: str) -> list[str]:
-    """Bilinen uydurma/yanlış kanun adlarını döndür (kesin hata)."""
-    return [m.group(0) for m in _FABRICATED_LAW_RE.finditer(text)]
 
 
 def unsourced_legal_claims(text: str) -> list[str]:
