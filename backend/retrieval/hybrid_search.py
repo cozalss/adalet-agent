@@ -58,6 +58,16 @@ _colbert_supported_cache: bool | None = None
 # Varsayılan: EMBEDDING_MODEL ile aynı (single-model mode).
 _SPARSE_MODEL = os.getenv("SPARSE_EMBEDDER_MODEL", "")
 
+# A/B verisi (v2 186 vaka, 2026-05-30): Mursit dense-only ile karşılaştırma:
+#   vergi: BGE-M3 90.9% → Mursit 45.5% (-45pp) ← BM25 kritik
+#   trafik: BGE-M3 81.8% → Mursit 54.5% (-27pp) ← BM25 kritik
+#   icra:   BGE-M3 73.1% → Mursit 73.1% (=) ← BM25 nötr
+#   kira:   BGE-M3 78.8% → Mursit 97.0% (+18pp) ← Mursit semantic üstün
+# SPARSE_ENABLED_DOMAINS: bu domainlerde BGE-M3 sparse de aktif (dual mode)
+_SPARSE_DOMAINS: frozenset[str] = frozenset(
+    os.getenv("SPARSE_ENABLED_DOMAINS", "vergi,trafik,icra").split(",")
+) if _SPARSE_MODEL else frozenset()
+
 
 def _get_embedder() -> Embedder | MursitEmbedder:
     """EMBEDDING_MODEL env'e göre doğru embedder singleton döndür."""
@@ -102,6 +112,7 @@ async def search(
     domain: str | None = None,
     kanun_kodu: list[str] | None = None,
     source: list[str] | None = None,
+    sparse_domain: str | None = None,
 ) -> list[SearchResult]:
     """Hybrid search — dense + sparse (+ ColBERT) prefetch, RRF fusion, top_k.
 
@@ -109,15 +120,12 @@ async def search(
         question: Kullanıcı sorusu.
         top_k: Döndürülecek sonuç sayısı.
         prefetch_limit: Her vektör için ilk aşamada çekilecek aday sayısı.
-        domain: Filtre — None ise tüm domainler (chunk payload `domain` alanı).
-        kanun_kodu: Filtre — verilirse yalnız bu kanun kodlarındaki (TKHK, TBK…)
-            law chunk'ları. Domain-scoped mevzuat retrieval için: triaj domain'i
-            biliniyorsa o domain'in kanun setine daraltıp ilgili kanunları
-            (örn. tüketici sorusunda TKHK) aday havuzuna garanti eder.
-        source: Filtre — verilirse yalnız bu source'lardaki (yargitay, uyap,
-            gib_ozelge…) chunk'lar. Source-scoped emsal supplementary retrieval
-            için: dense'in Anayasa-dominated olduğu sorgularda Yargıtay/UYAP
-            adaylarını candidate havuzuna garanti eder.
+        domain: Filtre — None ise tüm domainler (Qdrant payload domain filtresi).
+        kanun_kodu: Filtre — verilirse yalnız bu kanun kodlarındaki law chunk'ları.
+        source: Filtre — verilirse yalnız bu source'lardaki chunk'lar.
+        sparse_domain: Dual embedder domain hint — Qdrant filtresi değil, sadece
+            hangi domain için BGE-M3 sparse kullanılacağını belirler.
+            vergi/trafik/icra için BGE-M3 sparse domain@1'i +27-45pp iyileştiriyor.
     """
     if not question.strip():
         return []
@@ -135,9 +143,16 @@ async def search(
 
     # Dual embedder: Mursit dense-only iken (sparse boş) BGE-M3 ile sparse al.
     # SPARSE_EMBEDDER_MODEL=BAAI/bge-m3 ile etkin; boşsa tek embedder kullanılır.
-    if not sparse_idx and _SPARSE_MODEL:
+    # Domain-aware dual embedder: sadece BM25 kritik domainlerde spare ekle.
+    # vergi/trafik/icra: BGE-M3 sparse +27-45pp domain@1 kazandırıyor.
+    # idari/tuketici/kira: sparse ekleme → -9-30pp regresyon yapıyor.
+    # sparse_domain: domain hint yalnızca embedder seçimi için; Qdrant filtresi değil.
+    _sd = sparse_domain or domain
+    use_dual = not sparse_idx and _SPARSE_MODEL and (_sd in _SPARSE_DOMAINS if _sd else False)
+    if use_dual:
         sparse_embedder = _get_sparse_embedder()
         _, (sparse_idx, sparse_val), _ = await sparse_embedder.aencode_query(question)
+        log.debug("dual_sparse_activated", domain=domain)
 
     query_filter = _build_filter(domain, kanun_kodu, source)
 

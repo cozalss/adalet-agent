@@ -115,11 +115,11 @@ async def mevzuat_node(state: AgentState) -> dict:
                 results = _merge_dedup(_result, results)  # type: ignore[arg-type]
                 retrieval_modes.append(_key)
         if not results:
-            results = await search(question=question, top_k=target_k, domain=None)
+            results = await search(question=question, top_k=target_k, sparse_domain=domain)
             retrieval_modes.append("hybrid")
         retrieval_mode = "+".join(retrieval_modes)
     else:
-        results = await search(question=question, top_k=target_k, domain=None)
+        results = await search(question=question, top_k=target_k, sparse_domain=domain)
         retrieval_mode = "hybrid"
 
     laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)
