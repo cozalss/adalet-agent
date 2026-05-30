@@ -203,6 +203,72 @@ class Embedder:
         return await asyncio.to_thread(self.encode_query, text, return_colbert)
 
 
+class MursitEmbedder:
+    """Mursit-Base-TR-Retrieval embedding wrapper (SentenceTransformer, 768-dim).
+
+    BGE-M3'ten farkı:
+      - Dense-only (sparse/ColBERT yok)
+      - 768-dim (BGE-M3: 1024-dim)
+      - Türkçe hukuk verisinde eğitilmiş (10.3M Yargıtay sekansı)
+
+    Kullanım:
+        embedder = MursitEmbedder()
+        out = embedder.encode(["Madde 11 nedir?"])
+        # out.dense: list[list[float]], out.sparse: [([], [])] placeholder
+    """
+
+    MURSIT_MODEL = os.getenv("MURSIT_MODEL", "newmindai/Mursit-Base-TR-Retrieval")
+    MURSIT_LARGE = "newmindai/Mursit-Large-TR-Retrieval"  # 403M, henüz test edilmedi
+
+    def __init__(self, model_name: str | None = None) -> None:
+        self.model_name = model_name or self.MURSIT_MODEL
+        self._encode_lock = threading.Lock()
+
+    @cached_property
+    def _model(self):
+        from sentence_transformers import SentenceTransformer
+        log.info("model_loading", model=self.model_name, backend="sentence_transformers")
+        return SentenceTransformer(self.model_name, trust_remote_code=True)
+
+    def ensure_loaded(self) -> None:
+        _ = self._model
+
+    def encode(
+        self,
+        texts: list[str],
+        batch_size: int = 64,
+        **_kwargs,  # BGE-M3 parametrelerini sessizce yoksay
+    ) -> EmbedOutput:
+        if not texts:
+            return EmbedOutput(dense=[], sparse=[], colbert=None)
+        with self._encode_lock:
+            vecs = self._model.encode(
+                texts,
+                batch_size=batch_size,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+        dense_list = [v.tolist() for v in vecs]
+        sparse_list: list[tuple[list[int], list[float]]] = [([], []) for _ in texts]
+        return EmbedOutput(dense=dense_list, sparse=sparse_list, colbert=None)
+
+    def encode_query(
+        self, text: str, **_kwargs,
+    ) -> tuple[list[float], tuple[list[int], list[float]], None]:
+        out = self.encode([text], batch_size=1)
+        return out.dense[0], out.sparse[0], None
+
+    async def aencode(self, texts: list[str], batch_size: int = 64, **kw) -> EmbedOutput:
+        self.ensure_loaded()
+        return await asyncio.to_thread(self.encode, texts, batch_size)
+
+    async def aencode_query(
+        self, text: str, **kw,
+    ) -> tuple[list[float], tuple[list[int], list[float]], None]:
+        self.ensure_loaded()
+        return await asyncio.to_thread(self.encode_query, text)
+
+
 def _lexical_to_sparse(weights: dict) -> tuple[list[int], list[float]]:
     """BGE-M3 lexical_weights (token_id_str → float) → Qdrant sparse format."""
     indices: list[int] = []
