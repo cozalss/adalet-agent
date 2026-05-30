@@ -368,6 +368,8 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 **Bulgu 3 — hedef (160-220) bu model+görev için yanlış kalibre:** Qwen 14B bu vatandaş sorgularına yapısal olarak ~80-120 kelimelik cevap üretiyor; iki farklı prompt stratejisi de 160'a yaklaştıramadı. Tam, doğru, kaynaklı bir cevap bu sorgular için doğal olarak ~90 kelime. Hedef 160-220 "dolgu" bölgesi; eval hedefi ~120-160'a indirilmeli veya mevcut kısa-ama-tam cevaplar kabul edilmeli.
 
+**Çözüm — hedef veri-temelli yeniden kalibre edildi (160-220 → 100-160):** Ölçülen kelime dağılımı (24 gerçek cevap): min 50, **maks 119**, merkez ~80. 120 tabanı bile modelin tavanının üstünde olduğundan her zaman %0 verirdi (metrik işe yaramaz). 100-160 bandı metriği ayırt edici yapar: baseline %25, candidate-2 %33 in-target. **Asıl içgörü:** ~85 kelimelik cevaplar bu sorgular için yapısal olarak TAM (Kısa cevap + Dayanak + Durumuna uygulama + Ne yapmalı bölümleri mevcut); "fazla kısa cevap" asıl sorun değildi — asıl kırmızı-çizgi sorunu **halüsinasyondu** (§4.3.10), ve o `risk_guard.py` veto katmanıyla kapatıldı.
+
 #### 4.3.10 KRİTİK — Süre-uygunluk halüsinasyonu (SIFIR HALÜSİNASYON ihlali)
 
 Prompt A/B sırasında gerçek çıktı incelemesi, uzunluktan **çok daha kritik** bir sorun ortaya çıkardı. "2 yıl çalıştığım işten çıkarıldım, kıdem tazminatım ne kadar?" sorusuna sistemin verdiği cevap:

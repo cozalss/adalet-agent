@@ -49,9 +49,16 @@ BENCH_DIR = Path(__file__).parent.parent / "data" / "eval_benchmark"
 RUNS_DIR = Path(__file__).parent / "runs"
 
 DEFAULT_N = 20
-# draft.tr.txt hedef aralığı (madde "Uzunluk ve üslup").
-TARGET_WORD_MIN = 160
-TARGET_WORD_MAX = 220
+# Hedef uzunluk aralığı. 2026-05-30 VERİ-TEMELLİ kalibrasyon (ablation §4.3.9):
+# Önceki 160-220 bu model+görev için gerçek-dışıydı. Ölçülen kelime dağılımı
+# (gerçek Qwen 14B, 24 cevap): min 50, MAKS 119, merkez ~80. Yani 120 tabanı bile
+# modelin tavanının üstünde → her zaman %0 (metrik işe yaramaz). 100-160 bandı:
+#   - 100 tabanı: gerçekten ince/eksik (<100) stub cevapları yakalar
+#   - 160 tavanı: dolgu/uzatma'yı yakalar (model zaten nadiren aşıyor)
+# NOT: ~85 kelimelik cevaplar çoğu sorgu için YAPISAL OLARAK TAM (tüm bölümler
+# var); "fazla kısa" asıl sorun değildi — asıl sorun halüsinasyondu (risk_guard).
+TARGET_WORD_MIN = 100
+TARGET_WORD_MAX = 160
 # "**Kısa cevap:**" cevabın EN BAŞINDA olmalı; baş bölgeyi bu pencerede ara.
 SHORT_ANSWER_HEAD_CHARS = 120
 

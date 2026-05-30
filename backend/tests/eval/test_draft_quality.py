@@ -77,10 +77,12 @@ def test_word_count_strips_src_tags():
 
 
 def test_length_in_target_band():
+    # 2026-05-30 veri-temelli kalibrasyon: 160-220 → 100-160 (model tavanı 119,
+    # merkez ~80; ablation §4.3.9).
+    assert length_in_target(100) is True
     assert length_in_target(160) is True
-    assert length_in_target(220) is True
-    assert length_in_target(159) is False
-    assert length_in_target(221) is False
+    assert length_in_target(99) is False
+    assert length_in_target(161) is False
 
 
 # --------------------------------------------------------------------------
