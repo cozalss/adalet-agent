@@ -25,6 +25,9 @@ from typing import Any
 import structlog
 
 from retrieval.adaptive_router import RoutingDecision
+from retrieval.hybrid_search import SearchResult, search  # noqa: F401
+from retrieval.hyde import search_with_hyde  # noqa: F401
+from retrieval.multi_query import search_multi_query  # noqa: F401
 
 log = structlog.get_logger()
 
@@ -53,16 +56,12 @@ async def search_speculative(
         (results, strategy_used)
         strategy_used: "hybrid" | "hyde" | "mq" | "hyde+mq" | "hybrid_fallback"
     """
-    from retrieval.hybrid_search import SearchResult, search
-
     def _dedup(primary: list, secondary: list) -> list:
         seen: dict = {}
         for r in [*primary, *secondary]:
             if r.chunk_id not in seen:
                 seen[r.chunk_id] = r
         return list(seen.values())
-    from retrieval.hyde import search_with_hyde
-    from retrieval.multi_query import search_multi_query
 
     loop = asyncio.get_event_loop()
 
@@ -88,7 +87,7 @@ async def search_speculative(
     # Sadece hybrid istendiyse (routing basit → hemen dön)
     if not advanced_tasks:
         results = await hybrid_task
-        return results, "hybrid"
+        return results[:top_k], "hybrid"
 
     # --- 3. Hybrid'i bekle (hızlı) ---
     hybrid_results = await hybrid_task

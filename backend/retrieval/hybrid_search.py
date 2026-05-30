@@ -50,7 +50,13 @@ class SearchResult:
 
 
 _embedder_singleton: Embedder | MursitEmbedder | None = None
+_sparse_embedder_singleton: Embedder | None = None
 _colbert_supported_cache: bool | None = None
+
+# Dual embedder: Mursit dense (768-dim kaliteli) + BGE-M3 sparse (BM25 keyword)
+# SPARSE_EMBEDDER_MODEL env ile ayrı sparse model belirtilir.
+# Varsayılan: EMBEDDING_MODEL ile aynı (single-model mode).
+_SPARSE_MODEL = os.getenv("SPARSE_EMBEDDER_MODEL", "")
 
 
 def _get_embedder() -> Embedder | MursitEmbedder:
@@ -59,6 +65,20 @@ def _get_embedder() -> Embedder | MursitEmbedder:
     if _embedder_singleton is None:
         _embedder_singleton = get_embedder()
     return _embedder_singleton
+
+
+def _get_sparse_embedder() -> Embedder | MursitEmbedder:
+    """Sparse için ayrı embedder (dual mode) ya da ana embedder (single mode).
+
+    SPARSE_EMBEDDER_MODEL=BAAI/bge-m3 ile BGE-M3 sparse kullanılır.
+    Boşsa ana embedder kullanılır.
+    """
+    global _sparse_embedder_singleton
+    if not _SPARSE_MODEL:
+        return _get_embedder()
+    if _sparse_embedder_singleton is None:
+        _sparse_embedder_singleton = Embedder(_SPARSE_MODEL)
+    return _sparse_embedder_singleton
 
 
 async def _detect_colbert_support(client) -> bool:
@@ -108,10 +128,16 @@ async def search(
     want_colbert = COLBERT_QUERY_ENABLED and colbert_supported
 
     embedder = _get_embedder()
-    # to_thread: BGE-M3 forward CPU/GPU-bound — event loop'u bloke etme.
+    # to_thread: BGE-M3/Mursit forward CPU/GPU-bound — event loop'u bloke etme.
     dense_vec, (sparse_idx, sparse_val), colbert_vecs = await embedder.aencode_query(
         question, return_colbert=want_colbert,
     )
+
+    # Dual embedder: Mursit dense-only iken (sparse boş) BGE-M3 ile sparse al.
+    # SPARSE_EMBEDDER_MODEL=BAAI/bge-m3 ile etkin; boşsa tek embedder kullanılır.
+    if not sparse_idx and _SPARSE_MODEL:
+        sparse_embedder = _get_sparse_embedder()
+        _, (sparse_idx, sparse_val), _ = await sparse_embedder.aencode_query(question)
 
     query_filter = _build_filter(domain, kanun_kodu, source)
 
