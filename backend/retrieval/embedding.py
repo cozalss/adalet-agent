@@ -269,6 +269,21 @@ class MursitEmbedder:
         return await asyncio.to_thread(self.encode_query, text)
 
 
+_MURSIT_PREFIXES = ("newmindai/Mursit", "newmindai/mursit")
+
+
+def get_embedder() -> "Embedder | MursitEmbedder":
+    """MODEL_NAME'e göre doğru embedder örneği döndür.
+
+    Mursit model isimleri için MursitEmbedder, diğerleri için Embedder.
+    hybrid_search.py bu factory'i kullanır; EMBEDDING_MODEL env değişimi ile
+    geçiş yapılır.
+    """
+    if any(MODEL_NAME.startswith(p) for p in _MURSIT_PREFIXES):
+        return MursitEmbedder(MODEL_NAME)
+    return Embedder()
+
+
 def _lexical_to_sparse(weights: dict) -> tuple[list[int], list[float]]:
     """BGE-M3 lexical_weights (token_id_str → float) → Qdrant sparse format."""
     indices: list[int] = []

@@ -28,7 +28,7 @@ from typing import Any
 import structlog
 from qdrant_client import models
 
-from .embedding import Embedder
+from .embedding import Embedder, MursitEmbedder, get_embedder
 from .reranker import RerankResult, get_reranker
 from .vector_store import COLLECTION_NAME, collection_has_colbert, get_shared_client
 
@@ -49,14 +49,15 @@ class SearchResult:
     metadata: dict[str, Any]
 
 
-_embedder_singleton: Embedder | None = None
+_embedder_singleton: Embedder | MursitEmbedder | None = None
 _colbert_supported_cache: bool | None = None
 
 
-def _get_embedder() -> Embedder:
+def _get_embedder() -> Embedder | MursitEmbedder:
+    """EMBEDDING_MODEL env'e göre doğru embedder singleton döndür."""
     global _embedder_singleton
     if _embedder_singleton is None:
-        _embedder_singleton = Embedder()
+        _embedder_singleton = get_embedder()
     return _embedder_singleton
 
 
@@ -114,6 +115,8 @@ async def search(
 
     query_filter = _build_filter(domain, kanun_kodu, source)
 
+    # Mursit dense-only: sparse boşsa BM25 prefetch atla (dim uyumsuzluğu önler)
+    has_sparse = bool(sparse_idx)
     prefetch_list: list[models.Prefetch] = [
         models.Prefetch(
             query=dense_vec,
@@ -121,13 +124,16 @@ async def search(
             limit=prefetch_limit,
             filter=query_filter,
         ),
-        models.Prefetch(
-            query=models.SparseVector(indices=sparse_idx, values=sparse_val),
-            using="sparse",
-            limit=prefetch_limit,
-            filter=query_filter,
-        ),
     ]
+    if has_sparse:
+        prefetch_list.append(
+            models.Prefetch(
+                query=models.SparseVector(indices=sparse_idx, values=sparse_val),
+                using="sparse",
+                limit=prefetch_limit,
+                filter=query_filter,
+            )
+        )
     if want_colbert and colbert_vecs:
         prefetch_list.append(
             models.Prefetch(
