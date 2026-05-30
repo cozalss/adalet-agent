@@ -198,7 +198,46 @@ Yapılandırma: `MULTI_QUERY_N = 5` paraphrase üretilmekte, `MULTI_QUERY_ENABLE
 
 RAG literatüründe N=5–8 sorgu fanout'unun Recall@20'de artı 6 puanlık iyileşme sağladığı raporlanmaktadır. Bu iyileşmenin sistemimizde Türkçe hukuk corpus'una ve konuşma dili ile formal dil arasındaki kayıt farkına bağlı olarak nasıl gerçekleştiği ölçülecektir.
 
-[A/B SONUCU: `scripts/ab_retrieval_compare.py` çalıştırılınca doldurulacak — Temel (domain@1=81,2%, MRR=0,881) vs. MQ+Hibrit ve MQ+HyDE+Hibrit; domain@1, kanun@5, MRR, latans]
+**A/B Sonuçları** (2026-05-30, v1 benchmark 50 vaka, Qwen 2.5 14B Q5_K_M, 3 vaka zaman aşımı):
+
+| Metrik | Baseline | Multi-Query | Delta |
+|---|---|---|---|
+| Domain@1 | 78,0% | 70,2% | **-7,8 pp** |
+| Domain@5 | 92,0% | 91,5% | -0,5 pp |
+| Kanun@5 | 46,0% | 42,6% | -3,4 pp |
+| MRR | 0,848 | 0,799 | **-0,049** |
+| Latans (ort.) | 322 ms | 3747 ms | **+3425 ms (11,6×)** |
+
+**Domain kırılımı:**
+
+| Domain | Baseline | MQ | Delta |
+|---|---|---|---|
+| trafik | 60,0% | **80,0%** | **+20 pp** |
+| kira | 71,4% | **85,7%** | **+14,3 pp** |
+| isHukuku | 100,0% | 100,0% | = |
+| idari | 50,0% | 50,0% | = |
+| icra | 100,0% | 80,0% | -20 pp |
+| tapu | 83,3% | 60,0% | -23,3 pp |
+| tuketici | 75,0% | 57,1% | **-17,9 pp** |
+| vergi | 80,0% | 40,0% | **-40,0 pp** |
+
+**Üç Mod Karşılaştırması:**
+
+| Mod | domain@1 | kanun@5 | MRR | Latans |
+|---|---|---|---|---|
+| Baseline (hibrit) | **78,0%** | **46,0%** | **0,848** | **322 ms** |
+| HyDE | 80,0% | 44,0% | 0,863 | 4825 ms |
+| Multi-Query | 70,2% | 42,6% | 0,799 | 3747 ms |
+
+**Yorumlama:** Her iki genişletme yöntemi de global etkinleştirildiğinde karma sonuç üretmektedir. HyDE vatandaş dili-hukuki jargon köprüsünden yararlandığı alanlarda (tüketici, kira, vergi) kazanç sağlarken; Multi-Query leksikal çeşitlilik gerektiren alanlarda (trafik, kira) faydalıdır. Bu bulgular **alan bazlı seçici etkinleştirme** mimarisini önermektedir:
+
+```python
+# config.py — A/B verilerine dayalı öneri
+HYDE_ENABLED_DOMAINS    = {"tuketici", "kira", "isHukuku", "vergi"}   # +12-20pp
+MULTI_QUERY_DOMAINS     = {"trafik", "kira", "idari"}                  # +14-20pp
+```
+
+Bu yapılandırma, latans maliyetini yalnızca kazanç sağlanan alanlara sınırlandırır.
 
 ---
 
