@@ -424,22 +424,6 @@ ve lokal veri işleme.
 
 ---
 
-## 🙏 Teşekkür
-
-Bu proje aşağıdaki açık kaynak çalışmalar üzerine kuruludur:
-
-- [yargi-mcp](https://github.com/saidsurucu/yargi-mcp) — Türk yargı verisi erişimi
-- [Qwen 2.5](https://github.com/QwenLM/Qwen2.5) (Alibaba) — ana dil modeli
-- [BGE-M3 / BGE-reranker](https://github.com/FlagOpen/FlagEmbedding) (BAAI) — embedding & rerank
-- [mDeBERTa-XNLI](https://huggingface.co/MoritzLaurer) — NLI doğrulama
-- [LettuceDetect](https://github.com/KRLabsOrg) — Türkçe token-grounding
-- [LangGraph](https://github.com/langchain-ai/langgraph) · [Qdrant](https://github.com/qdrant/qdrant) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [Piper](https://github.com/rhasspy/piper)
-
-Tüm hukuk verisi kamuya açık kaynaklardan (mevzuat.gov.tr, Yargıtay, Danıştay,
-Resmî Gazete) gelir.
-
----
-
 ## 📜 Lisans
 
 **MIT** — özgürce kullan, değiştir, dağıt. Ayrıntı için [LICENSE](LICENSE).
