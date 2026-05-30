@@ -1,0 +1,100 @@
+{"id": "ANS_tuketici_001", "soru": "ayıplı malda tüketici hakları nelerdir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_002", "soru": "cayma hakkı süresi kaç gündür", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_003", "soru": "tüketici hakem heyetine başvuru nasıl yapılır", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_004", "soru": "garanti süresi kaç yıldır", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_005", "soru": "mesafeli satış sözleşmesi nedir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_006", "soru": "tüketici hakem heyeti parasal sınırları nelerdir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_007", "soru": "ayıplı hizmette tüketici ne talep edebilir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_008", "soru": "taksitli satışta cayma hakkı nasıl kullanılır", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_009", "soru": "abonelik sözleşmesi nasıl feshedilir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_010", "soru": "ürün iade süresi ne kadardır", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_011", "soru": "haksız şart nedir ve nasıl tespit edilir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_012", "soru": "tüketici kredisinde erken ödeme indirimi nasıl hesaplanır", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_tuketici_013", "soru": "satıcı değişimi reddederse tüketici ne yapabilir", "expected_domain": "tuketici", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_001", "soru": "kıdem tazminatı nasıl hesaplanır", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_002", "soru": "ihbar süreleri nedir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_003", "soru": "fazla mesai ücreti nasıl hesaplanır", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_004", "soru": "yıllık izin hakkı kaç gündür", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_005", "soru": "işe iade davası açma süresi kaç gündür", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_006", "soru": "kıdem tazminatına hak kazanma şartları nelerdir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_007", "soru": "haklı fesih nedenleri nelerdir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_008", "soru": "deneme süresi en fazla ne kadar olabilir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_009", "soru": "ihbar tazminatı nedir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_010", "soru": "doğum izni süresi ne kadardır", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_011", "soru": "ulusal bayram ve genel tatil ücreti nasıl ödenir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_012", "soru": "mobbing nedir ve işçinin hakları nelerdir", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_isHukuku_013", "soru": "iş kazası bildirimi nasıl yapılır", "expected_domain": "isHukuku", "expected_decision": "answer"}
+{"id": "ANS_kira_001", "soru": "kira artış oranı nasıl belirlenir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_002", "soru": "depozito iadesi şartları nelerdir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_003", "soru": "tahliye davası nasıl açılır", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_004", "soru": "kira sözleşmesi en az kaç yıl yapılır", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_005", "soru": "ev sahibi kirayı hangi gerekçelerle artırabilir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_006", "soru": "tahliye taahhütnamesi nedir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_007", "soru": "kiracının tahliyesi hangi hallerde mümkündür", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_008", "soru": "kira tespit davası nedir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_009", "soru": "kira bedeli ödenmezse ev sahibi ne yapabilir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_010", "soru": "ihtiyaç nedeniyle tahliye şartları nelerdir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_011", "soru": "kiracı sözleşmeyi nasıl feshedebilir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_kira_012", "soru": "kira sözleşmesinde depozito en fazla kaç aylık olabilir", "expected_domain": "kira", "expected_decision": "answer"}
+{"id": "ANS_icra_001", "soru": "ödeme emrine itiraz süresi kaç gündür", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_002", "soru": "haciz nasıl kaldırılır", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_003", "soru": "icra takibi nasıl başlatılır", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_004", "soru": "ilamsız icra takibi nedir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_005", "soru": "maaş haczinde haczedilemeyen oran ne kadardır", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_006", "soru": "itirazın iptali davası nedir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_007", "soru": "haczedilemeyen mallar nelerdir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_008", "soru": "icra takibine itirazın kaldırılması nasıl talep edilir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_009", "soru": "borca itiraz ile imzaya itiraz arasındaki fark nedir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_010", "soru": "kambiyo senetlerine özgü takip nedir", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_011", "soru": "icra dosyası nasıl kapatılır", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_icra_012", "soru": "satış talebi için süre ne kadardır", "expected_domain": "icra", "expected_decision": "answer"}
+{"id": "ANS_trafik_001", "soru": "trafik cezası itiraz süresi nedir", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_002", "soru": "değer kaybı nasıl talep edilir", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_003", "soru": "trafik kazası tespit tutanağına itiraz nasıl yapılır", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_004", "soru": "kasko ile trafik sigortası arasındaki fark nedir", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_005", "soru": "trafik cezasına nereye itiraz edilir", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_006", "soru": "araç değer kaybı davasında zamanaşımı süresi ne kadardır", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_007", "soru": "ehliyete el konulması hangi hallerde olur", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_008", "soru": "trafik cezasında peşin ödeme indirimi ne kadardır", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_009", "soru": "zorunlu trafik sigortası neyi karşılar", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_010", "soru": "hız ihlali cezası nasıl hesaplanır", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_011", "soru": "kaza sonrası sigortaya başvuru süresi ne kadardır", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_trafik_012", "soru": "pert araç nedir ve sigorta nasıl öder", "expected_domain": "trafik", "expected_decision": "answer"}
+{"id": "ANS_vergi_001", "soru": "vergi cezasına itiraz nasıl yapılır", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_002", "soru": "uzlaşma nedir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_003", "soru": "vergi davası açma süresi kaç gündür", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_004", "soru": "vergi ziyaı cezası nedir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_005", "soru": "gecikme zammı nasıl hesaplanır", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_006", "soru": "pişmanlık ve ıslah hükmü nedir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_007", "soru": "vergi düzeltme talebi nasıl yapılır", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_008", "soru": "tarhiyat öncesi uzlaşma ile sonrası arasındaki fark nedir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_009", "soru": "vergi cezalarında zamanaşımı süresi ne kadardır", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_010", "soru": "usulsüzlük cezası nedir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_011", "soru": "vergi mahkemesi kararına nasıl itiraz edilir", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_012", "soru": "vergi borcunda tecil ve taksitlendirme nasıl yapılır", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_vergi_013", "soru": "ödeme emrine karşı dava açma süresi kaç gündür", "expected_domain": "vergi", "expected_decision": "answer"}
+{"id": "ANS_tapu_001", "soru": "tapu devri nasıl yapılır", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_002", "soru": "kat mülkiyeti nedir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_003", "soru": "tapu harcı nasıl hesaplanır", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_004", "soru": "intifa hakkı nedir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_005", "soru": "ipotek nasıl kaldırılır", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_006", "soru": "muvazaalı tapu devri nedir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_007", "soru": "tapu iptal ve tescil davası nasıl açılır", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_008", "soru": "kat irtifakı ile kat mülkiyeti arasındaki fark nedir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_009", "soru": "geçit hakkı nasıl kurulur", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_010", "soru": "şufa hakkı nedir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_011", "soru": "ortaklığın giderilmesi davası nasıl açılır", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_tapu_012", "soru": "kazandırıcı zamanaşımı ile tescil şartları nelerdir", "expected_domain": "tapu", "expected_decision": "answer"}
+{"id": "ANS_idari_001", "soru": "idari işleme iptal davası süresi nedir", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_002", "soru": "kamulaştırma bedeline itiraz nasıl yapılır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_003", "soru": "idareye başvuru süresi kaç gündür", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_004", "soru": "tam yargı davası nedir", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_005", "soru": "yürütmeyi durdurma kararı nasıl alınır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_006", "soru": "idari işlemin unsurları nelerdir", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_007", "soru": "kamulaştırmasız el atma nedir", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_008", "soru": "disiplin cezasına itiraz nasıl yapılır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_009", "soru": "idari dava nerede açılır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_010", "soru": "zımni ret nedir", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_011", "soru": "idari para cezasına itiraz nereye yapılır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_012", "soru": "istinaf ve temyiz başvuru süreleri ne kadardır", "expected_domain": "idari", "expected_decision": "answer"}
+{"id": "ANS_idari_013", "soru": "kamu görevlisinin kusurundan doğan zarar nasıl tazmin edilir", "expected_domain": "idari", "expected_decision": "answer"}

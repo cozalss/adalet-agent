@@ -1,0 +1,30 @@
+{"id": "OOS_ceza_001", "soru": "Cinayetten yargılanıyorum ne yapmalıyım", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_002", "soru": "ceza davası nasıl açılır", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_003", "soru": "gözaltına alındım haklarım neler", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_004", "soru": "tutuklama kararına itiraz edebilir miyim", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_005", "soru": "ağır ceza mahkemesinde dava sürecim var", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_001", "soru": "boşanma davası açmak istiyorum", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_002", "soru": "nafaka miktarı nasıl belirlenir", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_003", "soru": "velayet davasında ne yapmalıyım", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_004", "soru": "evlat edinme süreci nasıl işler", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_005", "soru": "aile mahkemesine başvuru nasıl yapılır", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_smalltalk_001", "soru": "merhaba", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_smalltalk_002", "soru": "teşekkürler", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_smalltalk_003", "soru": "ne yapabilirsin", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_smalltalk_004", "soru": "sen kimsin", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_smalltalk_005", "soru": "görüşürüz", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_oos_001", "soru": "bugün hava nasıl olacak", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_002", "soru": "bana bir film önerir misin", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_003", "soru": "2 artı 2 kaç eder", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_004", "soru": "en iyi tatil yerleri neresi", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_005", "soru": "yemek tarifi verir misin", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_ceza_006", "soru": "evime hırsız girdi şikayetçi olmak istiyorum süreç nasıl işler", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_007", "soru": "dolandırıldım ve savcılığa suç duyurusunda bulunacağım ne yazmalıyım", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_ceza_008", "soru": "hakkımda darp iddiasıyla soruşturma açılmış ifadeye çağrıldım", "kind": "ceza", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_006", "soru": "eşimle anlaşmalı boşanma protokolü hazırlamak istiyoruz nelere dikkat etmeliyim", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_aile_007", "soru": "boşandıktan sonra çocuğumla kişisel ilişki günlerini değiştirebilir miyim", "kind": "aile", "expected_decision": "reject_sensitive"}
+{"id": "OOS_smalltalk_006", "soru": "günaydın nasılsın bugün", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_smalltalk_007", "soru": "çok yardımcı oldun sağ ol", "kind": "smalltalk", "expected_decision": "smalltalk"}
+{"id": "OOS_oos_006", "soru": "kilo vermek için hangi diyeti önerirsin", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_007", "soru": "python ile dosya okuma kodu yazar mısın", "kind": "oos", "expected_decision": "redirect"}
+{"id": "OOS_oos_008", "soru": "Galatasaray dün akşamki maçı kaç kaç bitti", "kind": "oos", "expected_decision": "redirect"}
