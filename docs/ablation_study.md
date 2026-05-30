@@ -364,7 +364,24 @@ Format metrikleri (§4.3.6) cevabın DOĞRU olup olmadığını söylemez. `answ
 
 **Negatif sonucun değeri:** (1) Tek örnek + güçlü talimat uzunluğu hiç iyileştirmedi — model bu sorgular için ~80 kelime üretmeye devam etti; (2) ~180 kelimelik örnek P95'i %67 bozdu (kullanıcının "few-shot latans artırır" uyarısı doğrulandı); (3) örnek kaynaklamayı iyileştirdi ama format işaretini düşürdü. Kapı, bu gerilemeyi production'a çıkmadan engelledi — prompt revert edildi.
 
-**Sıradaki hipotez:** Uzunluk sorununun kökü örnek eksikliği değil, prompt'taki yaygın "kısa" çerçevesidir. İkinci örnek eklemek (latansı daha da bozar) yerine, çelişen "kısa" sinyallerini kaldırıp bölüm-bazlı minimum-cümle talimatı denenmeli — örneksiz, latans-nötr.
+**Candidate-2 (örneksiz, "kısa" sinyalleri kaldırıldı + bölüm-bazlı min-cümle):** Kapıdan yine **KALDI** ❌ — yalnız has_short_answer'da (%83→%75, marjinal). Ama asıl amaç yine tutmadı: length_in_target %0→%0, ortalama kelime 79→87 (maks 119). Latans bozulmadı (örneksiz). İki disiplinli deneme de length'i kıpırdatamadı.
+
+**Bulgu 3 — hedef (160-220) bu model+görev için yanlış kalibre:** Qwen 14B bu vatandaş sorgularına yapısal olarak ~80-120 kelimelik cevap üretiyor; iki farklı prompt stratejisi de 160'a yaklaştıramadı. Tam, doğru, kaynaklı bir cevap bu sorgular için doğal olarak ~90 kelime. Hedef 160-220 "dolgu" bölgesi; eval hedefi ~120-160'a indirilmeli veya mevcut kısa-ama-tam cevaplar kabul edilmeli.
+
+#### 4.3.10 KRİTİK — Süre-uygunluk halüsinasyonu (SIFIR HALÜSİNASYON ihlali)
+
+Prompt A/B sırasında gerçek çıktı incelemesi, uzunluktan **çok daha kritik** bir sorun ortaya çıkardı. "2 yıl çalıştığım işten çıkarıldım, kıdem tazminatım ne kadar?" sorusuna sistemin verdiği cevap:
+
+> *"belirttiğiniz 2 yıl süre, kanunlarda açıkça belirtilen minimum çalışma süresini karşılamıyor [src: m-IK-21] ... bu süre 5 yılın altında ise tazminat verilmeyebilir [src: h-100553800-c4]"*
+
+**Üç ölümcül hata:** (1) Kıdem tazminatı için minimum süre İş Kanunu md.14'e göre **1 yıldır**; 2 yıl fazlasıyla hak kazandırır — model "yetersiz" dedi. (2) "5 yıl altında tazminat yok" tamamen **uydurma** bir kural. (3) "İşçilik Kanunu" **uydurma kanun adı** (gerçek: İş Kanunu).
+
+**Neden katmanlar yakalamadı:**
+- Prompt'ta bu davranışı yasaklayan kural VAR (§güvenlik: "kullanıcının söylediği süreyi kanuni süre gibi yorumlama") ama model ihlal etti — prompt-seviyesi guard yetersiz.
+- Verify/NLI katmanı yakalayamadı: iddiaların [src:] etiketi var, NLI yalnız **doğrudan çelişki** arıyor; "2 yıl yetersiz" kaynakta açıkça çelişmiyor (kaynak sessiz) → yanlış **çıkarım** vetolanmıyor.
+- Kök neden retrieval'da da: yanıltıcı bir emsal (`h-100553800-c4`, "5-15 yıl kıdem" bağlamı) getirildi, model ondan uydurma "5 yıl minimum" kuralı türetti.
+
+**Önerilen düzeltme:** `eval/answer_risk.py`'deki `duration_eligibility_claims` ve `fabricated_law_names` detektörleri bu cevabı YAKALAR (birim testlerle doğrulandı) — ama bunlar eval aracı, production verify pipeline'ında değil. Bu detektörleri verify node'una **ek veto katmanı** olarak entegre etmek, prompt+NLI'nin kaçırdığı yanlış-çıkarım sınıfını yakalayacaktır. Bu, uzunluk sorunundan **çok daha öncelikli** bir SIFIR HALÜSİNASYON sertleştirmesidir.
 
 **Algılanan latans:** SSE streaming ile ilk token ~3-4s'de ekrana düşer; kullanıcı tam cevabı 13-17s'de görür.
 
