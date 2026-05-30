@@ -135,16 +135,24 @@ async def _search(client: httpx.AsyncClient, chamber: str, kw: str,
             "pageNumber": page,
         }
     }
-    try:
-        r = await client.post(SEARCH_URL, json=payload, headers=HEADERS, timeout=30.0)
-        r.raise_for_status()
-        data = r.json()
-        # API response: {"data": {"data": [...], "recordsTotal": N, ...}}
-        return list((data.get("data") or {}).get("data") or [])
-    except Exception as exc:
-        logger.warning("search_failed chamber=%s kw=%s page=%d err=%s",
-                       chamber, kw, page, str(exc)[:120])
-        return []
+    # 429 rate-limit için exponential backoff: 10s, 30s, 60s
+    for attempt, wait_s in enumerate([0, 10, 30, 60], start=1):
+        if wait_s:
+            logger.info("rate_limit_backoff attempt=%d wait_s=%d chamber=%s kw=%s",
+                        attempt, wait_s, chamber, kw)
+            await asyncio.sleep(wait_s)
+        try:
+            r = await client.post(SEARCH_URL, json=payload, headers=HEADERS, timeout=30.0)
+            if r.status_code == 429:
+                continue  # backoff döngüsünde bir sonraki denemeye geç
+            r.raise_for_status()
+            data = r.json()
+            return list((data.get("data") or {}).get("data") or [])
+        except Exception as exc:
+            logger.warning("search_failed chamber=%s kw=%s page=%d attempt=%d err=%s",
+                           chamber, kw, page, attempt, str(exc)[:120])
+            if attempt == 4:
+                return []  # tüm denemeler başarısız
 
 
 async def _fetch_doc(client: httpx.AsyncClient, doc_id: str) -> str:
