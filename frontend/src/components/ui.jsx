@@ -14,14 +14,20 @@ export const STEP_ORDER = ["triage", "sources", "drafting", "final"];
 export function StreamStepper({ phase, customLabel }) {
   const idx = STEP_ORDER.indexOf(phase);
   const pct = ((idx + 1) / 4) * 100;
+  const label = customLabel && idx === 0 ? customLabel : STEP_LABELS[phase];
   return (
-    <div className="card stream-card">
+    <div
+      className="card stream-card"
+      role="progressbar"
+      aria-valuemin={0} aria-valuemax={4} aria-valuenow={idx + 1}
+      aria-valuetext={label}
+    >
       <div className="stream-progress"><span style={{ width: pct + "%" }}></span></div>
       <div className="stepper">
         {STEP_ORDER.map((s, i) => {
           const cls = i < idx ? "done" : i === idx ? "active" : "";
           return (
-            <div className={"step " + cls} key={s}>
+            <div className={"step " + cls} key={s} aria-current={i === idx ? "step" : undefined}>
               <div className="node">{i < idx ? <Icon.check /> : i + 1}</div>
               {i < 3 && <div className="line"></div>}
             </div>
@@ -30,7 +36,7 @@ export function StreamStepper({ phase, customLabel }) {
       </div>
       <div className="stepper-label">
         <span className="pulse"></span>
-        {customLabel && idx === 0 ? customLabel : STEP_LABELS[phase]}
+        {label}
       </div>
     </div>
   );

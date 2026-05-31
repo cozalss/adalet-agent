@@ -137,6 +137,32 @@ export default function App() {
     }
   }, [turns, last && last.phase, atBottom]);
 
+  // Drawer erişilebilirliği (Üye-2 "Erişilebilir Hukuk"): aç→ilk öğeye focus,
+  // Esc→kapat, Tab→tuzak (odak drawer'da kalır), kapat→açan öğeye focus geri.
+  const drawerReturnRef = useRef(null);
+  useEffect(() => {
+    if (!sheetOpen) return;
+    drawerReturnRef.current = document.activeElement;
+    const el = panelRef.current; if (!el) return;
+    const SEL = 'button, [href], input, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusables = () =>
+      Array.from(el.querySelectorAll(SEL)).filter((n) => !n.disabled && n.offsetParent !== null);
+    focusables()[0]?.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); setSheetOpen(false); return; }
+      if (e.key !== "Tab") return;
+      const f = focusables(); if (!f.length) return;
+      const first = f[0], lastEl = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      drawerReturnRef.current?.focus?.();
+    };
+  }, [sheetOpen]);
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3200); };
 
   const doAsk = useCallback((text) => {
@@ -277,7 +303,10 @@ export default function App() {
               </div>
             ) : (
               <React.Fragment>
-                <div className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}>
+                <div
+                  className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}
+                  role="log" aria-live="polite" aria-relevant="additions text" aria-label="Sohbet akışı"
+                >
                   <div className="chat-inner">
                     {turns.map((turn) => (
                       <TurnView
@@ -315,11 +344,14 @@ export default function App() {
         </div>
       </div>
 
-      <div className={"sheet-backdrop" + (sheetOpen ? " open" : "")} onClick={() => setSheetOpen(false)}></div>
-      <aside className={"source-panel drawer " + (sheetOpen ? "open" : "closed")} ref={panelRef}>
+      <div className={"sheet-backdrop" + (sheetOpen ? " open" : "")} onClick={() => setSheetOpen(false)} aria-hidden="true"></div>
+      <aside
+        className={"source-panel drawer " + (sheetOpen ? "open" : "closed")} ref={panelRef}
+        role="dialog" aria-modal="true" aria-label="Kaynaklar paneli" aria-hidden={!sheetOpen}
+      >
         <div className="drawer-head">
           <h3>Kaynaklar</h3>
-          <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
+          <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kaynaklar panelini kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
         </div>
         <div className="source-inner" style={{ paddingTop: 6 }}>
           <SourcePanelBody turn={srcTurn} flash={flash} registerRef={(n, el) => { srcRefs.current[n] = el; }} />
