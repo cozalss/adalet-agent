@@ -176,3 +176,12 @@ export const EXAMPLES = [
   { t: "Kiracımı evden çıkarmak istiyorum, nasıl yapabilirim?" },
   { t: "2 yıl çalıştığım işten çıkarıldım, kıdem tazminatım ne kadar olur?" },
 ];
+
+// Boş-durum domain kartları — ADALET'in sivil hukuk kapsamını görünür kılar
+// (vercel suggested-actions deseni). Her kart örnek soruya eşlenir, gönderir.
+export const DOMAIN_CARDS = [
+  { icon: "cart", label: "Tüketici", q: "İnternetten aldığım ürün ayıplı çıktı, iade ve para iadesi hakkım var mı?" },
+  { icon: "bag", label: "İş", q: "2 yıl çalıştığım işten çıkarıldım, kıdem ve ihbar tazminatım ne kadar olur?" },
+  { icon: "home", label: "Kira", q: "Ev sahibim kira artışını çok yüksek tuttu, yasal sınır nedir, itiraz edebilir miyim?" },
+  { icon: "car", label: "Trafik", q: "Kusurlu bulunduğum trafik cezasına nasıl ve hangi sürede itiraz edebilirim?" },
+];

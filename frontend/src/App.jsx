@@ -1,7 +1,7 @@
 /* ADALET /sor — ana uygulama (gerçek backend'e bağlı).
    Prototip tasarımı korunur; mock motor yerine useChat (SSE). */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Icon, SB_NAV, CG_SUGGEST, DOMAINS, EXAMPLES } from "./components/icons.jsx";
+import { Icon, SB_NAV, CG_SUGGEST, DOMAINS, EXAMPLES, DOMAIN_CARDS } from "./components/icons.jsx";
 import {
   StreamStepper, ConfidenceBar, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
@@ -14,6 +14,15 @@ import { DEMO_TURN } from "./lib/demoTurn.js";
 
 // Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
 const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
+
+// OCR PII şeffaflığı (KVKK): backend pii_counts anahtarları → Türkçe etiket.
+const PII_LABELS = { tckn: "TC Kimlik No", phone: "telefon", email: "e-posta", iban: "IBAN", plate: "plaka" };
+function formatPii(counts) {
+  return Object.entries(counts || {})
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${n} ${PII_LABELS[k] || k}`)
+    .join(", ");
+}
 import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
@@ -188,11 +197,16 @@ export default function App() {
     try {
       const res = await ocrUpload(file);
       if (!res.text || res.text.length < 5) { showToast("Belgeden metin çıkarılamadı."); return; }
+      const piiText = res.pii_detected ? formatPii(res.pii_counts) : "";
       setAttachments((a) => [...a, {
         filename: file.name, ocr_engine: res.engine || "tesseract",
         text: res.text.slice(0, 10000), n_chars: res.n_chars || res.text.length,
+        pii: piiText || null,
       }]);
-      showToast(`Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`);
+      // KVKK şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
+      showToast(piiText
+        ? `Belge eklendi · Dikkat: belgenizde ${piiText} tespit edildi (sorunuzla birlikte işlenecek).`
+        : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`);
     } catch (err) {
       showToast("OCR başarısız — backend çalışıyor mu?");
     }
@@ -291,15 +305,20 @@ export default function App() {
                     onStop={stop}
                   />
                   {attachments.length > 0 && <AttachRow attachments={attachments} onClear={() => setAttachments([])} />}
-                  <div className="cg-suggest">
-                    {CG_SUGGEST.map((s) => {
-                      const I = Icon[s.icon];
+                  <div className="domain-cards">
+                    {DOMAIN_CARDS.map((d, i) => {
+                      const I = Icon[d.icon];
                       return (
-                        <button className="cg-chip" key={s.label} onClick={() => {
-                          if (s.label === "Dilekçe taslağı") setWantDilekce(true);
-                          setInput(s.label + ": ");
-                        }}>
-                          <I />{s.label}
+                        <button
+                          className="domain-card" key={d.label}
+                          style={{ animationDelay: i * 60 + "ms" }}
+                          onClick={() => doAsk(d.q)}
+                        >
+                          <span className="dc-ic"><I /></span>
+                          <span className="dc-tx">
+                            <span className="dc-label">{d.label} Hukuku</span>
+                            <span className="dc-q">{d.q}</span>
+                          </span>
                         </button>
                       );
                     })}
@@ -374,7 +393,10 @@ function AttachRow({ attachments, onClear }) {
   return (
     <div className="attach-row">
       {attachments.map((a, i) => (
-        <span className="attach-chip" key={i}><Icon.image style={{ width: 13, height: 13 }} />{a.filename}</span>
+        <span className={"attach-chip" + (a.pii ? " has-pii" : "")} key={i} title={a.pii ? `Belgenizde ${a.pii} tespit edildi` : a.filename}>
+          <Icon.image style={{ width: 13, height: 13 }} />{a.filename}
+          {a.pii && <span className="pii-flag" aria-label={`Kişisel veri: ${a.pii}`}>● kişisel veri</span>}
+        </span>
       ))}
       <button className="attach-clear" onClick={onClear}>temizle</button>
     </div>
