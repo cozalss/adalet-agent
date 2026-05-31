@@ -2,6 +2,17 @@
    Tasarım token'larıyla hizalı (sor.css: --surface, --surface-strong, --text,
    --text-2/3, --border, --accent, --accent-soft, --accent-text, --accent-on). */
 
+/* ---------- Mobil header declutter (dar ekranda taşma onarımı) ----------
+   375px'te model + domain-chip + Kaynaklar pill sığmıyordu → Kaynaklar kırpılıyordu.
+   Domain bilgisi cevap akışında zaten görünür; header chip'i mobilde gizlenir. */
+@media (max-width: 520px) {
+  .main-head { gap: 4px; padding: 0 10px; }
+  .main-head .model { font-size: 15px; padding: 6px 8px; }
+  .main-head .model .sub { display: none; }
+  .main-head .domain-chip { display: none; }
+  .main-head .src-pill { padding: 6px 11px; font-size: 12.5px; flex: none; }
+}
+
 /* ---------- Belge ekleme rozeti (+ butonu üstünde) ---------- */
 .cg-round { position: relative; }
 .attach-badge {
