@@ -5,9 +5,64 @@
                   paneli (claims + debate notes). Kimsede yok; jüri/yarışma "wow".
    - PredictionCard: 8. ajan (Tahmin) — geçmiş Yargıtay'a dayalı istatistiksel
                   tahmin. Disclaimer ZORUNLU (mahkeme garantisi değil).
-   - ThinkingSkeleton: vercel shimmer — draft hazırlanırken cevabın yerini tutar. */
-import React, { useState } from "react";
+   - ThinkingSkeleton: vercel shimmer — draft hazırlanırken cevabın yerini tutar.
+   - EvidenceStats: daisyUI `stat` deseni (elle-CSS) → cevabın kanıt özetini
+                  taranabilir stat-bloklar olarak gösterir (Güven · Kaynak · İddia). */
+import React, { useState, useEffect } from "react";
 import { Icon } from "./icons.jsx";
+
+/** %0→value ease-out-cubic sayaç (reduced-motion saygılı). */
+function useCountUp(value) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setN(value); return; }
+    let t0 = null;
+    const dur = 900;
+    const tick = (t) => {
+      if (!t0) t0 = t;
+      const p = Math.min((t - t0) / dur, 1);
+      setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    const id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [value]);
+  return n;
+}
+
+/* ---------- Kanıt özeti — daisyUI stat deseni (Güven · Kaynak · İddia) ---------- */
+export function EvidenceStats({ confidence, sourceCount, claims }) {
+  const conf = useCountUp(confidence);
+  const list = claims || [];
+  const verified = list.filter((c) => c.verified).length;
+  const total = list.length;
+  const mid = confidence < 70;
+  return (
+    <div className="ev-stats" role="group" aria-label="Kanıt özeti">
+      <div className={"ev-stat" + (mid ? " mid" : "")}>
+        <div className="ev-val">%{conf}</div>
+        <div className="ev-label">Güven</div>
+        <div className="ev-bar" aria-hidden="true"><span style={{ width: confidence + "%" }}></span></div>
+      </div>
+      <div className="ev-divider" aria-hidden="true"></div>
+      <div className="ev-stat">
+        <div className="ev-val">{sourceCount}</div>
+        <div className="ev-label">Kaynak</div>
+      </div>
+      {total > 0 && (
+        <>
+          <div className="ev-divider" aria-hidden="true"></div>
+          <div className="ev-stat">
+            <div className="ev-val">{verified}<span className="ev-sub">/{total}</span></div>
+            <div className="ev-label">Doğrulanan iddia</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 /* ---------- Ajan-izi / doğrulama şeffaflık paneli (açılır) ---------- */
 export function AgentTrace({ claims, debateNotes, retryCount, sourceCount }) {

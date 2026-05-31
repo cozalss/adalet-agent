@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Icon, SB_NAV, DOMAIN_CARDS } from "./components/icons.jsx";
 import {
-  StreamStepper, ConfidenceBar, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
+  StreamStepper, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
-import { AgentTrace, PredictionCard, ThinkingSkeleton } from "./components/panels.jsx";
+import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats } from "./components/panels.jsx";
 import { useChat } from "./hooks/useChat.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
 
@@ -446,7 +446,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
           {p === "final" && d.answer && (
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
-              <ConfidenceBar value={d.answer.confidence} count={(d.sources ?? []).length} />
+              <EvidenceStats confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims} />
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
                 retryCount={d.retryCount} sourceCount={d.sources.length}

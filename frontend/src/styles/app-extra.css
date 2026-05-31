@@ -297,6 +297,44 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
   .msg-actions, .msg-action, .btn.ghost { transition: none; }
 }
 
+/* ---------- Kanıt özeti (daisyUI stat deseni — elle CSS) ---------- */
+.ev-stats {
+  display: flex; align-items: stretch; gap: 0;
+  margin-top: 14px; padding: 14px 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 13px;
+}
+.ev-stat {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start; gap: 3px; padding: 0 12px;
+}
+.ev-val {
+  font-family: var(--font-display); font-size: 24px; font-weight: 600;
+  line-height: 1.05; color: var(--text);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+.ev-stat.mid .ev-val { color: var(--accent-text); }
+.ev-sub { font-size: 15px; font-weight: 500; color: var(--text-3); }
+.ev-label {
+  font-size: 11.5px; letter-spacing: .02em; color: var(--text-3);
+  text-align: center;
+}
+.ev-bar {
+  width: 100%; max-width: 64px; height: 3px; margin-top: 5px;
+  border-radius: 3px; background: var(--border); overflow: hidden;
+}
+.ev-bar > span {
+  display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-text));
+  transition: width .9s cubic-bezier(.16, 1, .3, 1);
+}
+.ev-stat.mid .ev-bar > span { background: linear-gradient(90deg, #cf6b54, #d98770); }
+.ev-divider { width: 1px; background: var(--border); align-self: stretch; margin: 2px 0; }
+@media (prefers-reduced-motion: reduce) { .ev-bar > span { transition: none; } }
+@media (max-width: 420px) {
+  .ev-val { font-size: 21px; }
+  .ev-stat { padding: 0 8px; }
+}
+
 /* ---------- Ajan-izi / doğrulama şeffaflık paneli (açılır) ---------- */
 .agent-trace {
   margin-top: 12px;

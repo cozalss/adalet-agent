@@ -121,36 +121,8 @@ export function RunText({ runs, sources, onJump }) {
   );
 }
 
-export function ConfidenceBar({ value, count }) {
-  const [w, setW] = useState(0);
-  // B2 — 60fps.design: %0 → value sayaç animasyonu (ease-out-cubic, 900ms)
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const id = setTimeout(() => setW(value), 80);
-    const reduce = typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setDisplay(value); return () => clearTimeout(id); }
-    let t0 = null;
-    const dur = 900;
-    const raf = (t) => {
-      if (!t0) t0 = t;
-      const p = Math.min((t - t0) / dur, 1);
-      setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3)))); // ease-out-cubic
-      if (p < 1) requestAnimationFrame(raf);
-    };
-    const rafId = requestAnimationFrame(raf);
-    return () => { clearTimeout(id); cancelAnimationFrame(rafId); };
-  }, [value]);
-  const mid = value < 70;
-  return (
-    <div className={"card confidence" + (mid ? " mid" : "")} style={{ marginTop: 14 }}>
-      <span className="label">Güven</span>
-      <span className="track"><span className="fill" style={{ width: w + "%" }}></span></span>
-      <span className="pct mono">%{display}</span>
-      <span className="verified"><Icon.check /> {count} kaynakla {mid ? "kısmen " : ""}doğrulandı</span>
-    </div>
-  );
-}
+// NOT: ConfidenceBar → EvidenceStats (panels.jsx) ile değiştirildi (daisyUI stat
+// deseni; güven + kaynak + doğrulanan iddia sayıları tek taranabilir blokta).
 
 export function Badge({ type, badge }) {
   return <span className={"badge " + badge}>{badge === "kanun" && <Icon.book style={{ width: 12, height: 12 }} />}{type}</span>;
