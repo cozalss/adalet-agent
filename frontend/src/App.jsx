@@ -450,6 +450,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
                 retryCount={d.retryCount} sourceCount={d.sources.length}
+                domain={d.domain}
               />
               {d.prediction && <PredictionCard prediction={d.prediction} />}
               {d.hasDilekce && (

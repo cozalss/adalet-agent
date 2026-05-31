@@ -65,7 +65,7 @@ export function EvidenceStats({ confidence, sourceCount, claims }) {
 }
 
 /* ---------- Ajan-izi / doğrulama şeffaflık paneli (açılır) ---------- */
-export function AgentTrace({ claims, debateNotes, retryCount, sourceCount }) {
+export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domain }) {
   const [open, setOpen] = useState(false);
   const list = claims || [];
   const total = list.length;
@@ -77,6 +77,15 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount }) {
   const summary = total > 0
     ? `${okCount}/${total} iddia kaynakla doğrulandı`
     : `${sourceCount || 0} kaynak incelendi`;
+
+  // daisyUI timeline deseni → 7-ajan pipeline'ı (mevcut veriden türetilir).
+  const stages = [
+    { label: "Triaj Ajanı", detail: domain ? `Alan belirlendi: ${domain}` : "Soru sınıflandırıldı" },
+    { label: "Mevzuat + Emsal", detail: `${sourceCount || 0} kaynak getirildi (kanun + Yargıtay)` },
+    total > 0 && { label: "Doğrulama Ajanı", detail: `${okCount}/${total} iddia kaynakla eşleşti` },
+    debateNotes && { label: "Tartışma Ajanı", detail: "Ajan görüşleri karşılaştırıldı" },
+    { label: "Sonuç", detail: retryCount > 0 ? `Cevap üretildi (${retryCount} yineleme sonrası)` : "Cevap üretildi" },
+  ].filter(Boolean);
 
   return (
     <div className={"agent-trace" + (open ? " open" : "")}>
@@ -96,6 +105,20 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount }) {
 
       {open && (
         <div className="at-body">
+          {/* Pipeline timeline — hangi ajanların çalıştığı (daisyUI timeline) */}
+          <ol className="at-timeline" aria-label="Ajan hattı">
+            {stages.map((s, i) => (
+              <li className="at-tl-item" key={i}>
+                <span className="at-tl-marker" aria-hidden="true"><Icon.check /></span>
+                <div className="at-tl-tx">
+                  <span className="at-tl-label">{s.label}</span>
+                  <span className="at-tl-detail">{s.detail}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <div className="at-claims-head">İddia doğrulama dökümü</div>
           {list.map((c, i) => (
             <div className="at-claim" key={i}>
               <span className={"at-badge " + (c.verified ? "ok" : "no")} aria-hidden="true">
