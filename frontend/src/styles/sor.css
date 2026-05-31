@@ -57,17 +57,21 @@
   --surface-strong: #11233e;
   --text: #f5f0e8;
   --text-2: rgba(245, 240, 232, 0.62);
-  --text-3: rgba(245, 240, 232, 0.40);
+  /* WCAG AA (kontrast denetimi): dark zeminde text-3/success/danger 4.5:1'i
+     geçecek şekilde — text-3 0.40→0.52 (3.38→4.62), success #5c8c5a→#679466
+     (4.01→4.51), danger #c73e3e→#d46a6a (3.14→4.56). Dark mode için açık/
+     desature varyantlar (Material color-dark-mode kuralı). */
+  --text-3: rgba(245, 240, 232, 0.52);
   --border: rgba(212, 165, 116, 0.18);
   --border-strong: rgba(212, 165, 116, 0.32);
   --accent: #d4a574;
   --accent-text: #e2bd91;
   --accent-soft: rgba(212, 165, 116, 0.14);
   --accent-on: #0a1628;
-  --success: #5c8c5a;
-  --success-soft: rgba(92, 140, 90, 0.18);
-  --danger: #c73e3e;
-  --danger-soft: rgba(199, 62, 62, 0.16);
+  --success: #679466;
+  --success-soft: rgba(103, 148, 102, 0.18);
+  --danger: #d46a6a;
+  --danger-soft: rgba(212, 106, 106, 0.16);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5), 0 40px 90px rgba(0, 0, 0, 0.55);
