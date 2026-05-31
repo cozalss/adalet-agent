@@ -400,7 +400,10 @@ export default function App() {
       </aside>
 
       {beam && <BeamLayer beam={beam} />}
-      {toast && <div className="toast">{toast}</div>}
+      {/* a11y (§8): kalıcı canlı bölge — ekran okuyucu tüm toast'ları (OCR,
+          kopyala, dilekçe, PII uyarısı) duyurur. Görsel toast ayrı render edilir. */}
+      <div className="sr-only" role="status" aria-live="polite">{toast || ""}</div>
+      {toast && <div className="toast" aria-hidden="true">{toast}</div>}
     </div>
   );
 }

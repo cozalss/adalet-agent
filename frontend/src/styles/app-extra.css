@@ -11,6 +11,18 @@ button, a, input, textarea, select, [role="button"], .cite, .legal-term {
   touch-action: manipulation;
 }
 
+/* §2 cursor-pointer — tıklanabilir öğeler işaret imleci; disabled default */
+button:not(:disabled), [role="button"], a[href], label[for] { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: default; }
+
+/* §8 toast-accessibility — görsel-gizli kalıcı canlı bölge (ekran okuyucu).
+   Standart sr-only clip deseni; layout'u etkilemez, odağı çalmaz. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
+}
+
 /* §6 number-tabular — sayılar sabit genişlikte; sayaç/yüzde animasyonunda
    layout titremesi olmaz (confidence %, tahmin %, mono referanslar, IDler) */
 .mono, .pct, .pred-pct, .at-meta, .count, .number, .conf-bar .pct {
