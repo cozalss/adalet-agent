@@ -241,32 +241,53 @@ def layer3_nli_batch(
             pairs.append((claim.get("text", ""), snippet))
             pair_indices.append(i)
 
-    # Module-level lookup — test monkeypatch'ları görünür kalır
-    import agents.verifier_layers as _self
-    try:
-        verifier = _self.get_verifier()
-        nli_results = verifier.verify_batch(pairs, batch_size=VERIFY_BATCH)  # type: ignore[attr-defined]
-    except Exception as exc:
-        if is_verify_strict():
-            # Fail-closed: NLI yüklü olmalıydı ama çöktü → sessiz pas YOK.
-            log.error("nli_unavailable_strict", error=str(exc))
-            raise VerifierUnavailableError(f"NLI doğrulayıcı kullanılamıyor: {exc}") from exc
-        log.warning("nli_unavailable", error=str(exc))
-        return [(False, 0.0, 0.0, "NLI atlandı") for _ in claims]
+    # --- Cache: deterministik NLI (eval+temp=0) → aynı (claim,evidence) aynı sonuç.
+    # Cache'te olanlar NLI'a gönderilmez; yalnız eksikler batch'lenir. RAW skor
+    # cache'lenir (eşik okuma anında uygulanır). Cache hata verirse miss gibi davranır.
+    from verifier.cache import get_verification_cache, nli_cache_key
+    cache = get_verification_cache()
+    keys = [nli_cache_key(c, e) for (c, e) in pairs]
+    cached = cache.get_many(keys)                       # {key: {l,e,c}}
+    uncached_local: list[int] = [j for j, k in enumerate(keys) if k not in cached]
+
+    fresh: dict[int, object] = {}                       # local pair idx → NLIResult
+    if uncached_local:
+        uncached_pairs = [pairs[j] for j in uncached_local]
+        # Module-level lookup — test monkeypatch'ları görünür kalır
+        import agents.verifier_layers as _self
+        try:
+            verifier = _self.get_verifier()
+            nli_results = verifier.verify_batch(uncached_pairs, batch_size=VERIFY_BATCH)  # type: ignore[attr-defined]
+        except Exception as exc:
+            if is_verify_strict():
+                # Fail-closed: NLI yüklü olmalıydı ama çöktü → sessiz pas YOK.
+                log.error("nli_unavailable_strict", error=str(exc))
+                raise VerifierUnavailableError(f"NLI doğrulayıcı kullanılamıyor: {exc}") from exc
+            log.warning("nli_unavailable", error=str(exc))
+            return [(False, 0.0, 0.0, "NLI atlandı") for _ in claims]
+        to_cache: dict[str, dict] = {}
+        for m, j in enumerate(uncached_local):
+            r = nli_results[m]
+            fresh[j] = r
+            to_cache[keys[j]] = {
+                "l": r.label, "e": r.entailment_score, "c": r.contradiction_score,
+            }
+        cache.set_many(to_cache)
 
     output: list[tuple[bool, float, float, str]] = [
         (False, 0.0, 0.0, "snippet yok") for _ in claims
     ]
-    for k, claim_idx in enumerate(pair_indices):
-        r = nli_results[k]
-        contradicted = r.contradiction_score >= NLI_CONTRADICTION_THRESHOLD
-        msg = (
-            f"label={r.label} ent={r.entailment_score:.2f} "
-            f"con={r.contradiction_score:.2f}"
-        )
-        output[claim_idx] = (
-            contradicted, r.entailment_score, r.contradiction_score, msg,
-        )
+    for j, claim_idx in enumerate(pair_indices):
+        key = keys[j]
+        if key in cached:
+            v = cached[key]
+            label, ent, con = v["l"], v["e"], v["c"]
+        else:
+            r = fresh[j]
+            label, ent, con = r.label, r.entailment_score, r.contradiction_score
+        contradicted = con >= NLI_CONTRADICTION_THRESHOLD
+        msg = f"label={label} ent={ent:.2f} con={con:.2f}"
+        output[claim_idx] = (contradicted, ent, con, msg)
 
     return output
 

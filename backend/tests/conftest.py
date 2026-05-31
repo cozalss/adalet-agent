@@ -67,6 +67,19 @@ def _reset_llm_singleton() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _reset_nli_cache() -> Iterator[None]:
+    """NLI cache singleton'ı test başına sıfırla — cross-test sızıntı önler.
+
+    Cache process-ömürlü; aynı (claim, evidence) fixture'ı bir testte cache'lenirse
+    sonraki test farklı fake-verifier beklese bile eski sonucu alır. İzolasyon şart.
+    """
+    from verifier.cache import reset_verification_cache
+    reset_verification_cache()
+    yield
+    reset_verification_cache()
+
+
+@pytest.fixture(autouse=True)
 def _force_heuristic_predictor(monkeypatch):
     """Testler eğitilmiş BERT checkpoint'ini (varsa) YÜKLEMESİN — hermetic + hızlı.
 

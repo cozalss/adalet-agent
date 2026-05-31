@@ -42,6 +42,15 @@ MIN_VERIFIED_CLAIMS_RATIO = 0.20 # taslakta kanıtlanan claim oranı (0.50→0.3
 # gap=0.21 (fuzzy'den daha iyi), ek layer olarak değer taşır.
 VERIFY_BATCH = 16                # NLI batch boyutu (GPU/CPU)
 
+# --- NLI doğrulama cache ---
+# NLI deterministik (model.eval() + temp=0): aynı (claim_text, evidence_snippet)
+# her zaman aynı raw skoru üretir → cache'lenebilir. NLI ~100ms/pair GPU; cache hit
+# Redis ~1ms / mem ~0. RAW skor cache'lenir (eşik OKUMA anında uygulanır) → eşik
+# değişse cache geçerli kalır. Key namespace NLI model adına bağlı (model değişimi
+# cache'i otomatik invalidate eder). Redis yoksa process-local bounded dict'e düşer.
+NLI_CACHE_ENABLED = os.getenv("NLI_CACHE_ENABLED", "1") not in {"0", "false", "False"}
+NLI_CACHE_TTL_S = int(os.getenv("NLI_CACHE_TTL_S", "604800"))  # 7 gün
+
 
 def is_verify_strict() -> bool:
     """Fail-closed doğrulama modu (production hardening).
