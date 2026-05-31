@@ -150,16 +150,44 @@ export function useChat() {
     return q;
   }, [turns]);
 
+  // Geri-al penceresi (Vuetify snackbar-with-undo deseni): reset hemen siler ama
+  // sunucu DELETE'ini 6sn geciktirir; bu süre içinde undoReset eski sohbeti geri
+  // getirir. Pencere dolunca clearSession ateşlenir (KVKK silme korunur).
+  const clearedRef = useRef(null);
+  const clearTimerRef = useRef(null);
+
   const reset = useCallback(() => {
     abortRef.current?.abort();
-    // KVKK: yeni sohbet → sunucu tarafı geçmişi + dilekçe PDF'i sil (fire-and-forget).
-    clearSession(convRef.current);
+    const prevTurns = turns;
+    const prevConv = convRef.current;
+    if (prevTurns.length) {
+      clearTimeout(clearTimerRef.current);
+      clearedRef.current = { turns: prevTurns, convId: prevConv };
+      clearTimerRef.current = setTimeout(() => {
+        clearSession(prevConv); // pencere doldu → gerçek silme
+        clearedRef.current = null;
+      }, 6000);
+    } else {
+      clearSession(prevConv);
+    }
     convRef.current = null;
     setConversationId(null);
     setTurns([]);
+    return prevTurns.length > 0; // çağıran undo göstersin mi?
+  }, [turns]);
+
+  /** Geri-al: son temizlenen sohbeti geri getir (DELETE'i iptal eder). */
+  const undoReset = useCallback(() => {
+    const saved = clearedRef.current;
+    if (!saved) return;
+    clearTimeout(clearTimerRef.current);
+    clearedRef.current = null;
+    convRef.current = saved.convId;
+    setConversationId(saved.convId);
+    setTurns(saved.turns);
   }, []);
 
-  return { turns, ask, stop, pickClarify, retryLast, editFrom, reset, busy, conversationId };
+  return { turns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, busy, conversationId };
 }
 
 function _looksClarify(resp) {

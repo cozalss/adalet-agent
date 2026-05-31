@@ -122,7 +122,7 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
 }
 
 export default function App() {
-  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, busy, conversationId } = useChat();
+  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, busy, conversationId } = useChat();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -183,7 +183,21 @@ export default function App() {
     };
   }, [sheetOpen]);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3200); };
+  // toast: { msg, action? } — action = { label, onClick } (Vuetify snackbar-with-action).
+  const toastTimer = useRef(null);
+  const showToast = useCallback((msg, action = null) => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, action });
+    toastTimer.current = setTimeout(() => setToast(null), action ? 6000 : 3200);
+  }, []);
+  const dismissToast = useCallback(() => { clearTimeout(toastTimer.current); setToast(null); }, []);
+
+  // "Yeni sohbet": sil + geri-al snackbar'ı göster (silme 6sn geciktirilir).
+  const onNewChat = useCallback(() => {
+    if (reset()) {
+      showToast("Sohbet temizlendi", { label: "Geri al", onClick: undoReset });
+    }
+  }, [reset, undoReset, showToast]);
 
   const doAsk = useCallback((text) => {
     const opts = { wantDilekce, attachments: attachments.length ? attachments : undefined };
@@ -270,7 +284,7 @@ export default function App() {
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
-        onNew={reset}
+        onNew={onNewChat}
         currentTitle={turns[0]?.question || null}
       />
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onFile} />
@@ -407,8 +421,20 @@ export default function App() {
       {beam && <BeamLayer beam={beam} />}
       {/* a11y (§8): kalıcı canlı bölge — ekran okuyucu tüm toast'ları (OCR,
           kopyala, dilekçe, PII uyarısı) duyurur. Görsel toast ayrı render edilir. */}
-      <div className="sr-only" role="status" aria-live="polite">{toast || ""}</div>
-      {toast && <div className="toast" aria-hidden="true">{toast}</div>}
+      <div className="sr-only" role="status" aria-live="polite">{toast?.msg || ""}</div>
+      {toast && (
+        <div className="toast" aria-hidden="true">
+          <span className="toast-msg">{toast.msg}</span>
+          {toast.action && (
+            <button
+              className="toast-action"
+              onClick={() => { toast.action.onClick(); dismissToast(); }}
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
