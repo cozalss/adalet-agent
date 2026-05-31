@@ -37,8 +37,8 @@ from api.limiter import limiter
 from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.routes.ask import router as ask_router
 from api.routes.auth import router as auth_router
-from api.routes.dilekce import router as dilekce_router
 from api.routes.conversations import router as conversations_router
+from api.routes.dilekce import router as dilekce_router
 from api.routes.feedback import router as feedback_router
 from api.routes.multimodal import router as multimodal_router
 from api.routes.preferences import router as preferences_router
