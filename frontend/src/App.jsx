@@ -10,6 +10,10 @@ import {
 } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, ThinkingSkeleton } from "./components/panels.jsx";
 import { useChat } from "./hooks/useChat.js";
+import { DEMO_TURN } from "./lib/demoTurn.js";
+
+// Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
+const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
 import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
@@ -103,7 +107,8 @@ function Sidebar({ collapsed, onToggle, onNew, started }) {
 }
 
 export default function App() {
-  const { turns, ask, stop, pickClarify, retryLast, reset, busy, conversationId } = useChat();
+  const { turns: chatTurns, ask, stop, pickClarify, retryLast, reset, busy, conversationId } = useChat();
+  const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 760);

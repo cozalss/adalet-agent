@@ -62,6 +62,14 @@ export function CitationMarker({ n, source, onJump }) {
           <span className="t mono">{source.badge === "kanun" ? "KANUN" : source.type.toUpperCase()} · {source.ref}</span>
           <span className="ttl">{source.title}</span>
           <span className="ex">{source.passage.slice(0, 96)}…</span>
+          <span className="cite-go">
+            <span className="v">
+              <Icon.check />
+              {source.verified ? "Kaynaktan doğrulandı" : "Kaynak"}
+              {source.url ? " · " + source.url.replace(/^https?:\/\//, "").split("/")[0] : ""}
+            </span>
+            <span className="go">Kaynağa git →</span>
+          </span>
         </span>
       )}
     </span>
@@ -152,6 +160,9 @@ export function SourceCard({ s, flash, onRef }) {
       onMouseLeave={onLeave}
     >
       <div className="sc-head">
+        <span className={"sc-seal " + s.badge} aria-hidden="true">
+          {s.badge === "kanun" ? <Icon.book /> : <Icon.scale />}
+        </span>
         <Badge type={s.type} badge={s.badge} />
         <span className="sc-title">{s.title}</span>
         {s.verified && <span className="sc-verify"><Icon.check /> Doğrulandı</span>}

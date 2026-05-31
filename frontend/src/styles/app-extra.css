@@ -244,6 +244,33 @@
   .at-body, .scroll-bottom, .pred-bar > span { animation: none; transition: none; }
 }
 
+/* ---------- Kaynak mührü (resmî kaynak kimliği) ---------- */
+.sc-seal {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+  border-radius: 50%; color: var(--accent);
+  background: radial-gradient(circle at 34% 28%, var(--accent-soft), transparent 72%);
+  border: 1.5px solid var(--accent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .08);
+}
+.sc-seal svg { width: 15px; height: 15px; }
+.sc-seal.yargitay { color: var(--accent-text); border-color: var(--border-strong); }
+
+/* ---------- Zengin citation popover footer ---------- */
+.cite-go {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border);
+}
+.cite-go .v {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--success, #5c8c5a);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cite-go .v svg { width: 12px; height: 12px; flex: none; }
+.cite-go .go {
+  font-size: 11px; font-weight: 600; color: var(--accent-text);
+  white-space: nowrap; flex: none;
+}
+
 /* ---------- Toast (OCR/dilekçe/kopyala bildirimleri) ---------- */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
