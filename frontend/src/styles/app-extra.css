@@ -31,6 +31,15 @@
 }
 .attach-clear:hover { color: var(--text); text-decoration: underline; }
 
+/* ---------- Sidebar gizlilik notu (sahte geçmiş yerine dürüst) ---------- */
+.sb-empty-note {
+  display: flex; gap: 7px; align-items: flex-start;
+  margin: 2px 4px; padding: 11px 12px;
+  font-size: 11.5px; line-height: 1.5; color: var(--text-3);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.sb-empty-note svg { flex: none; margin-top: 2px; color: var(--accent); }
+
 /* ---------- OCR PII göstergesi (attach chip) ---------- */
 .attach-chip.has-pii { border-color: var(--accent); }
 .pii-flag {

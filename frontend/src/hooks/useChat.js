@@ -8,7 +8,7 @@
    turn"e değil. Böylece kullanıcı hızlı ikinci soru sorduğunda eski akışın
    geç gelen event'i yeni turn'ü bozamaz. */
 import { useCallback, useRef, useState } from "react";
-import { askStream } from "../lib/api.js";
+import { askStream, clearSession } from "../lib/api.js";
 import { mapResponse, mapClarify } from "../lib/parseAnswer.js";
 
 const TERMINAL = ["final", "reject", "clarify"];
@@ -136,6 +136,8 @@ export function useChat() {
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    // KVKK: yeni sohbet → sunucu tarafı geçmişi + dilekçe PDF'i sil (fire-and-forget).
+    clearSession(convRef.current);
     convRef.current = null;
     setConversationId(null);
     setTurns([]);

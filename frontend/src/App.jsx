@@ -28,13 +28,6 @@ import "./styles/sor.css";
 import "./styles/sor-pro.css";
 import "./styles/app-extra.css";
 
-const SB_CHATS = [
-  { t: "Ayıplı telefon iadesi", pin: true },
-  { t: "Kira artış oranı itirazı", pin: true },
-  { t: "Kıdem tazminatı hesabı" },
-  { t: "Tüketici hakem heyeti başvurusu" },
-];
-
 /* ---------- ChatGPT-style input pill ---------- */
 function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachCount, wantDilekce, onToggleDilekce, onStop }) {
   const ref = useRef(null);
@@ -80,7 +73,7 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
 }
 
 /* ---------- Sidebar ---------- */
-function Sidebar({ collapsed, onToggle, onNew, started }) {
+function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
   return (
     <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
       <div className="sb-top">
@@ -97,14 +90,18 @@ function Sidebar({ collapsed, onToggle, onNew, started }) {
           );
         })}
       </nav>
-      <div className="sb-section-label">Yakın zamandakiler</div>
+      <div className="sb-section-label">Bu oturum</div>
       <div className="sb-list">
-        {SB_CHATS.map((c, i) => (
-          <button className={"sb-chat" + (started && i === 0 ? " active" : "")} key={i}>
-            <span className="label">{c.t}</span>
-            {c.pin && <span className="pin"><Icon.pin /></span>}
+        {currentTitle ? (
+          <button className="sb-chat active" title={currentTitle}>
+            <span className="label">{currentTitle}</span>
           </button>
-        ))}
+        ) : (
+          <p className="sb-empty-note">
+            <Icon.info style={{ width: 13, height: 13 }} />
+            Gizliliğiniz için sohbet geçmişi saklanmaz — “Yeni sohbet” her şeyi siler, sıfırdan başlar.
+          </p>
+        )}
       </div>
       <div className="sb-user">
         <span className="avatar">C</span>
@@ -263,7 +260,7 @@ export default function App() {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
         onNew={reset}
-        started={started}
+        currentTitle={turns[0]?.question || null}
       />
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onFile} />
 

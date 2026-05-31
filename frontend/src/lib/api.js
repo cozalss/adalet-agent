@@ -94,6 +94,17 @@ export async function ocrUpload(file) {
   return res.json(); // {text, engine, n_chars, ...}
 }
 
+/** DELETE /ask/session/{id} — sunucu tarafı geçmişi + dilekçe PDF'i sil (KVKK).
+ *  "Yeni sohbet"te çağrılır; fire-and-forget (hata kullanıcıyı durdurmaz). */
+export async function clearSession(conversationId) {
+  if (!conversationId) return;
+  try {
+    await fetch(`/ask/session/${encodeURIComponent(conversationId)}`, {
+      method: "DELETE", headers: authHeaders(),
+    });
+  } catch { /* yoksay — temizlik en iyi çaba */ }
+}
+
 /** Backend ayakta mı? (mock fallback kararı için). */
 export async function backendHealthy() {
   try {
