@@ -71,6 +71,7 @@ export function useChat() {
           _patchData(key, { sourceCount: d.count || 0 });
         },
         onDrafting: () => { if (!sawClarify) _patch(key, { phase: "drafting" }); },
+        onVerifying: () => { if (!sawClarify) _patch(key, { phase: "verifying" }); },
         onFinal: (resp) => {
           if (ac.signal.aborted) return; // stop sonrası gecikmeli final → state'i ezme
           if (resp.conversation_id) {

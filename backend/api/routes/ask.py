@@ -353,6 +353,7 @@ async def ask_stream(
         _sent_sources = False
         _sent_drafting = False
         _sent_clarify = False
+        _sent_verifying = False
 
         # Stage latency ölçümü — start'tan itibaren ms. Frontend "algılanan gecikme"
         # ve production gözlemleme (P95/P99 trend) için. final event öncesi `timing`
@@ -415,6 +416,15 @@ async def ask_stream(
                         _sent_drafting = True
                         _t_first_token = _ms()
                         yield _sse_event("drafting", {"t_ms": _t_first_token})
+
+                    # Doğrulama/Tartışma aşaması başladı → 4. stepper adımı canlanır.
+                    # ADALET'in farkı (iddia doğrulama + debate) artık akışta görünür;
+                    # eskiden drafting'den final'a atlayıp "Doğrulanıyor" adımı ölü kalıyordu.
+                    if not _sent_verifying and (
+                        state.get("verified_claims") or state.get("debate_verdict")
+                    ):
+                        _sent_verifying = True
+                        yield _sse_event("verifying", {"t_ms": _ms()})
 
             elapsed = int((time.perf_counter() - start) * 1000)
 

@@ -35,6 +35,7 @@ export async function askStream(payload, handlers, signal) {
       case "clarify": handlers.onClarify?.(data); break;
       case "sources": handlers.onSources?.(data); break;
       case "drafting": handlers.onDrafting?.(data); break;
+      case "verifying": handlers.onVerifying?.(data); break;
       case "timing": handlers.onTiming?.(data); break;
       case "final": handlers.onFinal?.(data); break;
       case "error": handlers.onError?.(data); break;

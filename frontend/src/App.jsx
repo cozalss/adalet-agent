@@ -250,7 +250,7 @@ export default function App() {
   const domainConf = last ? last.data.domainConfidence : null;
   const domainLow = domainConf != null && domainConf < 0.5;
   const srcCount = srcTurn ? (srcTurn.data.sources?.length || srcTurn.data.sourceCount || 0) : 0;
-  const showSrcPill = srcTurn && ["sources", "drafting", "final"].includes(srcTurn.phase) && srcCount > 0;
+  const showSrcPill = srcTurn && ["sources", "drafting", "verifying", "final"].includes(srcTurn.phase) && srcCount > 0;
 
   return (
     <div className="sor-app">
@@ -402,7 +402,7 @@ function AttachRow({ attachments, onClear }) {
 function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDownloadDilekce }) {
   const d = turn.data;
   const p = turn.phase;
-  const streaming = ["triage", "sources", "drafting"].includes(p);
+  const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
   return (
     <React.Fragment>
       <UserBubble text={turn.question} />
@@ -410,7 +410,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDo
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">
           {streaming && <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />}
-          {p === "drafting" && <ThinkingSkeleton />}
+          {["drafting", "verifying"].includes(p) && <ThinkingSkeleton />}
 
           {d.kind === "clarify" && p === "clarify" && (
             <ClarifyCard data={d.clarify} onPick={onClarifyPick} />
@@ -517,7 +517,7 @@ function SourcePanelBody({ turn, flash, registerRef }) {
   }
 
   const ready = p === "final" && (d.sources || []).length > 0;
-  const loading = ["sources", "drafting"].includes(p);
+  const loading = ["sources", "drafting", "verifying"].includes(p);
   const skelCount = Math.max(1, Math.min(d.sourceCount || 3, 5));
   return (
     <React.Fragment>

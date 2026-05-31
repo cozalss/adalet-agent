@@ -7,12 +7,15 @@ const STEP_LABELS = {
   triage: "Sorunuz sınıflandırılıyor…",
   sources: "Kaynaklar aranıyor: kanun + Yargıtay",
   drafting: "Cevap hazırlanıyor…",
+  verifying: "İddialar kaynaklarla doğrulanıyor…",
   final: "Doğrulanıyor…",
 };
 export const STEP_ORDER = ["triage", "sources", "drafting", "final"];
+// 'verifying' ayrı bir SSE fazı ama görsel olarak 4. adımı (doğrulama) canlandırır.
+const PHASE_TO_STEP = { triage: 0, sources: 1, drafting: 2, verifying: 3, final: 3 };
 
 export function StreamStepper({ phase, customLabel }) {
-  const idx = STEP_ORDER.indexOf(phase);
+  const idx = PHASE_TO_STEP[phase] ?? STEP_ORDER.indexOf(phase);
   const pct = ((idx + 1) / 4) * 100;
   const label = customLabel && idx === 0 ? customLabel : STEP_LABELS[phase];
   return (

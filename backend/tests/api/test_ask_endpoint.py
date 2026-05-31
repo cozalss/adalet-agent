@@ -244,12 +244,16 @@ def test_ask_stream_success_contract(monkeypatch):
     resp = client.post("/ask/stream", json={"question": "Kira depozitosu nedir?"})
     assert resp.status_code == 200, resp.text
     events = _parse_sse(resp.text)
-    # timing event final'dan hemen önce — stage latency (first_event/retrieval/first_token/final)
-    assert [e for e, _ in events] == ["node", "triage", "timing", "final"]
+    # verifying = doğrulama/tartışma aşaması (debate_verdict set olunca) — 4. stepper
+    # adımını canlandırır. timing event final'dan hemen önce — stage latency.
+    assert [e for e, _ in events] == ["node", "triage", "verifying", "timing", "final"]
     node = events[0][1]
     triage = events[1][1]
-    timing = events[2][1]
-    final = events[3][1]
+    verifying = events[2][1]
+    timing = events[3][1]
+    final = events[4][1]
+    assert verifying["v"] == 1
+    assert "t_ms" in verifying
     assert node["v"] == 1
     assert node["domain"] == "kira"
     assert triage["v"] == 1
