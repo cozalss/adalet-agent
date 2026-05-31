@@ -67,7 +67,6 @@ async def _ensure_mursit_collection(qdrant) -> None:
 
 async def _scroll_all(qdrant, limit: int | None = None):
     """Source koleksiyondan tüm noktaları çek."""
-    from qdrant_client.http.models import ScrollRequest
     all_points = []
     offset = None
 

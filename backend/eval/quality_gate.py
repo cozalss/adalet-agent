@@ -191,7 +191,7 @@ async def run_scorecard(version: str, n: int) -> tuple[Scorecard, list[dict]]:
             rows.append({**m, "unsupported_claims": risk["unsourced_claims"],
                          "elapsed_ms": elapsed_ms})
             print(f"  [{i:>2}/{len(cases)}] {elapsed_ms:>7.0f}ms  {m['word_count']}w", flush=True)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             rows.append({"length_in_target": False, "has_short_answer": False,
                          "is_truncated": False, "src_coverage": 0, "word_count": 0,
                          "unsupported_claims": 0, "elapsed_ms": 90000})

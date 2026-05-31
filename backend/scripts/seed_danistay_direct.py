@@ -20,7 +20,6 @@ import hashlib
 import logging
 import re
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -161,7 +160,6 @@ def _chunk_text(text: str, chunk_size: int = CHUNK_CHARS, overlap: int = OVERLAP
 async def main(args: argparse.Namespace) -> None:
     from retrieval.embedding import Embedder
     from retrieval.vector_store import ensure_collection, get_client, upsert_chunks
-    from retrieval.hybrid_search import SearchResult
 
     domain = args.domain
     chambers, keywords = DOMAIN_CONFIG[domain]
@@ -215,11 +213,11 @@ async def main(args: argparse.Namespace) -> None:
 
     # Batch embed + upsert
     logger.info("Embedding %d chunk...", len(all_chunks))
-    BATCH = 16
+    batch_size = 16
     from retrieval.vector_store import ChunkPoint
     points = []
-    for i in range(0, len(all_chunks), BATCH):
-        batch = all_chunks[i:i + BATCH]
+    for i in range(0, len(all_chunks), batch_size):
+        batch = all_chunks[i:i + batch_size]
         texts = [c["text"] for c in batch]
         out = await asyncio.to_thread(embedder.encode, texts, 8)
         for c, dense, sparse in zip(batch, out.dense, out.sparse):

@@ -11,7 +11,6 @@ import pytest
 
 from retrieval.adaptive_router import RoutingDecision, _query_complexity, route_query
 
-
 # ---------------------------------------------------------------------------
 # 1. _query_complexity — karmaşıklık puanı
 # ---------------------------------------------------------------------------

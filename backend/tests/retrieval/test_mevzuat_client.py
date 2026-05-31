@@ -350,8 +350,10 @@ async def test_retry_on_http_error_succeeds_after_two_failures():
     http_client.post = AsyncMock(side_effect=_post_side_effect)
     http_client.aclose = AsyncMock()
 
-    with patch('retrieval.mevzuat_client.httpx.AsyncClient', return_value=http_client):
-        with patch('tenacity.nap.time.sleep'):
+    with (
+        patch('retrieval.mevzuat_client.httpx.AsyncClient', return_value=http_client),
+        patch('tenacity.nap.time.sleep'),
+    ):
             async with MevzuatClient() as client:
                 result = await client.get_content("MK-6502")
 

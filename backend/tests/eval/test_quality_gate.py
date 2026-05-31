@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
-
 from eval.quality_gate import Scorecard, gate_verdict, score_answers
 
 
 def _sc(**overrides) -> Scorecard:
     """Geçerli baseline scorecard — testler tek alanı override eder."""
-    base = dict(
-        n=15, length_in_target_rate=0.20, has_short_answer_rate=0.83,
-        truncation_rate=0.0, avg_src_coverage=0.70, unsupported_claim_rate=0.10,
-        avg_word_count=80.0, p95_ms=15000.0,
-    )
+    base = {
+        "n": 15, "length_in_target_rate": 0.20, "has_short_answer_rate": 0.83,
+        "truncation_rate": 0.0, "avg_src_coverage": 0.70, "unsupported_claim_rate": 0.10,
+        "avg_word_count": 80.0, "p95_ms": 15000.0,
+    }
     base.update(overrides)
     return Scorecard(**base)
 

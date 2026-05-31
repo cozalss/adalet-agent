@@ -24,7 +24,6 @@ import asyncio
 import json
 import logging
 import math
-import os
 import sys
 import time
 from pathlib import Path
@@ -73,7 +72,7 @@ async def _measure(args: argparse.Namespace) -> None:
             trunc = "TRUNC" if m.get("is_truncated") else ""
             print(f"  [{i:>2}/{len(cases)}] {elapsed_ms:>7.0f}ms  {m['word_count']}w {trunc}",
                   flush=True)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             rows.append({"elapsed_ms": 90000, "is_truncated": False, "word_count": 0,
                          "has_short_answer": False, "turkish_purity": 0,
                          "src_coverage": 0, "length_in_target": False})

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agents.nodes import triaj as triaj_mod
 
 
@@ -115,8 +117,6 @@ def test_fast_facts_extracts_compound_work_duration_and_unpaid_rights():
 
 
 # --- OCR belge → case_facts çıkarımı --------------------------------------
-
-import pytest
 
 
 def test_doc_regex_facts_extracts_from_contract():

@@ -137,7 +137,7 @@ async def _run_mode(
             results.append(row)
         except TimeoutError:
             logger.warning("[%s] TIMEOUT id=%s", mode, case["id"])
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("[%s] HATA id=%s: %s", mode, case["id"], exc)
     return results
 

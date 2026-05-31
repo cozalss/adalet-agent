@@ -176,6 +176,7 @@ async def _search(client: httpx.AsyncClient, chamber: str, kw: str,
                            chamber, kw, page, attempt, str(exc)[:120])
             if attempt == 4:
                 return []  # tüm denemeler başarısız
+    return []  # for döngüsü bitmeden break yoksa buraya düşmez ama RET503 için
 
 
 async def _fetch_doc(client: httpx.AsyncClient, doc_id: str) -> str:

@@ -73,7 +73,7 @@ async def main(args: argparse.Namespace) -> None:
     graph = build_graph()
 
     # Isınma — ilk sorgu modelleri yükler, ölçüme dahil etme
-    print(f"Isınma sorgusu (ölçüm dışı)...", flush=True)
+    print("Isınma sorgusu (ölçüm dışı)...", flush=True)
     warmup = AgentState(question="kıdem tazminatı nedir")
     await graph.ainvoke(warmup)
 
@@ -100,7 +100,7 @@ async def main(args: argparse.Namespace) -> None:
                 tag = f" [RETRY×{rc}]"
             print(f"  [{i:>3}/{len(cases)}] {elapsed_ms:>7.0f}ms  "
                   f"{result.get('domain','?'):<10} {result.get('debate_verdict','?')}{tag}", flush=True)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             elapsed_ms = (time.perf_counter() - t0) * 1000
             samples.append({"id": case.get("id"), "total_ms": elapsed_ms,
                             "verdict": "TIMEOUT", "retry_count": -1, "domain": "?"})
@@ -109,9 +109,9 @@ async def main(args: argparse.Namespace) -> None:
     # --- Dağılım — BİMODAL ayrıştır ---
     # Kapsam-dışı/smalltalk sorguları draft/verify atlar → ~1-2ms anında döner.
     # Bunları gerçek hukuki cevaplarla karıştırmak ortalamayı yanıltır.
-    SHORT_CIRCUIT_MS = 1000
-    legal = sorted(s["total_ms"] for s in samples if s["total_ms"] > SHORT_CIRCUIT_MS)
-    short = [s["total_ms"] for s in samples if s["total_ms"] <= SHORT_CIRCUIT_MS]
+    short_circuit_ms = 1000  # N806: eşik sabiti — büyük harf okunabilirlik içindi
+    legal = sorted(s["total_ms"] for s in samples if s["total_ms"] > short_circuit_ms)
+    short = [s["total_ms"] for s in samples if s["total_ms"] <= short_circuit_ms]
 
     totals = sorted(s["total_ms"] for s in samples)
     n = len(totals)

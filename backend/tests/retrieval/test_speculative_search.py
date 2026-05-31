@@ -13,7 +13,6 @@ import pytest
 
 from retrieval.adaptive_router import RoutingDecision
 
-
 # ---------------------------------------------------------------------------
 # Yardımcı
 # ---------------------------------------------------------------------------
@@ -158,7 +157,7 @@ async def test_slow_hybrid_cancels_advanced_no_extra_latency():
         from retrieval.speculative_search import search_speculative
 
         t0 = time.perf_counter()
-        results, strategy = await search_speculative(
+        _results, _strategy = await search_speculative(
             question="sorgu",
             routing=_routing(use_hyde=True, use_mq=False),
             top_k=10,

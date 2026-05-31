@@ -426,8 +426,10 @@ async def test_rate_limit_retry():
             return rate_limit_resp
         return success_resp
 
-    with patch.object(YargiClient, "_call_tool", side_effect=_side_effect):
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with (
+        patch.object(YargiClient, "_call_tool", side_effect=_side_effect),
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
             # Act
             results = await client.search_yargitay("mulkiyet")
 

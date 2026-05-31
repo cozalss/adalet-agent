@@ -81,8 +81,9 @@ async def _search_with_custom_embedding(
     domain: str | None = None,
 ) -> list[Any]:
     """Özel bir embedding vektörüyle Qdrant'ta arama yap."""
-    from qdrant_client.http.models import Filter, FieldCondition, MatchValue
-    from retrieval.vector_store import get_client, COLLECTION_NAME
+    from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
+    from retrieval.vector_store import COLLECTION_NAME, get_client
 
     qdrant = get_client()
     query_filter = None

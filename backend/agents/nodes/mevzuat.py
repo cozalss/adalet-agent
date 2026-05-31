@@ -28,9 +28,9 @@ from agents.config import (
     SPECULATIVE_ENABLED,
     TOP_K_LAW,
 )
-from retrieval.adaptive_router import route_query
 from agents.state import AgentState, Citation
 from core.observability import observe_node
+from retrieval.adaptive_router import route_query
 from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query

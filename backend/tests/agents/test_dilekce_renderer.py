@@ -159,6 +159,7 @@ def test_pdf_only_skips_docx(basic_ctx_args):
 def test_docx_inline_bold_italic():
     """_add_inline_runs: **bold** ve *italic* doğru run'lara bölünür."""
     from docx import Document
+
     from agents.dilekce.renderer import _add_inline_runs
     doc = Document()
     p = doc.add_paragraph()

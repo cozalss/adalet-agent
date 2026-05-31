@@ -27,7 +27,7 @@ _WINDOW = 500
 class RollingPercentiles:
     """Bir metrik için bounded pencere + yüzdelik snapshot."""
 
-    __slots__ = ("_samples", "_lock")
+    __slots__ = ("_lock", "_samples")
 
     def __init__(self, window: int = _WINDOW) -> None:
         self._samples: deque[float] = deque(maxlen=window)

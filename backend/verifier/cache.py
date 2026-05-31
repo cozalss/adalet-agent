@@ -36,7 +36,7 @@ _MEM_MAX = 5000  # bellek fallback üst sınırı (sabit RAM)
 def _model_tag() -> str:
     """NLI model adının kısa hash'i — model değişince cache namespace değişir."""
     model = os.getenv("NLI_MODEL", "default")
-    return hashlib.sha1(model.encode("utf-8")).hexdigest()[:8]
+    return hashlib.sha1(model.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
 
 
 def nli_cache_key(claim_text: str, evidence: str) -> str:
@@ -74,7 +74,7 @@ class VerificationCache:
             client.ping()
             self._redis = client
             log.info("nli_cache_redis_connected")
-        except Exception as exc:  # noqa: BLE001 — cache asla doğrulamayı bozmaz
+        except Exception as exc:
             log.warning("nli_cache_redis_failed", error=str(exc))
             self._redis = None
         return self._redis
@@ -107,7 +107,7 @@ class VerificationCache:
                 for key, val in zip(keys, raw):
                     if val:
                         found[key] = json.loads(val)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.warning("nli_cache_get_failed", error=str(exc))
         else:
             for key in keys:
@@ -129,7 +129,7 @@ class VerificationCache:
                 for key, val in items.items():
                     pipe.set(key, json.dumps(val, ensure_ascii=False), ex=NLI_CACHE_TTL_S)
                 pipe.execute()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.warning("nli_cache_set_failed", error=str(exc))
         else:
             for key, val in items.items():

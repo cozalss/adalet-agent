@@ -9,7 +9,6 @@ from eval.answer_risk import (
     unsourced_legal_claims,
 )
 
-
 # --- Süre-uygunluk iddiaları (gerçek Qwen hatası 2026-05-30) ---
 
 def test_detects_wrong_duration_eligibility_claim():

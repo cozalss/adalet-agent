@@ -176,7 +176,7 @@ def _fast_domain(question: str) -> Domain | None:
     return ranked[0][0]
 
 
-def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
+def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
     """LLM'siz küçük olgu çıkarımı; eksik olursa draft yine sorudan anlar."""
     facts: dict[str, str] = {}
     q_low = _tr_lower(question)
@@ -292,7 +292,7 @@ async def _facts_from_documents(
         try:
             llm_facts = await _recover_facts(joined)  # _FACTS_RETRY_USER yeniden kullanım
             facts = _merge_case_facts(facts, llm_facts)
-        except Exception as exc:  # noqa: BLE001 — belge çıkarımı akışı bozmasın
+        except Exception as exc:
             log.warning("triaj_doc_facts_llm_failed", error=str(exc) or type(exc).__name__)
     return facts
 

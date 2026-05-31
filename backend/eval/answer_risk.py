@@ -36,10 +36,8 @@ _DURATION_CLAIM_RE = re.compile(
 # --- 2. Uydurma kanun adları + denial veto: production guard'dan re-export ---
 # Bu detektörler artık production verify pipeline'ında da kullanılıyor →
 # tek kaynak agents/risk_guard.py. Eval geriye-uyumluluk için re-export eder.
-from agents.risk_guard import (  # noqa: E402
+from agents.risk_guard import (
     fabricated_law_names,
-    negative_eligibility_claims,
-    verify_risk_veto,
 )
 
 # --- 3. Kaynaksız hukuki iddia ---

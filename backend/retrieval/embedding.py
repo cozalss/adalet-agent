@@ -272,7 +272,7 @@ class MursitEmbedder:
 _MURSIT_PREFIXES = ("newmindai/Mursit", "newmindai/mursit")
 
 
-def get_embedder() -> "Embedder | MursitEmbedder":
+def get_embedder() -> Embedder | MursitEmbedder:
     """MODEL_NAME'e göre doğru embedder örneği döndür.
 
     Mursit model isimleri için MursitEmbedder, diğerleri için Embedder.

@@ -54,6 +54,7 @@ def test_attachment_accepted():
 def test_attachment_text_length_capped():
     import pytest
     from pydantic import ValidationError
+
     from api.schemas import AskRequest
     with pytest.raises(ValidationError):
         AskRequest(question="soru?", image_attachments=[
@@ -64,6 +65,7 @@ def test_attachment_text_length_capped():
 def test_too_many_attachments_rejected():
     import pytest
     from pydantic import ValidationError
+
     from api.schemas import AskRequest
     atts = [{"filename": "x", "ocr_engine": "t", "text": "m", "n_chars": 1} for _ in range(6)]
     with pytest.raises(ValidationError):

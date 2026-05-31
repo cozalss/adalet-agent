@@ -29,13 +29,13 @@ import structlog
 
 from retrieval.adaptive_router import RoutingDecision
 from retrieval.hybrid_search import SearchResult, search  # noqa: F401
-from retrieval.hyde import search_with_hyde  # noqa: F401
-from retrieval.multi_query import search_multi_query  # noqa: F401
+from retrieval.hyde import search_with_hyde
+from retrieval.multi_query import search_multi_query
 
 log = structlog.get_logger()
 
 
-async def search_speculative(
+async def search_speculative(  # noqa: C901
     question: str,
     routing: RoutingDecision,
     top_k: int = 10,
