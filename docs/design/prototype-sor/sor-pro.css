@@ -1,0 +1,232 @@
+/* ============================================================
+   ADALET /sor — PRO layer (premium SaaS modernization)
+   Loaded AFTER sor.css. Keeps the warm identity, adds:
+   Geist/Instrument type · aurora+grain · glowing input ·
+   tilt cards · animated beams · shimmer · staggered reveals.
+   Inspiration: shadcn (tokens), Aceternity (glow/tilt/beam),
+   Magic UI (animated beam, shimmer), Vercel/Linear (Geist, restraint).
+   ============================================================ */
+
+@property --beam-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+:root {
+  --font-display: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* richer warm tokens — a touch more depth & contrast for premium feel */
+[data-theme="warm"] {
+  --bg: #e9e5dc;
+  --bg-glow: #f5f2ec;
+  --accent: #b0764a;
+  --shadow-md: 0 1px 2px rgba(60,45,25,.05), 0 10px 30px rgba(60,45,25,.07), 0 30px 60px rgba(60,45,25,.06);
+  --shadow-lg: 0 10px 30px rgba(60,45,25,.10), 0 40px 90px rgba(60,45,25,.16);
+}
+
+body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
+
+/* ---------- Global grain overlay (atmosphere) ---------- */
+.sor-app::after {
+  content: ""; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  opacity: .035; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   Empty state — editorial greeting + aurora
+   ============================================================ */
+.cg-hero { position: relative; overflow: hidden; }
+.cg-hero::before {
+  content: ""; position: absolute; inset: -20% -10% auto -10%; height: 130%;
+  z-index: 0; pointer-events: none; filter: blur(60px); opacity: .55;
+  background:
+    radial-gradient(38% 40% at 22% 32%, rgba(176,118,74,.34), transparent 70%),
+    radial-gradient(34% 38% at 78% 28%, rgba(125,122,78,.26), transparent 70%),
+    radial-gradient(40% 45% at 60% 75%, rgba(200,150,96,.22), transparent 72%);
+  animation: aurora 18s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0%   { transform: translate3d(-3%, -2%, 0) scale(1); }
+  50%  { transform: translate3d(4%, 3%, 0) scale(1.12); }
+  100% { transform: translate3d(-2%, 4%, 0) scale(1.05); }
+}
+.cg-hero > * { position: relative; z-index: 1; }
+
+.cg-greet {
+  font-family: var(--font-serif) !important;
+  font-weight: 400 !important;
+  font-size: clamp(32px, 4vw, 46px) !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.08 !important;
+  margin-bottom: 40px !important;
+  opacity: 0; animation: rise-in .9s var(--ease-spring) .05s forwards;
+}
+.cg-greet .accent { font-style: italic; color: var(--accent-text); }
+
+.cg-input-wrap { opacity: 0; animation: rise-in .9s var(--ease-spring) .18s forwards; }
+.cg-suggest { opacity: 0; animation: rise-in .9s var(--ease-spring) .32s forwards; }
+.cg-suggest .cg-chip { transition: transform .28s var(--ease-spring), background .15s, border-color .15s, color .15s; }
+.cg-suggest .cg-chip:hover { transform: translateY(-2px) scale(1.03); }
+
+@keyframes rise-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* ============================================================
+   Input pill — glowing conic border on focus (Aceternity-style)
+   ============================================================ */
+.cg-shell { position: relative; transition: transform .3s var(--ease-spring), box-shadow .3s, border-color .2s; }
+.cg-shell::before {
+  content: ""; position: absolute; inset: -1.5px; border-radius: inherit; padding: 1.5px;
+  background: conic-gradient(from var(--beam-angle),
+    var(--accent), transparent 25%, transparent 50%, var(--accent) 62%, transparent 85%, var(--accent));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity .35s; pointer-events: none;
+}
+.cg-shell:focus-within { transform: translateY(-1px); }
+.cg-shell:focus-within::before { opacity: .9; animation: beam-spin 4.5s linear infinite; }
+@keyframes beam-spin { to { --beam-angle: 360deg; } }
+
+.cg-round, .cg-think, .cg-send { transition: transform .2s var(--ease-spring), background .15s, color .15s, filter .15s; }
+.cg-round:hover, .cg-think:hover { transform: scale(1.06); }
+.cg-send.go { animation: send-pop .3s var(--ease-spring); }
+.cg-send.go:hover { transform: scale(1.08); }
+.cg-send.voice:hover { transform: scale(1.06); }
+@keyframes send-pop { from { transform: scale(.6); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+
+/* ============================================================
+   Messages & streaming
+   ============================================================ */
+.msg.user .bubble {
+  border-radius: 18px 18px 5px 18px; box-shadow: var(--shadow-sm);
+  animation: rise-in .5s var(--ease-spring) both;
+}
+.assistant-row .ava {
+  background: linear-gradient(150deg, #c9904c, var(--accent));
+  box-shadow: 0 3px 10px rgba(176,118,74,.3);
+}
+
+/* stepper → premium shimmer label */
+.stepper-label { font-family: var(--font-mono); font-size: 13px; letter-spacing: -.01em; }
+.stream-progress > span { background: linear-gradient(90deg, var(--accent), #d6a865); }
+.stream-progress::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+  transform: translateX(-100%); animation: progress-sheen 1.6s ease-in-out infinite;
+}
+@keyframes progress-sheen { 60%, 100% { transform: translateX(220%); } }
+
+/* word-by-word streaming reveal (set by JS: span.tok) — crisp, no blur */
+.answer .tok { display: inline; opacity: 0; animation: tok-in .26s cubic-bezier(.22,.61,.36,1) forwards; }
+.answer .tok.sp { white-space: pre; }
+@keyframes tok-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+/* soft, slim caret that trails the stream */
+.type-caret {
+  display: inline-block; width: 3px; height: 1.05em; vertical-align: -0.12em;
+  margin-left: 3px; border-radius: 2px;
+  background: var(--accent);
+  opacity: .8; animation: caret-soft 1.05s ease-in-out infinite;
+}
+@keyframes caret-soft { 0%,100% { opacity: .12; } 50% { opacity: .85; } }
+
+/* citation marker — spring pop + soft ring */
+.cite { transition: background .15s, color .15s, transform .2s var(--ease-spring), box-shadow .2s; }
+.answer .cite { animation: cite-pop .4s var(--ease-spring) both; }
+.cite:hover, .cite:focus-visible { transform: translateY(-1px) scale(1.12); box-shadow: 0 4px 12px var(--accent-soft); }
+@keyframes cite-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* answer card — refined */
+.card { border-radius: 18px; }
+.answer .sec-label { font-family: var(--font-mono); letter-spacing: .04em; }
+.answer .lead { font-family: var(--font-serif); font-size: 21px !important; line-height: 1.4 !important; letter-spacing: -.005em; }
+
+/* confidence — animated gradient + travelling shimmer */
+.confidence .fill {
+  background: linear-gradient(90deg, var(--success), #8fae74) !important;
+  position: relative; overflow: hidden;
+}
+.confidence.mid .fill { background: linear-gradient(90deg, var(--accent), #d6a865) !important; }
+.confidence .fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  transform: translateX(-100%); animation: conf-sheen 2.2s ease-in-out 1s infinite;
+}
+@keyframes conf-sheen { 50%, 100% { transform: translateX(280%); } }
+
+/* buttons — shine sweep */
+.btn, .cl-opt { position: relative; overflow: hidden; }
+.btn.primary::after, .cl-opt::after {
+  content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.4), transparent);
+  transform: skewX(-18deg); transition: left .6s ease;
+}
+.btn.primary:hover::after, .cl-opt:hover::after { left: 160%; }
+.cl-opt { transition: border-color .15s, background .15s, transform .2s var(--ease-spring); }
+.cl-opt:hover { transform: translateX(3px); }
+
+/* risk card — subtle pulse on the icon */
+.risk .r-ic svg { animation: r-tick 2.4s ease-in-out infinite; }
+@keyframes r-tick { 0%,100% { transform: rotate(0); } 50% { transform: rotate(8deg); } }
+
+/* ============================================================
+   Source cards — 3D tilt + cursor spotlight (Aceternity card)
+   ============================================================ */
+.src-card {
+  border-radius: 16px;
+  transform: perspective(900px) rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg));
+  transition: transform .25s ease, box-shadow .3s, border-color .3s;
+  transform-style: preserve-3d; position: relative; overflow: hidden;
+}
+.src-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
+  transition: opacity .3s;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), rgba(176,118,74,.16), transparent 60%);
+}
+.src-card:hover { box-shadow: var(--shadow-lg); }
+.src-card:hover::before { opacity: 1; }
+.src-card.flash { animation: card-flash 1.6s ease; }
+@keyframes card-flash {
+  0% { box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-md); }
+  100% { box-shadow: var(--shadow-sm); }
+}
+
+/* drawer dotted texture */
+.source-panel.drawer { background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 22px 22px; background-position: -1px -1px; }
+
+/* ============================================================
+   Animated beam — citation → source drawer (Magic UI signature)
+   ============================================================ */
+.beam-layer { position: fixed; inset: 0; z-index: 61; pointer-events: none; }
+.beam-path { fill: none; stroke: url(#beamGrad); stroke-width: 2; stroke-linecap: round;
+  filter: drop-shadow(0 0 6px var(--accent)); }
+.beam-dash { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round;
+  stroke-dasharray: 14 220; animation: beam-run 1.1s linear infinite; opacity: .9; }
+@keyframes beam-run { to { stroke-dashoffset: -234; } }
+.beam-spark { fill: var(--accent); filter: drop-shadow(0 0 5px var(--accent)); }
+
+/* ============================================================
+   Sidebar — premium hover slide + serif brand option
+   ============================================================ */
+.sb-brand { font-weight: 600; letter-spacing: -.01em; }
+.sb-item, .sb-chat { transition: background .16s, color .16s, transform .16s var(--ease-spring); }
+.sb-item:hover, .sb-chat:hover { transform: translateX(2px); }
+.sb-chat.active { box-shadow: inset 2px 0 0 var(--accent); }
+.sb-user .avatar { box-shadow: 0 3px 10px rgba(176,118,74,.3); }
+
+.main-head .model { font-family: var(--font-display); font-weight: 500; }
+.domain-chip { animation: rise-in .5s var(--ease-spring) both; }
+
+/* ============================================================
+   Reduced motion — strip the motion, keep the polish
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .cg-hero::before, .stream-progress::after, .confidence .fill::after,
+  .risk .r-ic svg, .cg-shell:focus-within::before { animation: none !important; }
+  .cg-greet, .cg-input-wrap, .cg-suggest, .domain-chip { opacity: 1 !important; animation: none !important; }
+  .answer .tok { opacity: 1 !important; animation: none !important; filter: none !important; }
+  .beam-dash { animation: none !important; }
+  .src-card { transform: none !important; }
+}

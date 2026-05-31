@@ -1,0 +1,103 @@
+/* ADALET backend client — SSE streaming + dilekçe + OCR.
+   Vite dev proxy /ask,/api,/multimodal → FastAPI :8000. */
+
+/** Auth token (davet kodu akışından). Şimdilik localStorage; yoksa header yok. */
+function authHeaders() {
+  const t = localStorage.getItem("adalet-token");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+/**
+ * POST /ask/stream — SSE akışını oku, her event için handler çağır.
+ * @param {object} payload {question, conversation_id?, want_dilekce?, image_attachments?}
+ * @param {object} handlers {onNode,onTriage,onClarify,onSources,onDrafting,onTiming,onFinal,onError}
+ * @param {AbortSignal} [signal]
+ */
+export async function askStream(payload, handlers, signal) {
+  const res = await fetch("/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ ...payload, stream: true }),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`/ask/stream HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  const dispatch = (event, data) => {
+    switch (event) {
+      case "node": handlers.onNode?.(data); break;
+      case "triage": handlers.onTriage?.(data); break;
+      case "clarify": handlers.onClarify?.(data); break;
+      case "sources": handlers.onSources?.(data); break;
+      case "drafting": handlers.onDrafting?.(data); break;
+      case "timing": handlers.onTiming?.(data); break;
+      case "final": handlers.onFinal?.(data); break;
+      case "error": handlers.onError?.(data); break;
+      default: break;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // SSE frame ayracı: çift newline
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      let event = "message";
+      const dataLines = [];
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      }
+      if (dataLines.length) {
+        try { dispatch(event, JSON.parse(dataLines.join("\n"))); }
+        catch { /* yarım frame — yoksay */ }
+      }
+    }
+  }
+}
+
+/** Dilekçe indirme URL'leri (auth ile fetch edilip blob indirilir). */
+export async function downloadDilekce(conversationId, format = "pdf") {
+  const path = format === "docx"
+    ? `/api/dilekce/${conversationId}/docx`
+    : `/api/dilekce/${conversationId}`;
+  const res = await fetch(path, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Dilekçe indirilemedi (HTTP ${res.status})`);
+  const blob = await res.blob();
+  const cd = res.headers.get("content-disposition") || "";
+  const m = cd.match(/filename="?([^"]+)"?/);
+  const filename = m ? m[1] : `dilekce.${format}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** POST /multimodal/ocr — görüntü/PDF → metin (case_facts'e beslenir). */
+export async function ocrUpload(file) {
+  const form = new FormData();
+  form.append("image", file);
+  const res = await fetch("/multimodal/ocr", {
+    method: "POST", headers: authHeaders(), body: form,
+  });
+  if (!res.ok) throw new Error(`OCR başarısız (HTTP ${res.status})`);
+  return res.json(); // {text, engine, n_chars, ...}
+}
+
+/** Backend ayakta mı? (mock fallback kararı için). */
+export async function backendHealthy() {
+  try {
+    const res = await fetch("/health", { signal: AbortSignal.timeout(2500) });
+    return res.ok;
+  } catch { return false; }
+}

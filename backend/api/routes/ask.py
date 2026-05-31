@@ -433,6 +433,20 @@ async def ask_stream(
                      verdict=final_state.get("debate_verdict"),
                      retry_count=final_state.get("retry_count", 0), **timings)
 
+            # Dilekçe Ajanı PDF üretmişse cache'e koy (blocking /ask ile aynı) —
+            # aksi halde stream yolunda GET /api/dilekce/{id} 404 döner (dilekçe
+            # üretilse bile asla saklanmazdı). KVKK+IDOR: owner_sub'a bağlanır.
+            if final_state.get("dilekce_pdf_bytes"):
+                store_pdf(
+                    conversation_id=conv_id,
+                    pdf_bytes=final_state["dilekce_pdf_bytes"],
+                    filename=final_state.get("dilekce_filename") or "dilekce.pdf",
+                    template_id=final_state.get("dilekce_template_id") or "",
+                    owner_sub=principal.sub,
+                    docx_bytes=final_state.get("dilekce_docx_bytes"),
+                    docx_filename=final_state.get("dilekce_docx_filename") or "dilekce.docx",
+                )
+
             resp = _state_to_response(final_state, elapsed, conv_id)
             yield f"event: final\ndata: {resp.model_dump_json()}\n\n"
 
@@ -561,4 +575,5 @@ def _state_to_response(
         errors=state.get("errors", []),
         latency_ms=elapsed_ms,
         conversation_id=conv_id or state.get("conversation_id"),
+        has_dilekce=bool(state.get("dilekce_pdf_bytes")),
     )

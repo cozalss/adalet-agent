@@ -155,6 +155,13 @@ class AskResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
     latency_ms: int = 0
     conversation_id: str | None = None
+    has_dilekce: bool = Field(
+        False,
+        description=(
+            "Dilekçe Ajanı bu yanıt için PDF/DOCX üretti mi? Frontend indirme "
+            "barını yalnız True iken gösterir (want_dilekce=True istendiğinde)."
+        ),
+    )
     audio_url: str | None = Field(
         None, description="want_tts=True ise sesli cevap URL'i (in-mem temp)",
     )

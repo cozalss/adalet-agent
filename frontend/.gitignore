@@ -1,0 +1,18 @@
+# Bağımlılıklar
+node_modules/
+
+# Build çıktısı
+dist/
+
+# Vite önbelleği
+.vite/
+node_modules/.vite/
+
+# Ortam (gizli) — sadece örnek commit'lenir
+.env
+.env.local
+.env.*.local
+
+# Editör / OS
+.DS_Store
+*.local

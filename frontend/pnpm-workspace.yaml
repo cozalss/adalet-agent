@@ -1,0 +1,6 @@
+# pnpm 11: build-script onayı buradan okunur.
+# esbuild kendi native binary'sini kurar — Vite için gerekli.
+allowBuilds:
+  esbuild: true
+onlyBuiltDependencies:
+  - esbuild

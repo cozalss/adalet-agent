@@ -1,0 +1,128 @@
+/* ADALET /sor — gerçek-backend entegrasyonu + cila stilleri.
+   Tasarım token'larıyla hizalı (sor.css: --surface, --surface-strong, --text,
+   --text-2/3, --border, --accent, --accent-soft, --accent-text, --accent-on). */
+
+/* ---------- Belge ekleme rozeti (+ butonu üstünde) ---------- */
+.cg-round { position: relative; }
+.attach-badge {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 600;
+  color: var(--accent-on); background: var(--accent);
+  border-radius: 999px;
+}
+
+/* ---------- Eklenen belge chip satırı ---------- */
+.attach-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin: 10px 2px 0;
+}
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; font-size: 12.5px;
+  color: var(--text-2); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.attach-chip svg { color: var(--accent); }
+.attach-clear {
+  font-size: 12px; color: var(--text-3);
+  background: none; border: none; cursor: pointer; padding: 4px 6px;
+}
+.attach-clear:hover { color: var(--text); text-decoration: underline; }
+
+/* ---------- "Dilekçe" toggle aktif durumu ---------- */
+.cg-think.on {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------- Durdur (stop) butonu — streaming sırasında send yerine ---------- */
+.cg-send.stop {
+  background: var(--surface-strong);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+.cg-send.stop:hover { border-color: var(--accent); color: var(--accent-text); }
+.cg-send.voice[disabled] { opacity: .55; cursor: default; }
+
+/* ---------- Düşük güvenli domain chip ---------- */
+.domain-chip.low {
+  color: var(--text-2);
+  background: color-mix(in oklab, var(--text-3) 14%, transparent);
+  border-color: var(--border-strong);
+}
+.domain-chip.low .dot { background: var(--text-3); }
+
+/* ---------- Cevap altı dilekçe indirme barı ---------- */
+.dilekce-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-top: 12px;
+}
+.btn.ghost {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; font-size: 13px; font-weight: 500;
+  color: var(--text-2); background: transparent;
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.btn.ghost:hover {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.btn.ghost svg { width: 15px; height: 15px; }
+
+/* ---------- Mesaj eylem çubuğu (kopyala / yeniden / geri bildirim) ---------- */
+.msg-actions {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 10px;
+  opacity: .55; transition: opacity .18s ease;
+}
+.assistant-row:hover .msg-actions,
+.msg-actions:focus-within { opacity: 1; }
+.msg-action {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px; font-size: 12.5px; font-weight: 500;
+  color: var(--text-2); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+.msg-action svg { width: 15px; height: 15px; }
+.msg-action:hover {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--border);
+}
+.msg-action.icon { padding: 6px; }
+.msg-action.icon.on {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.msg-sep {
+  width: 1px; height: 16px; margin: 0 4px;
+  background: var(--border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg-actions, .msg-action, .btn.ghost { transition: none; }
+}
+
+/* ---------- Toast (OCR/dilekçe/kopyala bildirimleri) ---------- */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 200; max-width: 90vw;
+  padding: 11px 18px; font-size: 13.5px;
+  color: var(--text); background: var(--surface-strong);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+  animation: toast-in .25s cubic-bezier(.16, 1, .3, 1);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
