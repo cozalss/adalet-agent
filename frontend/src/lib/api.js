@@ -106,7 +106,8 @@ export async function ocrUpload(file) {
 /** DELETE /ask/session/{id} — sunucu tarafı geçmişi + dilekçe PDF'i sil (KVKK).
  *  "Yeni sohbet"te çağrılır; fire-and-forget (hata kullanıcıyı durdurmaz). */
 export async function clearSession(conversationId) {
-  if (!conversationId) return;
+  // Backend pattern: ^[A-Za-z0-9_-]+$, min_length=8 — geçersiz ID gönderme.
+  if (!conversationId || conversationId.length < 8 || !/^[\w-]+$/.test(conversationId)) return;
   try {
     await fetch(`/ask/session/${encodeURIComponent(conversationId)}`, {
       method: "DELETE", headers: authHeaders(),

@@ -70,8 +70,10 @@ export function useChat() {
           _patch(key, { phase: "sources" });
           _patchData(key, { sourceCount: d.count || 0 });
         },
+        onNode: () => {}, // node event'i UI'da işlenmez — sessiz yutulurdu, şimdi açık no-op
         onDrafting: () => { if (!sawClarify) _patch(key, { phase: "drafting" }); },
         onVerifying: () => { if (!sawClarify) _patch(key, { phase: "verifying" }); },
+        onTiming: () => {}, // timing latency event — gelecekte metrikler için; şimdi no-op
         onFinal: (resp) => {
           if (ac.signal.aborted) return; // stop sonrası gecikmeli final → state'i ezme
           if (resp.conversation_id) {
