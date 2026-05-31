@@ -8,7 +8,7 @@
    turn"e değil. Böylece kullanıcı hızlı ikinci soru sorduğunda eski akışın
    geç gelen event'i yeni turn'ü bozamaz. */
 import { useCallback, useRef, useState } from "react";
-import { askStream, clearSession } from "../lib/api.js";
+import { askStream } from "../lib/api.js";
 import { mapResponse, mapClarify } from "../lib/parseAnswer.js";
 
 const TERMINAL = ["final", "reject", "clarify"];
@@ -150,44 +150,43 @@ export function useChat() {
     return q;
   }, [turns]);
 
-  // Geri-al penceresi (Vuetify snackbar-with-undo deseni): reset hemen siler ama
-  // sunucu DELETE'ini 6sn geciktirir; bu süre içinde undoReset eski sohbeti geri
-  // getirir. Pencere dolunca clearSession ateşlenir (KVKK silme korunur).
+  // "Yeni sohbet": geçmiş artık KALICI (App geçmişe kaydeder) → reset yalnız
+  // görünümü temizler, sunucu DELETE'i YOK. undoReset son görünümü geri getirir
+  // (yanlışlıkla yeni sohbet açılırsa). Sohbet zaten geçmişte durur.
   const clearedRef = useRef(null);
-  const clearTimerRef = useRef(null);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
     const prevTurns = turns;
-    const prevConv = convRef.current;
-    if (prevTurns.length) {
-      clearTimeout(clearTimerRef.current);
-      clearedRef.current = { turns: prevTurns, convId: prevConv };
-      clearTimerRef.current = setTimeout(() => {
-        clearSession(prevConv); // pencere doldu → gerçek silme
-        clearedRef.current = null;
-      }, 6000);
-    } else {
-      clearSession(prevConv);
-    }
+    clearedRef.current = prevTurns.length ? { turns: prevTurns, convId: convRef.current } : null;
     convRef.current = null;
     setConversationId(null);
     setTurns([]);
     return prevTurns.length > 0; // çağıran undo göstersin mi?
   }, [turns]);
 
-  /** Geri-al: son temizlenen sohbeti geri getir (DELETE'i iptal eder). */
+  /** Geri-al: son temizlenen görünümü geri getir. */
   const undoReset = useCallback(() => {
     const saved = clearedRef.current;
     if (!saved) return;
-    clearTimeout(clearTimerRef.current);
     clearedRef.current = null;
     convRef.current = saved.convId;
     setConversationId(saved.convId);
     setTurns(saved.turns);
   }, []);
 
-  return { turns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, busy, conversationId };
+  /** Geçmiş bir sohbeti yükle (sidebar'dan tıklanınca) — turn'leri taze key'le geri koy. */
+  const loadConversation = useCallback((conv) => {
+    abortRef.current?.abort();
+    convRef.current = conv.id;
+    setConversationId(conv.id);
+    setTurns((conv.turns || []).map((t) => ({ ...t, key: ++keyRef.current })));
+  }, []);
+
+  return {
+    turns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset,
+    loadConversation, busy, conversationId,
+  };
 }
 
 function _looksClarify(resp) {

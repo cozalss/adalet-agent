@@ -123,10 +123,10 @@ export function SourcesPanel() {
 
 /* ---------- 4) Gizlilik & verilerim (KVKK panosu) ---------- */
 const PRIVACY_FACTS = [
-  "Verileriniz bu cihazda kalır — sohbet sunucuda saklanmaz.",
-  "Üyelik yok, kimliğinizi istemiyoruz.",
+  "Sohbet geçmişiniz kaydedilir — istediğiniz an silebilirsiniz.",
+  "Misafir kullanımda geçmiş bu cihazda (tarayıcı) tutulur.",
   "Belgelerinizdeki TC / telefon / IBAN otomatik maskelenir.",
-  "Production'da bulut yapay zekâ çağrısı yapılmaz — modeller yerel çalışır.",
+  "Yapay zekâ modelleri yerel çalışır — yanıtlar Türkiye'de işlenir.",
 ];
 
 export function PrivacyPanel({ onClearData }) {
@@ -139,10 +139,10 @@ export function PrivacyPanel({ onClearData }) {
         ))}
       </div>
       <div className="acc-priv-stored">
-        <div className="acc-sub-head">Bu cihazda saklananlar</div>
+        <div className="acc-sub-head">Neler saklanıyor</div>
+        <p>• Sohbet geçmişiniz (başlık + sorular + yanıtlar)</p>
         <p>• Tercihleriniz (yazı boyutu, hareket, alanlar)</p>
-        <p>• Aktif oturum sohbeti (yeni sohbette silinir)</p>
-        <p className="acc-note">Başka hiçbir şey saklanmıyor.</p>
+        <p className="acc-note">Hepsini aşağıdaki butonla kalıcı silebilirsiniz.</p>
       </div>
       <div className="acc-danger-zone">
         {!confirm ? (

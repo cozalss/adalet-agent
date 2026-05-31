@@ -18,12 +18,11 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, Field, field_validator
 
+from api.dependencies import require_user
 from api.limiter import limiter
-from api.middleware.auth import Principal, authenticate
-from api.pii import fingerprint
 from db.repositories.preferences import get_preference_repo
 
 log = structlog.get_logger()
@@ -79,28 +78,13 @@ class Preferences(BaseModel):
         return seen
 
 
-def _require_account(principal: Principal) -> str:
-    """Auth'lu kullanıcı için saklama anahtarı; anonim → 401 (tercih cihazda kalır).
-
-    Anahtar = fingerprint(sub, 32) → 128-bit (PK/JSON-key olarak çarpışma yüzeyini
-    daralt; default 16=64-bit kullanıcı tabanı büyüdüğünde IDOR'a yol açabilir).
-    """
-    if principal.anonymous:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="anonim oturum — tercihleriniz yalnız bu cihazda saklanır",
-        )
-    return fingerprint(principal.sub, 32)
-
-
 @router.get("/preferences", response_model=Preferences)
 @limiter.limit("60/minute")
 async def get_preferences(
     request: Request,
-    principal: Principal = Depends(authenticate),
+    sub_hash: str = Depends(require_user),
 ) -> Preferences:
     """Auth'lu kullanıcının kayıtlı tercihleri (yoksa varsayılan)."""
-    sub_hash = _require_account(principal)
     repo = get_preference_repo(PREFS_STORE_PATH)
     stored = await repo.get(sub_hash)
     if not stored:
@@ -120,15 +104,14 @@ async def get_preferences(
 async def put_preferences(
     request: Request,
     prefs: Preferences,
-    principal: Principal = Depends(authenticate),
+    sub_hash: str = Depends(require_user),
 ) -> Preferences:
     """Tercihleri kaydet (upsert). Şema doğrulama field_validator'larda."""
-    sub_hash = _require_account(principal)
     repo = get_preference_repo(PREFS_STORE_PATH)
     await repo.upsert(sub_hash, prefs.model_dump())
     log.info(
         "preferences_updated",
-        sub_hash=fingerprint(principal.sub, 12),
+        sub_hash=sub_hash[:12],
         text_scale=prefs.text_scale,
         n_domains=len(prefs.preferred_domains),
     )
@@ -139,10 +122,9 @@ async def put_preferences(
 @limiter.limit("30/minute")
 async def delete_preferences(
     request: Request,
-    principal: Principal = Depends(authenticate),
+    sub_hash: str = Depends(require_user),
 ) -> None:
     """KVKK silme hakkı — çapraz-cihaz sunucu kaydını temizler."""
-    sub_hash = _require_account(principal)
     repo = get_preference_repo(PREFS_STORE_PATH)
     await repo.delete(sub_hash)
-    log.info("preferences_deleted", sub_hash=fingerprint(principal.sub, 12))
+    log.info("preferences_deleted", sub_hash=sub_hash[:12])

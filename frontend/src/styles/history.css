@@ -1,0 +1,78 @@
+/* ============================================================
+   ADALET sohbet geçmişi — sidebar listesi + nav panelleri
+   (Sohbetlerde ara · Kaynaklar · Dosyalarım)
+   ============================================================ */
+
+/* ---------- sidebar sohbet listesi ---------- */
+.sb-conv-list { display: flex; flex-direction: column; gap: 2px; }
+.sb-conv {
+  display: flex; align-items: center; border-radius: 9px;
+  transition: background .13s; position: relative;
+}
+.sb-conv:hover { background: var(--sidebar-hover); }
+.sb-conv.active { background: var(--sidebar-active); }
+.sb-conv.active::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;
+  width: 2.5px; border-radius: 2px; background: var(--accent);
+}
+.sb-conv-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  padding: 8px 10px; border: 0; background: transparent; text-align: left;
+  cursor: pointer; color: inherit;
+}
+.sb-conv-title {
+  font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 100%;
+}
+.sb-conv-date { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.sb-conv-del {
+  flex: 0 0 auto; width: 26px; height: 26px; margin-right: 5px; border: 0;
+  background: transparent; color: var(--text-3); border-radius: 7px; cursor: pointer;
+  display: grid; place-items: center; opacity: 0; transition: opacity .13s, color .13s, background .13s;
+}
+.sb-conv:hover .sb-conv-del, .sb-conv.active .sb-conv-del { opacity: 1; }
+.sb-conv-del:hover { color: var(--danger); background: var(--danger-soft); }
+.sb-conv-del svg { width: 15px; height: 15px; }
+
+/* ---------- nav panelleri (Modal içi) ---------- */
+.hp-search-box {
+  display: flex; align-items: center; gap: 9px; padding: 11px 13px;
+  border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface-strong);
+}
+.hp-search-box svg { width: 17px; height: 17px; color: var(--text-3); flex: 0 0 auto; }
+.hp-search-input { flex: 1; border: 0; background: transparent; font: inherit; font-size: 14px; color: var(--text); outline: none; }
+
+.hp-list { display: flex; flex-direction: column; gap: 4px; }
+.hp-row, .hp-src, .hp-file {
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px;
+  border-radius: 11px; border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer; text-align: left; transition: border-color .13s, background .13s, transform .08s;
+}
+.hp-row:hover, .hp-src:hover, .hp-file:hover {
+  border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px);
+}
+.hp-row-ic, .hp-file-ic { color: var(--accent); flex: 0 0 auto; }
+.hp-row-ic svg, .hp-file-ic svg { width: 18px; height: 18px; }
+.hp-row-tx, .hp-file-tx, .hp-src-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.hp-row-title, .hp-file-name, .hp-src-title {
+  font-size: 13.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hp-row-meta, .hp-file-meta, .hp-src-meta {
+  font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hp-file-meta { font-family: var(--font-mono); }
+.hp-pii { color: var(--danger); margin-left: 6px; }
+
+.hp-src-tag {
+  flex: 0 0 auto; font-family: var(--font-mono); font-size: 10px; letter-spacing: .03em;
+  padding: 4px 8px; border-radius: 7px; align-self: flex-start;
+}
+.hp-src-tag.law { color: var(--accent); background: var(--accent-soft); }
+.hp-src-tag.case { color: var(--success); background: var(--success-soft); }
+
+.hp-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  padding: 34px 18px; color: var(--text-3);
+}
+.hp-empty svg { width: 30px; height: 30px; opacity: .7; }
+.hp-empty p { margin: 0; font-size: 13px; line-height: 1.55; max-width: 320px; }

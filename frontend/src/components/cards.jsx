@@ -6,6 +6,11 @@ import { RunText } from "./ui.jsx";
 
 export function AnswerCard({ answer, sources, onJump }) {
   const cardRef = useRef(null);
+  // Savunmacı: geçmişten yüklenen eski/kısmi kayıtlarda sections olmayabilir →
+  // text'ten tek bölüme düş (uygulama beyaz ekrana düşmesin).
+  const sections = (answer?.sections && answer.sections.length)
+    ? answer.sections
+    : [{ label: "Cevap", lead: true, runs: [{ t: answer?.text || "" }] }];
 
   // B4 — 60fps.design D1: Her bölüm scroll görünüme girince yukarıdan açılır.
   // prefers-reduced-motion varsa gizleme yapma (instantly visible).
@@ -21,11 +26,11 @@ export function AnswerCard({ answer, sources, onJump }) {
     );
     secs.forEach((s) => obs.observe(s));
     return () => obs.disconnect();
-  }, [answer.sections.length]);
+  }, [sections.length]);
 
   return (
     <div className="card answer" ref={cardRef}>
-      {answer.sections.map((sec, i) => (
+      {sections.map((sec, i) => (
         <div className="sec" key={i}>
           <div className="sec-label">{sec.label}</div>
           {sec.steps ? (

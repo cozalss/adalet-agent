@@ -34,3 +34,12 @@
 3. Türkçe karakterler içerikte tam (ç, ş, ğ); değişken isimlerinde Latin (`tckn` not `tCKN`).
 4. UI'da her cevabın altında hukuki disclaimer.
 
+## Veri Politikası (v2.1 — KVKK gevşetildi)
+
+ADALET artık **sohbet geçmişi tutar** (kayıtlı kullanıcı: `conversation`/`message`
+tabloları; misafir: tarayıcı localStorage). KVKK "blokör" değil, "arka plan
+hijyeni": saklama anahtarı **fingerprint(sub)** (ham email DB'ye yazılmaz),
+belge PII'si maskelenir, veri TR'de kalır, modeller lokal. Hukuki sorumluluk
+reddi her yanıtta **zorunlu** (kaldırılmaz). Kullanıcı geçmişini "Tüm verilerimi
+sil" ile temizleyebilir. Tam bağlam: `../CLAUDE.md` madde 3.
+

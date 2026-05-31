@@ -156,6 +156,84 @@ export async function deletePreferences() {
   } catch { return false; }
 }
 
+/* ---------- Sohbet geçmişi (/me/conversations) — cihazlar-arası senkron.
+   Birincil kaynak localStorage (anonim çalışır); bu uçlar yalnız auth'lu
+   (token var) kullanıcıda iş görür. Anonim → 401 (sessizce yutulur). */
+
+/** GET /me/conversations[?q=] — kullanıcının sohbet listesi (metadata) veya null. */
+export async function listConversationsApi(q) {
+  if (!hasToken()) return null;
+  try {
+    const url = q ? `/me/conversations?q=${encodeURIComponent(q)}` : "/me/conversations";
+    const res = await fetch(url, { headers: authHeaders() });
+    return res.ok ? res.json() : null;
+  } catch { return null; }
+}
+
+/** GET /me/conversations/{id} — tek sohbetin tüm mesajları veya null. */
+export async function getConversationApi(id) {
+  if (!hasToken()) return null;
+  try {
+    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, { headers: authHeaders() });
+    return res.ok ? res.json() : null;
+  } catch { return null; }
+}
+
+/** PUT /me/conversations/{id} — sohbeti kaydet (best-effort, fire-and-forget). */
+export async function putConversationApi(id, body) {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+/** DELETE /me/conversations/{id} — sohbeti sil (silme hakkı). */
+export async function deleteConversationApi(id) {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: authHeaders(),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+/** DELETE /me/conversations — TÜM geçmişi tek istekle sil (KVKK silme hakkı). */
+export async function deleteAllConversationsApi() {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch("/me/conversations", { method: "DELETE", headers: authHeaders() });
+    return res.ok;
+  } catch { return false; }
+}
+
+/** GET /me/files — "Dosyalarım" metadata listesi veya null. */
+export async function listFilesApi() {
+  if (!hasToken()) return null;
+  try {
+    const res = await fetch("/me/files", { headers: authHeaders() });
+    return res.ok ? res.json() : null;
+  } catch { return null; }
+}
+
+/** POST /me/files — OCR yükleme metadata kaydı (best-effort). */
+export async function addFileApi(meta) {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch("/me/files", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(meta),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 /** Backend ayakta mı? (mock fallback kararı için). */
 export async function backendHealthy() {
   try {

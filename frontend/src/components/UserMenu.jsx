@@ -88,7 +88,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
             <span className="acc-id-ava">{initial}</span>
             <span className="acc-id-tx">
               <b>{shown}</b>
-              <span><Icon.lock style={{ width: 11, height: 11 }} /> Misafir oturum · veriler bu cihazda</span>
+              <span><Icon.lock style={{ width: 11, height: 11 }} /> Misafir oturum · geçmiş bu cihazda</span>
             </span>
             <span className="acc-id-edit"><Icon.pencil style={{ width: 14, height: 14 }} /></span>
           </button>

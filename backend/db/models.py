@@ -117,3 +117,65 @@ class UserPreference(SQLModel, table=True):
         default_factory=list, sa_column=sa.Column(sa.JSON)
     )
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class Conversation(SQLModel, table=True):
+    """Kalıcı sohbet kaydı — kayıtlı kullanıcının geçmişi (cihazlar-arası).
+
+    Not: ADALET artık kayıtlı kullanıcıya sohbet geçmişi sunar (anonim kullanıcı
+    tarayıcı localStorage'ında tutar). owner_sub_hash = fingerprint(principal.sub)
+    — ham email yerine deterministik parmak izi (kullanıcı kendi geçmişini görür,
+    DB sızsa kimlik açığa çıkmaz). Mesaj içeriği zaten PII-mask'li saklanır.
+    """
+
+    __tablename__ = "conversation"
+
+    id: str = Field(primary_key=True)  # uuid4().hex
+    owner_sub_hash: str = Field(index=True)
+    title: str = ""
+    domain: str = ""
+    message_count: int = 0
+    created_at: datetime = Field(default_factory=_utcnow, index=True)
+    updated_at: datetime = Field(default_factory=_utcnow, index=True)
+
+
+class Message(SQLModel, table=True):
+    """Tek konuşma turu — user ve assistant satırları ayrı kayıt.
+
+    content: PII-mask'li soru/cevap metni. citations_json: o turda kullanılan
+    kaynak listesi (Kaynaklar paneli bunları birleştirir).
+    """
+
+    __tablename__ = "message"
+
+    id: str = Field(primary_key=True)  # uuid4().hex
+    conversation_id: str = Field(foreign_key="conversation.id", index=True)
+    turn_index: int = 0
+    role: str = "user"  # "user" | "assistant"
+    content: str = Field(default="", sa_column=sa.Column(sa.Text))
+    domain: str = ""
+    citations_json: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=sa.Column(sa.JSON)
+    )
+    confidence: float = 0.0
+    created_at: datetime = Field(default_factory=_utcnow, index=True)
+
+
+class UploadedFile(SQLModel, table=True):
+    """OCR yükleme metadata — "Dosyalarım" paneli.
+
+    KVKK veri-minimizasyon: belge METNİ saklanmaz; yalnız metadata (ad, boyut,
+    PII bayrağı, hangi sohbet). Kullanıcı belge geçmişini görür, gerekirse
+    yeniden yükler.
+    """
+
+    __tablename__ = "uploaded_file"
+
+    id: str = Field(primary_key=True)  # uuid4().hex
+    owner_sub_hash: str = Field(index=True)
+    conversation_id: str = ""
+    filename: str = ""
+    ocr_engine: str = ""
+    n_chars: int = 0
+    pii_flag: bool = False
+    uploaded_at: datetime = Field(default_factory=_utcnow, index=True)

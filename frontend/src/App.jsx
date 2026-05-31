@@ -8,8 +8,12 @@ import {
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
+import { ConversationList } from "./components/ConversationList.jsx";
+import { Modal } from "./components/Modal.jsx";
+import { SearchPanel, LibraryPanel, FilesPanel } from "./components/historyPanels.jsx";
 import { useChat } from "./hooks/useChat.js";
 import { usePrefs } from "./hooks/usePrefs.js";
+import { useConversations } from "./hooks/useConversations.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
 
 // Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
@@ -27,11 +31,12 @@ function formatPii(counts) {
     .map(([k, n]) => `${n} ${PII_LABELS[k] || k}`)
     .join(", ");
 }
-import { ocrUpload, downloadDilekce } from "./lib/api.js";
+import { ocrUpload, downloadDilekce, addFileApi } from "./lib/api.js";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
 import "./styles/app-extra.css";
 import "./styles/account.css";
+import "./styles/history.css";
 
 /* ---------- ChatGPT-style input pill ---------- */
 function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachCount, wantDilekce, onToggleDilekce, onStop }) {
@@ -77,8 +82,16 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
   );
 }
 
+const NAV_TITLES = { search: "Sohbetlerde ara", library: "Kaynaklar", files: "Dosyalarım" };
+
 /* ---------- Sidebar ---------- */
-function Sidebar({ collapsed, onToggle, onNew, currentTitle, userMenu }) {
+function Sidebar({ collapsed, onToggle, onNew, onNav, conversations, activeConvId, onSelectConv, onDeleteConv, userMenu }) {
+  const NAV_ACTION = {
+    new: onNew,
+    search: () => onNav("search"),
+    library: () => onNav("library"),
+    projects: () => onNav("files"),
+  };
   return (
     <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
       <div className="sb-top">
@@ -88,32 +101,23 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle, userMenu }) {
       <nav className="sb-nav">
         {SB_NAV.map((n) => {
           const I = Icon[n.icon];
-          const placeholder = n.id !== "new"; // ara/kaynaklar/dosyalar henüz yok
           return (
             <button
               className={"sb-item" + (n.id === "new" ? " primary" : "")}
               key={n.id}
-              onClick={n.id === "new" ? onNew : undefined}
-              disabled={placeholder}
-              title={placeholder ? "Yakında" : undefined}
+              onClick={NAV_ACTION[n.id]}
             >
-              <I />{n.label}{placeholder && <span className="soon">yakında</span>}
+              <I />{n.label}
             </button>
           );
         })}
       </nav>
-      <div className="sb-section-label">Bu oturum</div>
+      <div className="sb-section-label">Sohbet geçmişi</div>
       <div className="sb-list">
-        {currentTitle ? (
-          <button className="sb-chat active" title={currentTitle}>
-            <span className="label">{currentTitle}</span>
-          </button>
-        ) : (
-          <p className="sb-empty-note">
-            <Icon.info style={{ width: 13, height: 13 }} />
-            Gizliliğiniz için sohbet geçmişi saklanmaz — “Yeni sohbet” her şeyi siler, sıfırdan başlar.
-          </p>
-        )}
+        <ConversationList
+          conversations={conversations} activeId={activeConvId}
+          onSelect={onSelectConv} onDelete={onDeleteConv}
+        />
       </div>
       {userMenu}
     </aside>
@@ -121,8 +125,9 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle, userMenu }) {
 }
 
 export default function App() {
-  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, busy, conversationId } = useChat();
+  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, loadConversation, busy, conversationId } = useChat();
   const { prefs, setPref, toggleDomain, clearAll } = usePrefs();
+  const { conversations, saveConversation, removeConversation, getConversation, clearAllConversations, search, allSources, allFiles } = useConversations();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -132,11 +137,14 @@ export default function App() {
   const [wantDilekce, setWantDilekce] = useState(false);
   const [toast, setToast] = useState(null);
   const [atBottom, setAtBottom] = useState(true);
+  const [navPanel, setNavPanel] = useState(null); // null | "search" | "library" | "files"
 
   const scrollRef = useRef(null);
   const panelRef = useRef(null);
   const srcRefs = useRef({});
   const fileRef = useRef(null);
+  const sessionFilesRef = useRef([]); // bu sohbette yüklenen belgeler (Dosyalarım)
+  const savedSigRef = useRef(null);   // aynı durumu tekrar kaydetme (persist dedup)
 
   const last = turns[turns.length - 1];
   const started = turns.length > 0;
@@ -204,15 +212,65 @@ export default function App() {
   }, []);
   const dismissToast = useCallback(() => { clearTimeout(toastTimer.current); setToast(null); }, []);
 
-  // "Yeni sohbet": sil + geri-al snackbar'ı göster (silme 6sn geciktirilir).
+  // "Yeni sohbet": görünümü temizle (geçmiş KALICI — silmez). Geri-al view'ı döndürür.
   const onNewChat = useCallback(() => {
+    sessionFilesRef.current = [];
+    savedSigRef.current = null;
     if (reset()) {
-      showToast("Sohbet temizlendi", { label: "Geri al", onClick: undoReset });
+      showToast("Yeni sohbet başlatıldı", { label: "Geri al", onClick: undoReset });
     }
   }, [reset, undoReset, showToast]);
 
+  // Geçmiş sohbeti yükle (sidebar) → useChat'e bas + oturum dosyalarını geri yükle.
+  const onSelectConv = useCallback((conv) => {
+    const rec = getConversation(conv.id) || conv;
+    loadConversation(rec);
+    sessionFilesRef.current = rec.files || [];
+    savedSigRef.current = `${rec.id}:${(rec.turns || []).length}:loaded`;
+    setSheetOpen(false);
+    setNavPanel(null);
+    if (window.innerWidth < 760) setSidebarCollapsed(true);
+  }, [getConversation, loadConversation]);
+
+  // Sohbeti sil → aktif olanı siliyorsa görünümü de temizle.
+  const onDeleteConv = useCallback((id) => {
+    removeConversation(id);
+    if (id === conversationId) { sessionFilesRef.current = []; reset(); }
+    showToast("Sohbet silindi");
+  }, [removeConversation, conversationId, reset, showToast]);
+
+  // KVKK "tüm verilerimi sil": tercihler + tüm sohbet geçmişi + görünüm.
+  const clearAllData = useCallback(() => {
+    clearAll();
+    clearAllConversations();
+    sessionFilesRef.current = [];
+    reset();
+  }, [clearAll, clearAllConversations, reset]);
+
+  // Tamamlanan turu geçmişe kaydet (kalıcı): busy düşünce + son turn terminal olunca.
+  useEffect(() => {
+    if (PREVIEW || busy || !conversationId || !turns.length) return;
+    const lastTurn = turns[turns.length - 1];
+    if (!["final", "reject", "clarify"].includes(lastTurn.phase)) return;
+    const sig = `${conversationId}:${turns.length}:${lastTurn.phase}`;
+    if (savedSigRef.current === sig) return; // aynı durumu tekrar kaydetme
+    savedSigRef.current = sig;
+    const title = (turns[0]?.question || "Sohbet").slice(0, 80);
+    const domain = lastTurn.data?.domain || (turns.find((t) => t.data?.domain)?.data?.domain || "");
+    const trimmed = turns.map((t) => ({ question: t.question, phase: t.phase, data: t.data }));
+    saveConversation(conversationId, { title, domain, turns: trimmed, files: sessionFilesRef.current });
+  }, [busy, conversationId, turns, saveConversation]);
+
   const doAsk = useCallback((text) => {
     const opts = { wantDilekce, attachments: attachments.length ? attachments : undefined };
+    if (attachments.length) {
+      sessionFilesRef.current = [
+        ...sessionFilesRef.current,
+        ...attachments.map((a) => ({
+          filename: a.filename, ocr_engine: a.ocr_engine, n_chars: a.n_chars, pii: a.pii,
+        })),
+      ];
+    }
     ask(text, opts);
     setInput("");
     setAttachments([]);
@@ -235,6 +293,12 @@ export default function App() {
         text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
       }]);
+      // Backend "Dosyalarım" metadata (best-effort; anonimde no-op, metin saklanmaz).
+      addFileApi({
+        conversation_id: conversationId || "", filename: file.name,
+        ocr_engine: res.engine || "tesseract", n_chars: res.n_chars || res.text.length,
+        pii_flag: !!piiText,
+      });
       // KVKK şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
       showToast(piiText
         ? `Belge eklendi · Dikkat: belgenizde ${piiText} tespit edildi (sorunuzla birlikte işlenecek).`
@@ -297,10 +361,14 @@ export default function App() {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
         onNew={onNewChat}
-        currentTitle={turns[0]?.question || null}
+        onNav={setNavPanel}
+        conversations={conversations}
+        activeConvId={conversationId}
+        onSelectConv={onSelectConv}
+        onDeleteConv={onDeleteConv}
         userMenu={
           <UserMenu
-            prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} clearAll={clearAll}
+            prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} clearAll={clearAllData}
             onClearSession={onNewChat} onAsk={doAsk} showToast={showToast}
           />
         }
@@ -440,6 +508,24 @@ export default function App() {
         </div>
       </aside>
 
+      {navPanel && (
+        <Modal title={NAV_TITLES[navPanel]} wide={navPanel !== "files"} onClose={() => setNavPanel(null)}>
+          {navPanel === "search" && <SearchPanel search={search} onSelect={onSelectConv} />}
+          {navPanel === "library" && (
+            <LibraryPanel
+              sources={allSources()}
+              onSelect={(cid) => { const r = getConversation(cid); if (r) onSelectConv(r); }}
+            />
+          )}
+          {navPanel === "files" && (
+            <FilesPanel
+              files={allFiles()}
+              onSelect={(cid) => { const r = getConversation(cid); if (r) onSelectConv(r); }}
+            />
+          )}
+        </Modal>
+      )}
+
       {beam && <BeamLayer beam={beam} />}
       {/* a11y (§8): kalıcı canlı bölge — ekran okuyucu tüm toast'ları (OCR,
           kopyala, dilekçe, PII uyarısı) duyurur. Görsel toast ayrı render edilir. */}
@@ -502,7 +588,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
               <EvidenceStats confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims} />
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
-                retryCount={d.retryCount} sourceCount={d.sources.length}
+                retryCount={d.retryCount} sourceCount={(d.sources ?? []).length}
                 domain={d.domain}
               />
               {d.prediction && <PredictionCard prediction={d.prediction} />}
