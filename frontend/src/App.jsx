@@ -13,6 +13,10 @@ import { DEMO_TURN } from "./lib/demoTurn.js";
 // Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
 const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
 
+// OCR belge metni üst sınırı — backend api/schemas._MAX_ATTACHMENT_TEXT ile
+// EŞLEŞMELİ (aşılırsa backend 422 döner). Değiştirirsen ikisini birlikte güncelle.
+const MAX_OCR_CHARS = 10000;
+
 // OCR PII şeffaflığı (KVKK): backend pii_counts anahtarları → Türkçe etiket.
 const PII_LABELS = { tckn: "TC Kimlik No", phone: "telefon", email: "e-posta", iban: "IBAN", plate: "plaka" };
 function formatPii(counts) {
@@ -81,9 +85,16 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
       <nav className="sb-nav">
         {SB_NAV.map((n) => {
           const I = Icon[n.icon];
+          const placeholder = n.id !== "new"; // ara/kaynaklar/dosyalar henüz yok
           return (
-            <button className={"sb-item" + (n.id === "new" ? " primary" : "")} key={n.id} onClick={n.id === "new" ? onNew : undefined}>
-              <I />{n.label}
+            <button
+              className={"sb-item" + (n.id === "new" ? " primary" : "")}
+              key={n.id}
+              onClick={n.id === "new" ? onNew : undefined}
+              disabled={placeholder}
+              title={placeholder ? "Yakında" : undefined}
+            >
+              <I />{n.label}{placeholder && <span className="soon">yakında</span>}
             </button>
           );
         })}
@@ -195,7 +206,7 @@ export default function App() {
       const piiText = res.pii_detected ? formatPii(res.pii_counts) : "";
       setAttachments((a) => [...a, {
         filename: file.name, ocr_engine: res.engine || "tesseract",
-        text: res.text.slice(0, 10000), n_chars: res.n_chars || res.text.length,
+        text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
       }]);
       // KVKK şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
