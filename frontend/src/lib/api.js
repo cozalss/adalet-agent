@@ -1,10 +1,38 @@
 /* ADALET backend client — SSE streaming + dilekçe + OCR.
    Vite dev proxy /ask,/api,/multimodal → FastAPI :8000. */
 
-/** Auth token (davet kodu akışından). Şimdilik localStorage; yoksa header yok. */
+/** Auth token (davet kodu / e-posta-şifre akışından). localStorage; yoksa header yok. */
 function authHeaders() {
   const t = localStorage.getItem("adalet-token");
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+/** FastAPI hata gövdesinden kullanıcıya gösterilebilir mesaj çıkar. */
+function errMsg(data, status) {
+  const d = data?.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d) && d[0]?.msg) return d[0].msg; // 422 validation
+  return `İstek başarısız (HTTP ${status})`;
+}
+
+/** POST /auth/register — e-posta/şifre ile hesap oluştur → token. Hatada throw. */
+export async function registerApi(body) {
+  const res = await fetch("/auth/register", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errMsg(data, res.status));
+  return data; // {access_token, sub, role, expires_in}
+}
+
+/** POST /auth/login — e-posta/şifre doğrula → token. Hatada throw. */
+export async function loginApi(body) {
+  const res = await fetch("/auth/login", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errMsg(data, res.status));
+  return data;
 }
 
 /**
@@ -130,7 +158,7 @@ export async function getPreferences() {
   try {
     const res = await fetch("/me/preferences", { headers: authHeaders() });
     if (!res.ok) return null; // 401 anonim / 404 yok → yerel veriyle devam
-    return res.json();
+    return await res.json(); // await: HTML/parse hatası catch'e düşsün
   } catch { return null; }
 }
 
@@ -166,7 +194,7 @@ export async function listConversationsApi(q) {
   try {
     const url = q ? `/me/conversations?q=${encodeURIComponent(q)}` : "/me/conversations";
     const res = await fetch(url, { headers: authHeaders() });
-    return res.ok ? res.json() : null;
+    return res.ok ? await res.json() : null;
   } catch { return null; }
 }
 
@@ -175,7 +203,7 @@ export async function getConversationApi(id) {
   if (!hasToken()) return null;
   try {
     const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, { headers: authHeaders() });
-    return res.ok ? res.json() : null;
+    return res.ok ? await res.json() : null;
   } catch { return null; }
 }
 
@@ -217,7 +245,7 @@ export async function listFilesApi() {
   if (!hasToken()) return null;
   try {
     const res = await fetch("/me/files", { headers: authHeaders() });
-    return res.ok ? res.json() : null;
+    return res.ok ? await res.json() : null;
   } catch { return null; }
 }
 

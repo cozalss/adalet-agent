@@ -119,6 +119,22 @@ class UserPreference(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class UserAccount(SQLModel, table=True):
+    """E-posta/şifre ile kayıtlı kullanıcı hesabı (self-serve kayıt + giriş).
+
+    sub = f"user:{email}" → sohbet geçmişi/tercih fingerprint(sub) ile anahtarlanır.
+    password_hash = pbkdf2_sha256 (api/passwords.py); ham şifre ASLA saklanmaz.
+    email normalize edilir (lowercase + strip) → PK.
+    """
+
+    __tablename__ = "user_account"
+
+    email: str = Field(primary_key=True)
+    password_hash: str
+    name: str = ""
+    created_at: datetime = Field(default_factory=_utcnow, index=True)
+
+
 class Conversation(SQLModel, table=True):
     """Kalıcı sohbet kaydı — kayıtlı kullanıcının geçmişi (cihazlar-arası).
 

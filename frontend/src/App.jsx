@@ -124,7 +124,9 @@ function Sidebar({ collapsed, onToggle, onNew, onNav, conversations, activeConvI
   );
 }
 
-export default function App() {
+export default function App({ auth }) {
+  const authUser = auth?.user || null;
+  const onLogout = auth?.logout || null;
   const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, loadConversation, busy, conversationId } = useChat();
   const { prefs, setPref, toggleDomain, clearAll } = usePrefs();
   const { conversations, saveConversation, removeConversation, getConversation, clearAllConversations, search, allSources, allFiles } = useConversations();
@@ -370,6 +372,7 @@ export default function App() {
           <UserMenu
             prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} clearAll={clearAllData}
             onClearSession={onNewChat} onAsk={doAsk} showToast={showToast}
+            user={authUser} onLogout={onLogout}
           />
         }
       />
@@ -407,8 +410,8 @@ export default function App() {
             {!started ? (
               <div className="cg-hero">
                 <h1 className="cg-greet">
-                  {(prefs.displayName || "").trim()
-                    ? <>Nasıl yardımcı olabilirim, <span className="accent">{prefs.displayName.trim().split(/\s+/)[0]}</span>?</>
+                  {(authUser?.name || prefs.displayName || "").trim()
+                    ? <>Nasıl yardımcı olabilirim, <span className="accent">{(authUser?.name || prefs.displayName).trim().split(/\s+/)[0]}</span>?</>
                     : <>Bugün size nasıl <span className="accent">yardımcı</span> olabilirim?</>}
                 </h1>
                 {/* Trust signals — abtest.design D11, +44% güven etkisi */}

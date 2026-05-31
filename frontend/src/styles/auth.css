@@ -1,0 +1,138 @@
+/* ============================================================
+   ADALET giriş / kayıt — editorial split-screen
+   Sol: deep-navy marka paneli (sabit). Sağ: warm form kartı.
+   ============================================================ */
+
+.auth-page {
+  height: 100dvh; display: flex; overflow: hidden;
+  background: var(--bg);
+  font-family: var(--font-body);
+}
+
+/* ---------- sol: marka paneli (navy, sabit editorial yüzey) ---------- */
+.auth-brand {
+  flex: 1 1 46%; position: relative; display: flex; align-items: center;
+  color: #f5f0e8; overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 15% 0%, #14233c 0%, transparent 55%),
+    radial-gradient(100% 80% at 90% 100%, #0e1d34 0%, transparent 50%),
+    #0a1628;
+}
+.auth-brand::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(60% 50% at 80% 20%, rgba(212,165,116,0.10), transparent 60%);
+  pointer-events: none;
+}
+.auth-brand-inner { position: relative; z-index: 1; padding: clamp(36px, 5vw, 80px); max-width: 520px; }
+.auth-logo {
+  display: flex; align-items: center; gap: 12px; font-family: var(--font-display);
+  font-size: 22px; letter-spacing: .14em; font-weight: 600; color: #f5f0e8;
+}
+.auth-logo-mark {
+  width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px;
+  background: linear-gradient(135deg, #d4a574, #b07a45); color: #0a1628;
+  box-shadow: 0 6px 20px rgba(212,165,116,0.28);
+}
+.auth-logo-mark svg { width: 22px; height: 22px; }
+.auth-tagline {
+  margin: 34px 0 30px; font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(28px, 3vw, 40px); line-height: 1.18; letter-spacing: -0.01em; color: #f5f0e8;
+}
+.auth-tagline em { font-style: italic; color: #e2bd91; }
+.auth-trust { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 15px; }
+.auth-trust li { display: flex; align-items: center; gap: 13px; font-size: 14.5px; color: rgba(245,240,232,0.82); }
+.auth-trust-ic {
+  flex: 0 0 auto; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px;
+  background: rgba(212,165,116,0.14); color: #d4a574;
+}
+.auth-trust-ic svg { width: 17px; height: 17px; }
+.auth-brand-foot {
+  margin: 38px 0 0; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .03em;
+  color: rgba(245,240,232,0.45);
+}
+
+/* ---------- sağ: form ---------- */
+.auth-form-wrap { flex: 1 1 54%; display: grid; place-items: center; padding: 28px; overflow-y: auto; }
+.auth-card { width: 100%; max-width: 400px; }
+
+.auth-tabs {
+  display: flex; gap: 4px; padding: 4px; border-radius: 13px; margin-bottom: 26px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.auth-tabs button {
+  flex: 1; padding: 10px; border: 0; border-radius: 10px; background: transparent;
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--text-2); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.auth-tabs button.on { background: var(--surface-strong); color: var(--text); box-shadow: var(--shadow-sm); }
+
+.auth-title { margin: 0 0 6px; font-family: var(--font-display); font-size: 26px; font-weight: 500; color: var(--text); }
+.auth-sub { margin: 0 0 24px; font-size: 14px; line-height: 1.5; color: var(--text-3); }
+
+.auth-form { display: flex; flex-direction: column; gap: 15px; }
+.auth-field { display: flex; flex-direction: column; gap: 7px; }
+.auth-field > span { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.auth-field > span small { color: var(--text-3); font-weight: 400; }
+.auth-field input, .auth-pw input {
+  width: 100%; padding: 12px 14px; border-radius: 11px; border: 1px solid var(--border-strong);
+  background: var(--surface-strong); color: var(--text); font: inherit; font-size: 15px;
+  transition: border-color .14s, box-shadow .14s;
+}
+.auth-field input:focus, .auth-pw input:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.auth-pw { position: relative; }
+.auth-pw input { padding-right: 64px; }
+.auth-pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: 0; background: transparent; color: var(--accent-text); font: inherit; font-size: 12.5px;
+  padding: 6px 8px; border-radius: 7px; cursor: pointer;
+}
+.auth-pw-toggle:hover { background: var(--accent-soft); }
+
+.auth-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--text-2); cursor: pointer; }
+.auth-consent input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex: 0 0 auto; }
+
+.auth-error {
+  display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-radius: 11px;
+  background: var(--danger-soft); border: 1px solid var(--danger-soft);
+  color: var(--danger); font-size: 13px; line-height: 1.4;
+}
+.auth-error svg { width: 16px; height: 16px; flex: 0 0 auto; }
+
+.auth-submit {
+  margin-top: 6px; height: 48px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--accent); color: var(--accent-on); font: inherit; font-size: 15px; font-weight: 600;
+  display: grid; place-items: center; transition: filter .14s, transform .06s;
+}
+.auth-submit:hover:not(:disabled) { filter: brightness(1.05); }
+.auth-submit:active:not(:disabled) { transform: translateY(1px); }
+.auth-submit:disabled { opacity: .7; cursor: default; }
+.auth-spin {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; animation: auth-spin .7s linear infinite;
+}
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+
+.auth-divider {
+  display: flex; align-items: center; gap: 14px; margin: 22px 0 16px;
+  color: var(--text-3); font-size: 12px;
+}
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+.auth-guest {
+  width: 100%; height: 46px; border: 1px solid var(--border-strong); border-radius: 12px;
+  background: transparent; color: var(--text); font: inherit; font-size: 14.5px; cursor: pointer;
+  transition: background .14s, border-color .14s;
+}
+.auth-guest:hover { background: var(--surface); border-color: var(--accent); }
+.auth-disclaimer { margin: 20px 0 0; text-align: center; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+
+/* ---------- responsive: marka panelini gizle/sadeleştir ---------- */
+@media (max-width: 860px) {
+  .auth-brand { display: none; }
+  .auth-form-wrap { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-spin { animation: none; }
+}

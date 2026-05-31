@@ -28,12 +28,19 @@ from api.audit import AuditEvent
 from api.audit import emit as emit_audit
 from api.limiter import INVITE_RATE, limiter
 from api.middleware.auth import Principal, authenticate, issue_token
+from api.passwords import hash_password, verify_password
 from api.pii import fingerprint
+from db.repositories.users import get_user_repo, normalize_email
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 INVITE_CODES_FILE = os.getenv("INVITE_CODES_FILE", "")
+USERS_STORE_FILE = Path(os.getenv("USERS_STORE_FILE", "data/users.json"))
+
+_EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+# E-posta/şifre auth rate limit (IP başına brute-force koruması).
+_AUTH_RATE = "10/minute"
 
 
 class InviteAcceptRequest(BaseModel):
@@ -64,6 +71,22 @@ class PrincipalInfo(BaseModel):
     kind: str
     role: str
     anonymous: bool
+    name: str = ""
+    email: str = ""
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(..., pattern=_EMAIL_RE, max_length=120)
+    password: str = Field(..., min_length=8, max_length=128)
+    name: str = Field(default="", max_length=80)
+    privacy_consent: bool = Field(
+        ..., description="Gizlilik ve veri işleme bilgilendirmesini onaylıyorum"
+    )
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., max_length=120)
+    password: str = Field(..., max_length=128)
 
 
 def _load_invites() -> dict[str, dict[str, object]]:
@@ -168,14 +191,79 @@ async def accept_invite(
     )
 
 
+def _user_token(email: str, name: str) -> TokenResponse:
+    """Kayıtlı kullanıcı için JWT + TokenResponse üret (register/login ortak)."""
+    from api.middleware.auth import JWT_TTL_SECONDS
+    sub = f"user:{email}"
+    token = issue_token(sub, role="user", email=email, name=name or "")
+    emit_audit(AuditEvent(
+        event="user_authenticated",
+        principal=Principal(sub=sub, kind="user", role="user"), domain="auth",
+    ))
+    # Gizlilik: ham email log'a yazma; fingerprint yeterli.
+    log.info("user_authenticated", sub_hash=fingerprint(sub))
+    return TokenResponse(
+        access_token=token, expires_in=JWT_TTL_SECONDS, sub=sub, role="user",
+    )
+
+
+@router.post("/register", response_model=TokenResponse)
+@limiter.limit(_AUTH_RATE)
+async def register(request: Request, req: RegisterRequest) -> TokenResponse:
+    """E-posta/şifre ile yeni hesap → JWT. Şifre pbkdf2 ile hash'lenir."""
+    _ = request  # slowapi key_func IP'den okur
+    if not req.privacy_consent:
+        raise HTTPException(400, "Gizlilik onayı şart")
+    email = normalize_email(req.email)
+    repo = get_user_repo(USERS_STORE_FILE)
+    created = await repo.create(email, hash_password(req.password), req.name.strip())
+    if not created:
+        raise HTTPException(409, "Bu e-posta zaten kayıtlı")
+    return _user_token(email, req.name.strip())
+
+
+_DUMMY_HASH: str | None = None
+
+
+def _dummy_hash() -> str:
+    """Zamanlama eşitleyici — kullanıcı yokken de bir pbkdf2 çalıştır (enumeration).
+
+    İlk kullanımda hesaplanır (import maliyeti yok); aynı iterasyon → eşit gecikme.
+    """
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = hash_password("__timing_equalizer__")
+    return _DUMMY_HASH
+
+
+@router.post("/login", response_model=TokenResponse)
+@limiter.limit(_AUTH_RATE)
+async def login(request: Request, req: LoginRequest) -> TokenResponse:
+    """E-posta/şifre doğrulama → JWT. Generic hata + sabit-zaman (enumeration koruması)."""
+    _ = request
+    email = normalize_email(req.email)
+    repo = get_user_repo(USERS_STORE_FILE)
+    user = await repo.get(email)
+    # Kullanıcı yoksa da pbkdf2 çalıştır → yanıt süresi eşitlenir (timing side-channel).
+    stored = str(user.get("password_hash", "")) if user else _dummy_hash()
+    ok = verify_password(req.password, stored)
+    if user is None or not ok:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="E-posta veya şifre hatalı",
+        )
+    return _user_token(email, str(user.get("name", "")))
+
+
 @router.get("/me", response_model=PrincipalInfo)
 async def me(p: Principal = Depends(authenticate)) -> PrincipalInfo:
-    """Token verify + principal echo."""
+    """Token verify + principal echo (isim/email claim'leriyle)."""
     if p.anonymous:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="anonymous — Bearer token gerekli",
         )
+    claims = p.claims or {}
     return PrincipalInfo(
         sub=p.sub, kind=p.kind, role=p.role, anonymous=p.anonymous,
+        name=str(claims.get("name", "")), email=str(claims.get("email", "")),
     )

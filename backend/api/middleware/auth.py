@@ -42,6 +42,12 @@ log = structlog.get_logger()
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "0").lower() in {"1", "true", "yes"}
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+# alg-confusion koruması: yalnız simetrik HMAC algoritmaları kabul (asla "none"
+# veya asimetrik). Geçersiz konfig → güvenli default'a düş + hata logla (fail-closed).
+_ALLOWED_JWT_ALGS = {"HS256", "HS384", "HS512"}
+if JWT_ALGORITHM not in _ALLOWED_JWT_ALGS:
+    log.error("jwt_algorithm_invalid", configured=JWT_ALGORITHM, fallback="HS256")
+    JWT_ALGORITHM = "HS256"
 JWT_TTL_SECONDS = int(os.getenv("JWT_TTL_SECONDS", "86400"))  # 24h
 JWT_ISSUER = os.getenv("JWT_ISSUER", "adalet-agent")
 JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "adalet-agent-api")

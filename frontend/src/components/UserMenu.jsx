@@ -48,15 +48,17 @@ const VIEW_TITLES = {
 };
 const WIDE_VIEWS = new Set(["how", "scope"]);
 
-export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSession, onAsk, showToast }) {
+export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSession, onAsk, showToast, user, onLogout }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(null);
   const rootRef = useRef(null);
   const btnRef = useRef(null);
 
-  const name = (prefs.displayName || "").trim();
-  const shown = name || "Misafir";
+  const authed = !!user;
+  const dispName = (user?.name || user?.email || prefs.displayName || "").trim();
+  const shown = dispName || "Misafir";
   const initial = (shown[0] || "M").toLocaleUpperCase("tr-TR");
+  const subtitle = authed ? (user.email || "Hesabım") : "Misafir oturum · geçmiş bu cihazda";
 
   // Menü dışına tıkla / Esc → kapat (modal açıkken modal kendi Esc'ini yönetir).
   useEffect(() => {
@@ -88,7 +90,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
             <span className="acc-id-ava">{initial}</span>
             <span className="acc-id-tx">
               <b>{shown}</b>
-              <span><Icon.lock style={{ width: 11, height: 11 }} /> Misafir oturum · geçmiş bu cihazda</span>
+              <span><Icon.lock style={{ width: 11, height: 11 }} /> {subtitle}</span>
             </span>
             <span className="acc-id-edit"><Icon.pencil style={{ width: 14, height: 14 }} /></span>
           </button>
@@ -106,9 +108,14 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
             </div>
           ))}
           <div className="acc-group">
-            <button className="acc-item danger-text" role="menuitem" onClick={() => { setOpen(false); onClearSession?.(); }}>
+            <button className="acc-item" role="menuitem" onClick={() => { setOpen(false); onClearSession?.(); }}>
               <span className="acc-item-ic"><Icon.refresh /></span>Bu oturumu temizle
             </button>
+            {authed && (
+              <button className="acc-item danger-text" role="menuitem" onClick={() => { setOpen(false); onLogout?.(); }}>
+                <span className="acc-item-ic"><Icon.logout /></span>Oturumu kapat
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -119,7 +126,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
         aria-label="Hesap menüsünü aç"
       >
         <span className="avatar">{initial}</span>
-        <span className="who"><b>{shown}</b><span>Misafir oturum</span></span>
+        <span className="who"><b>{shown}</b><span>{authed ? "Hesabım" : "Misafir oturum"}</span></span>
         <span className="grid-ic"><Icon.chevron style={{ transform: open ? "rotate(0)" : "rotate(180deg)" }} /></span>
       </button>
 
