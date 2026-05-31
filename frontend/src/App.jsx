@@ -320,6 +320,11 @@ export default function App() {
                     wantDilekce={wantDilekce} onToggleDilekce={() => setWantDilekce((v) => !v)}
                     onStop={stop}
                   />
+                  {/* daisyUI kbd deseni — klavye kısayolu ipuçları (keşfedilebilirlik) */}
+                  <div className="kbd-hints">
+                    <span><kbd className="kbd">Enter</kbd> gönder</span>
+                    <span><kbd className="kbd">Shift</kbd>+<kbd className="kbd">Enter</kbd> yeni satır</span>
+                  </div>
                   {attachments.length > 0 && <AttachRow attachments={attachments} onClear={() => setAttachments([])} />}
                   <div className="domain-cards">
                     {DOMAIN_CARDS.map((d, i) => {
