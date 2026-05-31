@@ -1,13 +1,15 @@
 /* ADALET /sor — ana uygulama (gerçek backend'e bağlı).
    Prototip tasarımı korunur; mock motor yerine useChat (SSE). */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Icon, SB_NAV, DOMAIN_CARDS } from "./components/icons.jsx";
+import { Icon, SB_NAV, CIVIL_DOMAINS } from "./components/icons.jsx";
 import {
   StreamStepper, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats } from "./components/panels.jsx";
+import { UserMenu } from "./components/UserMenu.jsx";
 import { useChat } from "./hooks/useChat.js";
+import { usePrefs } from "./hooks/usePrefs.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
 
 // Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
@@ -29,6 +31,7 @@ import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
 import "./styles/app-extra.css";
+import "./styles/account.css";
 
 /* ---------- ChatGPT-style input pill ---------- */
 function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachCount, wantDilekce, onToggleDilekce, onStop }) {
@@ -75,7 +78,7 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
 }
 
 /* ---------- Sidebar ---------- */
-function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
+function Sidebar({ collapsed, onToggle, onNew, currentTitle, userMenu }) {
   return (
     <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
       <div className="sb-top">
@@ -112,17 +115,14 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
           </p>
         )}
       </div>
-      <div className="sb-user">
-        <span className="avatar">C</span>
-        <span className="who"><b>Cem Özal</b><span>Plus</span></span>
-        <span className="grid-ic"><Icon.grid /></span>
-      </div>
+      {userMenu}
     </aside>
   );
 }
 
 export default function App() {
   const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, busy, conversationId } = useChat();
+  const { prefs, setPref, toggleDomain, clearAll } = usePrefs();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -140,6 +140,18 @@ export default function App() {
 
   const last = turns[turns.length - 1];
   const started = turns.length > 0;
+
+  // Boş ekran kartları: tercih edilen alanlar öne (usePrefs); ilk 4 gösterilir.
+  // Tercih yoksa CIVIL_DOMAINS doğal sırası (tüketici/iş/kira/icra…).
+  const heroCards = useMemo(() => {
+    const pref = prefs.preferredDomains;
+    if (!pref.length) return CIVIL_DOMAINS.slice(0, 4);
+    const ordered = [...CIVIL_DOMAINS].sort((a, b) => {
+      const ai = pref.indexOf(a.id), bi = pref.indexOf(b.id);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+    return ordered.slice(0, 4);
+  }, [prefs.preferredDomains]);
 
   // stick-to-bottom (vercel deseni, kütüphanesiz): yalnız kullanıcı en alttaysa
   // otomatik kaydır — yukarı çıkıp eski cevap okurken stream zıplatmasın.
@@ -286,6 +298,12 @@ export default function App() {
         onToggle={() => setSidebarCollapsed((c) => !c)}
         onNew={onNewChat}
         currentTitle={turns[0]?.question || null}
+        userMenu={
+          <UserMenu
+            prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} clearAll={clearAll}
+            onClearSession={onNewChat} onAsk={doAsk} showToast={showToast}
+          />
+        }
       />
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onFile} />
 
@@ -320,7 +338,11 @@ export default function App() {
           <section className="chat-panel">
             {!started ? (
               <div className="cg-hero">
-                <h1 className="cg-greet">Nasıl yardımcı olabilirim, <span className="accent">Cem</span>?</h1>
+                <h1 className="cg-greet">
+                  {(prefs.displayName || "").trim()
+                    ? <>Nasıl yardımcı olabilirim, <span className="accent">{prefs.displayName.trim().split(/\s+/)[0]}</span>?</>
+                    : <>Bugün size nasıl <span className="accent">yardımcı</span> olabilirim?</>}
+                </h1>
                 {/* Trust signals — abtest.design D11, +44% güven etkisi */}
                 <div className="trust-signals">
                   <span><Icon.check />Yargıtay kararlarıyla doğrulandı</span>
@@ -341,18 +363,18 @@ export default function App() {
                   </div>
                   {attachments.length > 0 && <AttachRow attachments={attachments} onClear={() => setAttachments([])} />}
                   <div className="domain-cards">
-                    {DOMAIN_CARDS.map((d, i) => {
+                    {heroCards.map((d, i) => {
                       const I = Icon[d.icon];
                       return (
                         <button
-                          className="domain-card" key={d.label}
+                          className="domain-card" key={d.id}
                           style={{ animationDelay: i * 60 + "ms" }}
-                          onClick={() => doAsk(d.q)}
+                          onClick={() => doAsk(d.ex)}
                         >
                           <span className="dc-ic"><I /></span>
                           <span className="dc-tx">
                             <span className="dc-label">{d.label} Hukuku</span>
-                            <span className="dc-q">{d.q}</span>
+                            <span className="dc-q">{d.ex}</span>
                           </span>
                         </button>
                       );

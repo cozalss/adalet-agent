@@ -72,3 +72,6 @@ tmp/
 *.tmp
 _eval*.txt
 _eval*.json
+
+# Playwright MCP test artifacts
+.playwright-mcp/

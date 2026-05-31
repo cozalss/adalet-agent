@@ -169,6 +169,32 @@ export const Icon = {
       <circle cx="12" cy="12" r="9" /><path d="M8.5 12.3l2.4 2.4 4.6-5" />
     </svg>
   ),
+  // Hesap menüsü: gizlilik (kilit) · erişilebilirlik (sürgüler) · açık kaynak
+  lock: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3M12 15v2" />
+    </svg>
+  ),
+  sliders: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M5 8h9M18 8h1M5 16h1M10 16h9" /><circle cx="16" cy="8" r="2" /><circle cx="8" cy="16" r="2" />
+    </svg>
+  ),
+  code: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M9 8l-4 4 4 4M15 8l4 4-4 4" />
+    </svg>
+  ),
+  logout: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M14 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8M16 12H9M16 12l-3-3M16 12l-3 3" />
+    </svg>
+  ),
+  close: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  ),
 };
 
 export const SB_NAV = [
@@ -178,31 +204,21 @@ export const SB_NAV = [
   { id: "projects", label: "Dosyalarım", icon: "grid" },
 ];
 
-export const CG_SUGGEST = [
-  { label: "Dilekçe taslağı", icon: "pencil" },
-  { label: "Hakkımı öğren", icon: "scale" },
-  { label: "Süre / zamanaşımı sor", icon: "clock" },
+// 8 sivil hukuk alanı — backend Domain literal'i ile birebir (id eşleşmeli).
+// Hesap menüsü "Hangi konularda" haritası + erişilebilirlik tercih çipleri kullanır.
+export const CIVIL_DOMAINS = [
+  { id: "tuketici", label: "Tüketici", icon: "cart", ex: "İnternetten aldığım ürün ayıplı çıktı, iade hakkım var mı?" },
+  { id: "isHukuku", label: "İş", icon: "bag", ex: "İşten çıkarıldım, kıdem tazminatım ne kadar olur?" },
+  { id: "kira", label: "Kira", icon: "home", ex: "Ev sahibim fahiş kira zammı istiyor, yasal sınır nedir?" },
+  { id: "icra", label: "İcra", icon: "coin", ex: "Hakkımda icra takibi başlatıldı, nasıl itiraz ederim?" },
+  { id: "trafik", label: "Trafik", icon: "car", ex: "Trafik cezasına hangi sürede ve nasıl itiraz edebilirim?" },
+  { id: "vergi", label: "Vergi", icon: "coin", ex: "Vergi cezası tebliğ edildi, dava açma sürem ne kadar?" },
+  { id: "tapu", label: "Tapu", icon: "home", ex: "Tapuda hatalı kayıt var, düzeltme için ne yapmalıyım?" },
+  { id: "idari", label: "İdari", icon: "scale", ex: "İdari işleme karşı nasıl dava açılır, süre nedir?" },
 ];
 
-export const DOMAINS = [
-  { id: "kira", label: "Kira", icon: "home" },
-  { id: "is", label: "İş", icon: "bag" },
-  { id: "tuketici", label: "Tüketici", icon: "cart" },
-  { id: "trafik", label: "Trafik", icon: "car" },
-  { id: "vergi", label: "Vergi", icon: "coin" },
-];
-
-export const EXAMPLES = [
-  { t: "İnternetten aldığım telefon iki gün sonra bozuldu, ne yapabilirim?" },
-  { t: "Kiracımı evden çıkarmak istiyorum, nasıl yapabilirim?" },
-  { t: "2 yıl çalıştığım işten çıkarıldım, kıdem tazminatım ne kadar olur?" },
-];
-
-// Boş-durum domain kartları — ADALET'in sivil hukuk kapsamını görünür kılar
-// (vercel suggested-actions deseni). Her kart örnek soruya eşlenir, gönderir.
-export const DOMAIN_CARDS = [
-  { icon: "cart", label: "Tüketici", q: "İnternetten aldığım ürün ayıplı çıktı, iade ve para iadesi hakkım var mı?" },
-  { icon: "bag", label: "İş", q: "2 yıl çalıştığım işten çıkarıldım, kıdem ve ihbar tazminatım ne kadar olur?" },
-  { icon: "home", label: "Kira", q: "Ev sahibim kira artışını çok yüksek tuttu, yasal sınır nedir, itiraz edebilir miyim?" },
-  { icon: "car", label: "Trafik", q: "Kusurlu bulunduğum trafik cezasına nasıl ve hangi sürede itiraz edebilirim?" },
+// Kapsam DIŞI — bilerek reddedilen alanlar (etik kırmızı çizgi, dürüst iletişim).
+export const OUT_OF_SCOPE = [
+  { label: "Ceza hukuku", why: "Uzmanlık ve yüksek risk gerektirir — yetkin değiliz." },
+  { label: "Aile hukuku", why: "Boşanma/nafaka/velayet etik açıdan hassas." },
 ];

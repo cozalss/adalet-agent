@@ -93,3 +93,27 @@ class EvalRun(SQLModel, table=True):
     n_cases: int = 0
     metrics: dict[str, Any] = Field(default_factory=dict, sa_column=sa.Column(sa.JSON))
     notes: str = ""
+
+
+class UserPreference(SQLModel, table=True):
+    """Kullanıcı UI tercihleri — auth'lu kullanıcı için cihazlar-arası senkron.
+
+    KVKK kırmızı çizgi:
+    - PK = sub_hash (fingerprint(principal.sub)), HAM email DEĞİL.
+    - Yalnız hassas-OLMAYAN UI tercihleri: görünen ad, yazı boyutu, hareket,
+      yüksek kontrast, tercih edilen hukuk alanları. Soru/cevap/dilekçe BURADA YOK.
+    - Anonim kullanıcı bu tabloya hiç ulaşmaz (route 401) → tercihleri yalnız
+      tarayıcı localStorage'ında kalır (sunucusuz, veri-minimizasyon).
+    """
+
+    __tablename__ = "user_preference"
+
+    sub_hash: str = Field(primary_key=True)
+    display_name: str = ""
+    text_scale: str = "normal"  # "compact" | "normal" | "large"
+    reduce_motion: bool = False
+    high_contrast: bool = False
+    preferred_domains: list[str] = Field(
+        default_factory=list, sa_column=sa.Column(sa.JSON)
+    )
+    updated_at: datetime = Field(default_factory=_utcnow)

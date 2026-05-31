@@ -40,6 +40,7 @@ from api.routes.auth import router as auth_router
 from api.routes.dilekce import router as dilekce_router
 from api.routes.feedback import router as feedback_router
 from api.routes.multimodal import router as multimodal_router
+from api.routes.preferences import router as preferences_router
 from api.schemas import HealthResponse
 
 log = structlog.get_logger()
@@ -316,7 +317,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allow_origins,
     allow_credentials=_allow_credentials,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Requested-With"],
 )
 log.info("cors_configured", origins=_allow_origins, credentials=_allow_credentials)
@@ -330,6 +331,7 @@ app.include_router(multimodal_router)
 app.include_router(auth_router)
 app.include_router(feedback_router)
 app.include_router(dilekce_router)
+app.include_router(preferences_router)
 
 
 @app.get("/health", response_model=HealthResponse)

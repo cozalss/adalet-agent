@@ -115,6 +115,47 @@ export async function clearSession(conversationId) {
   } catch { /* yoksay — temizlik en iyi çaba */ }
 }
 
+/* ---------- Kullanıcı tercihleri (/me/preferences) — cihazlar-arası senkron.
+   Birincil kaynak localStorage (anonim çalışır); bu uçlar yalnız auth'lu (token
+   var) kullanıcıda iş görür. Anonim → 401 (sessizce yutulur, yerel veri kalır). */
+
+/** Token yoksa backend tercih senkronu anlamsız (anonim) → erken çık. */
+function hasToken() {
+  return !!localStorage.getItem("adalet-token");
+}
+
+/** GET /me/preferences — auth'lu kullanıcının sunucudaki tercihleri (yoksa null). */
+export async function getPreferences() {
+  if (!hasToken()) return null;
+  try {
+    const res = await fetch("/me/preferences", { headers: authHeaders() });
+    if (!res.ok) return null; // 401 anonim / 404 yok → yerel veriyle devam
+    return res.json();
+  } catch { return null; }
+}
+
+/** PUT /me/preferences — tercihleri sunucuya yaz (best-effort, fire-and-forget). */
+export async function putPreferences(prefs) {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch("/me/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(prefs),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+/** DELETE /me/preferences — KVKK silme hakkı (sunucu kaydını temizle). */
+export async function deletePreferences() {
+  if (!hasToken()) return false;
+  try {
+    const res = await fetch("/me/preferences", { method: "DELETE", headers: authHeaders() });
+    return res.ok;
+  } catch { return false; }
+}
+
 /** Backend ayakta mı? (mock fallback kararı için). */
 export async function backendHealthy() {
   try {
