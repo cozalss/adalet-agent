@@ -589,9 +589,9 @@ a.btn:not(:disabled):active {
   animation: pulse-ring 1.5s ease-out infinite;
 }
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(176, 118, 74, .65); }
-  70%  { box-shadow: 0 0 0 8px rgba(176, 118, 74, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(176, 118, 74, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(158, 106, 67, .65); }
+  70%  { box-shadow: 0 0 0 8px rgba(158, 106, 67, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(158, 106, 67, 0); }
 }
 
 /* A4 — Verified claim success ripple (designspells.com — D17)

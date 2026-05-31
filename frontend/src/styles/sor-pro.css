@@ -43,7 +43,7 @@ body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
   content: ""; position: absolute; inset: -20% -10% auto -10%; height: 130%;
   z-index: 0; pointer-events: none; filter: blur(60px); opacity: .55;
   background:
-    radial-gradient(38% 40% at 22% 32%, rgba(176,118,74,.34), transparent 70%),
+    radial-gradient(38% 40% at 22% 32%, rgba(158,106,67,.34), transparent 70%),
     radial-gradient(34% 38% at 78% 28%, rgba(125,122,78,.26), transparent 70%),
     radial-gradient(40% 45% at 60% 75%, rgba(200,150,96,.22), transparent 72%);
   animation: aurora 18s ease-in-out infinite alternate;
@@ -105,7 +105,7 @@ body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
 }
 .assistant-row .ava {
   background: linear-gradient(150deg, #c9904c, var(--accent));
-  box-shadow: 0 3px 10px rgba(176,118,74,.3);
+  box-shadow: 0 3px 10px rgba(158,106,67,.3);
 }
 
 /* stepper → premium shimmer label */
@@ -183,7 +183,7 @@ body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
 .src-card::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
   transition: opacity .3s;
-  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), rgba(176,118,74,.16), transparent 60%);
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), rgba(158,106,67,.16), transparent 60%);
 }
 .src-card:hover { box-shadow: var(--shadow-lg); }
 .src-card:hover::before { opacity: 1; }
@@ -214,7 +214,7 @@ body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
 .sb-item, .sb-chat { transition: background .16s, color .16s, transform .16s var(--ease-spring); }
 .sb-item:hover, .sb-chat:hover { transform: translateX(2px); }
 .sb-chat.active { box-shadow: inset 2px 0 0 var(--accent); }
-.sb-user .avatar { box-shadow: 0 3px 10px rgba(176,118,74,.3); }
+.sb-user .avatar { box-shadow: 0 3px 10px rgba(158,106,67,.3); }
 
 .main-head .model { font-family: var(--font-display); font-weight: 500; }
 .domain-chip { animation: rise-in .5s var(--ease-spring) both; }

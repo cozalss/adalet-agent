@@ -21,15 +21,19 @@
   --surface-strong: #ffffff;
   --text: #16130e;
   --text-2: #6a6256;
-  --text-3: #98907f;
+  /* WCAG AA (Awesome-Design-Tools kontrast denetimi): text-3/accent/success
+     beyaz üstünde 4.5:1'i geçecek şekilde minimal koyulaştırıldı (görünüm korundu).
+     text-3 #98907f→#7d7668 (3.17→4.5), accent #b0764a→#9e6a43 (buton metni
+     3.79→4.57), success #6f8a5b→#657e53 (3.84→4.5). */
+  --text-3: #7d7668;
   --border: rgba(22, 19, 14, 0.10);
   --border-strong: rgba(22, 19, 14, 0.18);
-  --accent: #b0764a;
+  --accent: #9e6a43;
   --accent-text: #8f5d38;
-  --accent-soft: rgba(176, 118, 74, 0.12);
+  --accent-soft: rgba(158, 106, 67, 0.12);
   --accent-on: #ffffff;
-  --success: #6f8a5b;
-  --success-soft: rgba(111, 138, 91, 0.14);
+  --success: #657e53;
+  --success-soft: rgba(101, 126, 83, 0.14);
   --danger: #b24a3e;
   --danger-soft: rgba(178, 74, 62, 0.12);
   --shadow-sm: 0 1px 2px rgba(60, 45, 25, 0.06);
