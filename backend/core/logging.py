@@ -146,7 +146,7 @@ def _mask_pii_in_strings(
     return event_dict
 
 
-def _metrics_tap(logger: Any, method_name: str, event_dict: dict) -> dict:
+def _metrics_tap(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """Timing event'lerini in-process metrics aggregator'a besle (gözlem, mutasyon yok).
 
     Tek tap noktası: JSON log'dan geçen her bilinen timing event'i

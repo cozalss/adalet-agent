@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from threading import Lock
+from typing import Any
 
 # Pencere boyutu — son N örnek üzerinden yüzdelik. Sabit bellek.
 _WINDOW = 500
@@ -41,7 +42,7 @@ class RollingPercentiles:
         with self._lock:
             self._samples.append(float(value))
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, Any]:
         with self._lock:
             vals = sorted(self._samples)
         n = len(vals)
@@ -79,7 +80,7 @@ _REGISTRY: dict[str, RollingPercentiles] = {
 }
 
 
-def record_stream_timings(timings: dict) -> None:
+def record_stream_timings(timings: dict[str, Any]) -> None:
     """SSE `timing` event payload'unu metriklere kaydet.
 
     timings = {first_event_ms, retrieval_done_ms, first_token_ms, final_ms}.
@@ -103,7 +104,7 @@ _EVENT_TAPS: dict[str, list[tuple[str, str]]] = {
 }
 
 
-def record_event(event_name: str, event_dict: dict) -> None:
+def record_event(event_name: str, event_dict: dict[str, Any]) -> None:
     """structlog tap'inden çağrılır — bilinen timing event'lerini aggregator'a yaz.
 
     stream_timings ayrı (record_stream_timings ile 4 stage'e dağıtılır).
@@ -116,7 +117,7 @@ def record_event(event_name: str, event_dict: dict) -> None:
         _REGISTRY[metric_name].record(event_dict.get(field))
 
 
-def snapshot_all() -> dict:
+def snapshot_all() -> dict[str, dict[str, Any]]:
     """Tüm metriklerin yüzdelik snapshot'ı — /metrics/latency için."""
     return {name: m.snapshot() for name, m in _REGISTRY.items()}
 

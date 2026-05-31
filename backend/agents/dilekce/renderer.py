@@ -23,6 +23,7 @@ import io
 import re
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import structlog
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
@@ -198,7 +199,7 @@ def _safe_filename(template_id: str, tarih: str, ext: str = "pdf") -> str:
 _INLINE_RE = re.compile(r"(\*\*[^*]+\*\*|(?<!\*)\*[^*]+\*(?!\*))")
 
 
-def _add_inline_runs(paragraph, text: str) -> None:
+def _add_inline_runs(paragraph: Any, text: str) -> None:
     """Bir docx paragraph'a **bold**/*italic* segmentlerini run olarak ekle.
 
     PDF'teki _mark_to_xml ile aynı markdown'ı işler ama XML değil docx run üretir.

@@ -23,6 +23,7 @@ import json
 import os
 import threading
 from collections import OrderedDict
+from typing import Any
 
 import structlog
 
@@ -53,14 +54,14 @@ class VerificationCache:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._mem: OrderedDict[str, dict] = OrderedDict()
-        self._redis = None
+        self._mem: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._redis: Any = None  # redis.Redis | None — lazy import, runtime'da Any
         self._redis_tried = False
         self.hits = 0
         self.misses = 0
 
     # ---- Redis lazy bağlanma (başarısızsa bellek fallback) ----
-    def _get_redis(self):
+    def _get_redis(self) -> Any:
         if self._redis is not None or self._redis_tried:
             return self._redis
         self._redis_tried = True
@@ -80,14 +81,14 @@ class VerificationCache:
         return self._redis
 
     # ---- bellek LRU yardımcıları ----
-    def _mem_get(self, key: str) -> dict | None:
+    def _mem_get(self, key: str) -> dict[str, Any] | None:
         with self._lock:
             if key in self._mem:
                 self._mem.move_to_end(key)
                 return self._mem[key]
         return None
 
-    def _mem_set(self, key: str, val: dict) -> None:
+    def _mem_set(self, key: str, val: dict[str, Any]) -> None:
         with self._lock:
             self._mem[key] = val
             self._mem.move_to_end(key)
@@ -95,11 +96,11 @@ class VerificationCache:
                 self._mem.popitem(last=False)
 
     # ---- public API ----
-    def get_many(self, keys: list[str]) -> dict[str, dict]:
+    def get_many(self, keys: list[str]) -> dict[str, dict[str, Any]]:
         """Verilen key'lerden cache'te olanları döndür ({key: {l,e,c}})."""
         if not NLI_CACHE_ENABLED or not keys:
             return {}
-        found: dict[str, dict] = {}
+        found: dict[str, dict[str, Any]] = {}
         r = self._get_redis()
         if r is not None:
             try:
@@ -118,7 +119,7 @@ class VerificationCache:
         self.misses += len(keys) - len(found)
         return found
 
-    def set_many(self, items: dict[str, dict]) -> None:
+    def set_many(self, items: dict[str, dict[str, Any]]) -> None:
         """Yeni NLI sonuçlarını cache'e yaz (TTL ile)."""
         if not NLI_CACHE_ENABLED or not items:
             return
@@ -135,7 +136,7 @@ class VerificationCache:
             for key, val in items.items():
                 self._mem_set(key, val)
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, Any]:
         total = self.hits + self.misses
         return {"hits": self.hits, "misses": self.misses,
                 "hit_rate": round(self.hits / total, 3) if total else 0.0,

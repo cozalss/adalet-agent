@@ -18,9 +18,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from rapidfuzz import fuzz
+
+if TYPE_CHECKING:
+    from verifier.nli import NLIResult  # tip-only; runtime'da torch yüklemez
 
 from agents.config import (
     NLI_CONTRADICTION_THRESHOLD,
@@ -250,7 +254,7 @@ def layer3_nli_batch(
     cached = cache.get_many(keys)                       # {key: {l,e,c}}
     uncached_local: list[int] = [j for j, k in enumerate(keys) if k not in cached]
 
-    fresh: dict[int, object] = {}                       # local pair idx → NLIResult
+    fresh: dict[int, NLIResult] = {}                    # local pair idx → NLIResult
     if uncached_local:
         uncached_pairs = [pairs[j] for j in uncached_local]
         # Module-level lookup — test monkeypatch'ları görünür kalır
@@ -265,7 +269,7 @@ def layer3_nli_batch(
                 raise VerifierUnavailableError(f"NLI doğrulayıcı kullanılamıyor: {exc}") from exc
             log.warning("nli_unavailable", error=str(exc))
             return [(False, 0.0, 0.0, "NLI atlandı") for _ in claims]
-        to_cache: dict[str, dict] = {}
+        to_cache: dict[str, dict[str, Any]] = {}
         for m, j in enumerate(uncached_local):
             r = nli_results[m]
             fresh[j] = r
