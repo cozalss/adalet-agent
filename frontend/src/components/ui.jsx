@@ -61,7 +61,7 @@ export function CitationMarker({ n, source, onJump }) {
         <span className="cite-pop" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
           <span className="t mono">{source.badge === "kanun" ? "KANUN" : source.type.toUpperCase()} · {source.ref}</span>
           <span className="ttl">{source.title}</span>
-          <span className="ex">{source.passage.slice(0, 96)}…</span>
+          <span className="ex">{(source.passage || "").slice(0, 96)}…</span>
           <span className="cite-go">
             <span className="v">
               <Icon.check />
@@ -129,11 +129,14 @@ export function Badge({ type, badge }) {
   return <span className={"badge " + badge}>{badge === "kanun" && <Icon.book style={{ width: 12, height: 12 }} />}{type}</span>;
 }
 
-export function RiskWarning({ html }) {
+// Güvenlik: dangerouslySetInnerHTML KULLANMAZ. `text` markdown (**kalın**) içerir,
+// renderInline ile React elemanı olarak basılır (XSS imkânsız — LLM/kullanıcı metni
+// güvenilmez kabul edilir).
+export function RiskWarning({ text }) {
   return (
     <div className="risk">
       <span className="r-ic"><Icon.clock /></span>
-      <span className="r-tx" dangerouslySetInnerHTML={{ __html: html }}></span>
+      <span className="r-tx">{renderInline(text, "rw")}</span>
     </div>
   );
 }

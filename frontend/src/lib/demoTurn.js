@@ -40,7 +40,7 @@ export const DEMO_TURN = {
         ] },
       ],
     },
-    risk: { keyword: "süre", text: "Kıdem tazminatında <b>zamanaşımı 5 yıldır</b> — gecikme hak kaybına yol açabilir." },
+    risk: { keyword: "süre", text: "Kıdem tazminatında **zamanaşımı 5 yıldır** — gecikme hak kaybına yol açabilir." },
     disclaimers: ["Bu yanıt genel bilgilendirme amaçlıdır, hukuki danışmanlık veya avukatlık hizmeti yerine geçmez. Somut durumunuz için bir avukata başvurun."],
     claims: [
       { text: "2 yıl çalışan işçi kıdem tazminatına hak kazanır.", verified: true, score: 94, reason: "İş Kanunu m.14 metniyle birebir eşleşme doğrulandı.", citeNums: [1] },

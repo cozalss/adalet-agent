@@ -72,6 +72,7 @@ export function useChat() {
         },
         onDrafting: () => { if (!sawClarify) _patch(key, { phase: "drafting" }); },
         onFinal: (resp) => {
+          if (ac.signal.aborted) return; // stop sonrası gecikmeli final → state'i ezme
           if (resp.conversation_id) {
             convRef.current = resp.conversation_id;
             setConversationId(resp.conversation_id);
@@ -90,6 +91,7 @@ export function useChat() {
           });
         },
         onError: (d) => {
+          if (ac.signal.aborted) return;
           _patch(key, { phase: "reject", data: {
             kind: "reject", domain: "",
             reject: { title: "Bir sorun oluştu", body: d?.detail || "Yanıt alınamadı. Lütfen tekrar deneyin." },
@@ -129,10 +131,10 @@ export function useChat() {
 
   /** Son turn'ü sil + soruyu geri ver (retry için). */
   const retryLast = useCallback(() => {
-    let q = "";
-    setTurns((ts) => { q = ts[ts.length - 1]?.question || ""; return ts.slice(0, -1); });
+    const q = turns[turns.length - 1]?.question || "";
+    setTurns((ts) => ts.slice(0, -1));
     return q;
-  }, []);
+  }, [turns]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();

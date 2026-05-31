@@ -52,7 +52,7 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount }) {
                   <span className={"at-status " + (c.verified ? "ok" : "no")}>
                     {c.verified ? `Doğrulandı · %${c.score}` : "Doğrulanamadı"}
                   </span>
-                  {c.citeNums.length > 0 && (
+                  {(c.citeNums ?? []).length > 0 && (
                     <span className="at-cites">Kaynak {c.citeNums.join(", ")}</span>
                   )}
                 </div>

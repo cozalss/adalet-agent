@@ -106,8 +106,9 @@ export function deriveRisk(question, answer) {
   if (!hit) return null;
   return {
     keyword: hit,
+    // Markdown (**kalın**) — RiskWarning renderInline ile basar (HTML değil, XSS yok).
     text:
-      "Bu konuda yasal <b>süre</b> olabilir — gecikme hak kaybına yol açabilir. " +
+      "Bu konuda yasal **süre** olabilir — gecikme hak kaybına yol açabilir. " +
       "İlgili belgeleri (tebligat, sözleşme) saklayın ve bir an önce bir avukata danışın.",
   };
 }

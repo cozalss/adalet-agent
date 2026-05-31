@@ -1,13 +1,11 @@
 /* ADALET /sor — ana uygulama (gerçek backend'e bağlı).
    Prototip tasarımı korunur; mock motor yerine useChat (SSE). */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Icon, SB_NAV, CG_SUGGEST, DOMAINS, EXAMPLES, DOMAIN_CARDS } from "./components/icons.jsx";
+import { Icon, SB_NAV, DOMAIN_CARDS } from "./components/icons.jsx";
 import {
   StreamStepper, ConfidenceBar, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
-import {
-  TypingAnswer, AnswerCard, RejectCard, ClarifyCard, UserBubble,
-} from "./components/cards.jsx";
+import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, ThinkingSkeleton } from "./components/panels.jsx";
 import { useChat } from "./hooks/useChat.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
@@ -146,7 +144,7 @@ export default function App() {
     if (atBottom && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [turns, last && last.phase, atBottom]);
+  }, [turns, last?.phase, atBottom]);
 
   // Drawer erişilebilirliği (Üye-2 "Erişilebilir Hukuk"): aç→ilk öğeye focus,
   // Esc→kapat, Tab→tuzak (odak drawer'da kalır), kapat→açan öğeye focus geri.
@@ -418,12 +416,12 @@ function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDo
             <ClarifyCard data={d.clarify} onPick={onClarifyPick} />
           )}
 
-          {d.risk && p === "final" && <RiskWarning html={d.risk.text} />}
+          {d.risk && p === "final" && <RiskWarning text={d.risk.text} />}
 
           {p === "final" && d.answer && (
             <React.Fragment>
-              <AnswerCard answer={d.answer} sources={d.sources} onJump={onJump} />
-              <ConfidenceBar value={d.answer.confidence} count={d.sources.length} />
+              <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
+              <ConfidenceBar value={d.answer.confidence} count={(d.sources ?? []).length} />
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
                 retryCount={d.retryCount} sourceCount={d.sources.length}

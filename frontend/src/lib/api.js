@@ -59,7 +59,14 @@ export async function askStream(payload, handlers, signal) {
       }
       if (dataLines.length) {
         try { dispatch(event, JSON.parse(dataLines.join("\n"))); }
-        catch { /* yarım frame — yoksay */ }
+        catch (err) {
+          // Yarım frame normaldir; ama 'final'/'error' parse edilemezse kullanıcı
+          // sonsuz spinner'da kalır — geliştirme için görünür kıl.
+          if (event === "final" || event === "error") {
+            console.warn("[ADALET] SSE frame parse edilemedi:", event, err);
+            handlers.onError?.({ detail: "Yanıt çözümlenemedi, lütfen tekrar deneyin." });
+          }
+        }
       }
     }
   }
@@ -67,15 +74,16 @@ export async function askStream(payload, handlers, signal) {
 
 /** Dilekçe indirme URL'leri (auth ile fetch edilip blob indirilir). */
 export async function downloadDilekce(conversationId, format = "pdf") {
-  const path = format === "docx"
-    ? `/api/dilekce/${conversationId}/docx`
-    : `/api/dilekce/${conversationId}`;
+  const id = encodeURIComponent(conversationId);
+  const path = format === "docx" ? `/api/dilekce/${id}/docx` : `/api/dilekce/${id}`;
   const res = await fetch(path, { headers: authHeaders() });
   if (!res.ok) throw new Error(`Dilekçe indirilemedi (HTTP ${res.status})`);
   const blob = await res.blob();
   const cd = res.headers.get("content-disposition") || "";
   const m = cd.match(/filename="?([^"]+)"?/);
-  const filename = m ? m[1] : `dilekce.${format}`;
+  // Güvenlik: yol bileşenlerini at + güvenli karakterlere kısıtla (path traversal).
+  const raw = m ? m[1] : `dilekce.${format}`;
+  const filename = raw.split(/[/\\]/).pop().replace(/[^\w.\-À-ɏ]/g, "_") || `dilekce.${format}`;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename;
