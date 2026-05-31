@@ -76,6 +76,27 @@ export function CitationMarker({ n, source, onJump }) {
   );
 }
 
+// Inline markdown: **kalın** + *italik* (asterisk-tabanlı). React elemanları
+// üretir (innerHTML yok → XSS güvenli). Underscore DAHİL DEĞİL: legal/teknik
+// metinde "madde_32", source_id'ler yanlış eşleşir.
+const INLINE_MD_RE = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g;
+function renderInline(text, keyBase) {
+  if (!text || text.indexOf("*") === -1) return text;
+  const out = [];
+  let last = 0, m, i = 0;
+  INLINE_MD_RE.lastIndex = 0;
+  while ((m = INLINE_MD_RE.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const tok = m[0];
+    const key = keyBase + "m" + i++;
+    if (tok.startsWith("**")) out.push(<strong key={key}>{tok.slice(2, -2)}</strong>);
+    else out.push(<em key={key}>{tok.slice(1, -1)}</em>);
+    last = m.index + tok.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 export function RunText({ runs, sources, onJump }) {
   return (
     <React.Fragment>
@@ -84,7 +105,7 @@ export function RunText({ runs, sources, onJump }) {
           const src = sources.find((s) => s.id === r.cite);
           return <CitationMarker key={i} n={r.cite} source={src} onJump={onJump} />;
         }
-        return <React.Fragment key={i}>{r.t}</React.Fragment>;
+        return <React.Fragment key={i}>{renderInline(r.t, i)}</React.Fragment>;
       })}
     </React.Fragment>
   );

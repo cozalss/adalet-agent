@@ -31,7 +31,7 @@ export const DEMO_TURN = {
       sections: [
         { label: "Kısa cevap", lead: true, runs: [
           { t: "2 yıl çalıştıysanız kıdem tazminatına hak kazanırsınız" }, { cite: 1 },
-          { t: ". Tutar, her tam yıl için 30 günlük giydirilmiş brüt ücretiniz kadardır" }, { cite: 2 }, { t: "." },
+          { t: ". Tutar, her tam yıl için **30 günlük giydirilmiş brüt ücret** kadardır" }, { cite: 2 }, { t: "." },
         ] },
         { label: "Ne yapmalı", steps: [
           "İşten çıkış belgenizi ve son 3 ayın bordrolarını toplayın.",
