@@ -130,6 +130,17 @@ export function useChat() {
   /** Netleştirme seçeneği seçildi → cevabı yeni soru gibi gönder (bağlam korunur). */
   const pickClarify = useCallback((opt) => { ask(opt); }, [ask]);
 
+  /** Kullanıcı mesajını düzenle & yeniden gönder: o turn'ü ve sonrasını sil,
+   *  yeni metni sor (aynı conversation_id ile — düzeltme bağlamı korunur). */
+  const editFrom = useCallback((turnKey, newText) => {
+    if (!newText.trim()) return;
+    setTurns((ts) => {
+      const idx = ts.findIndex((t) => t.key === turnKey);
+      return idx === -1 ? ts : ts.slice(0, idx);
+    });
+    ask(newText);
+  }, [ask]);
+
   /** Son turn'ü sil + soruyu geri ver (retry için). */
   const retryLast = useCallback(() => {
     const q = turns[turns.length - 1]?.question || "";
@@ -146,7 +157,7 @@ export function useChat() {
     setTurns([]);
   }, []);
 
-  return { turns, ask, stop, pickClarify, retryLast, reset, busy, conversationId };
+  return { turns, ask, stop, pickClarify, retryLast, editFrom, reset, busy, conversationId };
 }
 
 function _looksClarify(resp) {

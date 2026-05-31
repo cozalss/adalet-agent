@@ -31,6 +31,42 @@
 }
 .attach-clear:hover { color: var(--text); text-decoration: underline; }
 
+/* ---------- Kullanıcı mesajını düzenle (vercel message-editor deseni) ---------- */
+.msg.user { align-items: center; gap: 6px; }
+.bubble-edit {
+  order: -1; /* bubble'ın soluna */
+  display: grid; place-items: center; width: 28px; height: 28px; flex: none;
+  border-radius: 8px; cursor: pointer;
+  color: var(--text-3); background: transparent; border: none;
+  opacity: 0; transition: opacity .15s ease, color .15s ease, background .15s ease;
+}
+.msg.user:hover .bubble-edit, .bubble-edit:focus-visible { opacity: 1; }
+.bubble-edit:hover { color: var(--accent-text); background: var(--accent-soft); }
+.bubble-edit svg { width: 15px; height: 15px; }
+.msg.user.editing { justify-content: flex-end; }
+.bubble.edit {
+  background: var(--surface-strong); border: 1px solid var(--accent);
+  border-radius: 16px 16px 4px 16px; padding: 10px 12px;
+  max-width: 80%; width: min(560px, 80%);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .10);
+}
+.bubble.edit textarea {
+  width: 100%; resize: none; border: none; outline: none; background: transparent;
+  color: var(--text); font: inherit; font-size: 15px; line-height: 1.5;
+}
+.edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.btn-sm {
+  padding: 5px 13px; font-size: 13px; font-weight: 500; cursor: pointer;
+  border-radius: 9px; border: 1px solid var(--border);
+  color: var(--text-2); background: transparent; transition: all .15s ease;
+}
+.btn-sm:hover { color: var(--text); border-color: var(--border-strong); }
+.btn-sm.primary {
+  color: var(--accent-on); background: var(--accent); border-color: var(--accent);
+}
+.btn-sm.primary:hover { filter: brightness(1.07); color: var(--accent-on); }
+@media (prefers-reduced-motion: reduce) { .bubble-edit, .btn-sm { transition: none; } }
+
 /* ---------- Editorial hiyerarşi: odak cevaba altın sol-aksan (C8) ---------- */
 .card.answer .sec:first-child {
   position: relative;

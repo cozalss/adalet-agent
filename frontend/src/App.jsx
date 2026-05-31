@@ -122,7 +122,7 @@ function Sidebar({ collapsed, onToggle, onNew, currentTitle }) {
 }
 
 export default function App() {
-  const { turns: chatTurns, ask, stop, pickClarify, retryLast, reset, busy, conversationId } = useChat();
+  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, busy, conversationId } = useChat();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -344,6 +344,7 @@ export default function App() {
                         onJump={jumpToSource}
                         onRetry={() => setInput(retryLast())}
                         onReask={ask}
+                        onEdit={(newText) => editFrom(turn.key, newText)}
                         onClarifyPick={pickClarify}
                         onToast={showToast}
                         onDownloadDilekce={onDownloadDilekce}
@@ -410,13 +411,13 @@ function AttachRow({ attachments, onClear }) {
 }
 
 /* ---------- one conversation turn ---------- */
-function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDownloadDilekce }) {
+function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce }) {
   const d = turn.data;
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
   return (
     <React.Fragment>
-      <UserBubble text={turn.question} />
+      <UserBubble text={turn.question} onEdit={onEdit} />
       <div className="assistant-row">
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">

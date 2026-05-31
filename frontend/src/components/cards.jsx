@@ -1,6 +1,6 @@
 /* ADALET /sor — cevap, reddetme, netleştirme, kullanıcı balonu.
    Prototipten birebir; Icon ES import. */
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "./icons.jsx";
 import { RunText } from "./ui.jsx";
 
@@ -58,6 +58,57 @@ export function ClarifyCard({ data, onPick }) {
   );
 }
 
-export function UserBubble({ text }) {
-  return <div className="msg user"><div className="bubble">{text}</div></div>;
+export function UserBubble({ text, onEdit }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(text);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!editing || !ref.current) return;
+    const el = ref.current;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 180) + "px";
+  }, [editing]);
+
+  const save = () => {
+    const t = val.trim();
+    if (t && t !== text) onEdit?.(t);
+    setEditing(false);
+  };
+  const cancel = () => { setVal(text); setEditing(false); };
+
+  if (editing) {
+    return (
+      <div className="msg user editing">
+        <div className="bubble edit">
+          <textarea
+            ref={ref} value={val} rows={1}
+            onChange={(e) => { setVal(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 180) + "px"; }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
+              else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+            }}
+            aria-label="Mesajı düzenle"
+          />
+          <div className="edit-actions">
+            <button className="btn-sm" onClick={cancel}>Vazgeç</button>
+            <button className="btn-sm primary" onClick={save}>Gönder</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="msg user">
+      <div className="bubble">{text}</div>
+      {onEdit && (
+        <button className="bubble-edit" onClick={() => { setVal(text); setEditing(true); }} aria-label="Mesajı düzenle" title="Düzenle">
+          <Icon.pencil />
+        </button>
+      )}
+    </div>
+  );
 }
