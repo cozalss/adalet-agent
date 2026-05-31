@@ -2,6 +2,43 @@
    Tasarım token'larıyla hizalı (sor.css: --surface, --surface-strong, --text,
    --text-2/3, --border, --accent, --accent-soft, --accent-text, --accent-on). */
 
+/* ================================================================
+   ui-ux-pro-max skill denetimi — CRITICAL/HIGH kural boşlukları
+   ================================================================ */
+
+/* §2 tap-delay — mobilde 300ms tıklama gecikmesini kaldır (tüm etkileşimler) */
+button, a, input, textarea, select, [role="button"], .cite, .legal-term {
+  touch-action: manipulation;
+}
+
+/* §6 number-tabular — sayılar sabit genişlikte; sayaç/yüzde animasyonunda
+   layout titremesi olmaz (confidence %, tahmin %, mono referanslar, IDler) */
+.mono, .pct, .pred-pct, .at-meta, .count, .number, .conf-bar .pct {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* §1 skip-links — klavye kullanıcısı için "içeriğe geç"; odakta görünür olur */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 1000;
+  padding: 10px 16px; border-radius: 0 0 10px 0;
+  font-size: 14px; font-weight: 600;
+  color: var(--accent-on); background: var(--accent);
+  text-decoration: none;
+}
+.skip-link:focus { left: 0; top: 0; outline: 2px solid var(--text); outline-offset: 2px; }
+
+/* scrim/blur-purpose — Kaynaklar drawer'ı açıkken arka planı karart (DESKTOP'ta da).
+   Eskiden backdrop yalnız mobil media query'deydi → desktop'ta dismissal ipucu yoktu.
+   Navy-tinted %46 scrim (skill: 40-60% aralığı), tema ile uyumlu. */
+.sheet-backdrop {
+  display: block; position: fixed; inset: 0; z-index: 55;
+  background: rgba(10, 22, 40, 0.46);
+  opacity: 0; pointer-events: none; transition: opacity .25s ease;
+}
+.sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .sheet-backdrop { transition: none; } }
+
 /* ---------- Mobil header declutter (dar ekranda taşma onarımı) ----------
    375px'te model + domain-chip + Kaynaklar pill sığmıyordu → Kaynaklar kırpılıyordu.
    Domain bilgisi cevap akışında zaten görünür; header chip'i mobilde gizlenir. */

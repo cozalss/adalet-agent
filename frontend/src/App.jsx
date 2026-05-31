@@ -265,6 +265,8 @@ export default function App() {
 
   return (
     <div className="sor-app">
+      {/* a11y: klavye kullanıcısı sidebar'ı atlayıp doğrudan sohbete geçebilsin */}
+      <a href="#sor-main" className="skip-link">İçeriğe geç</a>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
@@ -273,7 +275,7 @@ export default function App() {
       />
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onFile} />
 
-      <div className="main-col">
+      <div className="main-col" id="sor-main">
         {sidebarCollapsed && (
           <button className="float-toggle" onClick={() => setSidebarCollapsed(false)} aria-label="Kenar çubuğunu aç"><Icon.panel /></button>
         )}
