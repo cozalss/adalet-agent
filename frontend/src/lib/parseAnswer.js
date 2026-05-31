@@ -150,10 +150,41 @@ export function mapResponse(resp, question) {
     // Backend'in cevaba özel disclaimer listesi (çocuk filtresi, süre uyarısı, ...);
     // boşsa UI statik fallback gösterir.
     disclaimers: Array.isArray(resp.disclaimers) ? resp.disclaimers : [],
+    // Doğrulama Ajanı'nın iddia-bazlı çıktısı (şeffaflık paneli) — cite_ids
+    // (source_id) UI'ın 1-tabanlı numaralarına çevrilir.
+    claims: mapClaims(resp.claims, citeMap),
+    debateNotes: (resp.debate_notes || "").trim(),
+    retryCount: Number(resp.retry_count) || 0,
+    // Tahmin Ajanı (8. ajan) — opsiyonel; yoksa null. Disclaimer zorunlu.
+    prediction: mapPrediction(resp.prediction),
     conversationId: resp.conversation_id,
     // Dilekçe Ajanı bu yanıt için PDF üretti mi? (want_dilekce=true iken).
     // İndirme barı yalnız bu True iken görünür — aksi halde 404 + kırık vaat.
     hasDilekce: !!resp.has_dilekce,
+  };
+}
+
+/** Backend claims[] → UI şeffaflık panel şekli (cite_ids → 1-tabanlı numara). */
+function mapClaims(claims, citeMap) {
+  if (!Array.isArray(claims)) return [];
+  return claims.map((c) => ({
+    text: c.text || "",
+    verified: !!c.verified,
+    score: Math.round((Number(c.verify_score) || 0) * 100),
+    reason: c.verify_reason || "",
+    citeNums: (c.cite_ids || []).map((id) => citeMap.get(id)).filter((n) => n != null),
+  }));
+}
+
+/** Backend prediction → UI tahmin kartı şekli (null → gösterilmez). */
+function mapPrediction(p) {
+  if (!p || !p.verdict_class) return null;
+  return {
+    verdictClass: p.verdict_class,
+    confidence: Math.round((Number(p.confidence) || 0) * 100),
+    similarCaseIds: Array.isArray(p.similar_case_ids) ? p.similar_case_ids : [],
+    reasoning: p.reasoning || "",
+    disclaimer: p.disclaimer || "",
   };
 }
 

@@ -8,6 +8,7 @@ import {
 import {
   TypingAnswer, AnswerCard, RejectCard, ClarifyCard, UserBubble,
 } from "./components/cards.jsx";
+import { AgentTrace, PredictionCard, ThinkingSkeleton } from "./components/panels.jsx";
 import { useChat } from "./hooks/useChat.js";
 import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import "./styles/sor.css";
@@ -110,6 +111,7 @@ export default function App() {
   const [attachments, setAttachments] = useState([]);
   const [wantDilekce, setWantDilekce] = useState(false);
   const [toast, setToast] = useState(null);
+  const [atBottom, setAtBottom] = useState(true);
 
   const scrollRef = useRef(null);
   const panelRef = useRef(null);
@@ -119,9 +121,21 @@ export default function App() {
   const last = turns[turns.length - 1];
   const started = turns.length > 0;
 
+  // stick-to-bottom (vercel deseni, kütüphanesiz): yalnız kullanıcı en alttaysa
+  // otomatik kaydır — yukarı çıkıp eski cevap okurken stream zıplatmasın.
+  const onChatScroll = useCallback(() => {
+    const el = scrollRef.current; if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }, []);
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = scrollRef.current; if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [turns, last && last.phase]);
+    if (atBottom && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [turns, last && last.phase, atBottom]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3200); };
 
@@ -263,7 +277,7 @@ export default function App() {
               </div>
             ) : (
               <React.Fragment>
-                <div className="chat-scroll" ref={scrollRef}>
+                <div className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}>
                   <div className="chat-inner">
                     {turns.map((turn) => (
                       <TurnView
@@ -278,6 +292,11 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+                {!atBottom && (
+                  <button className="scroll-bottom" onClick={() => scrollToBottom(true)} aria-label="En alta in" title="En alta in">
+                    <Icon.chevron />
+                  </button>
+                )}
                 <div className="cg-dock">
                   <div className="wrap">
                     {attachments.length > 0 && <AttachRow attachments={attachments} onClear={() => setAttachments([])} />}
@@ -337,6 +356,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDo
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">
           {streaming && <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />}
+          {p === "drafting" && <ThinkingSkeleton />}
 
           {d.kind === "clarify" && p === "clarify" && (
             <ClarifyCard data={d.clarify} onPick={onClarifyPick} />
@@ -348,6 +368,11 @@ function TurnView({ turn, onJump, onRetry, onReask, onClarifyPick, onToast, onDo
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources} onJump={onJump} />
               <ConfidenceBar value={d.answer.confidence} count={d.sources.length} />
+              <AgentTrace
+                claims={d.claims} debateNotes={d.debateNotes}
+                retryCount={d.retryCount} sourceCount={d.sources.length}
+              />
+              {d.prediction && <PredictionCard prediction={d.prediction} />}
               {d.hasDilekce && (
                 <div className="dilekce-bar">
                   <button className="btn ghost" onClick={() => onDownloadDilekce("pdf")}><Icon.download /> Dilekçe (PDF)</button>
