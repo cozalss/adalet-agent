@@ -44,14 +44,21 @@ class DilekceContext:
 
 @dataclass(frozen=True)
 class DilekceResult:
-    """Render çıktısı — markdown source + PDF bytes + audit metadata."""
+    """Render çıktısı — markdown source + PDF/DOCX bytes + audit metadata.
+
+    DOCX, vatandaş/avukat düzenleyebilsin diye PDF'e ek olarak üretilir
+    (aynı markdown kaynağından python-docx ile). docx_bytes None ise
+    DOCX istenmedi (formats={"pdf"}).
+    """
 
     template_id: str
-    markdown: str           # state['dilekce_md']'e yazılır (transparency)
-    pdf_bytes: bytes        # state['dilekce_pdf_bytes']'a yazılır
-    filename: str           # Content-Disposition için
-    n_dayanak: int          # audit metric
-    n_emsal: int            # audit metric
+    markdown: str                       # state['dilekce_md']'e yazılır (transparency)
+    pdf_bytes: bytes                    # state['dilekce_pdf_bytes']'a yazılır
+    filename: str                       # PDF Content-Disposition için
+    n_dayanak: int                      # audit metric
+    n_emsal: int                        # audit metric
+    docx_bytes: bytes | None = None     # state['dilekce_docx_bytes']'a yazılır
+    docx_filename: str = ""             # DOCX Content-Disposition için
 
 
 __all__ = ("DilekceContext", "DilekceResult")

@@ -95,6 +95,8 @@ MAX_DEBATE_LOOPS = 2             # constitutional self-critique iter max
 DILEKCE_ENABLED = os.getenv("DILEKCE_ENABLED", "1") not in {"0", "false", "False"}
 # PDF byte tavanı (5MB) — reportlab patlamış template'te DoS riski.
 DILEKCE_MAX_PDF_BYTES = int(os.getenv("DILEKCE_MAX_PDF_BYTES", "5242880"))
+# DOCX byte tavanı (5MB) — python-docx editlenebilir Word çıktısı (vatandaş/avukat).
+DILEKCE_MAX_DOCX_BYTES = int(os.getenv("DILEKCE_MAX_DOCX_BYTES", "5242880"))
 # In-memory cache TTL (saniye) — kullanıcı PDF'i istediğinden uzun süre sonra
 # açmasın diye 15 dk. Production'da Redis presigned URL ile değişebilir.
 DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))

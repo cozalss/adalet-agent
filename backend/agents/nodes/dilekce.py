@@ -169,6 +169,8 @@ async def dilekce_node(state: AgentState) -> dict[str, Any]:
         "dilekce_pdf_bytes": result.pdf_bytes,
         "dilekce_template_id": result.template_id,
         "dilekce_filename": result.filename,
+        "dilekce_docx_bytes": result.docx_bytes,
+        "dilekce_docx_filename": result.docx_filename,
     }
 
 

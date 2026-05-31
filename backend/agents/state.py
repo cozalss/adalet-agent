@@ -192,6 +192,9 @@ class AgentState(TypedDict):
     dilekce_pdf_bytes: NotRequired[bytes | None]
     dilekce_template_id: NotRequired[str]    # audit + A/B test (örn "tuketici_iade_v1")
     dilekce_filename: NotRequired[str]       # Content-Disposition için
+    # DOCX editlenebilir Word çıktısı (vatandaş/avukat düzenler) — PDF ile paralel
+    dilekce_docx_bytes: NotRequired[bytes | None]
+    dilekce_docx_filename: NotRequired[str]
 
     # --- Hakemlik / kalite döngüsü ---
     debate_verdict: DebateVerdict

@@ -37,13 +37,15 @@ _HIGH_WATERMARK = int(_MAX_ENTRIES * 0.75)
 
 @dataclass(frozen=True)
 class _Entry:
-    """TTL-tagged PDF cache record + ownership audit."""
+    """TTL-tagged PDF (+ opsiyonel DOCX) cache record + ownership audit."""
 
     pdf_bytes: bytes
     filename: str
     template_id: str
     owner_sub: str          # principal.sub — IDOR koruması
     expires_at: float
+    docx_bytes: bytes | None = None  # editlenebilir Word çıktısı (varsa)
+    docx_filename: str = ""
 
 
 class _DilekceCache:
@@ -60,8 +62,9 @@ class _DilekceCache:
     def store(
         self, conversation_id: str, pdf_bytes: bytes,
         filename: str, template_id: str, owner_sub: str,
+        docx_bytes: bytes | None = None, docx_filename: str = "",
     ) -> None:
-        """conversation_id → PDF bytes + owner. LRU eviction max_entries'te."""
+        """conversation_id → PDF (+ opsiyonel DOCX) + owner. LRU eviction max_entries'te."""
         if not conversation_id:
             return
         expires = time.time() + self._ttl_s
@@ -69,6 +72,7 @@ class _DilekceCache:
             pdf_bytes=pdf_bytes, filename=filename,
             template_id=template_id, owner_sub=owner_sub or "",
             expires_at=expires,
+            docx_bytes=docx_bytes, docx_filename=docx_filename,
         )
         with self._lock:
             self._data.pop(conversation_id, None)  # mevcudu sona taşı (LRU)
@@ -138,8 +142,10 @@ _cache = _DilekceCache()
 def store_pdf(
     conversation_id: str, pdf_bytes: bytes,
     filename: str, template_id: str, owner_sub: str,
+    docx_bytes: bytes | None = None, docx_filename: str = "",
 ) -> None:
-    _cache.store(conversation_id, pdf_bytes, filename, template_id, owner_sub)
+    _cache.store(conversation_id, pdf_bytes, filename, template_id, owner_sub,
+                 docx_bytes=docx_bytes, docx_filename=docx_filename)
 
 
 def get_pdf(conversation_id: str) -> _Entry | None:

@@ -35,7 +35,7 @@ from reportlab.platypus import (
     Spacer,
 )
 
-from agents.config import DILEKCE_MAX_PDF_BYTES
+from agents.config import DILEKCE_MAX_DOCX_BYTES, DILEKCE_MAX_PDF_BYTES
 from agents.dilekce.models import DilekceContext, DilekceResult
 from agents.dilekce.template_registry import template_label
 from agents.state import Citation, Domain
@@ -179,14 +179,95 @@ def _build_pdf(markdown: str, title: str) -> bytes:
     return pdf_bytes
 
 
-def _safe_filename(template_id: str, tarih: str) -> str:
+def _safe_filename(template_id: str, tarih: str, ext: str = "pdf") -> str:
     """Content-Disposition için güvenli dosya adı (yalnız ASCII + tire)."""
     base = template_id.replace("/", "-")
     # Türkçe karakter ASCII'ye düşür (HTTP header safety)
     tr_map = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
     base = base.translate(tr_map)
     base = re.sub(r"[^A-Za-z0-9_-]", "-", base)
-    return f"dilekce-{base}-{tarih}.pdf"
+    return f"dilekce-{base}-{tarih}.{ext}"
+
+
+# --------------------------------------------------------------------------
+#  Markdown → DOCX (python-docx) — PDF ile AYNI markdown kaynağından.
+#  Vatandaş/avukat düzenleyebilsin diye editlenebilir Word çıktısı.
+# --------------------------------------------------------------------------
+
+# Inline bold/italic'i run'lara böl: **bold** ve *italic* segmentleri.
+_INLINE_RE = re.compile(r"(\*\*[^*]+\*\*|(?<!\*)\*[^*]+\*(?!\*))")
+
+
+def _add_inline_runs(paragraph, text: str) -> None:
+    """Bir docx paragraph'a **bold**/*italic* segmentlerini run olarak ekle.
+
+    PDF'teki _mark_to_xml ile aynı markdown'ı işler ama XML değil docx run üretir.
+    XML injection riski yok (python-docx run.text ham metni güvenle koyar).
+    """
+    for seg in _INLINE_RE.split(text):
+        if not seg:
+            continue
+        if seg.startswith("**") and seg.endswith("**"):
+            paragraph.add_run(seg[2:-2]).bold = True
+        elif seg.startswith("*") and seg.endswith("*"):
+            paragraph.add_run(seg[1:-1]).italic = True
+        else:
+            paragraph.add_run(seg)
+
+
+def _build_docx(markdown: str, title: str) -> bytes:
+    """Markdown → DOCX bytes. PDF ile aynı satır-bazlı markdown parse'ı.
+
+    Desteklenen: # H1, ## H2, ### H3, **bold**, *italic*, - bullet,
+    1. ordered, --- hr, > quote. Disk yazımı YOK (in-memory BytesIO).
+    """
+    from docx import Document
+    from docx.shared import Pt
+
+    doc = Document()
+    doc.core_properties.title = title
+    doc.core_properties.author = "ADALET-AGENT"
+
+    for raw_line in markdown.splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            continue  # boş satır — docx paragraph aralığı yeterli
+        if _HR_RE.match(line):
+            doc.add_paragraph()  # ayraç boşluk
+            continue
+        m_heading = _HEADING_RE.match(line)
+        if m_heading:
+            level = len(m_heading.group(1))
+            doc.add_heading(m_heading.group(2), level=min(level, 3))
+            continue
+        m_li = _LI_RE.match(line)
+        if m_li:
+            p = doc.add_paragraph(style="List Bullet")
+            _add_inline_runs(p, m_li.group(1))
+            continue
+        m_num = _NUM_LI_RE.match(line)
+        if m_num:
+            p = doc.add_paragraph(style="List Number")
+            _add_inline_runs(p, m_num.group(2))
+            continue
+        if line.startswith("> "):
+            p = doc.add_paragraph()
+            run = p.add_run(line[2:])
+            run.italic = True
+            run.font.size = Pt(8)
+            continue
+        p = doc.add_paragraph()
+        _add_inline_runs(p, line)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    docx_bytes = buf.getvalue()
+    buf.close()
+    if len(docx_bytes) > DILEKCE_MAX_DOCX_BYTES:
+        raise ValueError(
+            f"DOCX too large: {len(docx_bytes)} > {DILEKCE_MAX_DOCX_BYTES} bytes",
+        )
+    return docx_bytes
 
 
 def render_dilekce(
@@ -200,11 +281,16 @@ def render_dilekce(
     ozet_metin: str,
     user_meta: dict[str, str] | None = None,
     tarih: str | None = None,
+    formats: frozenset[str] = frozenset({"pdf", "docx"}),
 ) -> DilekceResult:
-    """Tek-çağrı render: DilekceContext kur → markdown → PDF bytes.
+    """Tek-çağrı render: DilekceContext kur → markdown → PDF (+ opsiyonel DOCX) bytes.
 
     Caller (dilekce_node) yalnız bu fonksiyona girer. Tüm exception'lar
     yukarı taşar (TemplateNotFound, UndefinedError, ValueError için size cap).
+
+    Args:
+        formats: hangi çıktılar üretilsin — {"pdf"}, {"docx"} veya ikisi.
+            Aynı markdown kaynağından üretilir; DOCX editlenebilir (vatandaş/avukat).
 
     KVKK: user_meta'da eksik anahtarlar template'lerde "[AD SOYAD]" gibi
     placeholder olarak kalır — gerçek TC/telefon ÜRETİLMEZ.
@@ -222,13 +308,22 @@ def render_dilekce(
     )
     markdown = _render_markdown(ctx)
     title = template_label(template_id)
+
+    # PDF her zaman üretilir (geriye uyumluluk — mevcut akış PDF bekler).
     pdf_bytes = _build_pdf(markdown, title)
-    filename = _safe_filename(template_id, ctx.tarih)
+    filename = _safe_filename(template_id, ctx.tarih, "pdf")
+
+    docx_bytes: bytes | None = None
+    docx_filename = ""
+    if "docx" in formats:
+        docx_bytes = _build_docx(markdown, title)
+        docx_filename = _safe_filename(template_id, ctx.tarih, "docx")
+
     log.info(
         "dilekce_rendered",
         template_id=template_id, domain=domain,
         n_dayanak=len(hukuki_dayanak), n_emsal=len(emsal_destek),
-        pdf_bytes=len(pdf_bytes),
+        pdf_bytes=len(pdf_bytes), docx_bytes=len(docx_bytes) if docx_bytes else 0,
     )
     return DilekceResult(
         template_id=template_id,
@@ -237,6 +332,8 @@ def render_dilekce(
         filename=filename,
         n_dayanak=len(hukuki_dayanak),
         n_emsal=len(emsal_destek),
+        docx_bytes=docx_bytes,
+        docx_filename=docx_filename,
     )
 
 

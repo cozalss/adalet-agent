@@ -73,6 +73,49 @@ def test_get_pdf_filename_must_be_ascii(client):
     assert cd.isascii(), f"Non-ASCII in Content-Disposition: {cd}"
 
 
+# --- DOCX endpoint ---
+
+_DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def test_get_docx_happy_path(client):
+    cid = _valid_uuid()
+    store_pdf(cid, b"%PDF-1.4", "d.pdf", "isHukuku/x_v1", owner_sub="test-user",
+              docx_bytes=b"PK\x03\x04 fake docx", docx_filename="d.docx")
+    resp = client.get(f"/api/dilekce/{cid}/docx")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == _DOCX_MEDIA
+    assert "d.docx" in resp.headers["content-disposition"]
+    assert resp.content == b"PK\x03\x04 fake docx"
+
+
+def test_get_docx_404_when_no_docx(client):
+    """PDF var ama DOCX üretilmemiş → 404."""
+    cid = _valid_uuid()
+    store_pdf(cid, b"%PDF-1.4", "d.pdf", "x", owner_sub="test-user")  # docx yok
+    resp = client.get(f"/api/dilekce/{cid}/docx")
+    assert resp.status_code == 404
+
+
+def test_get_docx_404_when_missing(client):
+    resp = client.get(f"/api/dilekce/{_valid_uuid()}/docx")
+    assert resp.status_code == 404
+
+
+def test_get_docx_400_invalid_uuid(client):
+    resp = client.get("/api/dilekce/not-a-uuid/docx")
+    assert resp.status_code == 400
+
+
+def test_get_docx_ownership_enforced(monkeypatch, client):
+    monkeypatch.setenv("AUTH_ENABLED", "1")
+    cid = _valid_uuid()
+    store_pdf(cid, b"%PDF-1.4", "d.pdf", "x", owner_sub="alice",
+              docx_bytes=b"PK\x03\x04", docx_filename="d.docx")
+    resp = client.get(f"/api/dilekce/{cid}/docx")
+    assert resp.status_code in {401, 403}
+
+
 # --- IDOR / Ownership ---
 
 def test_ownership_blocks_other_user_when_auth_enabled(monkeypatch, client):

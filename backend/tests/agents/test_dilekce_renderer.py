@@ -112,3 +112,57 @@ def test_filename_iso_date_format(basic_ctx_args):
         domain="vergi", template_id="vergi/mtv_terkin_v1", **basic_ctx_args,
     )
     assert "2026-05-28" in result.filename
+
+
+# --- DOCX çıktısı (PDF ile aynı markdown kaynağından) ---
+
+def test_docx_produced_by_default(basic_ctx_args):
+    """Default formats={pdf,docx} → geçerli, parse edilebilir Word dosyası."""
+    import io
+
+    from docx import Document
+    result = render_dilekce(
+        domain="isHukuku", template_id="isHukuku/kidem_tazminat_talep_v1", **basic_ctx_args,
+    )
+    assert result.docx_bytes is not None
+    assert result.docx_bytes[:2] == b"PK"  # zip/docx magic
+    assert result.docx_filename.endswith(".docx")
+    # python-docx ile parse edilebilmeli + içerik dolu
+    doc = Document(io.BytesIO(result.docx_bytes))
+    paras = [p.text for p in doc.paragraphs if p.text.strip()]
+    assert len(paras) >= 5
+
+
+def test_docx_preserves_turkish(basic_ctx_args):
+    import io
+
+    from docx import Document
+    result = render_dilekce(
+        domain="kira", template_id="kira/depozito_iade_v1", **basic_ctx_args,
+    )
+    doc = Document(io.BytesIO(result.docx_bytes))
+    full = " ".join(p.text for p in doc.paragraphs)
+    assert any(ch in full for ch in "çşğıöüİ")  # Türkçe karakter korunur
+
+
+def test_pdf_only_skips_docx(basic_ctx_args):
+    """formats={'pdf'} → docx üretilmez (None)."""
+    result = render_dilekce(
+        domain="tuketici", template_id="tuketici/hakem_heyeti_basvuru_v1",
+        formats=frozenset({"pdf"}), **basic_ctx_args,
+    )
+    assert result.pdf_bytes  # PDF hâlâ var
+    assert result.docx_bytes is None
+    assert result.docx_filename == ""
+
+
+def test_docx_inline_bold_italic():
+    """_add_inline_runs: **bold** ve *italic* doğru run'lara bölünür."""
+    from docx import Document
+    from agents.dilekce.renderer import _add_inline_runs
+    doc = Document()
+    p = doc.add_paragraph()
+    _add_inline_runs(p, "normal **kalın** ve *eğik* son")
+    runs = [(r.text, r.bold, r.italic) for r in p.runs]
+    assert ("kalın", True, None) in runs
+    assert ("eğik", None, True) in runs

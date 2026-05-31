@@ -91,6 +91,49 @@ def download_dilekce(
     )
 
 
+_DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@router.get(
+    "/{conversation_id}/docx",
+    response_class=Response,
+    responses={
+        200: {"content": {_DOCX_MEDIA: {}}},
+        400: {"description": "Geçersiz conversation_id formatı"},
+        403: {"description": "Erişim yetkisi yok (başka kullanıcının dilekçesi)"},
+        404: {"description": "Dilekçe/DOCX bulunamadı veya süresi doldu"},
+    },
+)
+@limiter.limit("30/minute")
+def download_dilekce_docx(
+    request: Request,
+    conversation_id: str,
+    principal: Principal = Depends(authenticate),
+) -> Response:
+    """Editlenebilir DOCX'i stream et — vatandaş/avukat düzenler. Auth + ownership.
+
+    Aynı conversation_id'de PDF ile yan yana saklanır. DOCX üretilmemişse 404.
+    """
+    if not _UUID_RE.match(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation_id format")
+    entry = get_pdf(conversation_id)
+    if entry is None or not entry.docx_bytes:
+        raise HTTPException(
+            status_code=404,
+            detail="Dilekçe DOCX'i bulunamadı veya süresi doldu (15 dk).",
+        )
+    _check_ownership(entry.owner_sub, principal.sub)
+    fname = entry.docx_filename or "dilekce.docx"
+    return Response(
+        content=entry.docx_bytes,
+        media_type=_DOCX_MEDIA,
+        headers={
+            "Content-Disposition": f'attachment; filename="{fname}"',
+            "Cache-Control": "private, no-cache",
+        },
+    )
+
+
 @router.delete(
     "/{conversation_id}",
     status_code=204,

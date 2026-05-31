@@ -273,6 +273,8 @@ async def ask(
             filename=final_state.get("dilekce_filename") or "dilekce.pdf",
             template_id=final_state.get("dilekce_template_id") or "",
             owner_sub=principal.sub,
+            docx_bytes=final_state.get("dilekce_docx_bytes"),
+            docx_filename=final_state.get("dilekce_docx_filename") or "dilekce.docx",
         )
     response = _state_to_response(final_state, elapsed_ms, conv_id)
     # v4 — trace_id'yi yanıta ekle (frontend Langfuse dashboard linki üretebilir)
