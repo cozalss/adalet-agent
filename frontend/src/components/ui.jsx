@@ -2,6 +2,7 @@
    Prototipten birebir; Icon ES import. */
 import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "./icons.jsx";
+import { applyLegalTooltips } from "./LegalTooltip.jsx";
 
 const STEP_LABELS = {
   triage: "Sorunuz sınıflandırılıyor…",
@@ -108,7 +109,13 @@ export function RunText({ runs, sources, onJump }) {
           const src = sources.find((s) => s.id === r.cite);
           return <CitationMarker key={i} n={r.cite} source={src} onJump={onJump} />;
         }
-        return <React.Fragment key={i}>{renderInline(r.t, i)}</React.Fragment>;
+        // renderInline (bold/italic) → applyLegalTooltips (hukuki terim vurgusu)
+        const inlined = renderInline(r.t, i);
+        // Eğer renderInline string döndürdüyse (yıldız yok) terim araması yap
+        const content = typeof inlined === "string"
+          ? applyLegalTooltips(inlined, String(i))
+          : inlined; // React node array — her segment string ise içinde ara
+        return <React.Fragment key={i}>{content}</React.Fragment>;
       })}
     </React.Fragment>
   );
@@ -116,13 +123,30 @@ export function RunText({ runs, sources, onJump }) {
 
 export function ConfidenceBar({ value, count }) {
   const [w, setW] = useState(0);
-  useEffect(() => { const id = setTimeout(() => setW(value), 80); return () => clearTimeout(id); }, [value]);
+  // B2 — 60fps.design: %0 → value sayaç animasyonu (ease-out-cubic, 900ms)
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const id = setTimeout(() => setW(value), 80);
+    const reduce = typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setDisplay(value); return () => clearTimeout(id); }
+    let t0 = null;
+    const dur = 900;
+    const raf = (t) => {
+      if (!t0) t0 = t;
+      const p = Math.min((t - t0) / dur, 1);
+      setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3)))); // ease-out-cubic
+      if (p < 1) requestAnimationFrame(raf);
+    };
+    const rafId = requestAnimationFrame(raf);
+    return () => { clearTimeout(id); cancelAnimationFrame(rafId); };
+  }, [value]);
   const mid = value < 70;
   return (
     <div className={"card confidence" + (mid ? " mid" : "")} style={{ marginTop: 14 }}>
       <span className="label">Güven</span>
       <span className="track"><span className="fill" style={{ width: w + "%" }}></span></span>
-      <span className="pct mono">%{value}</span>
+      <span className="pct mono">%{display}</span>
       <span className="verified"><Icon.check /> {count} kaynakla {mid ? "kısmen " : ""}doğrulandı</span>
     </div>
   );

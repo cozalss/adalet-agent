@@ -416,3 +416,124 @@
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
+
+/* ================================================================
+   BATCH A — 6 Tasarım Sitesi: Instant Polish
+   Kaynak: 60fps.design · designspells.com · abtest.design
+   ================================================================ */
+
+/* A1 — Button press depth (designspells.com — D16)
+   Fiziksel "basma" hissi. stop + disabled buton hariç. */
+button:not(:disabled):not(.cg-send.stop):active,
+a.btn:not(:disabled):active {
+  transform: translateY(1px) scale(0.97);
+  transition: transform 0.06s ease !important;
+}
+
+/* A2 — Global focus ring (a11y — %0'dan tam kapsam)
+   Tab navigasyonu ile altın kenarlık — tüm etkileşimlerde. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Kendi focus stilini zaten yönetenler için override kaldır */
+.cite, .cl-opt, .domain-card { outline-offset: 3px; }
+
+/* A3 — Streaming pulsing dot (60fps.design — D2)
+   SSE aktifken domain chip'teki nokta gold ripple yapar. */
+.domain-chip .dot.streaming {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(176, 118, 74, .65); }
+  70%  { box-shadow: 0 0 0 8px rgba(176, 118, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(176, 118, 74, 0); }
+}
+
+/* A4 — Verified claim success ripple (designspells.com — D17)
+   Ajan-izi panelindeki onaylı iddia rozeti yeşil ripple alır. */
+.at-badge.ok {
+  animation: verified-ripple .7s ease-out both;
+}
+@keyframes verified-ripple {
+  0%   { box-shadow: 0 0 0 0 rgba(106, 160, 106, .55); }
+  100% { box-shadow: 0 0 0 12px rgba(106, 160, 106, 0); }
+}
+
+/* A5 — Source card flash smooth
+   Mevcut flash efekti ani başlıyor — ease-in-out ile yumuşat. */
+.card.src-card.flash {
+  transition: box-shadow .25s ease-in-out, border-color .25s ease-in-out !important;
+}
+
+/* A6 — prefers-reduced-motion tam kapsam (sor-pro.css eksik alanları)
+   Bu kural sor.css + sor-pro.css + app-extra.css tümünü kapsar. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Streaming progress bar duraksın — sonsuz animasyon değil */
+  .stream-progress span, .conf-bar span { transition: none !important; }
+}
+
+/* ================================================================
+   Hukuki Terim Tooltip — B3 (uiplaybook.dev — D21)
+   <abbr class="legal-term"> ile sarılır, sıfır JS, sıfır XSS riski.
+   ================================================================ */
+.legal-term {
+  text-decoration: underline dotted var(--accent);
+  text-underline-offset: 3px;
+  cursor: help;
+  position: relative;
+  display: inline;
+}
+.legal-term::after {
+  content: attr(data-def);
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  width: max-content; max-width: min(280px, 85vw);
+  padding: 8px 11px; font-size: 12.5px; line-height: 1.5;
+  font-family: var(--font-body); font-style: normal;
+  text-decoration: none; white-space: normal;
+  color: var(--text); background: var(--surface-strong);
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .15);
+  opacity: 0; pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .16s ease, transform .16s ease;
+  z-index: 120;
+}
+.legal-term:hover::after,
+.legal-term:focus::after { opacity: 1; transform: translateY(0); }
+/* Ekran kenarı koruma — sağ tarafta çıkarsa sola yasla */
+.legal-term:last-child::after,
+.legal-term[data-pos="right"]::after { left: auto; right: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .legal-term::after { transition: none; }
+}
+
+/* ================================================================
+   Trust Signals Satırı — B1 (abtest.design — D11)
+   ================================================================ */
+.trust-signals {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;
+  margin: 14px 0 4px;
+}
+.trust-signals span {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-3); font-weight: 500;
+}
+.trust-signals svg { width: 13px; height: 13px; color: var(--success, #6f8a5b); flex: none; }
+@media (max-width: 560px) { .trust-signals { gap: 10px; flex-direction: column; align-items: center; } }
+
+/* ================================================================
+   AnswerCard Section Reveal — B4 (60fps.design — D1)
+   ================================================================ */
+.answer .sec.reveal-target {
+  opacity: 0; transform: translateY(12px);
+  transition: opacity .38s ease, transform .38s ease;
+}
+.answer .sec.reveal-target.visible { opacity: 1; transform: none; }

@@ -5,8 +5,26 @@ import { Icon } from "./icons.jsx";
 import { RunText } from "./ui.jsx";
 
 export function AnswerCard({ answer, sources, onJump }) {
+  const cardRef = useRef(null);
+
+  // B4 — 60fps.design D1: Her bölüm scroll görünüme girince yukarıdan açılır.
+  // prefers-reduced-motion varsa gizleme yapma (instantly visible).
+  useEffect(() => {
+    const el = cardRef.current; if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const secs = el.querySelectorAll(".sec");
+    secs.forEach((s) => s.classList.add("reveal-target"));
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("visible"); obs.unobserve(e.target); } }),
+      { threshold: 0.1 }
+    );
+    secs.forEach((s) => obs.observe(s));
+    return () => obs.disconnect();
+  }, [answer.sections.length]);
+
   return (
-    <div className="card answer">
+    <div className="card answer" ref={cardRef}>
       {answer.sections.map((sec, i) => (
         <div className="sec" key={i}>
           <div className="sec-label">{sec.label}</div>

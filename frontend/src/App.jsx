@@ -287,7 +287,9 @@ export default function App() {
               className={"domain-chip" + (domainLow ? " low" : "")}
               title={domainConf != null ? `Alan güveni %${Math.round(domainConf * 100)}` : undefined}
             >
-              <span className="dot"></span>{domain}{domainLow ? " · belirsiz" : ""}
+              {/* streaming=true iken gold ripple — 60fps.design D2 */}
+              <span className={"dot" + (busy ? " streaming" : "")}></span>
+              {domain}{domainLow ? " · belirsiz" : ""}
             </span>
           )}
           <div className="spacer"></div>
@@ -303,6 +305,12 @@ export default function App() {
             {!started ? (
               <div className="cg-hero">
                 <h1 className="cg-greet">Nasıl yardımcı olabilirim, <span className="accent">Cem</span>?</h1>
+                {/* Trust signals — abtest.design D11, +44% güven etkisi */}
+                <div className="trust-signals">
+                  <span><Icon.check />Yargıtay kararlarıyla doğrulandı</span>
+                  <span><Icon.check />Kaynaklar açık ve izlenebilir</span>
+                  <span><Icon.check />Sıfır uydurma taahhüdü</span>
+                </div>
                 <div className="cg-input-wrap">
                   <CGInput
                     value={input} onChange={setInput} onSubmit={doAsk} busy={false} autoFocus
