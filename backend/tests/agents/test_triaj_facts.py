@@ -112,3 +112,72 @@ def test_fast_facts_extracts_compound_work_duration_and_unpaid_rights():
     assert facts["isci_sayisi"] == "40 çalışan"
     assert facts["fesih_bildirimi"] == "yazılı gerekçe gösterilmedi"
     assert facts["odenmeyen_haklar"] == "kıdem tazminatı, ihbar tazminatı"
+
+
+# --- OCR belge → case_facts çıkarımı --------------------------------------
+
+import pytest
+
+
+def test_doc_regex_facts_extracts_from_contract():
+    """Kira sözleşmesi metninden süre/tutar/taraf (domain-agnostik regex)."""
+    doc = ("KİRA SÖZLEŞMESİ. Kiracı Ayşe Yılmaz ile ev sahibi arasında 1 yıl "
+           "süreyle, aylık 8500 TL bedelle akdedilmiştir.")
+    facts = triaj_mod._doc_regex_facts(doc)
+    assert facts["sure"] == "1 yıl"
+    assert "8500" in facts["tutar"]
+    assert facts["taraf"] == "kiracı"
+
+
+def test_doc_regex_facts_empty_when_no_signals():
+    assert triaj_mod._doc_regex_facts("Sıradan bir metin, sayı yok.") == {}
+
+
+@pytest.mark.asyncio
+async def test_facts_from_documents_regex_only():
+    atts = [{"filename": "kira.jpg", "ocr_engine": "tesseract",
+             "text": "Kiracı 2 yıl boyunca aylık 5000 TL ödedi.", "n_chars": 40}]
+    facts = await triaj_mod._facts_from_documents(atts, llm_extract=False)
+    assert facts["sure"] == "2 yıl"
+    assert "5000" in facts["tutar"]
+
+
+@pytest.mark.asyncio
+async def test_facts_from_documents_empty_attachments():
+    assert await triaj_mod._facts_from_documents([]) == {}
+    assert await triaj_mod._facts_from_documents([{"text": "  "}]) == {}
+
+
+@pytest.mark.asyncio
+async def test_facts_from_documents_short_skips_llm(monkeypatch):
+    """Kısa metin (< _DOC_LLM_MIN_CHARS) → LLM çağrılmaz, yalnız regex."""
+    called = {"llm": False}
+
+    async def _spy(_q):
+        called["llm"] = True
+        return {}
+    monkeypatch.setattr(triaj_mod, "_recover_facts", _spy)
+    atts = [{"text": "3 ay 5000 TL", "filename": "x", "ocr_engine": "t", "n_chars": 12}]
+    facts = await triaj_mod._facts_from_documents(atts, llm_extract=True)
+    assert called["llm"] is False  # kısa metin → LLM atlandı
+    assert facts["sure"] == "3 ay"
+
+
+@pytest.mark.asyncio
+async def test_triaj_node_injects_doc_facts(monkeypatch):
+    """triaj_node: image_attachments → case_facts'e belge olguları girer."""
+    from agents.nodes.triaj import triaj_node
+
+    state = {
+        "question": "Ev sahibim depozitomu vermiyor ne yapabilirim",
+        "chat_history": [],
+        "image_attachments": [{
+            "filename": "sozlesme.jpg", "ocr_engine": "tesseract",
+            "text": "Kira sözleşmesi 1 yıl süreli, depozito 15000 TL.", "n_chars": 45,
+        }],
+    }
+    result = await triaj_node(state)
+    facts = result.get("case_facts", {})
+    # Fast-path domain=kira; belge olguları (süre/tutar) prior_facts'tan akmalı
+    assert facts.get("sure") == "1 yıl"
+    assert "15000" in facts.get("tutar", "")

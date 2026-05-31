@@ -27,7 +27,7 @@ from agents.config import MIN_DOMAIN_CONFIDENCE, OUT_OF_SCOPE_KEYWORDS
 from agents.llm import ChatMessage, get_llm
 from agents.policy import CLARIFY_MARKER
 from agents.smalltalk import detect_smalltalk, smalltalk_reply
-from agents.state import AgentState, ConversationTurn, Domain
+from agents.state import AgentState, ConversationTurn, Domain, ImageAttachment
 from core.observability import observe_node
 
 log = structlog.get_logger()
@@ -239,6 +239,64 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:
     return facts
 
 
+# OCR belge metninden olgu çıkarımı sınırları.
+_DOC_FACTS_MAX_CHARS = 6000   # birleşik belge metni tavanı (LLM token + DoS guard)
+_DOC_LLM_MIN_CHARS = 80       # bu uzunluğun altında yalnız regex (LLM gereksiz)
+
+_DOC_TARAF_MAP = {
+    "kirac": "kiracı", "ev sahibi": "ev sahibi", "işçi": "işçi",
+    "işveren": "işveren", "tüketici": "tüketici", "satıcı": "satıcı",
+    "borçlu": "borçlu", "alacaklı": "alacaklı", "davacı": "davacı", "davalı": "davalı",
+}
+
+
+def _doc_regex_facts(text: str) -> dict[str, str]:
+    """Belge metninden domain-AGNOSTİK regex olguları (süre/tutar/işçi/taraf).
+
+    Mevcut module-level regex'leri (_SURE_RE, _TUTAR_RE, _ISCI_SAYISI_RE) belge
+    metnine uygular — soru metnine uygulandığı gibi. Deterministik, LLM'siz.
+    """
+    facts: dict[str, str] = {}
+    if m := _SURE_RE.search(text):
+        facts["sure"] = m.group(0)
+    if m := _TUTAR_RE.search(text):
+        facts["tutar"] = m.group(0)
+    if m := _ISCI_SAYISI_RE.search(text):
+        facts["isci_sayisi"] = m.group(0)
+    low = _tr_lower(text)
+    for marker, label in _DOC_TARAF_MAP.items():
+        if marker in low:
+            facts["taraf"] = label
+            break
+    return facts
+
+
+async def _facts_from_documents(
+    attachments: list[ImageAttachment], *, llm_extract: bool = True,
+) -> dict[str, str]:
+    """OCR belge metinlerinden case_facts çıkar (regex + opsiyonel LLM).
+
+    Hibrit: kısa belge → yalnız regex (ucuz); yeterince uzun belge → ek olarak
+    _recover_facts (mevcut _FACTS_RETRY_USER prompt'u, belge metnine uygulanır)
+    ile tarih/olay gibi regex'in kaçırdığı olgular. Tüm çıktı _sanitize_facts'ten
+    geçer (izinli anahtar whitelist). Hata → boş dict (belge akışı bozulmaz).
+    """
+    if not attachments:
+        return {}
+    texts = [a.get("text", "") for a in attachments if a.get("text", "").strip()]
+    if not texts:
+        return {}
+    joined = "\n\n".join(texts)[:_DOC_FACTS_MAX_CHARS]
+    facts = _doc_regex_facts(joined)
+    if llm_extract and len(joined) >= _DOC_LLM_MIN_CHARS:
+        try:
+            llm_facts = await _recover_facts(joined)  # _FACTS_RETRY_USER yeniden kullanım
+            facts = _merge_case_facts(facts, llm_facts)
+        except Exception as exc:  # noqa: BLE001 — belge çıkarımı akışı bozmasın
+            log.warning("triaj_doc_facts_llm_failed", error=str(exc) or type(exc).__name__)
+    return facts
+
+
 def _history_case_facts(history: list[ConversationTurn]) -> dict[str, str]:
     """Önceki user turn'lerinden structured facts'i taşı."""
     merged: dict[str, str] = {}
@@ -336,6 +394,12 @@ async def triaj_node(state: AgentState) -> dict:
         _history_case_facts(history),
         {str(k): str(v) for k, v in (state.get("case_facts") or {}).items() if str(v).strip()},
     )
+    # OCR belge ekleri → case_facts'e karışır (fast-path + LLM-path ikisi de kullanır).
+    # Clarifier yükünü azaltır: belgede "2 yıl", "30000 TL" varsa kullanıcıya sorulmaz.
+    doc_facts = await _facts_from_documents(state.get("image_attachments") or [])
+    if doc_facts:
+        prior_facts = _merge_case_facts(prior_facts, doc_facts)
+        log.info("triaj_doc_facts", n=len(doc_facts), keys=sorted(doc_facts))
     # Domain devralma: ya pronominal devam sorusu ("peki, o zaman...") ya da
     # önceki turun bir clarifier sorusu olması (kullanıcı şimdi onu yanıtlıyor).
     inherited_domain = (

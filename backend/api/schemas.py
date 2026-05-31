@@ -21,6 +21,24 @@ from pydantic import BaseModel, Field, field_validator
 _MAX_USER_META_KEYS = 20
 _MAX_USER_META_BYTES = 4096
 
+# OCR belge eki sınırları — istemci /multimodal/ocr ile metni önceden alır,
+# burada yapılandırılmış olarak gönderir. DoS guard: belge sayısı + metin boyu.
+_MAX_ATTACHMENTS = 5
+_MAX_ATTACHMENT_TEXT = 10000   # ~10K char/belge (uzun sözleşme/tebligat)
+
+
+class ImageAttachmentInput(BaseModel):
+    """OCR'lanmış belge — istemci POST /multimodal/ocr çıktısını buraya koyar.
+
+    Yalnız metin + meta; ham görüntü /ask'a gelmez (OCR ayrı endpoint'te yapılır,
+    sonuç metni burada case_facts çıkarımına beslenir).
+    """
+
+    filename: str = Field("belge", max_length=256)
+    ocr_engine: str = Field("tesseract", max_length=32)
+    text: str = Field(..., max_length=_MAX_ATTACHMENT_TEXT)
+    n_chars: int = Field(0, ge=0)
+
 # Domain enum — agents.state.Domain ile aynı küme
 Domain = Literal[
     "tuketici",
@@ -52,6 +70,19 @@ class AskRequest(BaseModel):
     )
     user_meta: dict[str, Any] | None = Field(None, description="Şehir, taraf, vb. opsiyonel metadata")
     stream: bool = Field(False, description="True → SSE stream'le aşama aşama dön")
+    image_attachments: list[ImageAttachmentInput] | None = Field(
+        None, description="OCR'lanmış belge metinleri (case_facts çıkarımına beslenir)",
+    )
+
+    @field_validator("image_attachments")
+    @classmethod
+    def _bound_attachments(
+        cls, v: list[ImageAttachmentInput] | None,
+    ) -> list[ImageAttachmentInput] | None:
+        """Belge sayısını sınırla (DoS guard)."""
+        if v and len(v) > _MAX_ATTACHMENTS:
+            raise ValueError(f"En fazla {_MAX_ATTACHMENTS} belge eklenebilir")
+        return v
 
     @field_validator("user_meta")
     @classmethod

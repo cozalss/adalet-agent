@@ -39,3 +39,32 @@ def test_question_min_length_enforced():
 def test_question_max_length_enforced():
     with pytest.raises(ValidationError):
         AskRequest(question="x" * 2001)  # > 2000
+
+
+# --- OCR belge ekleri (image_attachments) ---
+
+def test_attachment_accepted():
+    from api.schemas import AskRequest
+    req = AskRequest(question="soru?", image_attachments=[
+        {"filename": "kira.jpg", "ocr_engine": "tesseract", "text": "metin", "n_chars": 5},
+    ])
+    assert req.image_attachments[0].text == "metin"
+
+
+def test_attachment_text_length_capped():
+    import pytest
+    from pydantic import ValidationError
+    from api.schemas import AskRequest
+    with pytest.raises(ValidationError):
+        AskRequest(question="soru?", image_attachments=[
+            {"filename": "x", "ocr_engine": "t", "text": "a" * 10001, "n_chars": 10001},
+        ])
+
+
+def test_too_many_attachments_rejected():
+    import pytest
+    from pydantic import ValidationError
+    from api.schemas import AskRequest
+    atts = [{"filename": "x", "ocr_engine": "t", "text": "m", "n_chars": 1} for _ in range(6)]
+    with pytest.raises(ValidationError):
+        AskRequest(question="soru?", image_attachments=atts)

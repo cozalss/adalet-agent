@@ -106,6 +106,13 @@ async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
     initial["chat_history"] = history
     initial["case_facts"] = _merge_history_facts(history)
     initial["want_tts"] = req.want_tts
+    # OCR belge ekleri → triaj bunlardan case_facts çıkarır (tarih/tutar/taraf/süre).
+    if req.image_attachments:
+        initial["image_attachments"] = [
+            {"filename": a.filename, "ocr_engine": a.ocr_engine,
+             "text": a.text, "n_chars": a.n_chars or len(a.text)}
+            for a in req.image_attachments
+        ]
     return initial, conv_id
 
 
