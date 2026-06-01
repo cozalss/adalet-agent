@@ -3,7 +3,7 @@ import React from "react";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  HowItWorksPanel, ScopePanel, SourcesPanel, PrivacyPanel,
+  HowItWorksPanel, ScopePanel, SourcesPanel,
   PrefsPanel, DisclaimerPanel, OpenSourcePanel, ProfilePanel,
 } from "./accountPanels.jsx";
 
@@ -28,12 +28,6 @@ it("SourcesPanel — resmî kaynaklar (mevzuat/Yargıtay)", () => {
   const out = html(<SourcesPanel />);
   expect(out).toContain("mevzuat.gov.tr");
   expect(out).toContain("Yargıtay");
-});
-
-it("PrivacyPanel — KVKK durumu + tüm verileri sil butonu", () => {
-  const out = html(<PrivacyPanel onClearData={() => {}} />);
-  expect(out).toContain("Sohbet geçmişiniz kaydedilir");
-  expect(out).toContain("Tüm yerel verilerimi sil");
 });
 
 it("PrefsPanel — yazı boyutu + hareketi azalt + alan çipleri", () => {

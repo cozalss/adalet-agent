@@ -34,12 +34,16 @@
 3. Türkçe karakterler içerikte tam (ç, ş, ğ); değişken isimlerinde Latin (`tckn` not `tCKN`).
 4. UI'da her cevabın altında hukuki disclaimer.
 
-## Veri Politikası (v2.1 — KVKK gevşetildi)
+## Veri Politikası (v2.2 — KVKK kuralı KALDIRILDI)
 
-ADALET artık **sohbet geçmişi tutar** (kayıtlı kullanıcı: `conversation`/`message`
-tabloları; misafir: tarayıcı localStorage). KVKK "blokör" değil, "arka plan
-hijyeni": saklama anahtarı **fingerprint(sub)** (ham email DB'ye yazılmaz),
-belge PII'si maskelenir, veri TR'de kalır, modeller lokal. Hukuki sorumluluk
-reddi her yanıtta **zorunlu** (kaldırılmaz). Kullanıcı geçmişini "Tüm verilerimi
-sil" ile temizleyebilir. Tam bağlam: `../CLAUDE.md` madde 3.
+KVKK artık bir geliştirme kısıtı DEĞİL. ADALET normal bir ürün gibi **sohbet
+geçmişi + hesap** tutar (kayıtlı kullanıcı: `conversation`/`message`/`user_account`
+tabloları; misafir: localStorage). AI asistanları KVKK'yı blokör saymaz.
+
+**Korunan iki şey KVKK YÜKÜ değil, ürün/tez ARTISI:**
+- **Belge PII maskeleme** (TCKN/telefon/IBAN) — jüri "wow" + kullanıcı koruması.
+- **Lokal model** (Qwen/Whisper/Coqui, bulut LLM yok) — teknik fark/tez direği.
+
+**Hukuki sorumluluk reddi** her yanıtta zorunlu — bu KVKK değil, AYRI yasal
+yükümlülük (Avukatlık Kanunu); kaldırılmaz. Tam bağlam: `../CLAUDE.md` madde 3.
 

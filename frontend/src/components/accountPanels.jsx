@@ -1,8 +1,8 @@
 /* ADALET hesap menüsü panelleri — ChatGPT kopyası DEĞİL, ADALET kimliği.
 
    Her panel ADALET'in farkını öne koyar: 7-ajan şeffaflık · sıfır-uydurma ·
-   KVKK lokal-veri · kapsam dürüstlüğü (ceza/aile yok) · erişilebilirlik · açık
-   kaynak. Mevcut bileşen dili (at-timeline, line-icon, no-emoji) yeniden kullanılır. */
+   kapsam dürüstlüğü (ceza/aile yok) · erişilebilirlik · açık kaynak. Mevcut
+   bileşen dili (at-timeline, line-icon, no-emoji) yeniden kullanılır. */
 import React, { useState } from "react";
 import { Icon, CIVIL_DOMAINS, OUT_OF_SCOPE } from "./icons.jsx";
 
@@ -121,50 +121,6 @@ export function SourcesPanel() {
   );
 }
 
-/* ---------- 4) Gizlilik & verilerim (KVKK panosu) ---------- */
-const PRIVACY_FACTS = [
-  "Sohbet geçmişiniz kaydedilir — istediğiniz an silebilirsiniz.",
-  "Misafir kullanımda geçmiş bu cihazda (tarayıcı) tutulur.",
-  "Belgelerinizdeki TC / telefon / IBAN otomatik maskelenir.",
-  "Yapay zekâ modelleri yerel çalışır — yanıtlar Türkiye'de işlenir.",
-];
-
-export function PrivacyPanel({ onClearData }) {
-  const [confirm, setConfirm] = useState(false);
-  return (
-    <div className="acc-body">
-      <div className="acc-priv-status">
-        {PRIVACY_FACTS.map((f) => (
-          <div className="acc-priv-row" key={f}><Icon.check /><span>{f}</span></div>
-        ))}
-      </div>
-      <div className="acc-priv-stored">
-        <div className="acc-sub-head">Neler saklanıyor</div>
-        <p>• Sohbet geçmişiniz (başlık + sorular + yanıtlar)</p>
-        <p>• Tercihleriniz (yazı boyutu, hareket, alanlar)</p>
-        <p className="acc-note">Hepsini aşağıdaki butonla kalıcı silebilirsiniz.</p>
-      </div>
-      <div className="acc-danger-zone">
-        {!confirm ? (
-          <button className="acc-btn danger-ghost" onClick={() => setConfirm(true)}>
-            <Icon.lock /> Tüm yerel verilerimi sil
-          </button>
-        ) : (
-          <div className="acc-confirm">
-            <span>Tercihleriniz ve oturum verileriniz kalıcı silinecek. Emin misiniz?</span>
-            <div className="acc-confirm-actions">
-              <button className="acc-btn ghost" onClick={() => setConfirm(false)}>Vazgeç</button>
-              <button className="acc-btn danger" onClick={() => { onClearData?.(); setConfirm(false); }}>
-                Evet, hepsini sil
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ---------- 5) Erişilebilirlik & tercihler ---------- */
 function Toggle({ checked, onChange, label }) {
   return (
@@ -258,7 +214,7 @@ export function OpenSourcePanel() {
   );
 }
 
-/* ---------- 8) Profil (KVKK-minimal: tek alan) ---------- */
+/* ---------- 8) Profil (tek alan) ---------- */
 export function ProfilePanel({ displayName, onSave, onClose }) {
   const [name, setName] = useState(displayName || "");
   const save = () => { onSave?.(name.trim().slice(0, 60)); onClose?.(); };

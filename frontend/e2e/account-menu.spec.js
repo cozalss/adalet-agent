@@ -10,7 +10,7 @@ test.describe("Hesap menüsü", () => {
   test("pill → menü ADALET öğeleriyle açılır", async ({ page }) => {
     await page.getByRole("button", { name: "Hesap menüsünü aç" }).click();
     await expect(page.getByRole("menuitem", { name: /ADALET nasıl çalışır/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Gizlilik & verilerim/ })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /Erişilebilirlik & tercihler/ })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /Açık kaynak/ })).toBeVisible();
   });
 

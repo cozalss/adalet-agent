@@ -91,7 +91,7 @@ export function FilesPanel({ files, onSelect }) {
       <div className="acc-body">
         <div className="hp-empty">
           <Icon.image />
-          <p>Soru sorarken yüklediğiniz belgeler (OCR) burada listelenir. Gizlilik için yalnız belge bilgisi tutulur, metin değil.</p>
+          <p>Soru sorarken yüklediğiniz belgeler (OCR) burada listelenir.</p>
         </div>
       </div>
     );

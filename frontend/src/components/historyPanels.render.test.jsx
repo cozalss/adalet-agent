@@ -35,8 +35,8 @@ describe("LibraryPanel", () => {
 });
 
 describe("FilesPanel", () => {
-  it("boş → açıklama notu (metin saklanmaz)", () => {
-    expect(html(<FilesPanel files={[]} />)).toContain("metin değil");
+  it("boş → açıklama notu", () => {
+    expect(html(<FilesPanel files={[]} />)).toContain("yüklediğiniz belgeler");
   });
   it("dosyalar → ad + karakter + PII bayrağı", () => {
     const out = html(<FilesPanel files={[

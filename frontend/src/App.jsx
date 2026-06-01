@@ -128,8 +128,8 @@ export default function App({ auth }) {
   const authUser = auth?.user || null;
   const onLogout = auth?.logout || null;
   const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, loadConversation, busy, conversationId } = useChat();
-  const { prefs, setPref, toggleDomain, clearAll } = usePrefs();
-  const { conversations, saveConversation, removeConversation, getConversation, clearAllConversations, search, allSources, allFiles } = useConversations();
+  const { prefs, setPref, toggleDomain } = usePrefs();
+  const { conversations, saveConversation, removeConversation, getConversation, search, allSources, allFiles } = useConversations();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -240,14 +240,6 @@ export default function App({ auth }) {
     if (id === conversationId) { sessionFilesRef.current = []; reset(); }
     showToast("Sohbet silindi");
   }, [removeConversation, conversationId, reset, showToast]);
-
-  // KVKK "tüm verilerimi sil": tercihler + tüm sohbet geçmişi + görünüm.
-  const clearAllData = useCallback(() => {
-    clearAll();
-    clearAllConversations();
-    sessionFilesRef.current = [];
-    reset();
-  }, [clearAll, clearAllConversations, reset]);
 
   // Tamamlanan turu geçmişe kaydet (kalıcı): busy düşünce + son turn terminal olunca.
   useEffect(() => {
@@ -370,7 +362,7 @@ export default function App({ auth }) {
         onDeleteConv={onDeleteConv}
         userMenu={
           <UserMenu
-            prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} clearAll={clearAllData}
+            prefs={prefs} setPref={setPref} toggleDomain={toggleDomain}
             onClearSession={onNewChat} onAsk={doAsk} showToast={showToast}
             user={authUser} onLogout={onLogout}
           />

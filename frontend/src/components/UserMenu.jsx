@@ -1,12 +1,12 @@
 /* ADALET hesap menüsü — sidebar kullanıcı pill'ine basınca açılan, ADALET'e ÖZGÜ
    menü (ChatGPT'nin "Plus / Planı yükselt" SaaS mantığı DEĞİL).
 
-   Menü yukarı açılır (pill en altta). Öğeler şeffaflık + KVKK + erişilebilirlik +
+   Menü yukarı açılır (pill en altta). Öğeler şeffaflık + erişilebilirlik +
    açık kaynak kimliğini öne koyar. Her panel odak-tuzaklı modalde açılır. */
 import React, { useState, useRef, useEffect, useCallback, useId } from "react";
 import { Icon } from "./icons.jsx";
 import {
-  HowItWorksPanel, ScopePanel, SourcesPanel, PrivacyPanel,
+  HowItWorksPanel, ScopePanel, SourcesPanel,
   PrefsPanel, DisclaimerPanel, OpenSourcePanel, ProfilePanel,
 } from "./accountPanels.jsx";
 
@@ -21,9 +21,8 @@ const GROUPS = [
     ],
   },
   {
-    label: "Verilerim",
+    label: "Tercihler",
     items: [
-      { id: "privacy", icon: "lock", label: "Gizlilik & verilerim" },
       { id: "prefs", icon: "sliders", label: "Erişilebilirlik & tercihler" },
     ],
   },
@@ -40,7 +39,6 @@ const VIEW_TITLES = {
   how: "ADALET nasıl çalışır?",
   scope: "Hangi konularda yardımcı olurum?",
   sources: "Kaynaklarım nereden geliyor?",
-  privacy: "Gizlilik & verilerim",
   prefs: "Erişilebilirlik & tercihler",
   disclaimer: "Sorumluluk reddi",
   openSource: "Açık kaynak",
@@ -48,7 +46,7 @@ const VIEW_TITLES = {
 };
 const WIDE_VIEWS = new Set(["how", "scope"]);
 
-export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSession, onAsk, showToast, user, onLogout }) {
+export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, showToast, user, onLogout }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(null);
   const rootRef = useRef(null);
@@ -58,7 +56,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
   const dispName = (user?.name || user?.email || prefs.displayName || "").trim();
   const shown = dispName || "Misafir";
   const initial = (shown[0] || "M").toLocaleUpperCase("tr-TR");
-  const subtitle = authed ? (user.email || "Hesabım") : "Misafir oturum · geçmiş bu cihazda";
+  const subtitle = authed ? (user.email || "Hesabım") : "Misafir oturum";
 
   // Menü dışına tıkla / Esc → kapat (modal açıkken modal kendi Esc'ini yönetir).
   useEffect(() => {
@@ -76,12 +74,6 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
   // ScopePanel örnek sorusu → modal+menü kapanır, app'e gönderilir.
   const askAndClose = useCallback((q) => { setView(null); setOpen(false); onAsk?.(q); }, [onAsk]);
 
-  const clearData = useCallback(() => {
-    clearAll();
-    showToast?.("Tüm yerel verileriniz silindi.");
-    setView(null);
-  }, [clearAll, showToast]);
-
   return (
     <div className="sb-user-wrap" ref={rootRef}>
       {open && (
@@ -90,7 +82,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
             <span className="acc-id-ava">{initial}</span>
             <span className="acc-id-tx">
               <b>{shown}</b>
-              <span><Icon.lock style={{ width: 11, height: 11 }} /> {subtitle}</span>
+              <span>{subtitle}</span>
             </span>
             <span className="acc-id-edit"><Icon.pencil style={{ width: 14, height: 14 }} /></span>
           </button>
@@ -135,7 +127,6 @@ export function UserMenu({ prefs, setPref, toggleDomain, clearAll, onClearSessio
           {view === "how" && <HowItWorksPanel />}
           {view === "scope" && <ScopePanel onAsk={askAndClose} />}
           {view === "sources" && <SourcesPanel />}
-          {view === "privacy" && <PrivacyPanel onClearData={clearData} />}
           {view === "prefs" && <PrefsPanel prefs={prefs} setPref={setPref} toggleDomain={toggleDomain} />}
           {view === "disclaimer" && <DisclaimerPanel />}
           {view === "openSource" && <OpenSourcePanel />}
