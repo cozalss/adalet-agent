@@ -4,11 +4,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
+// onAuthChange callback'ini yakala → testte SIGNED_OUT tetikleyebilelim.
+const { authCb } = vi.hoisted(() => ({ authCb: { current: null } }));
 vi.mock("../lib/supabaseData.js", () => ({
   loadPrefsSb: vi.fn().mockResolvedValue(null),
   upsertPrefsSb: vi.fn().mockResolvedValue(false),
   clearPrefsSb: vi.fn().mockResolvedValue(false),
-  onAuthChange: vi.fn(() => () => {}),
+  onAuthChange: vi.fn((cb) => { authCb.current = cb; return () => {}; }),
 }));
 
 import { usePrefs } from "./usePrefs.js";
@@ -40,6 +42,18 @@ describe("usePrefs (hook)", () => {
     expect(result.current.prefs.preferredDomains).toContain("kira");
     act(() => result.current.toggleDomain("kira"));
     expect(result.current.prefs.preferredDomains).not.toContain("kira");
+  });
+
+  it("SIGNED_OUT tercihleri varsayılana sıfırlar + localStorage temizler (cihaz paylaşımı)", () => {
+    const { result } = renderHook(() => usePrefs());
+    act(() => result.current.setPref("textScale", "large"));
+    act(() => result.current.setPref("displayName", "Ayşe"));
+    expect(result.current.prefs.textScale).toBe("large");
+    // Çıkış → sonraki kullanıcı önceki kişinin tercihlerini görmemeli.
+    act(() => authCb.current("SIGNED_OUT"));
+    expect(result.current.prefs.textScale).toBe("normal");
+    expect(result.current.prefs.displayName).toBe("");
+    expect(document.documentElement.getAttribute("data-text-scale")).toBe("normal");
   });
 
   it("clearAll varsayılana döner (saklanan değer de default'a sıfırlanır)", () => {

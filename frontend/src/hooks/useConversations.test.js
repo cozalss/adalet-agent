@@ -4,12 +4,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
+// onAuthChange callback'ini yakala → testte SIGNED_OUT tetikleyebilelim.
+const { authCb } = vi.hoisted(() => ({ authCb: { current: null } }));
 vi.mock("../lib/supabaseData.js", () => ({
   loadConversationsSb: vi.fn().mockResolvedValue(null),
   upsertConversationSb: vi.fn().mockResolvedValue(false),
   deleteConversationSb: vi.fn().mockResolvedValue(false),
   deleteAllConversationsSb: vi.fn().mockResolvedValue(false),
-  onAuthChange: vi.fn(() => () => {}),
+  onAuthChange: vi.fn((cb) => { authCb.current = cb; return () => {}; }),
 }));
 
 import { useConversations } from "./useConversations.js";
@@ -52,6 +54,16 @@ describe("useConversations (hook)", () => {
     act(() => result.current.saveConversation("c1", { title: "X", turns: [turn("q", "a")] }));
     act(() => result.current.removeConversation("c1"));
     expect(result.current.conversations).toHaveLength(0);
+  });
+
+  it("SIGNED_OUT yerel geçmişi + localStorage'ı temizler (paylaşılan cihaz sızması)", () => {
+    const { result } = renderHook(() => useConversations());
+    act(() => result.current.saveConversation("c1", { title: "Gizli sohbet", turns: [turn("q", "a")] }));
+    expect(result.current.conversations).toHaveLength(1);
+    // Kullanıcı çıkış yapar → sonraki kullanıcı önceki kişinin verisini görmemeli.
+    act(() => authCb.current("SIGNED_OUT"));
+    expect(result.current.conversations).toHaveLength(0);
+    expect(localStorage.getItem("adalet.conversations")).toBeNull();
   });
 
   it("clearAllConversations tümünü siler + localStorage temizlenir", () => {

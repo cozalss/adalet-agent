@@ -57,9 +57,11 @@ export function useConversations() {
   // (Çakışmada yenisi kazanır; eşit/yereldeyse zengin yerel turn verisi korunur.)
   useEffect(() => {
     let cancelled = false;
+    let syncId = 0; // geride kalan/eski oturum response'unu at (yarış koruması).
     async function sync() {
+      const mine = ++syncId;
       const remote = await loadConversationsSb(); // misafirde null → no-op
-      if (cancelled || !remote) return;
+      if (cancelled || mine !== syncId || !remote) return;
       const local = mapRef.current;
       const merged = { ...local };
       for (const id of Object.keys(remote)) {
@@ -71,9 +73,19 @@ export function useConversations() {
       setMap(merged);
       writeAll(merged);
     }
+    // Çıkışta yerel geçmişi TEMİZLE: paylaşılan cihazda sonraki kullanıcı önceki
+    // kişinin sohbetlerini görmesin (veri sen kalır; girişte Supabase'ten geri gelir).
+    function clearLocal() {
+      syncId += 1; // uçuştaki sync'i geçersiz kıl
+      mapRef.current = {};
+      setMap({});
+      try { localStorage.removeItem(KEY); } catch { /* özel mod */ }
+    }
     sync();
-    // Giriş/çıkışta yeniden senkronla (yeni oturumun geçmişini getir).
-    const off = onAuthChange(() => sync());
+    const off = onAuthChange((event) => {
+      if (event === "SIGNED_OUT") clearLocal();
+      else sync(); // SIGNED_IN → yeni oturumun geçmişini getir
+    });
     return () => { cancelled = true; off(); };
   }, []);
 

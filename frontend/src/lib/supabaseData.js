@@ -19,6 +19,13 @@ async function sessionUser() {
   return data?.session?.user || null;
 }
 
+/** Senkron hatası best-effort ama SESSİZ DEĞİL — kullanıcı veri kaybını fark
+ *  edebilsin diye konsola yaz (toast/banner üst katmanda ele alınabilir). */
+function logSync(op, error) {
+  // eslint-disable-next-line no-console
+  console.warn(`[adalet] Supabase senkron başarısız (${op}):`, error?.message || error);
+}
+
 /** Oturum değişiminde (giriş/çıkış) tetikle — hook'lar yeniden senkronlar.
  *  @returns {() => void} abonelik iptal fonksiyonu */
 export function onAuthChange(cb) {
@@ -55,38 +62,31 @@ export async function loadConversationsSb() {
   return map;
 }
 
-/** Sohbeti kaydet/güncelle: conversation upsert + mesajları yerine koy (idempotent).
- *  user_id DB default'u (auth.uid()) ile dolar; RLS insert-check ile doğrulanır. */
+/** Sohbeti kaydet/güncelle: conversation upsert + mesaj replace TEK TRANSACTION
+ *  (save_conversation RPC). Atomik → delete/insert arası hata = mesaj kaybı YOK.
+ *  RPC SECURITY INVOKER + RLS: başka kullanıcının id'sine yazma → rollback. */
 export async function upsertConversationSb(id, { title, domain, turns }) {
   if (!id || !(await sessionUser())) return false;
-  const now = new Date().toISOString();
-  const { error: cErr } = await supabase
-    .from("conversations")
-    .upsert({ id, title: title || "", domain: domain || "", updated_at: now }, { onConflict: "id" });
-  if (cErr) return false;
-
-  // Mesajları tazele: önce sil, sonra ekle (çoğaltma yok — backend repo deseniyle aynı).
-  await supabase.from("messages").delete().eq("conversation_id", id);
   const rows = turnsToMessages(turns).map((m) => ({
-    conversation_id: id,
     turn_index: m.turn_index,
     role: m.role,
     content: m.content,
     citations: m.citations || [],
     confidence: m.confidence || 0,
   }));
-  if (rows.length) {
-    const { error: mErr } = await supabase.from("messages").insert(rows);
-    if (mErr) return false;
-  }
+  const { error } = await supabase.rpc("save_conversation", {
+    p_id: id, p_title: title || "", p_domain: domain || "", p_rows: rows,
+  });
+  if (error) { logSync("save_conversation", error); return false; }
   return true;
 }
 
-/** Sohbeti sil (mesajlar ON DELETE CASCADE ile gider). */
+/** Sohbeti sil (mesajlar + dosya kayıtları ON DELETE CASCADE ile gider). */
 export async function deleteConversationSb(id) {
   if (!id || !(await sessionUser())) return false;
   const { error } = await supabase.from("conversations").delete().eq("id", id);
-  return !error;
+  if (error) { logSync("deleteConversation", error); return false; }
+  return true;
 }
 
 /** TÜM geçmişi sil ("tüm verilerimi sil"). RLS zaten kullanıcıya kısıtlar;
@@ -95,7 +95,8 @@ export async function deleteAllConversationsSb() {
   const u = await sessionUser();
   if (!u) return false;
   const { error } = await supabase.from("conversations").delete().eq("user_id", u.id);
-  return !error;
+  if (error) { logSync("deleteAllConversations", error); return false; }
+  return true;
 }
 
 /* ============================ Tercihler (profiles) ============================ */
@@ -120,7 +121,8 @@ export async function upsertPrefsSb(payload) {
   const { error } = await supabase
     .from("profiles")
     .upsert({ id: u.id, ...payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
-  return !error;
+  if (error) { logSync("upsertPrefs", error); return false; }
+  return true;
 }
 
 /** Tercihleri varsayılana döndür (profil satırı auth'a bağlı kalır — silme yerine reset). */
@@ -143,5 +145,6 @@ export async function addFileSb(meta) {
     n_chars: meta.n_chars || 0,
     pii_flag: !!meta.pii_flag,
   });
-  return !error;
+  if (error) { logSync("addFile", error); return false; }
+  return true;
 }

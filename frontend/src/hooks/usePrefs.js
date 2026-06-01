@@ -101,17 +101,31 @@ export function usePrefs() {
   useEffect(() => {
     applyToDom(prefs);
     let cancelled = false;
+    let syncId = 0; // geride kalan/eski oturum response'unu at (yarış koruması).
     async function pullRemote() {
+      const mine = ++syncId;
       const remote = await loadPrefsSb(); // misafirde null → no-op
-      if (cancelled || !remote) return;
+      if (cancelled || mine !== syncId || !remote) return;
       const merged = fromServer(remote);
-      fromRemote.current = true; // sonraki effect bu değişimi PUT etmesin
+      fromRemote.current = true; // sonraki effect bu değişimi yazma atlasın
       setPrefs(merged);
       writeLocal(merged);
       applyToDom(merged);
     }
+    // Çıkışta tercihleri varsayılana sıfırla + yereli temizle (cihaz paylaşımı).
+    function clearLocal() {
+      syncId += 1;
+      try { localStorage.removeItem(KEY); } catch { /* özel mod */ }
+      fromRemote.current = true; // default'a dönüş sunucuya geri-yazılmasın
+      const fresh = { ...DEFAULT_PREFS };
+      setPrefs(fresh);
+      applyToDom(fresh);
+    }
     pullRemote();
-    const off = onAuthChange(() => pullRemote()); // giriş/çıkışta yeniden çek
+    const off = onAuthChange((event) => {
+      if (event === "SIGNED_OUT") clearLocal();
+      else pullRemote(); // SIGNED_IN → yeni oturumun tercihlerini getir
+    });
     return () => { cancelled = true; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
