@@ -9,8 +9,8 @@ import { registerApi, loginApi } from "../lib/api.js";
 const TOKEN_KEY = "adalet-token";
 const GUEST_KEY = "adalet-guest";
 
-/** JWT payload'ını decode et (imza DOĞRULAMAZ — yalnız görüntüleme; doğrulama backend'de). */
-function decodeJwt(token) {
+/** JWT payload'ını decode et (imza DOĞRULAMAZ — yalnız görüntüleme; doğrulama backend'de). Test için export. */
+export function decodeJwt(token) {
   try {
     const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
     // TextDecoder ile güvenilir UTF-8 (escape/unescape deprecated + Türkçe char'da hatalı).
@@ -19,8 +19,8 @@ function decodeJwt(token) {
   } catch { return null; }
 }
 
-/** Token → kullanıcı nesnesi (süresi dolmuşsa temizle + null). */
-function userFromToken(token) {
+/** Token → kullanıcı nesnesi (süresi dolmuşsa temizle + null). Test için export. */
+export function userFromToken(token) {
   const c = token && decodeJwt(token);
   if (!c || !c.sub) return null;
   if (c.exp && c.exp * 1000 < Date.now()) {

@@ -27,8 +27,8 @@ const ALLOWED_DOMAINS = new Set([
   "tuketici", "isHukuku", "kira", "icra", "trafik", "vergi", "tapu", "idari",
 ]);
 
-/** Bilinmeyen/eski alanları kırp + sınırla (forward-compat + savunmacı). */
-function sanitize(raw) {
+/** Bilinmeyen/eski alanları kırp + sınırla (forward-compat + savunmacı). Test için export. */
+export function sanitize(raw) {
   const p = raw && typeof raw === "object" ? raw : {};
   const domains = Array.isArray(p.preferredDomains)
     ? p.preferredDomains.filter((d) => ALLOWED_DOMAINS.has(d)).slice(0, 8)
