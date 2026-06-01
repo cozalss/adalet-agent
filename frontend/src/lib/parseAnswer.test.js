@@ -1,0 +1,134 @@
+/* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
+import { describe, it, expect } from "vitest";
+import { mapResponse, mapClarify, mapSources, deriveRisk } from "./parseAnswer.js";
+
+describe("mapResponse — answer", () => {
+  const resp = {
+    domain: "kira",
+    verdict: "pass",
+    confidence: 0.88,
+    answer: "**Kısa cevap:** Yasal sınır TÜFE'dir [src: tbk-344].\n\n**Dayanak:** TBK madde 344.",
+    citations: [{ source_id: "tbk-344", doc_type: "law", title: "TBK m.344", snippet: "madde metni" }],
+    disclaimers: ["Hukuki tavsiye değildir."],
+    has_dilekce: false,
+    conversation_id: "c1",
+  };
+
+  it("kind=answer + domain etiketi + güven %", () => {
+    const out = mapResponse(resp, "ev sahibim zam istiyor");
+    expect(out.kind).toBe("answer");
+    expect(out.domain).toBe("Kira Hukuku");
+    expect(out.answer.confidence).toBe(88);
+    expect(out.conversationId).toBe("c1");
+    expect(out.hasDilekce).toBe(false);
+    expect(out.disclaimers).toEqual(["Hukuki tavsiye değildir."]);
+  });
+
+  it("başlıkları bölümlere ayırır (Kısa cevap + Dayanak)", () => {
+    const out = mapResponse(resp, "");
+    const labels = out.answer.sections.map((s) => s.label);
+    expect(labels).toContain("Kısa cevap");
+    expect(labels).toContain("Dayanak");
+    expect(out.answer.sections[0].lead).toBe(true);
+  });
+
+  it("[src: id] etiketini 1-tabanlı {cite:N} run'a çevirir", () => {
+    const out = mapResponse(resp, "");
+    const runs = out.answer.sections[0].runs;
+    expect(runs.some((r) => r.cite === 1)).toBe(true);
+    // ham [src:...] metinde kalmamalı
+    expect(JSON.stringify(runs)).not.toContain("src:");
+  });
+
+  it("citations → kaynak kartları (kanun)", () => {
+    const out = mapResponse(resp, "");
+    expect(out.sources[0]).toMatchObject({
+      id: 1, type: "Kanun", badge: "kanun", title: "TBK m.344", verified: true,
+    });
+  });
+
+  it("Kaynaklar/disclaimer kuyruğunu gövdeden kırpar", () => {
+    const r = { ...resp, answer: "**Kısa cevap:** X.\n\n--\n\n**Kaynaklar:**\n1. TBK\n\n⚠️ uyarı" };
+    const out = mapResponse(r, "");
+    expect(out.answer.text).not.toContain("Kaynaklar");
+    expect(out.answer.text).not.toContain("⚠️");
+  });
+
+  it("numaralı 'ne yapmalı' listesini steps[]'e çevirir", () => {
+    const r = { ...resp, answer: "**Ne yapmalı:**\n1. İhtarname gönder\n2. Dava aç" };
+    const out = mapResponse(r, "");
+    const step = out.answer.sections.find((s) => s.steps);
+    expect(step.steps).toEqual(["İhtarname gönder", "Dava aç"]);
+  });
+
+  it("claims → şeffaflık şekli (cite_ids → numara, score %)", () => {
+    const r = { ...resp, claims: [{ text: "iddia", verified: true, verify_score: 0.9, cite_ids: ["tbk-344"] }] };
+    const out = mapResponse(r, "");
+    expect(out.claims[0]).toMatchObject({ text: "iddia", verified: true, score: 90, citeNums: [1] });
+  });
+
+  it("prediction → tahmin kartı şekli (null güvenli)", () => {
+    const r = { ...resp, prediction: { verdict_class: "kazandi", confidence: 0.7, similar_case_ids: ["a"], disclaimer: "d" } };
+    const out = mapResponse(r, "");
+    expect(out.prediction).toMatchObject({ verdictClass: "kazandi", confidence: 70, similarCaseIds: ["a"], disclaimer: "d" });
+    expect(mapResponse(resp, "").prediction).toBeNull();
+  });
+});
+
+describe("mapResponse — reject", () => {
+  it("kind=reject + body + bakılan kaynaklar", () => {
+    const out = mapResponse({
+      domain: "unknown", verdict: "reject", answer: "Emin değilim.",
+      citations: [{ title: "X", source_id: "x" }, { title: "Y", source_id: "y" }],
+    });
+    expect(out.kind).toBe("reject");
+    expect(out.reject.body).toContain("Emin değilim");
+    expect(out.lookedAt).toEqual(["X", "Y"]);
+  });
+
+  it("boş cevapta anlamlı fallback body", () => {
+    const out = mapResponse({ verdict: "reject", answer: "", citations: [] });
+    expect(out.reject.body).toContain("avukat");
+  });
+});
+
+describe("mapClarify", () => {
+  it("numaralı seçenekleri + intro ayırır", () => {
+    const out = mapClarify("Şunları netleştirelim:\n1. Kira ne kadar?\n2. Sözleşme var mı?");
+    expect(out.intro).toBe("Şunları netleştirelim:");
+    expect(out.options).toEqual(["Kira ne kadar?", "Sözleşme var mı?"]);
+  });
+  it("madde işaretli (-•) seçenekleri de tanır", () => {
+    expect(mapClarify("- A\n- B").options).toEqual(["A", "B"]);
+  });
+  it("boş girdide fallback intro + seçenek", () => {
+    const out = mapClarify("");
+    expect(out.intro).toMatch(/netleştir/i);
+    expect(out.options).toHaveLength(1);
+  });
+});
+
+describe("mapSources", () => {
+  it("law→Kanun, case→Yargıtay; alanları doldurur", () => {
+    const out = mapSources([
+      { doc_type: "law", title: "TBK m.1", source_id: "a", snippet: "s", url: "u" },
+      { doc_type: "case", title: "Y 9.HD", source_id: "b" },
+    ]);
+    expect(out[0]).toMatchObject({ id: 1, type: "Kanun", badge: "kanun", ref: "a", url: "u", verified: true });
+    expect(out[1]).toMatchObject({ id: 2, type: "Yargıtay", badge: "yargitay" });
+  });
+  it("title yoksa source_id kullanır", () => {
+    expect(mapSources([{ doc_type: "law", source_id: "x" }])[0].title).toBe("x");
+  });
+});
+
+describe("deriveRisk", () => {
+  it("süre/itiraz gibi anahtar kelimede uyarı üretir", () => {
+    const r = deriveRisk("itiraz süresi", "30 gün içinde başvurun");
+    expect(r).not.toBeNull();
+    expect(r.text).toContain("süre");
+  });
+  it("risk kelimesi yoksa null", () => {
+    expect(deriveRisk("merhaba", "nasılsın")).toBeNull();
+  });
+});
