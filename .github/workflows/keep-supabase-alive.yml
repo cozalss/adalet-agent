@@ -1,0 +1,40 @@
+name: Keep Supabase Alive
+
+# Supabase Free plan projeleri 7 gün düşük aktivitede PAUSE olur. Bu iş günlük olarak
+# gerçek bir DB sorgusu atarak (PostgREST → Postgres) inaktivite sayacını sıfırlar.
+# Ayrıca proje ulaşılamazsa (pause/deleted) job KIRMIZIYA döner → GitHub seni uyarır.
+#
+# KURULUM (bir kez): GitHub repo → Settings → Secrets and variables → Actions → New secret:
+#   SUPABASE_URL       = https://<yeni-ref>.supabase.co
+#   SUPABASE_ANON_KEY  = <anon public key>
+# (Proje silinip yeniden kurulursa bu iki secret'ı yeni değerlerle güncelle.)
+
+on:
+  schedule:
+    - cron: "17 9 * * *"   # her gün ~09:17 UTC (yuvarlak saatlerde gecikme olur, 17 dk kaydırdık)
+  workflow_dispatch:        # elle de tetiklenebilir (Actions sekmesi → Run workflow)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase DB'ye gerçek istek (inaktivite-pause önle + sağlık kontrolü)
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY secret'leri tanımlı değil (repo Settings → Secrets)."
+            exit 1
+          fi
+          # conversations tablosunu sorgula: RLS ile anon boş [] döner AMA sorgu Postgres'te
+          # çalışır → aktivite sayılır (pause sayacı sıfırlanır).
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            "$URL/rest/v1/conversations?select=id&limit=1" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" --max-time 20)
+          echo "HTTP $code — yanıt: $(cat /tmp/resp.txt)"
+          if [ "$code" != "200" ]; then
+            echo "::error::Supabase ulasilamadi (HTTP $code). Proje pause/deleted olabilir — Dashboard'dan kontrol et."
+            exit 1
+          fi
+          echo "✓ Supabase canli ve aktif tutuldu."
