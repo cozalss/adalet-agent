@@ -8,6 +8,9 @@
    belge metadata'sı) bu kayıtlardan üretilir. */
 import { useState, useCallback, useEffect, useRef } from "react";
 import { putConversationApi, deleteConversationApi, deleteAllConversationsApi } from "../lib/api.js";
+import {
+  turnsToMessages, searchConversations, aggregateSources, aggregateFiles,
+} from "../lib/conversationUtils.js";
 
 const KEY = "adalet.conversations";
 const MAX_CONVERSATIONS = 100; // sınırsız büyümeyi önle
@@ -32,31 +35,6 @@ function writeAll(map) {
 
 function sortedList(map) {
   return Object.values(map).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-}
-
-/** Cevap metnini turn'den çıkar (answer.text veya reject body). */
-function answerText(turn) {
-  const d = turn.data || {};
-  if (d.answer?.text) return d.answer.text;
-  if (d.reject?.body) return d.reject.body;
-  return "";
-}
-
-/** Yerel turn dizisini backend mesaj şemasına çevir (user+assistant satırları). */
-function turnsToMessages(turns) {
-  const msgs = [];
-  (turns || []).forEach((t, i) => {
-    msgs.push({ turn_index: i * 2, role: "user", content: t.question || "", domain: t.data?.domain || "" });
-    const ans = answerText(t);
-    if (ans) {
-      msgs.push({
-        turn_index: i * 2 + 1, role: "assistant", content: ans, domain: t.data?.domain || "",
-        citations: (t.data?.sources || []).map((s) => ({ id: s.id, title: s.title, doc_type: s.doc_type })),
-        confidence: t.data?.answer?.confidence || 0,
-      });
-    }
-  });
-  return msgs;
 }
 
 export function useConversations() {
@@ -118,33 +96,10 @@ export function useConversations() {
     deleteAllConversationsApi();
   }, []);
 
-  /** "Sohbetlerde ara" — başlık + soru + cevap metninde ara. */
-  const search = useCallback((q) => {
-    const ql = (q || "").trim().toLocaleLowerCase("tr-TR");
-    if (!ql) return list;
-    return list.filter((c) => {
-      const hay = [c.title, ...(c.turns || []).flatMap((t) => [t.question, answerText(t)])]
-        .join(" ").toLocaleLowerCase("tr-TR");
-      return hay.includes(ql);
-    });
-  }, [list]);
-
-  /** "Kaynaklar" — tüm sohbetlerdeki atıfları birleştir (kaynak id'ye göre tekille). */
-  const allSources = useCallback(() => {
-    const seen = new Map();
-    list.forEach((c) => (c.turns || []).forEach((t) => (t.data?.sources || []).forEach((s) => {
-      const k = `${s.doc_type || ""}:${s.title || s.id}`;
-      if (!seen.has(k)) seen.set(k, { ...s, convId: c.id, convTitle: c.title });
-    })));
-    return [...seen.values()];
-  }, [list]);
-
-  /** "Dosyalarım" — tüm sohbetlerdeki yüklenen belgeleri birleştir. */
-  const allFiles = useCallback(() => {
-    const out = [];
-    list.forEach((c) => (c.files || []).forEach((f) => out.push({ ...f, convId: c.id, convTitle: c.title })));
-    return out;
-  }, [list]);
+  /** "Sohbetlerde ara" / "Kaynaklar" / "Dosyalarım" — saf util'lere delege (test edilebilir). */
+  const search = useCallback((q) => searchConversations(list, q), [list]);
+  const allSources = useCallback(() => aggregateSources(list), [list]);
+  const allFiles = useCallback(() => aggregateFiles(list), [list]);
 
   return {
     conversations: list, saveConversation, removeConversation, getConversation,
