@@ -1,16 +1,18 @@
-/* ADALET sohbet geçmişi — localStorage birincil + backend senkron.
+/* ADALET sohbet geçmişi — localStorage birincil + Supabase senkron.
 
    ADALET artık sohbet geçmişi tutar. Birincil kaynak tarayıcı localStorage
-   (anonim de dahil herkeste HEMEN çalışır); auth'lu kullanıcıda /me/conversations
-   ile cihazlar-arası senkronlanır (best-effort, anonimde sessizce no-op).
+   (misafir de dahil herkeste HEMEN çalışır); kayıtlı kullanıcıda DOĞRUDAN Supabase
+   (conversations/messages + RLS) ile cihazlar-arası senkronlanır (best-effort;
+   misafirde sessizce no-op). Eski FastAPI /me/* yolu kaldırıldı (v2.2 tam geçiş).
 
    Türetilen: "Kaynaklar" (tüm sohbetlerdeki atıflar) ve "Dosyalarım" (yüklenen
    belge metadata'sı) bu kayıtlardan üretilir. */
 import { useState, useCallback, useEffect, useRef } from "react";
-import { putConversationApi, deleteConversationApi, deleteAllConversationsApi } from "../lib/api.js";
 import {
-  turnsToMessages, searchConversations, aggregateSources, aggregateFiles,
-} from "../lib/conversationUtils.js";
+  loadConversationsSb, upsertConversationSb, deleteConversationSb,
+  deleteAllConversationsSb, onAuthChange,
+} from "../lib/supabaseData.js";
+import { searchConversations, aggregateSources, aggregateFiles } from "../lib/conversationUtils.js";
 
 const KEY = "adalet.conversations";
 const MAX_CONVERSATIONS = 100; // sınırsız büyümeyi önle
@@ -51,6 +53,30 @@ export function useConversations() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Cihazlar-arası: kayıtlı kullanıcıda Supabase'ten geçmişi çek + yerelle birleştir.
+  // (Çakışmada yenisi kazanır; eşit/yereldeyse zengin yerel turn verisi korunur.)
+  useEffect(() => {
+    let cancelled = false;
+    async function sync() {
+      const remote = await loadConversationsSb(); // misafirde null → no-op
+      if (cancelled || !remote) return;
+      const local = mapRef.current;
+      const merged = { ...local };
+      for (const id of Object.keys(remote)) {
+        const r = remote[id];
+        const l = local[id];
+        if (!l || (r.updatedAt || "") > (l.updatedAt || "")) merged[id] = r;
+      }
+      mapRef.current = merged;
+      setMap(merged);
+      writeAll(merged);
+    }
+    sync();
+    // Giriş/çıkışta yeniden senkronla (yeni oturumun geçmişini getir).
+    const off = onAuthChange(() => sync());
+    return () => { cancelled = true; off(); };
+  }, []);
+
   const list = sortedList(map);
 
   /** Sohbeti kaydet/güncelle (her tamamlanan turdan sonra). */
@@ -71,7 +97,7 @@ export function useConversations() {
     mapRef.current = next;
     setMap(next);
     writeAll(next);
-    putConversationApi(id, { title: rec.title, domain: rec.domain, messages: turnsToMessages(turns) });
+    upsertConversationSb(id, { title: rec.title, domain: rec.domain, turns }); // misafirde no-op
   }, []);
 
   /** Sohbeti sil (yerel + backend). */
@@ -82,18 +108,18 @@ export function useConversations() {
     mapRef.current = next;
     setMap(next);
     writeAll(next);
-    deleteConversationApi(id);
+    deleteConversationSb(id); // misafirde no-op
   }, []);
 
   /** Bir sohbeti getir (turns ile) — yeniden yüklemek için. */
   const getConversation = useCallback((id) => map[id] || null, [map]);
 
-  /** Tüm geçmişi sil (KVKK "tüm verilerimi sil") — yerel + backend (tek istek). */
+  /** Tüm geçmişi sil ("tüm verilerimi sil") — yerel + Supabase (tek istek). */
   const clearAllConversations = useCallback(() => {
     mapRef.current = {};
     setMap({});
     try { localStorage.removeItem(KEY); } catch { /* yoksay */ }
-    deleteAllConversationsApi();
+    deleteAllConversationsSb(); // misafirde no-op
   }, []);
 
   /** "Sohbetlerde ara" / "Kaynaklar" / "Dosyalarım" — saf util'lere delege (test edilebilir). */

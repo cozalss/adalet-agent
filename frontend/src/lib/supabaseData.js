@@ -1,0 +1,147 @@
+/* ADALET — Supabase veri katmanı (sohbet geçmişi + tercihler).
+
+   "Tam geçiş" (v2.2): kayıtlı kullanıcının sohbet geçmişi ve tercihleri artık
+   eski FastAPI /me/* uçları yerine DOĞRUDAN Supabase'e (Postgres + RLS) yazılır.
+   supabase-js her isteğe oturum JWT'sini ekler; RLS sahipliği DB seviyesinde
+   zorlar (auth.uid() = user_id) — IDOR'a kapalı, owner-check kodu gerekmez.
+
+   Misafir / oturumsuz: her fonksiyon sessiz no-op döner (null/false). Birincil
+   kaynak yine tarayıcı localStorage'dır; Supabase yalnız cihazlar-arası senkron. */
+import { supabase } from "./supabase.js";
+import { turnsToMessages, messagesToTurns } from "./conversationUtils.js";
+
+const MAX_CONVERSATIONS = 100; // en yeni N sohbeti senkronla (sınırsız büyümeyi önle)
+
+/** Aktif oturumun kullanıcısı (yerel — ağ yok) veya null (misafir). */
+async function sessionUser() {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.user || null;
+}
+
+/** Oturum değişiminde (giriş/çıkış) tetikle — hook'lar yeniden senkronlar.
+ *  @returns {() => void} abonelik iptal fonksiyonu */
+export function onAuthChange(cb) {
+  if (!supabase) return () => {};
+  const { data } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN" || event === "SIGNED_OUT") cb(event);
+  });
+  return () => data.subscription.unsubscribe();
+}
+
+/* ============================ Sohbet geçmişi ============================ */
+
+/** Tüm sohbetleri + mesajlarını çek → { [id]: rec } haritası (yoksa null). */
+export async function loadConversationsSb() {
+  if (!(await sessionUser())) return null;
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("id, title, domain, created_at, updated_at, messages(turn_index, role, content, citations, confidence)")
+    .order("updated_at", { ascending: false })
+    .limit(MAX_CONVERSATIONS);
+  if (error || !data) return null;
+  const map = {};
+  for (const c of data) {
+    map[c.id] = {
+      id: c.id,
+      title: c.title || "",
+      domain: c.domain || "",
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+      turns: messagesToTurns(c.messages || [], c.domain || ""),
+      files: [],
+    };
+  }
+  return map;
+}
+
+/** Sohbeti kaydet/güncelle: conversation upsert + mesajları yerine koy (idempotent).
+ *  user_id DB default'u (auth.uid()) ile dolar; RLS insert-check ile doğrulanır. */
+export async function upsertConversationSb(id, { title, domain, turns }) {
+  if (!id || !(await sessionUser())) return false;
+  const now = new Date().toISOString();
+  const { error: cErr } = await supabase
+    .from("conversations")
+    .upsert({ id, title: title || "", domain: domain || "", updated_at: now }, { onConflict: "id" });
+  if (cErr) return false;
+
+  // Mesajları tazele: önce sil, sonra ekle (çoğaltma yok — backend repo deseniyle aynı).
+  await supabase.from("messages").delete().eq("conversation_id", id);
+  const rows = turnsToMessages(turns).map((m) => ({
+    conversation_id: id,
+    turn_index: m.turn_index,
+    role: m.role,
+    content: m.content,
+    citations: m.citations || [],
+    confidence: m.confidence || 0,
+  }));
+  if (rows.length) {
+    const { error: mErr } = await supabase.from("messages").insert(rows);
+    if (mErr) return false;
+  }
+  return true;
+}
+
+/** Sohbeti sil (mesajlar ON DELETE CASCADE ile gider). */
+export async function deleteConversationSb(id) {
+  if (!id || !(await sessionUser())) return false;
+  const { error } = await supabase.from("conversations").delete().eq("id", id);
+  return !error;
+}
+
+/** TÜM geçmişi sil ("tüm verilerimi sil"). RLS zaten kullanıcıya kısıtlar;
+ *  PostgREST filtresiz DELETE'i reddettiği için user_id ile filtreliyoruz. */
+export async function deleteAllConversationsSb() {
+  const u = await sessionUser();
+  if (!u) return false;
+  const { error } = await supabase.from("conversations").delete().eq("user_id", u.id);
+  return !error;
+}
+
+/* ============================ Tercihler (profiles) ============================ */
+
+/** Kullanıcının profil (tercih) satırı → sunucu şekli veya null. */
+export async function loadPrefsSb() {
+  const u = await sessionUser();
+  if (!u) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("display_name, text_scale, reduce_motion, high_contrast, preferred_domains")
+    .eq("id", u.id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
+/** Tercihleri profile yaz (upsert — trigger satırı kayıtta zaten oluşturmuş olabilir). */
+export async function upsertPrefsSb(payload) {
+  const u = await sessionUser();
+  if (!u) return false;
+  const { error } = await supabase
+    .from("profiles")
+    .upsert({ id: u.id, ...payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  return !error;
+}
+
+/** Tercihleri varsayılana döndür (profil satırı auth'a bağlı kalır — silme yerine reset). */
+export async function clearPrefsSb() {
+  return upsertPrefsSb({
+    display_name: "", text_scale: "normal", reduce_motion: false,
+    high_contrast: false, preferred_domains: [],
+  });
+}
+
+/* ============================ Dosyalarım (uploaded_files) ============================ */
+
+/** OCR yükleme metadata kaydı (best-effort; misafirde no-op). Belge METNİ saklanmaz. */
+export async function addFileSb(meta) {
+  if (!(await sessionUser())) return false;
+  const { error } = await supabase.from("uploaded_files").insert({
+    conversation_id: meta.conversation_id || null,
+    filename: meta.filename || "",
+    ocr_engine: meta.ocr_engine || "",
+    n_chars: meta.n_chars || 0,
+    pii_flag: !!meta.pii_flag,
+  });
+  return !error;
+}

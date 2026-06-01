@@ -29,6 +29,34 @@ export function turnsToMessages(turns) {
   return msgs;
 }
 
+/** DB mesaj dizisini görüntülenebilir turn dizisine çevir (turnsToMessages tersi).
+ *
+ *  Tam turn 'data' şekli (fazlar, ara durumlar) localStorage'da yaşar; bu yeniden
+ *  kurulum CİHAZLAR-ARASI geçmişi GÖSTERMEK için yeterli minimumdur: soru + cevap
+ *  metni + atıflar + güven. domain konuşma seviyesinde tutulur (mesajda kolon yok). */
+export function messagesToTurns(messages, domain = "") {
+  const sorted = [...(messages || [])].sort((a, b) => (a.turn_index ?? 0) - (b.turn_index ?? 0));
+  const turns = [];
+  for (let i = 0; i < sorted.length; i += 1) {
+    const m = sorted[i];
+    if (m.role !== "user") continue;
+    const next = sorted[i + 1];
+    const ans = next && next.role === "assistant" ? next : null;
+    turns.push({
+      question: m.content || "",
+      phase: "final",
+      data: {
+        kind: "answer",
+        domain,
+        answer: { text: ans?.content || "", confidence: Number(ans?.confidence) || 0 },
+        sources: (ans?.citations || []).map((c) => ({ id: c.id, title: c.title, doc_type: c.doc_type })),
+        sourceCount: (ans?.citations || []).length,
+      },
+    });
+  }
+  return turns;
+}
+
 /** "Sohbetlerde ara" — başlık + soru + cevap metninde (TR case-fold). Boş q → tümü. */
 export function searchConversations(list, q) {
   const ql = (q || "").trim().toLocaleLowerCase("tr-TR");

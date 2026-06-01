@@ -1,14 +1,15 @@
-/* ADALET kullanıcı tercihleri — localStorage birincil + DOM uygulama + backend senkron.
+/* ADALET kullanıcı tercihleri — localStorage birincil + DOM uygulama + Supabase senkron.
 
-   KVKK: tercihler (görünen ad, yazı boyutu, hareket, kontrast, tercih alanları)
-   öncelikle TARAYICIDA (localStorage) tutulur — anonim çalışır, sunucu gerekmez.
-   Auth'lu kullanıcıda (token var) /me/preferences ile cihazlar-arası senkronlanır
-   (best-effort; anonimde sessizce yerel kalır).
+   Tercihler (görünen ad, yazı boyutu, hareket, kontrast, tercih alanları) öncelikle
+   TARAYICIDA (localStorage) tutulur — misafir çalışır, sunucu gerekmez. Kayıtlı
+   kullanıcıda DOĞRUDAN Supabase profiles (+ RLS) ile cihazlar-arası senkronlanır
+   (best-effort; misafirde sessizce yerel kalır). Eski FastAPI /me/preferences yolu
+   kaldırıldı (v2.2 tam geçiş).
 
    Uygulama: tercihler <html> data-attribute'larına yansır; görsel etki CSS'te
-   (data-text-scale / data-reduce-motion / data-contrast). Hiçbir hassas veri yok. */
+   (data-text-scale / data-reduce-motion / data-contrast). */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getPreferences, putPreferences, deletePreferences } from "../lib/api.js";
+import { loadPrefsSb, upsertPrefsSb, clearPrefsSb, onAuthChange } from "../lib/supabaseData.js";
 
 const KEY = "adalet.prefs";
 const SCHEMA_V = 1;
@@ -96,20 +97,22 @@ export function usePrefs() {
   // veriyi sunucuya yazma) atlamak için işaret.
   const fromRemote = useRef(false);
 
-  // İlk yüklemede DOM'a uygula + (auth'luysa) sunucu tercihini çek.
+  // İlk yüklemede DOM'a uygula + (kayıtlıysa) Supabase tercihini çek; girişte yenile.
   useEffect(() => {
     applyToDom(prefs);
     let cancelled = false;
-    (async () => {
-      const remote = await getPreferences();
+    async function pullRemote() {
+      const remote = await loadPrefsSb(); // misafirde null → no-op
       if (cancelled || !remote) return;
       const merged = fromServer(remote);
       fromRemote.current = true; // sonraki effect bu değişimi PUT etmesin
       setPrefs(merged);
       writeLocal(merged);
       applyToDom(merged);
-    })();
-    return () => { cancelled = true; };
+    }
+    pullRemote();
+    const off = onAuthChange(() => pullRemote()); // giriş/çıkışta yeniden çek
+    return () => { cancelled = true; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -118,8 +121,8 @@ export function usePrefs() {
     if (!mounted.current) { mounted.current = true; return; }
     applyToDom(prefs);
     writeLocal(prefs);
-    if (fromRemote.current) { fromRemote.current = false; return; } // uzaktan geldi → PUT atla
-    putPreferences(toServer(prefs)); // anonimde sessizce no-op
+    if (fromRemote.current) { fromRemote.current = false; return; } // uzaktan geldi → yazma atla
+    upsertPrefsSb(toServer(prefs)); // misafirde sessizce no-op
   }, [prefs]);
 
   /** Tek alan güncelle (immutable). */
@@ -138,10 +141,10 @@ export function usePrefs() {
     });
   }, []);
 
-  /** KVKK "tüm verilerimi sil": yerel + sunucu kaydını temizle, varsayılana dön. */
+  /** "Tüm verilerimi sil": yerel + Supabase kaydını temizle, varsayılana dön. */
   const clearAll = useCallback(() => {
     try { localStorage.removeItem(KEY); } catch { /* yoksay */ }
-    deletePreferences(); // anonimde no-op
+    clearPrefsSb(); // misafirde no-op
     const fresh = { ...DEFAULT_PREFS };
     setPrefs(fresh);
     applyToDom(fresh);

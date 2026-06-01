@@ -1,7 +1,17 @@
 /* useConversations (hook) — kaydet/listele/getir/ara/sil durumsal davranışı +
-   localStorage kalıcılığı. (token yok → backend fetch no-op) */
-import { describe, it, expect, beforeEach } from "vitest";
+   localStorage kalıcılığı. Supabase senkronu mock'lanır (deterministik no-op):
+   misafir davranışı = yalnız localStorage. */
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+
+vi.mock("../lib/supabaseData.js", () => ({
+  loadConversationsSb: vi.fn().mockResolvedValue(null),
+  upsertConversationSb: vi.fn().mockResolvedValue(false),
+  deleteConversationSb: vi.fn().mockResolvedValue(false),
+  deleteAllConversationsSb: vi.fn().mockResolvedValue(false),
+  onAuthChange: vi.fn(() => () => {}),
+}));
+
 import { useConversations } from "./useConversations.js";
 
 const turn = (q, a) => ({

@@ -31,7 +31,8 @@ function formatPii(counts) {
     .map(([k, n]) => `${n} ${PII_LABELS[k] || k}`)
     .join(", ");
 }
-import { ocrUpload, downloadDilekce, addFileApi } from "./lib/api.js";
+import { ocrUpload, downloadDilekce } from "./lib/api.js";
+import { addFileSb } from "./lib/supabaseData.js";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
 import "./styles/app-extra.css";
@@ -287,13 +288,13 @@ export default function App({ auth }) {
         text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
       }]);
-      // Backend "Dosyalarım" metadata (best-effort; anonimde no-op, metin saklanmaz).
-      addFileApi({
+      // "Dosyalarım" metadata → Supabase (best-effort; misafirde no-op, metin saklanmaz).
+      addFileSb({
         conversation_id: conversationId || "", filename: file.name,
         ocr_engine: res.engine || "tesseract", n_chars: res.n_chars || res.text.length,
         pii_flag: !!piiText,
       });
-      // KVKK şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
+      // Şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
       showToast(piiText
         ? `Belge eklendi · Dikkat: belgenizde ${piiText} tespit edildi (sorunuzla birlikte işlenecek).`
         : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`);

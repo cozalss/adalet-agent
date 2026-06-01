@@ -1,38 +1,27 @@
 /* ADALET backend client — SSE streaming + dilekçe + OCR.
    Vite dev proxy /ask,/api,/multimodal → FastAPI :8000. */
 
-/** Auth token (davet kodu / e-posta-şifre akışından). localStorage; yoksa header yok. */
+/** Backend isteklerine Supabase oturum JWT'sini ekle (varsa). Auth artık Supabase
+ *  GoTrue ile; supabase-js erişim token'ını localStorage'da `sb-<ref>-auth-token`
+ *  altında tutar. Token yoksa (misafir) header yok → backend anonim işler.
+ *  Phase C: backend bu Supabase JWT'sini SUPABASE_JWT_SECRET ile doğrular. */
 function authHeaders() {
-  const t = localStorage.getItem("adalet-token");
+  const t = supabaseAccessToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-/** FastAPI hata gövdesinden kullanıcıya gösterilebilir mesaj çıkar. */
-function errMsg(data, status) {
-  const d = data?.detail;
-  if (typeof d === "string") return d;
-  if (Array.isArray(d) && d[0]?.msg) return d[0].msg; // 422 validation
-  return `İstek başarısız (HTTP ${status})`;
-}
-
-/** POST /auth/register — e-posta/şifre ile hesap oluştur → token. Hatada throw. */
-export async function registerApi(body) {
-  const res = await fetch("/auth/register", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(errMsg(data, res.status));
-  return data; // {access_token, sub, role, expires_in}
-}
-
-/** POST /auth/login — e-posta/şifre doğrula → token. Hatada throw. */
-export async function loginApi(body) {
-  const res = await fetch("/auth/login", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(errMsg(data, res.status));
-  return data;
+/** supabase-js'in localStorage'da sakladığı oturumdan erişim token'ını oku (senkron). */
+function supabaseAccessToken() {
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) {
+        const v = JSON.parse(localStorage.getItem(k) || "null");
+        if (v?.access_token) return v.access_token;
+      }
+    }
+  } catch { /* parse/erişim hatası → token yok say */ }
+  return null;
 }
 
 /**
@@ -141,125 +130,6 @@ export async function clearSession(conversationId) {
       method: "DELETE", headers: authHeaders(),
     });
   } catch { /* yoksay — temizlik en iyi çaba */ }
-}
-
-/* ---------- Kullanıcı tercihleri (/me/preferences) — cihazlar-arası senkron.
-   Birincil kaynak localStorage (anonim çalışır); bu uçlar yalnız auth'lu (token
-   var) kullanıcıda iş görür. Anonim → 401 (sessizce yutulur, yerel veri kalır). */
-
-/** Token yoksa backend tercih senkronu anlamsız (anonim) → erken çık. */
-function hasToken() {
-  return !!localStorage.getItem("adalet-token");
-}
-
-/** GET /me/preferences — auth'lu kullanıcının sunucudaki tercihleri (yoksa null). */
-export async function getPreferences() {
-  if (!hasToken()) return null;
-  try {
-    const res = await fetch("/me/preferences", { headers: authHeaders() });
-    if (!res.ok) return null; // 401 anonim / 404 yok → yerel veriyle devam
-    return await res.json(); // await: HTML/parse hatası catch'e düşsün
-  } catch { return null; }
-}
-
-/** PUT /me/preferences — tercihleri sunucuya yaz (best-effort, fire-and-forget). */
-export async function putPreferences(prefs) {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch("/me/preferences", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(prefs),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-/** DELETE /me/preferences — KVKK silme hakkı (sunucu kaydını temizle). */
-export async function deletePreferences() {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch("/me/preferences", { method: "DELETE", headers: authHeaders() });
-    return res.ok;
-  } catch { return false; }
-}
-
-/* ---------- Sohbet geçmişi (/me/conversations) — cihazlar-arası senkron.
-   Birincil kaynak localStorage (anonim çalışır); bu uçlar yalnız auth'lu
-   (token var) kullanıcıda iş görür. Anonim → 401 (sessizce yutulur). */
-
-/** GET /me/conversations[?q=] — kullanıcının sohbet listesi (metadata) veya null. */
-export async function listConversationsApi(q) {
-  if (!hasToken()) return null;
-  try {
-    const url = q ? `/me/conversations?q=${encodeURIComponent(q)}` : "/me/conversations";
-    const res = await fetch(url, { headers: authHeaders() });
-    return res.ok ? await res.json() : null;
-  } catch { return null; }
-}
-
-/** GET /me/conversations/{id} — tek sohbetin tüm mesajları veya null. */
-export async function getConversationApi(id) {
-  if (!hasToken()) return null;
-  try {
-    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, { headers: authHeaders() });
-    return res.ok ? await res.json() : null;
-  } catch { return null; }
-}
-
-/** PUT /me/conversations/{id} — sohbeti kaydet (best-effort, fire-and-forget). */
-export async function putConversationApi(id, body) {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(body),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-/** DELETE /me/conversations/{id} — sohbeti sil (silme hakkı). */
-export async function deleteConversationApi(id) {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch(`/me/conversations/${encodeURIComponent(id)}`, {
-      method: "DELETE", headers: authHeaders(),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-/** DELETE /me/conversations — TÜM geçmişi tek istekle sil (KVKK silme hakkı). */
-export async function deleteAllConversationsApi() {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch("/me/conversations", { method: "DELETE", headers: authHeaders() });
-    return res.ok;
-  } catch { return false; }
-}
-
-/** GET /me/files — "Dosyalarım" metadata listesi veya null. */
-export async function listFilesApi() {
-  if (!hasToken()) return null;
-  try {
-    const res = await fetch("/me/files", { headers: authHeaders() });
-    return res.ok ? await res.json() : null;
-  } catch { return null; }
-}
-
-/** POST /me/files — OCR yükleme metadata kaydı (best-effort). */
-export async function addFileApi(meta) {
-  if (!hasToken()) return false;
-  try {
-    const res = await fetch("/me/files", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(meta),
-    });
-    return res.ok;
-  } catch { return false; }
 }
 
 /** Backend ayakta mı? (mock fallback kararı için). */

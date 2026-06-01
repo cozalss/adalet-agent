@@ -1,7 +1,8 @@
 /* conversationUtils — sohbet geçmişi saf mantığı (arama/toplama/dönüşüm) testleri. */
 import { describe, it, expect } from "vitest";
 import {
-  answerText, turnsToMessages, searchConversations, aggregateSources, aggregateFiles,
+  answerText, turnsToMessages, messagesToTurns,
+  searchConversations, aggregateSources, aggregateFiles,
 } from "./conversationUtils.js";
 
 const turn = (q, ans, sources, conf) => ({
@@ -45,6 +46,35 @@ describe("turnsToMessages", () => {
   it("boş/undefined girdi → []", () => {
     expect(turnsToMessages(undefined)).toEqual([]);
     expect(turnsToMessages([])).toEqual([]);
+  });
+});
+
+describe("messagesToTurns", () => {
+  it("DB mesajlarından görüntülenebilir turn'leri kurar (turnsToMessages tersi)", () => {
+    const msgs = turnsToMessages([turn("soru", "yanıt", [{ id: 1, title: "TBK m.344", doc_type: "law" }], 88)]);
+    const turns = messagesToTurns(msgs, "kira");
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({ question: "soru", phase: "final" });
+    expect(turns[0].data).toMatchObject({ kind: "answer", domain: "kira", sourceCount: 1 });
+    expect(turns[0].data.answer).toMatchObject({ text: "yanıt", confidence: 88 });
+    expect(turns[0].data.sources).toEqual([{ id: 1, title: "TBK m.344", doc_type: "law" }]);
+  });
+
+  it("turn_index sırasız gelse de doğru eşler + sıralar", () => {
+    const msgs = [
+      { turn_index: 1, role: "assistant", content: "a1", citations: [], confidence: 70 },
+      { turn_index: 0, role: "user", content: "s1" },
+      { turn_index: 2, role: "user", content: "s2" },
+    ];
+    const turns = messagesToTurns(msgs, "isHukuku");
+    expect(turns.map((t) => t.question)).toEqual(["s1", "s2"]);
+    expect(turns[0].data.answer.text).toBe("a1");
+    expect(turns[1].data.answer.text).toBe(""); // s2'nin cevabı yok
+  });
+
+  it("boş/undefined girdi → []", () => {
+    expect(messagesToTurns(undefined)).toEqual([]);
+    expect(messagesToTurns([])).toEqual([]);
   });
 });
 
