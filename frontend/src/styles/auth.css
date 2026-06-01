@@ -120,6 +120,15 @@
 }
 .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
+.auth-google {
+  width: 100%; height: 46px; margin-bottom: 10px; border: 1px solid var(--border-strong); border-radius: 12px;
+  background: var(--surface-strong); color: var(--text); font: inherit; font-size: 14.5px; font-weight: 500;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  transition: background .14s, border-color .14s, transform .06s;
+}
+.auth-google:hover { border-color: var(--accent); background: var(--surface); }
+.auth-google:active { transform: translateY(1px); }
+
 .auth-guest {
   width: 100%; height: 46px; border: 1px solid var(--border-strong); border-radius: 12px;
   background: transparent; color: var(--text); font: inherit; font-size: 14.5px; cursor: pointer;

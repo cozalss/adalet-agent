@@ -13,11 +13,16 @@ const PREVIEW = import.meta.env.DEV
 
 export function Root() {
   const auth = useAuth();
+  // Supabase oturumu yüklenirken (ready=false) login sayfası flash etmesin.
+  if (!PREVIEW && !auth.ready) {
+    return <div className="auth-page" data-theme="warm" style={{ display: "grid", placeItems: "center" }}><span className="auth-spin" /></div>;
+  }
   if (!PREVIEW && !auth.authed && !auth.guest) {
     return (
       <AuthPage
         onLogin={auth.login}
         onRegister={auth.register}
+        onGoogle={auth.loginWithGoogle}
         onGuest={auth.continueAsGuest}
       />
     );
