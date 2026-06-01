@@ -5,6 +5,7 @@
    açık kaynak kimliğini öne koyar. Her panel odak-tuzaklı modalde açılır. */
 import React, { useState, useRef, useEffect, useCallback, useId } from "react";
 import { Icon } from "./icons.jsx";
+import { Avatar } from "./Avatar.jsx";
 import {
   HowItWorksPanel, ScopePanel, SourcesPanel,
   PrefsPanel, DisclaimerPanel, OpenSourcePanel, ProfilePanel,
@@ -55,7 +56,6 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
   // Misafir modu yok → user her zaman var (App yalnız authed iken render edilir).
   const dispName = (user?.name || user?.email || prefs.displayName || "").trim();
   const shown = dispName || "Hesabım";
-  const initial = (shown[0] || "H").toLocaleUpperCase("tr-TR");
   const subtitle = user?.email || "Hesabım";
 
   // Menü dışına tıkla / Esc → kapat (modal açıkken modal kendi Esc'ini yönetir).
@@ -79,7 +79,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
       {open && (
         <div className="acc-menu" role="menu" aria-label="Hesap menüsü">
           <button className="acc-id" role="menuitem" onClick={() => openView("profile")}>
-            <span className="acc-id-ava">{initial}</span>
+            <Avatar user={user} prefs={prefs} size={34} />
             <span className="acc-id-tx">
               <b>{shown}</b>
               <span>{subtitle}</span>
@@ -115,7 +115,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
         onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}
         aria-label="Hesap menüsünü aç"
       >
-        <span className="avatar">{initial}</span>
+        <Avatar user={user} prefs={prefs} size={30} />
         <span className="who"><b>{shown}</b><span>Hesabım</span></span>
         <span className="grid-ic"><Icon.chevron style={{ transform: open ? "rotate(0)" : "rotate(180deg)" }} /></span>
       </button>
