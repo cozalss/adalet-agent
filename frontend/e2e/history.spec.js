@@ -20,10 +20,9 @@ const CONV = {
 test.describe("Sohbet geçmişi", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((c) => {
-      localStorage.setItem("adalet-guest", "1");
       localStorage.setItem("adalet.conversations", JSON.stringify(c));
     }, CONV);
-    await page.goto("/");
+    await page.goto("/?e2e=1"); // auth'u atla (VITE_E2E build) → App + enjekte localStorage geçmişi
   });
 
   test("geçmiş sidebar'da listelenir + tıkla → yükle", async ({ page }) => {

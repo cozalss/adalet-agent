@@ -7,17 +7,22 @@ import { AuthPage } from "./pages/AuthPage.jsx";
 import App from "./App.jsx";
 import "./styles/auth.css";
 
-// ?preview=1 auth kapısını ATLAR → yalnız DEV'de (production'da bypass YASAK).
-const PREVIEW = import.meta.env.DEV
-  && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
+const hasParam = (k) => typeof window !== "undefined" && new URLSearchParams(window.location.search).has(k);
+
+// ?preview=1 auth kapısını ATLAR → yalnız DEV'de (production'da bypass YASAK). Demo turn de gösterir.
+const PREVIEW = import.meta.env.DEV && hasParam("preview");
+// ?e2e=1 auth'u ATLAR (demo turn YOK — App normal çalışır) → YALNIZ VITE_E2E=1 ile derlenmişse
+// (Playwright build). Gerçek prod (Vercel) VITE_E2E set ETMEZ → bu bypass üretimde kapalıdır.
+const E2E_BYPASS = import.meta.env.VITE_E2E === "1" && hasParam("e2e");
+const SKIP_AUTH = PREVIEW || E2E_BYPASS;
 
 export function Root() {
   const auth = useAuth();
   // Supabase oturumu yüklenirken (ready=false) login sayfası flash etmesin.
-  if (!PREVIEW && !auth.ready) {
+  if (!SKIP_AUTH && !auth.ready) {
     return <div className="auth-page" data-theme="warm" style={{ display: "grid", placeItems: "center" }}><span className="auth-spin" /></div>;
   }
-  if (!PREVIEW && !auth.authed) {
+  if (!SKIP_AUTH && !auth.authed) {
     return (
       <AuthPage
         onLogin={auth.login}

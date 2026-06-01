@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-/* Giriş kapısı + misafir akışı (backend gerektirmez). */
+/* Giriş kapısı (backend gerektirmez). Misafir modu KALDIRILDI → uygulamaya giriş
+   E2E'de ?e2e=1 ile (VITE_E2E build flag'i; gerçek prod'da kapalı). */
 test.describe("Giriş kapısı", () => {
   test("token yokken AuthPage gösterilir (Giriş + Kayıt sekmeleri)", async ({ page }) => {
     await page.goto("/");
@@ -23,9 +24,13 @@ test.describe("Giriş kapısı", () => {
     await expect(page.getByRole("alert")).toContainText("E-posta ve şifre gerekli");
   });
 
-  test("Misafir olarak devam et → /sor sohbet uygulaması", async ({ page }) => {
+  test("misafir seçeneği YOK (kayıt/giriş zorunlu)", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Misafir olarak devam et" }).click();
+    await expect(page.getByRole("button", { name: "Misafir olarak devam et" })).toHaveCount(0);
+  });
+
+  test("?e2e=1 auth'u atlar → /sor sohbet uygulaması", async ({ page }) => {
+    await page.goto("/?e2e=1");
     await expect(page.locator(".sor-app")).toBeVisible();
     await expect(page.getByRole("heading", { name: /yardımcı olabilirim/i })).toBeVisible();
   });

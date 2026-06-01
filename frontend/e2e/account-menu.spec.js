@@ -1,10 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-/* Hesap menüsü — ADALET'e özgü öğeler + kapsam modalı (misafir, backend'siz). */
+/* Hesap menüsü — ADALET'e özgü öğeler + kapsam modalı (backend'siz; ?e2e=1 ile giriş). */
 test.describe("Hesap menüsü", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem("adalet-guest", "1"));
-    await page.goto("/");
+    await page.goto("/?e2e=1"); // auth'u atla (VITE_E2E build flag'i)
   });
 
   test("pill → menü ADALET öğeleriyle açılır", async ({ page }) => {
