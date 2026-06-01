@@ -3,6 +3,7 @@
    uyarlandı, kütüphane KURULMADI). Giriş/kayıt → /sor sohbet sayfasına geçilir. */
 import React, { useState } from "react";
 import { Icon } from "../components/icons.jsx";
+import { supabaseEnabled } from "../lib/supabase.js";
 
 const TRUST = [
   { icon: "shield", t: "Yargıtay kararları ve mevzuatla doğrulanır" },
@@ -10,7 +11,7 @@ const TRUST = [
   { icon: "check", t: "Sıfır uydurma taahhüdü" },
 ];
 
-export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
+export function AuthPage({ onLogin, onRegister, onGoogle }) {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,11 +19,12 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
   const [showPw, setShowPw] = useState(false);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState(""); // başarı/bilgi (örn. e-posta doğrula)
   const [loading, setLoading] = useState(false);
 
   const isReg = mode === "register";
 
-  const switchMode = (m) => { setMode(m); setError(""); };
+  const switchMode = (m) => { setMode(m); setError(""); setNotice(""); };
 
   const google = async () => {
     setError("");
@@ -31,14 +33,24 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    setError("");
+    setError(""); setNotice("");
     if (!email.trim() || !password) { setError("E-posta ve şifre gerekli."); return; }
     if (isReg && password.length < 8) { setError("Şifre en az 8 karakter olmalı."); return; }
     if (isReg && !consent) { setError("Devam etmek için gizlilik onayı gerekli."); return; }
     setLoading(true);
     try {
-      if (isReg) await onRegister({ email: email.trim(), password, name: name.trim(), privacy_consent: consent });
-      else await onLogin(email.trim(), password);
+      if (isReg) {
+        const res = await onRegister({ email: email.trim(), password, name: name.trim() });
+        // E-posta onayı açıksa oturum oluşmaz → kullanıcıya yönlendir (boşta kalmasın).
+        // Onay kapalıysa SIGNED_IN otomatik içeri alır (Root yönlendirir).
+        if (res?.needsConfirmation) {
+          setMode("login");
+          setPassword(""); // login denemesinde 'onayla' + 'şifre hatalı' çelişkisi olmasın
+          setNotice("Hesabın oluşturuldu. E-postana gönderilen onay bağlantısına tıkla, sonra giriş yap.");
+        }
+      } else {
+        await onLogin(email.trim(), password);
+      }
     } catch (err) {
       setError(err?.message || "Bir sorun oluştu, lütfen tekrar deneyin.");
     } finally {
@@ -64,6 +76,11 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
 
       <main className="auth-form-wrap">
         <div className="auth-card">
+          {!supabaseEnabled && (
+            <div className="auth-error" role="alert" style={{ marginBottom: 18 }}>
+              <Icon.info />Giriş servisi yapılandırılmadı (VITE_SUPABASE_* eksik). Lütfen yöneticiye bildirin.
+            </div>
+          )}
           <div className="auth-tabs" role="tablist" aria-label="Giriş veya kayıt">
             <button id="tab-login" role="tab" aria-selected={!isReg} aria-controls="auth-panel"
               className={!isReg ? "on" : ""} onClick={() => switchMode("login")}>Giriş</button>
@@ -75,6 +92,8 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
           <p className="auth-sub">{isReg
             ? "Sohbet geçmişiniz hesabınıza kaydedilsin, her cihazdan erişin."
             : "Sohbet geçmişinize erişmek için giriş yapın."}</p>
+
+          {notice && <div className="auth-notice" role="status"><Icon.check />{notice}</div>}
 
           <form className="auth-form" onSubmit={submit} noValidate
             role="tabpanel" id="auth-panel" aria-labelledby={isReg ? "tab-register" : "tab-login"}>
@@ -107,14 +126,14 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
               </label>
             )}
             {error && <div className="auth-error" role="alert"><Icon.info />{error}</div>}
-            <button type="submit" className="auth-submit" disabled={loading}>
+            <button type="submit" className="auth-submit" disabled={loading || !supabaseEnabled}>
               {loading ? <span className="auth-spin" aria-hidden="true" /> : (isReg ? "Hesap oluştur" : "Giriş yap")}
             </button>
           </form>
 
           <div className="auth-divider"><span>veya</span></div>
           {onGoogle && (
-            <button type="button" className="auth-google" onClick={google}>
+            <button type="button" className="auth-google" onClick={google} disabled={!supabaseEnabled}>
               <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
                 <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8a12 12 0 1 1 7.9-21l5.7-5.7A20 20 0 1 0 24 44c11 0 20-9 20-20 0-1.3-.1-2.3-.4-3.5z" />
                 <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8A12 12 0 0 1 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7A20 20 0 0 0 6.3 14.7z" />
@@ -124,7 +143,6 @@ export function AuthPage({ onLogin, onRegister, onGoogle, onGuest }) {
               Google ile devam et
             </button>
           )}
-          <button className="auth-guest" onClick={onGuest}>Misafir olarak devam et</button>
           <p className="auth-disclaimer">ADALET hukuki danışmanlık değildir; bilgilendirme amaçlıdır.</p>
         </div>
       </main>

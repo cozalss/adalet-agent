@@ -5,14 +5,14 @@
    supabase-js her isteğe oturum JWT'sini ekler; RLS sahipliği DB seviyesinde
    zorlar (auth.uid() = user_id) — IDOR'a kapalı, owner-check kodu gerekmez.
 
-   Misafir / oturumsuz: her fonksiyon sessiz no-op döner (null/false). Birincil
-   kaynak yine tarayıcı localStorage'dır; Supabase yalnız cihazlar-arası senkron. */
+   Oturumsuz (giriş yapılmamış / Supabase yok): her fonksiyon sessiz no-op döner
+   (null/false). Birincil kaynak tarayıcı localStorage; Supabase cihazlar-arası senkron. */
 import { supabase } from "./supabase.js";
 import { turnsToMessages, messagesToTurns } from "./conversationUtils.js";
 
 const MAX_CONVERSATIONS = 100; // en yeni N sohbeti senkronla (sınırsız büyümeyi önle)
 
-/** Aktif oturumun kullanıcısı (yerel — ağ yok) veya null (misafir). */
+/** Aktif oturumun kullanıcısı (yerel — ağ yok) veya null (oturum yok). */
 async function sessionUser() {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
@@ -135,7 +135,7 @@ export async function clearPrefsSb() {
 
 /* ============================ Dosyalarım (uploaded_files) ============================ */
 
-/** OCR yükleme metadata kaydı (best-effort; misafirde no-op). Belge METNİ saklanmaz. */
+/** OCR yükleme metadata kaydı (best-effort; oturumsuzda no-op). Belge METNİ saklanmaz. */
 export async function addFileSb(meta) {
   if (!(await sessionUser())) return false;
   const { error } = await supabase.from("uploaded_files").insert({

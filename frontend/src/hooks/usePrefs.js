@@ -1,9 +1,9 @@
 /* ADALET kullanıcı tercihleri — localStorage birincil + DOM uygulama + Supabase senkron.
 
    Tercihler (görünen ad, yazı boyutu, hareket, kontrast, tercih alanları) öncelikle
-   TARAYICIDA (localStorage) tutulur — misafir çalışır, sunucu gerekmez. Kayıtlı
+   TARAYICIDA (localStorage) tutulur — yerelde anında çalışır. Kayıtlı
    kullanıcıda DOĞRUDAN Supabase profiles (+ RLS) ile cihazlar-arası senkronlanır
-   (best-effort; misafirde sessizce yerel kalır). Eski FastAPI /me/preferences yolu
+   (best-effort; oturumsuzda sessizce yerel kalır). Eski FastAPI /me/preferences yolu
    kaldırıldı (v2.2 tam geçiş).
 
    Uygulama: tercihler <html> data-attribute'larına yansır; görsel etki CSS'te
@@ -104,7 +104,7 @@ export function usePrefs() {
     let syncId = 0; // geride kalan/eski oturum response'unu at (yarış koruması).
     async function pullRemote() {
       const mine = ++syncId;
-      const remote = await loadPrefsSb(); // misafirde null → no-op
+      const remote = await loadPrefsSb(); // oturumsuzda null → no-op
       if (cancelled || mine !== syncId || !remote) return;
       const merged = fromServer(remote);
       fromRemote.current = true; // sonraki effect bu değişimi yazma atlasın
@@ -136,7 +136,7 @@ export function usePrefs() {
     applyToDom(prefs);
     writeLocal(prefs);
     if (fromRemote.current) { fromRemote.current = false; return; } // uzaktan geldi → yazma atla
-    upsertPrefsSb(toServer(prefs)); // misafirde sessizce no-op
+    upsertPrefsSb(toServer(prefs)); // oturumsuzda sessizce no-op
   }, [prefs]);
 
   /** Tek alan güncelle (immutable). */
@@ -158,7 +158,7 @@ export function usePrefs() {
   /** "Tüm verilerimi sil": yerel + Supabase kaydını temizle, varsayılana dön. */
   const clearAll = useCallback(() => {
     try { localStorage.removeItem(KEY); } catch { /* yoksay */ }
-    clearPrefsSb(); // misafirde no-op
+    clearPrefsSb(); // oturumsuzda no-op
     const fresh = { ...DEFAULT_PREFS };
     setPrefs(fresh);
     applyToDom(fresh);

@@ -1,6 +1,6 @@
 /* usePrefs (hook) — durumsal davranış: setPref/toggleDomain/clearAll +
    localStorage kalıcılığı + <html> data-attr uygulaması. Supabase senkronu
-   mock'lanır (deterministik no-op): misafir davranışı = yalnız localStorage. */
+   mock'lanır (deterministik no-op → yalnız localStorage). */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 

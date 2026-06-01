@@ -27,11 +27,11 @@ beforeEach(() => {
 });
 
 describe("useAuth (Supabase)", () => {
-  it("oturum yokken: ready olur, authed=false, guest=false", async () => {
+  it("oturum yokken: ready olur, authed=false (misafir modu YOK)", async () => {
     const { result } = renderHook(() => useAuth());
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.authed).toBe(false);
-    expect(result.current.guest).toBe(false);
+    expect(result.current.guest).toBeUndefined(); // guest API'si kaldırıldı
   });
 
   it("getSession bir kullanıcı dönerse authed=true + kullanıcı", async () => {
@@ -43,13 +43,11 @@ describe("useAuth (Supabase)", () => {
     expect(result.current.user).toMatchObject({ sub: "u1", email: "a@b.com", name: "Ayşe" });
   });
 
-  it("login → signInWithPassword çağırır + misafir bayrağı temizlenir", async () => {
-    localStorage.setItem("adalet-guest", "1");
+  it("login → signInWithPassword çağırır", async () => {
     const { result } = renderHook(() => useAuth());
     await waitFor(() => expect(result.current.ready).toBe(true));
     await act(async () => { await result.current.login("a@b.com", "Gizli123"); });
     expect(mockAuth.signInWithPassword).toHaveBeenCalledWith({ email: "a@b.com", password: "Gizli123" });
-    expect(localStorage.getItem("adalet-guest")).toBeNull();
   });
 
   it("login hatası Türkçe mesaja çevrilir", async () => {
@@ -59,22 +57,36 @@ describe("useAuth (Supabase)", () => {
     await expect(result.current.login("a@b.com", "yanlis")).rejects.toThrow("E-posta veya şifre hatalı");
   });
 
-  it("register → signUp'ı name metadata'sıyla çağırır", async () => {
+  it("register → signUp'ı name metadata'sıyla çağırır; oturum yoksa needsConfirmation", async () => {
     const { result } = renderHook(() => useAuth());
     await waitFor(() => expect(result.current.ready).toBe(true));
-    await act(async () => { await result.current.register({ email: "x@y.com", password: "Gizli123", name: "Veli" }); });
+    let res;
+    await act(async () => {
+      res = await result.current.register({ email: "x@y.com", password: "Gizli123", name: "Veli" });
+    });
     expect(mockAuth.signUp).toHaveBeenCalledWith({
       email: "x@y.com", password: "Gizli123", options: { data: { name: "Veli" } },
     });
+    expect(res).toEqual({ needsConfirmation: true }); // mock'ta oturum yok → onay gerekir
   });
 
-  it("continueAsGuest → guest=true; logout → signOut çağırır", async () => {
+  it("register oturum dönerse needsConfirmation=false (e-posta onayı kapalı)", async () => {
+    mockAuth.signUp.mockResolvedValue({ data: { session: { user: { id: "u9" } } }, error: null });
     const { result } = renderHook(() => useAuth());
     await waitFor(() => expect(result.current.ready).toBe(true));
-    act(() => result.current.continueAsGuest());
-    expect(result.current.guest).toBe(true);
+    let res;
+    await act(async () => { res = await result.current.register({ email: "x@y.com", password: "Gizli123" }); });
+    expect(res).toEqual({ needsConfirmation: false });
+  });
+
+  it("logout → signOut çağırır + kullanıcı temizlenir", async () => {
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: { user: { id: "u1", email: "a@b.com" } } },
+    });
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.authed).toBe(true));
     await act(async () => { await result.current.logout(); });
     expect(mockAuth.signOut).toHaveBeenCalled();
-    expect(result.current.guest).toBe(false);
+    expect(result.current.authed).toBe(false);
   });
 });

@@ -1,12 +1,11 @@
-/* ADALET kimlik durumu — Supabase Auth + misafir modu.
+/* ADALET kimlik durumu — Supabase Auth (e-posta/şifre + Google OAuth).
 
-   Giriş/kayıt artık Supabase GoTrue ile (e-posta/şifre + Google OAuth). Oturum
-   supabase-js tarafından yönetilir (localStorage'da, otomatik yenilenir). Supabase
-   yapılandırılmamışsa (env yok) → yalnız misafir modu (localStorage geçmişi). */
+   Misafir modu KALDIRILDI: yalnız kayıt olup giriş yapan kullanıcılar siteye
+   girebilir. Root, authed değilse her zaman AuthPage gösterir. Oturum supabase-js
+   tarafından yönetilir (localStorage'da, otomatik yenilenir). Supabase
+   yapılandırılmamışsa (env yok) giriş kullanılamaz (uygulama auth zorunlu). */
 import { useState, useEffect, useCallback } from "react";
 import { supabase, supabaseEnabled } from "../lib/supabase.js";
-
-const GUEST_KEY = "adalet-guest";
 
 /** Supabase session → ADALET kullanıcı nesnesi. */
 function userFromSession(session) {
@@ -35,9 +34,6 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   // Supabase yoksa oturum sorgusu yok → hemen hazır. Varsa getSession bekler.
   const [ready, setReady] = useState(!supabaseEnabled);
-  const [guest, setGuest] = useState(() => {
-    try { return localStorage.getItem(GUEST_KEY) === "1"; } catch { return false; }
-  });
 
   useEffect(() => {
     if (!supabase) return;
@@ -49,6 +45,7 @@ export function useAuth() {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(userFromSession(session));
+      setReady(true); // SIGNED_IN / OAuth redirect getSession'dan önce gelirse spinner takılmasın
     });
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -59,16 +56,18 @@ export function useAuth() {
     if (!supabase) throw new Error("Giriş şu an kullanılamıyor (Supabase yapılandırılmadı).");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(mapAuthError(error));
-    try { localStorage.removeItem(GUEST_KEY); } catch { /* yoksay */ }
-    setGuest(false);
   }, []);
 
+  /** Kayıt ol. E-posta onayı AÇIKSA oturum hemen oluşmaz → needsConfirmation:true
+   *  döner (AuthPage "e-postanı doğrula" mesajı gösterir). KAPALIYSA SIGNED_IN
+   *  olayı tetiklenir, kullanıcı otomatik içeri alınır. */
   const register = useCallback(async ({ email, password, name }) => {
     if (!supabase) throw new Error("Kayıt şu an kullanılamıyor (Supabase yapılandırılmadı).");
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { name: name || "" } } });
+    const { data, error } = await supabase.auth.signUp({
+      email, password, options: { data: { name: name || "" } },
+    });
     if (error) throw new Error(mapAuthError(error));
-    try { localStorage.removeItem(GUEST_KEY); } catch { /* yoksay */ }
-    setGuest(false);
+    return { needsConfirmation: !data?.session };
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
@@ -79,17 +78,10 @@ export function useAuth() {
     if (error) throw new Error(mapAuthError(error));
   }, []);
 
-  const continueAsGuest = useCallback(() => {
-    try { localStorage.setItem(GUEST_KEY, "1"); } catch { /* yoksay */ }
-    setGuest(true);
-  }, []);
-
   const logout = useCallback(async () => {
-    try { localStorage.removeItem(GUEST_KEY); } catch { /* yoksay */ }
-    setGuest(false);
     if (supabase) { try { await supabase.auth.signOut(); } catch { /* yoksay */ } }
     setUser(null);
   }, []);
 
-  return { user, authed, guest, ready, login, register, loginWithGoogle, continueAsGuest, logout };
+  return { user, authed, ready, login, register, loginWithGoogle, logout };
 }

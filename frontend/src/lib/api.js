@@ -3,7 +3,7 @@
 
 /** Backend isteklerine Supabase oturum JWT'sini ekle (varsa). Auth artık Supabase
  *  GoTrue ile; supabase-js erişim token'ını localStorage'da `sb-<ref>-auth-token`
- *  altında tutar. Token yoksa (misafir) header yok → backend anonim işler.
+ *  altında tutar. Token yoksa (oturum açılmamış) header yok → backend anonim işler.
  *  Phase C: backend bu Supabase JWT'sini SUPABASE_JWT_SECRET ile doğrular. */
 function authHeaders() {
   const t = supabaseAccessToken();

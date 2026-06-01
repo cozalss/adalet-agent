@@ -17,7 +17,10 @@ import { useConversations } from "./hooks/useConversations.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
 
 // Önizleme modu: ?preview=1 → backend olmadan tam cevap UI'ı (tasarım QA + demo).
-const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
+// YALNIZ DEV'de (Root.jsx ile aynı): production'da ?preview=1 ile demo moduna
+// düşüp saveConversation'ı atlamak YASAK (veri kaybı/bypass). prod'da daima false.
+const PREVIEW = import.meta.env.DEV
+  && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview");
 
 // OCR belge metni üst sınırı — backend api/schemas._MAX_ATTACHMENT_TEXT ile
 // EŞLEŞMELİ (aşılırsa backend 422 döner). Değiştirirsen ikisini birlikte güncelle.
@@ -288,7 +291,7 @@ export default function App({ auth }) {
         text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
       }]);
-      // "Dosyalarım" metadata → Supabase (best-effort; misafirde no-op, metin saklanmaz).
+      // "Dosyalarım" metadata → Supabase (best-effort; oturumsuzda no-op, metin saklanmaz).
       addFileSb({
         conversation_id: conversationId || "", filename: file.name,
         ocr_engine: res.engine || "tesseract", n_chars: res.n_chars || res.text.length,

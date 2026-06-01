@@ -126,15 +126,17 @@
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   transition: background .14s, border-color .14s, transform .06s;
 }
-.auth-google:hover { border-color: var(--accent); background: var(--surface); }
-.auth-google:active { transform: translateY(1px); }
+.auth-google:hover:not(:disabled) { border-color: var(--accent); background: var(--surface); }
+.auth-google:active:not(:disabled) { transform: translateY(1px); }
+.auth-google:disabled { opacity: .55; cursor: default; }
 
-.auth-guest {
-  width: 100%; height: 46px; border: 1px solid var(--border-strong); border-radius: 12px;
-  background: transparent; color: var(--text); font: inherit; font-size: 14.5px; cursor: pointer;
-  transition: background .14s, border-color .14s;
+/* kayıt sonrası "e-postanı doğrula" gibi olumlu bilgi mesajı (altın aksan). */
+.auth-notice {
+  display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-radius: 11px;
+  margin-bottom: 18px; background: var(--accent-soft); border: 1px solid var(--accent-soft);
+  color: var(--accent-text); font-size: 13px; line-height: 1.4;
 }
-.auth-guest:hover { background: var(--surface); border-color: var(--accent); }
+.auth-notice svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .auth-disclaimer { margin: 20px 0 0; text-align: center; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
 
 /* ---------- responsive: marka panelini gizle/sadeleştir ---------- */

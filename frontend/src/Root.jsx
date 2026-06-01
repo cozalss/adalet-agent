@@ -1,6 +1,6 @@
 /* ADALET kök yönlendirici — giriş kapısı.
-   Auth yoksa AuthPage (giriş/kayıt); giriş yapılınca veya misafir seçilince /sor
-   sohbet uygulaması. ?preview=1 auth'u atlar (tasarım QA). */
+   Auth yoksa AuthPage (giriş/kayıt); YALNIZ giriş yapınca /sor sohbet uygulaması
+   (misafir modu YOK — site kayıt/giriş zorunlu). ?preview=1 auth'u atlar (tasarım QA). */
 import React from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { AuthPage } from "./pages/AuthPage.jsx";
@@ -17,13 +17,12 @@ export function Root() {
   if (!PREVIEW && !auth.ready) {
     return <div className="auth-page" data-theme="warm" style={{ display: "grid", placeItems: "center" }}><span className="auth-spin" /></div>;
   }
-  if (!PREVIEW && !auth.authed && !auth.guest) {
+  if (!PREVIEW && !auth.authed) {
     return (
       <AuthPage
         onLogin={auth.login}
         onRegister={auth.register}
         onGoogle={auth.loginWithGoogle}
-        onGuest={auth.continueAsGuest}
       />
     );
   }

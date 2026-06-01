@@ -1,9 +1,9 @@
 /* ADALET sohbet geçmişi — localStorage birincil + Supabase senkron.
 
-   ADALET artık sohbet geçmişi tutar. Birincil kaynak tarayıcı localStorage
-   (misafir de dahil herkeste HEMEN çalışır); kayıtlı kullanıcıda DOĞRUDAN Supabase
-   (conversations/messages + RLS) ile cihazlar-arası senkronlanır (best-effort;
-   misafirde sessizce no-op). Eski FastAPI /me/* yolu kaldırıldı (v2.2 tam geçiş).
+   ADALET artık sohbet geçmişi tutar. Birincil kaynak tarayıcı localStorage (hızlı
+   yerel önbellek); kayıtlı kullanıcıda DOĞRUDAN Supabase (conversations/messages +
+   RLS) ile cihazlar-arası senkronlanır (best-effort; oturum yoksa sessizce no-op).
+   Eski FastAPI /me/* yolu kaldırıldı (v2.2 tam geçiş).
 
    Türetilen: "Kaynaklar" (tüm sohbetlerdeki atıflar) ve "Dosyalarım" (yüklenen
    belge metadata'sı) bu kayıtlardan üretilir. */
@@ -60,7 +60,7 @@ export function useConversations() {
     let syncId = 0; // geride kalan/eski oturum response'unu at (yarış koruması).
     async function sync() {
       const mine = ++syncId;
-      const remote = await loadConversationsSb(); // misafirde null → no-op
+      const remote = await loadConversationsSb(); // oturumsuzda null → no-op
       if (cancelled || mine !== syncId || !remote) return;
       const local = mapRef.current;
       const merged = { ...local };
@@ -109,7 +109,7 @@ export function useConversations() {
     mapRef.current = next;
     setMap(next);
     writeAll(next);
-    upsertConversationSb(id, { title: rec.title, domain: rec.domain, turns }); // misafirde no-op
+    upsertConversationSb(id, { title: rec.title, domain: rec.domain, turns }); // oturumsuzda no-op
   }, []);
 
   /** Sohbeti sil (yerel + backend). */
@@ -120,7 +120,7 @@ export function useConversations() {
     mapRef.current = next;
     setMap(next);
     writeAll(next);
-    deleteConversationSb(id); // misafirde no-op
+    deleteConversationSb(id); // oturumsuzda no-op
   }, []);
 
   /** Bir sohbeti getir (turns ile) — yeniden yüklemek için. */
@@ -131,7 +131,7 @@ export function useConversations() {
     mapRef.current = {};
     setMap({});
     try { localStorage.removeItem(KEY); } catch { /* yoksay */ }
-    deleteAllConversationsSb(); // misafirde no-op
+    deleteAllConversationsSb(); // oturumsuzda no-op
   }, []);
 
   /** "Sohbetlerde ara" / "Kaynaklar" / "Dosyalarım" — saf util'lere delege (test edilebilir). */

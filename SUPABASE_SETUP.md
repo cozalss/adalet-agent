@@ -19,8 +19,16 @@
 yeni-kullanıcı trigger'ı oluşur. RLS sayesinde her kullanıcı yalnız kendi verisini görür.)
 
 ## 3. Auth sağlayıcılarını aç
+> **Misafir modu YOK:** siteye yalnız kayıt olup giriş yapan kullanıcı girebilir.
+> Giriş yoksa `AuthPage` gösterilir (uygulama açılmaz).
+
 **Authentication → Providers**:
-- **Email**: açık (varsayılan). İstersen "Confirm email"i kapat (demo'da hızlı giriş).
+- **Email**: açık (varsayılan).
+  - **Confirm email AÇIK** (önerilen, prod): kayıt sonrası kullanıcı e-postasındaki
+    onay linkine tıklar; sonra giriş yapar. Uygulama bunu yönetir — kayıt sonrası
+    "e-postanı doğrula" bildirimi gösterir + giriş sekmesine geçer (boşta kalmaz).
+  - **Confirm email KAPALI** (yalnız hızlı demo): kayıt anında giriş olur. DİKKAT:
+    doğrulanmamış e-postalar oturum açabilir — prod'da AÇIK tut.
 - **Google** (opsiyonel, demo cilası): Google Cloud'da OAuth client oluştur →
   Client ID/Secret'i buraya gir. (Email/şifre bunsuz da çalışır.)
 
@@ -48,8 +56,9 @@ SUPABASE_JWT_SECRET=<adım 1'deki JWT Secret>
 ---
 
 ### Sürüm notu
-- **Env ayarlı değilse** uygulama çökmez → misafir + localStorage moduna düşer
-  (mevcut davranış korunur). Supabase yalnız değerler set edilince devreye girer.
+- **Env ayarlı değilse** uygulama çökmez ama **giriş kullanılamaz** (misafir modu
+  yok): AuthPage "Giriş servisi yapılandırılmadı" uyarısı gösterir, butonlar pasif.
+  Deploy'da `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` ZORUNLU.
 - Eski custom auth (`/auth/register`, `/auth/login`, `UserAccount`, `passwords.py`)
   ve `/me/*` uçları Supabase geçişiyle **emekliye ayrılır** (ayrı commit'te temizlenir).
 - Ücretsiz katman: proje ~1 hafta atıl kalırsa duraklatılır — demo öncesi Dashboard'dan uyandır.

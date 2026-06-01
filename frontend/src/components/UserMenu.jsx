@@ -52,11 +52,11 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
   const rootRef = useRef(null);
   const btnRef = useRef(null);
 
-  const authed = !!user;
+  // Misafir modu yok → user her zaman var (App yalnız authed iken render edilir).
   const dispName = (user?.name || user?.email || prefs.displayName || "").trim();
-  const shown = dispName || "Misafir";
-  const initial = (shown[0] || "M").toLocaleUpperCase("tr-TR");
-  const subtitle = authed ? (user.email || "Hesabım") : "Misafir oturum";
+  const shown = dispName || "Hesabım";
+  const initial = (shown[0] || "H").toLocaleUpperCase("tr-TR");
+  const subtitle = user?.email || "Hesabım";
 
   // Menü dışına tıkla / Esc → kapat (modal açıkken modal kendi Esc'ini yönetir).
   useEffect(() => {
@@ -103,11 +103,9 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
             <button className="acc-item" role="menuitem" onClick={() => { setOpen(false); onClearSession?.(); }}>
               <span className="acc-item-ic"><Icon.refresh /></span>Bu oturumu temizle
             </button>
-            {authed && (
-              <button className="acc-item danger-text" role="menuitem" onClick={() => { setOpen(false); onLogout?.(); }}>
-                <span className="acc-item-ic"><Icon.logout /></span>Oturumu kapat
-              </button>
-            )}
+            <button className="acc-item danger-text" role="menuitem" onClick={() => { setOpen(false); onLogout?.(); }}>
+              <span className="acc-item-ic"><Icon.logout /></span>Oturumu kapat
+            </button>
           </div>
         </div>
       )}
@@ -118,7 +116,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
         aria-label="Hesap menüsünü aç"
       >
         <span className="avatar">{initial}</span>
-        <span className="who"><b>{shown}</b><span>{authed ? "Hesabım" : "Misafir oturum"}</span></span>
+        <span className="who"><b>{shown}</b><span>Hesabım</span></span>
         <span className="grid-ic"><Icon.chevron style={{ transform: open ? "rotate(0)" : "rotate(180deg)" }} /></span>
       </button>
 

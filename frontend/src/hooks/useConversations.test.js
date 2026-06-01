@@ -1,6 +1,6 @@
 /* useConversations (hook) — kaydet/listele/getir/ara/sil durumsal davranışı +
-   localStorage kalıcılığı. Supabase senkronu mock'lanır (deterministik no-op):
-   misafir davranışı = yalnız localStorage. */
+   localStorage kalıcılığı. Supabase senkronu mock'lanır (deterministik no-op
+   → yalnız localStorage). */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
