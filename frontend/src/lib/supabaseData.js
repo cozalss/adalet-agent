@@ -118,9 +118,10 @@ export async function loadPrefsSb() {
 export async function upsertPrefsSb(payload) {
   const u = await sessionUser();
   if (!u) return false;
+  // updated_at GÖNDERME — profiles BEFORE UPDATE trigger'ı (set_updated_at) sunucuda halleder.
   const { error } = await supabase
     .from("profiles")
-    .upsert({ id: u.id, ...payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
+    .upsert({ id: u.id, ...payload }, { onConflict: "id" });
   if (error) { logSync("upsertPrefs", error); return false; }
   return true;
 }
