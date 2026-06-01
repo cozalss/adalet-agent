@@ -75,3 +75,8 @@ _eval*.json
 
 # Playwright MCP test artifacts
 .playwright-mcp/
+
+# Playwright E2E artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/.last-run.json
