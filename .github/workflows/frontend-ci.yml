@@ -36,7 +36,14 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
-      - name: Vitest (birim testleri)
-        run: pnpm test
+      - name: Vitest + kapsam raporu
+        run: pnpm test:coverage
       - name: Production build (tip-dışı smoke)
         run: pnpm build
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore

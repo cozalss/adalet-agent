@@ -13,6 +13,13 @@ export default defineConfig({
     globals: true,
     css: false,
     include: ["src/**/*.test.{js,jsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html"],
+      // Kabuk/giriş-noktası ve demo verisi test edilebilir mantık değil → hariç.
+      include: ["src/**/*.{js,jsx}"],
+      exclude: ["src/**/*.test.{js,jsx}", "src/main.jsx", "src/lib/demoTurn.js"],
+    },
   },
   server: {
     port: 5173,
