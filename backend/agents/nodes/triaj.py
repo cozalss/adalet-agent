@@ -15,6 +15,7 @@ ama LLM yine de yeni soruyu kendi başına değerlendirir. "Devam soruları"
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
@@ -28,6 +29,7 @@ from agents.llm import ChatMessage, get_llm
 from agents.policy import CLARIFY_MARKER
 from agents.smalltalk import detect_smalltalk, smalltalk_reply
 from agents.state import AgentState, ConversationTurn, Domain, ImageAttachment
+from agents.triage_classifier import classify_domain
 from core.observability import observe_node
 
 log = structlog.get_logger()
@@ -418,6 +420,26 @@ async def triaj_node(state: AgentState) -> dict:
             "domain": domain,
             "domain_confidence": 0.90,
             "triage_reasoning": "Anahtar kelime hızlı triajı.",
+            "response_intent": "legal_answer",
+            "case_facts": facts,
+        }
+
+    # DistilBERT-TR kademesi: keyword belirsiz kaldıysa ama fine-tuned model EMİNSE,
+    # pahalı LLM triajını atla (~50ms vs ~3-5s). Model yoksa/güven düşükse classify_domain
+    # None döner → mevcut LLM yolu aynen korunur (graceful). Yalnız ilk turda (geçmişsiz).
+    if (
+        not history
+        and os.getenv("TRIAJ_FAST_PATH", "1").lower() in {"1", "true", "yes"}
+        and (model_result := await asyncio.to_thread(classify_domain, question))
+    ):
+        model_domain, model_conf = model_result
+        facts = _merge_case_facts(prior_facts, _fast_facts(question, model_domain))
+        log.info("triaj_model_path", domain=model_domain,
+                 confidence=round(model_conf, 3), n_facts=len(facts))
+        return {
+            "domain": model_domain,
+            "domain_confidence": round(model_conf, 3),
+            "triage_reasoning": "DistilBERT-TR domain sınıflandırması.",
             "response_intent": "legal_answer",
             "case_facts": facts,
         }
