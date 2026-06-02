@@ -1,0 +1,28 @@
+{"id": "e01", "premise": "Ayıplı malda tüketici, satıcıdan ücretsiz onarım veya ayıpsız misli ile değişim isteyebilir.", "hypothesis": "Tüketici ayıplı üründe onarım ya da değişim talep edebilir.", "label": "entailment"}
+{"id": "e02", "premise": "Kira artış oranı, bir önceki kira yılındaki on iki aylık TÜFE ortalamasını geçemez.", "hypothesis": "Kira zammı TÜFE ortalamasıyla sınırlıdır.", "label": "entailment"}
+{"id": "e03", "premise": "İşçi, bir yıllık kıdemi doldurduğunda kıdem tazminatına hak kazanır.", "hypothesis": "Bir yılı tamamlayan işçi kıdem tazminatı alabilir.", "label": "entailment"}
+{"id": "e04", "premise": "İdari işlemin iptali için altmış gün içinde dava açılabilir.", "hypothesis": "İdari işleme karşı dava açma süresi altmış gündür.", "label": "entailment"}
+{"id": "e05", "premise": "Mesafeli sözleşmelerde tüketici on dört gün içinde cayma hakkını kullanabilir.", "hypothesis": "İnternetten alışverişte on dört günlük cayma hakkı vardır.", "label": "entailment"}
+{"id": "e06", "premise": "Trafik kazasında oluşan değer kaybı için sigorta şirketinden tazminat istenebilir.", "hypothesis": "Kaza sonrası araç değer kaybı sigortadan talep edilebilir.", "label": "entailment"}
+{"id": "e07", "premise": "İcra takibinde borçlu, ödeme emrinin tebliğinden itibaren yedi gün içinde itiraz edebilir.", "hypothesis": "Borçlu ödeme emrine yedi gün içinde itiraz edebilir.", "label": "entailment"}
+{"id": "e08", "premise": "Vergi cezasına karşı dava açma süresi otuz gündür.", "hypothesis": "Vergi cezasına otuz gün içinde dava açılabilir.", "label": "entailment"}
+{"id": "e09", "premise": "Kıdem tazminatı, çalışılan her tam yıl için otuz günlük brüt ücret tutarındadır.", "hypothesis": "Her tam yıl için otuz günlük ücret kıdem tazminatı olarak ödenir.", "label": "entailment"}
+{"id": "e10", "premise": "Tüketici hakem heyetine başvuru ücretsizdir.", "hypothesis": "Hakem heyetine başvurmak için ücret ödenmez.", "label": "entailment"}
+{"id": "e11", "premise": "Ev sahibi, konut ihtiyacı nedeniyle kiracıyı ancak dava açarak tahliye ettirebilir.", "hypothesis": "Ev sahibi ihtiyaç gerekçesiyle tahliye için dava açmalıdır.", "label": "entailment"}
+{"id": "e12", "premise": "Site aidatı, kat malikleri kurulu kararıyla belirlenir.", "hypothesis": "Aidat miktarı kat malikleri kurulunca belirlenir.", "label": "entailment"}
+{"id": "n01", "premise": "Kira artış oranı TÜFE ortalamasıyla sınırlıdır.", "hypothesis": "İşçi bir yılı doldurduğunda kıdem tazminatına hak kazanır.", "label": "neutral"}
+{"id": "n02", "premise": "Tüketici ayıplı malı değişimle iade edebilir.", "hypothesis": "Trafik cezasına otuz gün içinde itiraz edilir.", "label": "neutral"}
+{"id": "n03", "premise": "İcra takibinde borçlunun malları haczedilebilir.", "hypothesis": "Yıllık gelir vergisi beyannamesi mart ayında verilir.", "label": "neutral"}
+{"id": "n04", "premise": "İdari davada dava açma süresi altmış gündür.", "hypothesis": "Tüketici cayma hakkını on dört gün içinde kullanır.", "label": "neutral"}
+{"id": "n05", "premise": "Ev sahibi tahliye için dava açabilir.", "hypothesis": "Kaza sonrası araç değer kaybı sigortadan istenir.", "label": "neutral"}
+{"id": "n06", "premise": "Kıdem tazminatı her tam yıl için otuz günlük ücrettir.", "hypothesis": "Tapuda tescil işlemi tapu müdürlüğünde yapılır.", "label": "neutral"}
+{"id": "n07", "premise": "Vergi cezasına dava yoluyla itiraz edilebilir.", "hypothesis": "Komşu, geçit hakkı için dava açabilir.", "label": "neutral"}
+{"id": "n08", "premise": "Mesafeli satışta tüketicinin cayma hakkı bulunur.", "hypothesis": "Memur, hakkındaki disiplin cezasına karşı dava açabilir.", "label": "neutral"}
+{"id": "c01", "premise": "Kira artış oranı bir önceki yılın TÜFE ortalamasını geçemez.", "hypothesis": "Kira artışında herhangi bir üst sınır yoktur.", "label": "contradiction"}
+{"id": "c02", "premise": "Bir yılını dolduran işçi kıdem tazminatına hak kazanır.", "hypothesis": "Kıdem tazminatı için en az beş yıl çalışmış olmak gerekir.", "label": "contradiction"}
+{"id": "c03", "premise": "İdari işleme karşı altmış gün içinde dava açılır.", "hypothesis": "İdari işleme karşı dava açma süresi yoktur, her zaman açılabilir.", "label": "contradiction"}
+{"id": "c04", "premise": "Tüketici hakem heyetine başvuru ücretsizdir.", "hypothesis": "Hakem heyetine başvurmak için yüksek bir başvuru ücreti ödenir.", "label": "contradiction"}
+{"id": "c05", "premise": "Mesafeli sözleşmede tüketicinin on dört gün cayma hakkı vardır.", "hypothesis": "İnternetten alınan üründe cayma hakkı bulunmaz.", "label": "contradiction"}
+{"id": "c06", "premise": "Borçlu, ödeme emrine yedi gün içinde itiraz edebilir.", "hypothesis": "Ödeme emrine itiraz etmek mümkün değildir.", "label": "contradiction"}
+{"id": "c07", "premise": "Kıdem tazminatı her tam yıl için otuz günlük ücrettir.", "hypothesis": "Kıdem tazminatı her yıl için altı aylık ücret tutarındadır.", "label": "contradiction"}
+{"id": "c08", "premise": "Ayıplı malda tüketici onarım veya değişim isteyebilir.", "hypothesis": "Ayıplı üründe tüketicinin hiçbir talep hakkı yoktur.", "label": "contradiction"}
