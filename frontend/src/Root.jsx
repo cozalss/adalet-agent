@@ -13,7 +13,12 @@ const hasParam = (k) => typeof window !== "undefined" && new URLSearchParams(win
 const PREVIEW = import.meta.env.DEV && hasParam("preview");
 // ?e2e=1 auth'u ATLAR (demo turn YOK — App normal çalışır) → YALNIZ VITE_E2E=1 ile derlenmişse
 // (Playwright build). Gerçek prod (Vercel) VITE_E2E set ETMEZ → bu bypass üretimde kapalıdır.
-const E2E_BYPASS = import.meta.env.VITE_E2E === "1" && hasParam("e2e");
+// Güvenlik (MEDIUM): VITE_E2E build yanlışlıkla staging/preview'e yüklenirse ?e2e=1 prod
+// host'ta auth ATLAMASIN — runtime hostname guard ile yalnız localhost'ta geçerli (Playwright localhost).
+const isLocalHost =
+  typeof window !== "undefined" &&
+  /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+const E2E_BYPASS = import.meta.env.VITE_E2E === "1" && hasParam("e2e") && isLocalHost;
 const SKIP_AUTH = PREVIEW || E2E_BYPASS;
 
 export function Root() {
