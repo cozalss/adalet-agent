@@ -68,6 +68,8 @@ dev = [
     "aiosqlite>=0.20.0",
     # Güvenlik taraması — CI'da koşuyordu, lokal doğrulama için dev'e eklendi.
     "bandit>=1.7.10",
+    # Faz-5 gold-review — hukukçu-dostu .xlsx export/ingest (scripts/predictive/gold_review).
+    "openpyxl>=3.1.0",
 ]
 # Sprint-4 eval ek — Ragas + Cohere rerank A/B (opsiyonel)
 eval = [

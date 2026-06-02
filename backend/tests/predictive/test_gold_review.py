@@ -6,7 +6,9 @@ import csv
 
 from scripts.predictive.gold_review import (
     export_csv,
+    export_xlsx,
     ingest_csv,
+    ingest_xlsx,
     normalize_label,
 )
 
@@ -66,3 +68,21 @@ def test_ingest_skips_empty_and_belirsiz(tmp_path):
     rows, skipped = ingest_csv(_CAND, csv_path)
     assert len(rows) == 0  # belirsiz eval'e girmez, boş atlanır
     assert skipped == 2
+
+
+def test_xlsx_export_then_ingest_roundtrip(tmp_path):
+    from openpyxl import load_workbook
+
+    xlsx_path = tmp_path / "review.xlsx"
+    assert export_xlsx(_CAND, xlsx_path) == 2
+    assert xlsx_path.exists()
+    # Hukukçuyu simüle et: KARAR (D sütunu) doldur — d1→kazandi, d2→kismi
+    wb = load_workbook(xlsx_path)
+    ws = wb.active
+    ws["D2"], ws["D3"] = "kazandi", "kismi"
+    wb.save(xlsx_path)
+
+    rows, skipped = ingest_xlsx(_CAND, xlsx_path)
+    assert {r["label"] for r in rows} == {"kazandi", "kismi"}
+    assert skipped == 0
+    assert any(r["input_text"] == "Olay 1 tam metin" for r in rows)

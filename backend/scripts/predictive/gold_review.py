@@ -27,6 +27,7 @@ from pathlib import Path
 _DIR = Path("data/predictive")
 _CANDIDATES = _DIR / "gold_candidates.jsonl"
 _CSV = _DIR / "gold_review.csv"
+_XLSX = _DIR / "gold_review.xlsx"
 _HUMAN = _DIR / "gold_human.jsonl"
 _TALIMAT = _DIR / "GOLD_REVIEW_TALIMAT.txt"
 _VALID = {"kazandi", "kaybetti", "kismi", "belirsiz"}
@@ -37,32 +38,32 @@ _TALIMAT_METNI = """ADALET — Dava Sonucu Tahmini: İnsan Doğrulama Talimatı
 =========================================================
 
 Merhaba! Yapay zekâ modelimizin GERÇEK doğruluğunu ölçmek için senin hukuki
-değerlendirmene ihtiyacımız var. gold_review.csv dosyasını Excel veya Google
-Sheets ile aç ve şunu yap:
+değerlendirmene ihtiyacımız var. gold_review.xlsx dosyasını Excel ile aç ve şunu yap:
 
 HER SATIR bir Yargıtay kararı. Senden istediğimiz: DAVACI (talebi öne süren
-taraf) açısından kararın SONUCUNU, yalnız 'karar' sütununa yazman.
+taraf) açısından kararın SONUCUNU, yalnız 'KARAR (doldur)' (D) sütununda seçmen.
 
-'karar' sütununa şu DÖRT kelimeden BİRİNİ yaz (küçük harf):
+'KARAR (doldur)' (sarı sütun) hücresine tıkla → açılır menüden BİRİNİ seç:
   kazandi   → davacının davası/talebi kabul edildi (veya aleyhine karar BOZULDU)
   kaybetti  → davacının davası/talebi reddedildi (veya ret kararı ONANDI)
   kismi     → kısmen kabul / kısmen ret
   belirsiz  → hükümden davacı açısından sonuç net çıkmıyor
 
 Yardımcı sütunlar:
-  - olay_ozeti / hukum : kararın metni (oku, sonucu buradan çıkar).
-  - ai_onerisi         : modelin tahmini (BAŞLANGIÇ noktası — katılıyorsan aynısını
-                         yaz, katılmıyorsan DOĞRUSUNU yaz, AI'yı düzeltmen değerli).
-  - ai_gerekce         : AI'nın dayandığı cümle.
-  - dikkat = 'İNCELE'  : iki AI yöntemimiz ÇELİŞTİ → bu satırlar en kritik, ekstra dikkat.
+  - HÜKÜM (oku)        : kararın sonuç bölümü — ASIL buradan karar ver.
+  - olay_özeti (bağlam): davanın özeti (ek bağlam).
+  - ai_önerisi         : modelin tahmini (BAŞLANGIÇ noktası — katılıyorsan aynısını
+                         seç, katılmıyorsan DOĞRUSUNU seç; AI'yı düzeltmen çok değerli).
+  - ai_gerekçe         : AI'nın dayandığı cümle.
+  - dikkat = 'İNCELE'  : iki AI yöntemimiz ÇELİŞTİ (turuncu) → en kritik satırlar.
 
 KURALLAR:
   1. Yalnız metinde YAZILI olanı değerlendir; dışarıdan bilgi katma.
   2. 'doc_id' ve 'no' sütunlarına DOKUNMA (eşleştirme için lazım).
-  3. Emin değilsen 'belirsiz' yaz — uydurma tahmin yapma.
+  3. Emin değilsen 'belirsiz' seç — uydurma tahmin yapma.
   4. İstersen 'not' sütununa kısa açıklama bırak.
 
-Bitince dosyayı kaydet (CSV olarak) ve geri gönder. Teşekkürler!
+Bitince Excel'de KAYDET (.xlsx olarak kalsın) ve geri gönder. Teşekkürler!
 """
 
 
@@ -83,6 +84,93 @@ def export_csv(candidates: list[dict], csv_path: Path = _CSV) -> int:
                 "",  # not
             ])
     return len(candidates)
+
+
+def _clean(text: object, n: int) -> str:
+    """Boşlukları sadeleştir + kısalt (hücre okunabilir kalsın)."""
+    return " ".join(str(text or "").split())[:n]
+
+
+# .xlsx sütun düzeni — hukukçu soldan sağa: oku (hüküm) → seç (KARAR) → bağlam.
+_XLSX_HEADERS = ["no", "dikkat", "HÜKÜM (oku)", "KARAR (doldur)", "ai_önerisi",
+                 "ai_gerekçe", "olay_özeti (bağlam)", "not", "doc_id (dokunma)"]
+_XLSX_WIDTHS = [5, 9, 85, 16, 12, 42, 62, 22, 16]
+
+
+def export_xlsx(candidates: list[dict], xlsx_path: Path = _XLSX) -> int:
+    """Gold-adayları hukukçu-dostu .xlsx'e yaz: geniş sarmalı hüküm + KARAR dropdown'u.
+
+    openpyxl gerekir (uv pip install openpyxl). CSV'nin Excel-Türkçe ayraç + uzun-hücre
+    sorununu çözer: tam biçimli, açılır-menülü, dondurulmuş başlık.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.worksheet.datavalidation import DataValidation
+    except ImportError as exc:  # pragma: no cover
+        raise SystemExit("openpyxl yok → `uv pip install openpyxl`") from exc
+
+    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "İnceleme"
+    ws.append(_XLSX_HEADERS)
+    hdr_fill = PatternFill("solid", fgColor="1F3A5F")
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = hdr_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for i, c in enumerate(candidates, 1):
+        ws.append([
+            i, "İNCELE" if c.get("needs_review") else "",
+            _clean(c.get("hukum_excerpt"), 1800), "",  # KARAR boş
+            c.get("qwen_label", ""), _clean(c.get("quote"), 400),
+            _clean(c.get("input_text"), 1500), "", c.get("doc_id", ""),
+        ])
+
+    for idx, w in enumerate(_XLSX_WIDTHS):
+        ws.column_dimensions[chr(65 + idx)].width = w
+    wrap_top = Alignment(vertical="top", wrap_text=True)
+    karar_fill = PatternFill("solid", fgColor="FFF2CC")   # sarı: doldur
+    incele_fill = PatternFill("solid", fgColor="F8CBAD")  # turuncu: çelişki
+    for r in range(2, len(candidates) + 2):
+        for col in range(1, 10):
+            ws.cell(r, col).alignment = wrap_top
+        ws.row_dimensions[r].height = 120
+        ws.cell(r, 4).fill = karar_fill
+        if ws.cell(r, 2).value == "İNCELE":
+            ws.cell(r, 2).fill = incele_fill
+
+    dv = DataValidation(type="list", formula1='"kazandi,kaybetti,kismi,belirsiz"',
+                        allow_blank=True)
+    dv.promptTitle = "KARAR"
+    dv.prompt = "Davacı açısından sonucu seç: kazandi / kaybetti / kismi / belirsiz"
+    ws.add_data_validation(dv)
+    dv.add(f"D2:D{len(candidates) + 1}")
+    ws.freeze_panes = "A2"
+    wb.save(xlsx_path)
+    return len(candidates)
+
+
+def ingest_xlsx(candidates: list[dict], xlsx_path: Path = _XLSX) -> tuple[list[dict], int]:
+    """Doldurulmuş .xlsx → [{input_text, label}] + atlanan (doc_id ile join)."""
+    from openpyxl import load_workbook
+
+    by_doc = {c.get("doc_id", ""): c.get("input_text", "") for c in candidates}
+    out: list[dict] = []
+    skipped = 0
+    ws = load_workbook(xlsx_path, read_only=True).active
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row is None or len(row) < 9:
+            continue
+        label = normalize_label(str(row[3] or ""))  # D = KARAR
+        doc = str(row[8] or "").strip()             # I = doc_id
+        if label is not None and label != "belirsiz" and doc in by_doc:
+            out.append({"input_text": by_doc[doc], "label": label})
+        else:
+            skipped += 1
+    return out, skipped
 
 
 def normalize_label(value: str) -> str | None:
@@ -130,23 +218,28 @@ def main() -> None:
     candidates = _load_candidates()
 
     if args.mode == "export":
-        n = export_csv(candidates)
+        n = export_xlsx(candidates)           # hukukçu-dostu Excel (asıl)
+        export_csv(candidates)                # yedek (CSV)
         _TALIMAT.write_text(_TALIMAT_METNI, encoding="utf-8")
         n_review = sum(1 for c in candidates if c.get("needs_review"))
-        print(f"[+] {n} vaka -> {_CSV}")
+        print(f"[+] {n} vaka -> {_XLSX}  (Excel — hukukçuya BUNU gönder)")
+        print(f"[+] yedek CSV -> {_CSV}")
         print(f"[+] talimat -> {_TALIMAT}")
         print(f"    ({n_review} satır 'İNCELE' işaretli — AI'lar çelişti)")
-        print("    Bu 2 dosyayı hukukçuya gönder. Doldurunca: "
-              "uv run python -m scripts.predictive.gold_review ingest")
+        print("    Doldurulunca: uv run python -m scripts.predictive.gold_review ingest")
     else:
-        if not _CSV.exists():
-            raise SystemExit(f"{_CSV} yok — hukukçunun doldurduğu CSV'yi buraya koy.")
-        rows, skipped = ingest_csv(candidates)
+        # xlsx tercih; yoksa csv (hukukçu hangi formatı döndürdüyse).
+        if _XLSX.exists():
+            rows, skipped = ingest_xlsx(candidates)
+        elif _CSV.exists():
+            rows, skipped = ingest_csv(candidates)
+        else:
+            raise SystemExit(f"{_XLSX} / {_CSV} yok — hukukçunun doldurduğu dosyayı buraya koy.")
         with _HUMAN.open("w", encoding="utf-8") as f:
             for r in rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         print(f"[+] {len(rows)} insan-etiketli vaka -> {_HUMAN}  ({skipped} atlandı/boş/belirsiz)")
-        print(f"    Ölç: uv run python -m predictive.eval_predict --gold {_HUMAN}")
+        print(f"    Ölç: uv run python -m predictive.eval_predict --gold {_HUMAN} --gold-kind human")
 
 
 if __name__ == "__main__":
