@@ -7,6 +7,7 @@ sorusunun GERÇEK halüsinasyonlu cevabı sabit regresyon vakası olsun.
 from __future__ import annotations
 
 from agents.risk_guard import (
+    fabricated_citation_claims,
     fabricated_law_names,
     negative_eligibility_claims,
     verify_risk_veto,
@@ -81,3 +82,30 @@ def test_clean_answer_no_veto():
     blocked, reasons = verify_risk_veto(good)
     assert blocked is False
     assert reasons == []
+
+
+# --- İmkânsız mahkeme dairesi atfı (yeni detektör) ---
+
+def test_fabricated_high_chamber_blocked():
+    """'99. Hukuk Dairesi' imkânsız daire — veto'yu tetiklemeli."""
+    bad = "Yargıtay 99. Hukuk Dairesi kararına göre talebiniz haklıdır [src: h-123-c1]."
+    assert len(fabricated_citation_claims(bad)) == 1
+    blocked, reasons = verify_risk_veto(bad)
+    assert blocked is True
+    assert any("dairesi atfı" in r for r in reasons)
+
+
+def test_danistay_high_dava_dairesi_flagged():
+    """Danıştay 45. Dava Dairesi — imkânsız, bayraklanmalı."""
+    assert len(fabricated_citation_claims("Danıştay 45. Dava Dairesi kararı")) == 1
+
+
+def test_real_chamber_not_flagged():
+    """Gerçek daireler (9. Hukuk / 12. Ceza) bloklanMAMALI (FP guard — kritik)."""
+    for good in (
+        "Yargıtay 9. Hukuk Dairesi içtihadı bu yöndedir [src: h-555-c1].",
+        "Yargıtay 12. Ceza Dairesi kararı [src: h-777-c2].",
+        "Danıştay 10. Dava Dairesi [src: h-888-c1].",
+    ):
+        assert fabricated_citation_claims(good) == [], f"gerçek daire bayraklandı: {good}"
+        assert verify_risk_veto(good)[0] is False

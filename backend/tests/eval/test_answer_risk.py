@@ -5,9 +5,21 @@ from __future__ import annotations
 from eval.answer_risk import (
     duration_eligibility_claims,
     fabricated_law_names,
+    implausible_article_numbers,
     measure_risk,
     unsourced_legal_claims,
 )
+
+# --- İmkânsız madde numarası (ölçüm-amaçlı) ---
+
+def test_implausible_article_flagged():
+    assert len(implausible_article_numbers("Bu durumda madde 5000 uygulanır.")) == 1
+
+
+def test_real_article_not_flagged():
+    # TMK ~1030 madde — en büyük TR kanunu; gerçek madde no bayraklanmaz (FP guard).
+    assert implausible_article_numbers("İş Kanunu madde 14 uyarınca tazminat ödenir.") == []
+    assert implausible_article_numbers("Türk Medeni Kanunu madde 1030 hükmü.") == []
 
 # --- Süre-uygunluk iddiaları (gerçek Qwen hatası 2026-05-30) ---
 

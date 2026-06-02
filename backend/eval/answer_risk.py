@@ -33,12 +33,26 @@ _DURATION_CLAIM_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# --- 2. Uydurma kanun adları + denial veto: production guard'dan re-export ---
+# --- 2. Uydurma kanun adları + dairesi atfı: production guard'dan re-export ---
 # Bu detektörler artık production verify pipeline'ında da kullanılıyor →
 # tek kaynak agents/risk_guard.py. Eval geriye-uyumluluk için re-export eder.
 from agents.risk_guard import (
+    fabricated_citation_claims,
     fabricated_law_names,
 )
+
+# --- 4. İmkânsız madde numarası (ÖLÇÜM-amaçlı — veto DEĞİL) ---
+# Hiçbir TR kanununda olamayacak madde no (en büyük: TMK ~1030 madde). > _ABSURD_ARTICLE_MAX
+# kesin imkânsız (örn "madde 5000"). Yasa-özel tespit (İş Kanunu m.200 gibi), kesin madde
+# sayıları mevzuat.gov.tr'den TEYİT edilince eklenir (o zaman veto'ya terfi edebilir).
+_ABSURD_ARTICLE_MAX = 1100
+_ARTICLE_RE = re.compile(r"\bmadde\s*(\d{1,5})\b", re.IGNORECASE)
+
+
+def implausible_article_numbers(text: str) -> list[str]:
+    """Hiçbir TR kanununda olamayacak madde no (örn 'madde 5000') — ölçüm-amaçlı."""
+    return [m.group(0).strip() for m in _ARTICLE_RE.finditer(text)
+            if int(m.group(1)) > _ABSURD_ARTICLE_MAX]
 
 # --- 3. Kaynaksız hukuki iddia ---
 # Kesin hukuki iddia içeren ama [src:] etiketi taşımayan cümle.
@@ -81,14 +95,20 @@ def measure_risk(text: str) -> dict:
     """Tek cevap için içerik-risk bayrakları (sayılar + örnek cümleler)."""
     dur = duration_eligibility_claims(text)
     fab = fabricated_law_names(text)
+    cite = fabricated_citation_claims(text)
+    art = implausible_article_numbers(text)
     uns = unsourced_legal_claims(text)
     return {
         "duration_claims": len(dur),
         "fabricated_laws": len(fab),
+        "fabricated_citations": len(cite),
+        "implausible_articles": len(art),
         "unsourced_claims": len(uns),
-        "has_risk": bool(dur or fab or uns),
+        "has_risk": bool(dur or fab or cite or art or uns),
         # örnekler (rapor/inceleme için)
         "duration_examples": dur[:3],
         "fabricated_examples": fab[:3],
+        "fabricated_citation_examples": cite[:3],
+        "implausible_article_examples": art[:3],
         "unsourced_examples": uns[:2],
     }

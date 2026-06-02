@@ -1,0 +1,40 @@
+{"id": "fl01", "answer": "İşçilik Kanunu'na göre işveren kıdem tazminatı ödemek zorundadır [src: m-IK-14].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl02", "answer": "Tüketicilik Kanunu kapsamında 14 gün içinde cayma hakkınız vardır [src: m-TKHK-11].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl03", "answer": "Kiralama Yasası'nın 5. maddesi kira artışını TÜFE ile sınırlar [src: m-TBK-344].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl04", "answer": "Trafik Yasası'na göre kaza tutanağı beş gün içinde tutulmalıdır [src: m-KTK-81].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl05", "answer": "Vergi Yasası gereği yıllık beyanname mart ayında verilir [src: m-GVK-92].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl06", "answer": "İşçilik Yasası 17. madde ihbar sürelerini düzenler [src: m-IK-17].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "ne01", "answer": "Belirttiğiniz 2 yıllık süre, kıdem tazminatı için yeterli değildir [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne02", "answer": "Bu süre 5 yılın altında olduğundan tazminat verilmeyebilir [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne03", "answer": "6 aylık çalışmayla ihbar tazminatına hak kazanamazsınız [src: m-IK-17].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne04", "answer": "Kira sözleşmeniz 1 yıldan kısa olduğu için tahliye talep etmeniz mümkün değildir.", "types": ["negative_eligibility", "unsourced_claim"], "is_clean": false}
+{"id": "ne05", "answer": "3 aydan az ikamet ettiğiniz için bu hak doğmaz.", "types": ["negative_eligibility", "unsourced_claim"], "is_clean": false}
+{"id": "ne06", "answer": "Borcunuz 5.000 TL'nin altında olduğundan icra takibi mümkün değildir.", "types": ["negative_eligibility", "unsourced_claim"], "is_clean": false}
+{"id": "fc01", "answer": "Yargıtay 99. Hukuk Dairesi bu konuda lehinize karar vermiştir [src: h-12345-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc02", "answer": "Danıştay 45. Dava Dairesi içtihadına göre işlem iptal edilir.", "types": ["fabricated_citation", "unsourced_claim"], "is_clean": false}
+{"id": "fc03", "answer": "Yargıtay 50. Ceza Dairesi kararı emsal teşkil eder [src: h-999-c2].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc04", "answer": "Yargıtay 31. Hukuk Dairesi tazminat ölçütlerini belirlemiştir [src: h-321-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc05", "answer": "Danıştay 88. Vergi Dava Dairesi vergi cezasını kaldırmıştır [src: h-654-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc06", "answer": "Yargıtay 9. Hukuk Dairesi ve 77. Hukuk Dairesi kararları birlikte değerlendirilir [src: h-12-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "ia01", "answer": "İş Kanunu madde 5000 uyarınca işçi haklıdır [src: m-IK-5000].", "types": ["implausible_article"], "is_clean": false}
+{"id": "ia02", "answer": "Borçlar Kanunu madde 9999 hükmü bu durumda uygulanır.", "types": ["implausible_article", "unsourced_claim"], "is_clean": false}
+{"id": "ia03", "answer": "Somut olayda madde 3450 geçerlidir [src: m-X-3450].", "types": ["implausible_article"], "is_clean": false}
+{"id": "uc01", "answer": "İşveren kıdem tazminatı ödemek zorundadır.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc02", "answer": "Kiracı, şartlar oluştuğunda tahliye davası açabilir ve mahkemeden tahliye talep edebilir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc03", "answer": "Tüketici olarak ayıplı malı iade etme ve bedel iadesi talep etme hakkınız bulunmaktadır.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "cl01", "answer": "Kısa cevap: Ayıplı üründe iade hakkınız vardır [src: m-TKHK-11]. Satıcıya başvurarak değişim veya bedel iadesi talep edebilirsiniz [src: m-TKHK-11]. Bu cevap hukuki tavsiye değildir, bir avukata danışın.", "types": [], "is_clean": true}
+{"id": "cl02", "answer": "İş Kanunu madde 14 uyarınca, bir yılı dolduran işçi kıdem tazminatına hak kazanır [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl03", "answer": "İki yıl çalıştığınız için kıdem tazminatına hak kazanırsınız [src: m-IK-14]. Tutar son brüt ücretiniz üzerinden hesaplanır [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl04", "answer": "Kira artışı, bir önceki kira yılındaki on iki aylık TÜFE ortalamasını geçemez [src: m-TBK-344].", "types": [], "is_clean": true}
+{"id": "cl05", "answer": "Yargıtay 9. Hukuk Dairesi içtihadı bu yöndedir [src: h-555-c1].", "types": [], "is_clean": true}
+{"id": "cl06", "answer": "Yargıtay 12. Ceza Dairesi kararı emsal niteliğindedir [src: h-777-c2].", "types": [], "is_clean": true}
+{"id": "cl07", "answer": "Danıştay 10. Dava Dairesi işlemin iptaline karar vermiştir [src: h-888-c1].", "types": [], "is_clean": true}
+{"id": "cl08", "answer": "Karayolları Trafik Kanunu uyarınca kaza tutanağının düzenlenmesi gerekir [src: m-KTK-81].", "types": [], "is_clean": true}
+{"id": "cl09", "answer": "Kısa cevap: Tüketicinin Korunması Hakkında Kanun kapsamında cayma hakkınız on dört gündür [src: m-TKHK-11].", "types": [], "is_clean": true}
+{"id": "cl10", "answer": "Kıdem tazminatı için işyerinde en az bir yıl çalışmış olmak gerekir [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl11", "answer": "Türk Borçlar Kanunu madde 299 kira sözleşmesini tanımlar [src: m-TBK-299].", "types": [], "is_clean": true}
+{"id": "cl12", "answer": "İcra ve İflas Kanunu uyarınca ilamsız takip başlatılabilir [src: m-IIK-42].", "types": [], "is_clean": true}
+{"id": "cl13", "answer": "Vergi Usul Kanunu'na göre düzeltme talebi yapılabilir [src: m-VUK-116].", "types": [], "is_clean": true}
+{"id": "cl14", "answer": "Tapu Kanunu uyarınca tescil işlemi tapu müdürlüğünde yapılır [src: m-TK-26].", "types": [], "is_clean": true}
+{"id": "cl15", "answer": "İdari işlemin iptali için altmış gün içinde dava açabilirsiniz [src: m-IYUK-7].", "types": [], "is_clean": true}
+{"id": "cl16", "answer": "Kısa cevap: Aracınızda gizli ayıp varsa satıcıya karşı dava açabilirsiniz [src: m-TBK-219]. Bu cevap hukuki tavsiye değildir, bir avukata danışın.", "types": [], "is_clean": true}

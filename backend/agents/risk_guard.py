@@ -18,14 +18,26 @@ from __future__ import annotations
 import re
 
 # --- Uydurma/yanlış kanun adları (kesin hata) ---
+# Yalnız KESİN yanlış adlar: "-cilik/-lama" kökleri uydurma (Kanun/Yasa eki fark etmez);
+# geçerli halk-dili adlar ("Borçlar Kanunu", "Tapu Kanunu") EKLENMEZ (false-positive önle).
 _FABRICATED_LAW_RE = re.compile(
     r"\b(?:"
-    r"İşçilik\s+Kanunu|"           # gerçek: İş Kanunu
-    r"Kiralama\s+Kanunu|"          # gerçek: TBK kira hükümleri
-    r"Tüketicilik\s+Kanunu|"       # gerçek: Tüketicinin Korunması Hk. Kanun
-    r"Trafik\s+Yasası|"            # gerçek: Karayolları Trafik Kanunu
-    r"Vergi\s+Yasası"              # gerçek: VUK/GVK/KVK
+    r"İşçilik\s+(?:Kanunu|Yasası)|"     # gerçek: İş Kanunu
+    r"Kiralama\s+(?:Kanunu|Yasası)|"    # gerçek: TBK kira hükümleri
+    r"Tüketicilik\s+(?:Kanunu|Yasası)|"  # gerçek: Tüketicinin Korunması Hk. Kanun
+    r"Trafik\s+Yasası|"                  # gerçek: Karayolları Trafik Kanunu
+    r"Vergi\s+Yasası"                    # gerçek: VUK/GVK/KVK
     r")\b",
+    re.IGNORECASE,
+)
+
+# --- Uydurma mahkeme dairesi atfı (imkânsız daire numarası) ---
+# Türk yüksek mahkemelerinde (Yargıtay/Danıştay) daire sayısı tarihte ~23'ü GEÇMEDİ.
+# Eşik > _MAX_CHAMBER muhafazakâr tavandır (FP=0): gerçek daireyi ASLA reddetmez,
+# "99. Hukuk Dairesi" gibi uydurma atıfları yakalar. (Kesin sayı doğrulandıkça düşürülebilir.)
+_MAX_CHAMBER = 30
+_CHAMBER_RE = re.compile(
+    r"\b(\d{1,3})\s*\.?\s*(?:Hukuk|Ceza|(?:İdari\s+)?Dava|Vergi\s+Dava)\s+Dairesi\b",
     re.IGNORECASE,
 )
 
@@ -66,12 +78,26 @@ def negative_eligibility_claims(text: str) -> list[str]:
     return flags
 
 
+def fabricated_citation_claims(text: str) -> list[str]:
+    """İmkânsız mahkeme dairesi atıflarını döndür (örn '99. Hukuk Dairesi').
+
+    Yalnız _MAX_CHAMBER'ı aşan numaraları işaretler → gerçek daire (1–~23) asla
+    yanlışlıkla bloklanmaz; uydurma yüksek-numaralı atıflar yakalanır.
+    """
+    flags: list[str] = []
+    for m in _CHAMBER_RE.finditer(text):
+        if int(m.group(1)) > _MAX_CHAMBER:
+            flags.append(m.group(0).strip())
+    return flags
+
+
 def verify_risk_veto(text: str) -> tuple[bool, list[str]]:
     """Verify pipeline veto kararı: cevapta BLOKLAYICI içerik-riski var mı?
 
-    Bloklayıcı (fail-closed → reject):
+    Bloklayıcı (fail-closed → reject) — yalnız YÜKSEK-KESİNLİKLİ sınıflar:
       - Uydurma kanun adı (kesin hata)
       - Süre/eşik gerekçeli hak-reddi (tehlikeli yanlış-çıkarım)
+      - İmkânsız mahkeme dairesi atfı (uydurma kaynak)
 
     Returns: (bloklanmalı_mı, gerekçe_listesi). CLAUDE.md §1: doğrulanamazsa REDDEDİLİR.
     """
@@ -80,4 +106,6 @@ def verify_risk_veto(text: str) -> tuple[bool, list[str]]:
         reasons.append(f"uydurma kanun adı: {law}")
     for sent in negative_eligibility_claims(text):
         reasons.append(f"süre/eşik gerekçeli hak-reddi: {sent}")
+    for cite in fabricated_citation_claims(text):
+        reasons.append(f"imkânsız mahkeme dairesi atfı: {cite}")
     return (bool(reasons), reasons)
