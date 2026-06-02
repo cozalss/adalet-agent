@@ -117,8 +117,13 @@ def print_scorecard(s: dict) -> None:
     bar = "=" * 66
     kind = s["label_kind"].upper()
     print(f"\n{bar}\n  DAVA-SONUCU TAHMİNİ EVAL — {kind} ({s['n']} örnek)\n{bar}")
-    warn = "  ⚠️ SILVER: zayıf-etiketli (~%70) — gerçek tavan değil; GOLD set ile doğrula." \
-        if s["label_kind"] == "silver" else "  ✓ GOLD: insan-doğrulanmış set."
+    if s["label_kind"] == "silver":
+        warn = "  ⚠️ SILVER: zayıf-etiketli (~%70) — gerçek tavan değil; GOLD ile doğrula."
+    elif s["label_kind"] == "human":
+        warn = "  ✓ GOLD: insan-doğrulanmış set (gerçek doğruluk)."
+    else:
+        warn = (f"  ⚠️ {kind}: LLM/otomatik referans — İNSAN-doğrulanmış DEĞİL "
+                "(silver↔gerçek arası köprü ölçüm).")
     print(warn)
     print(f"  accuracy = {s['accuracy']:.4f}   f1_macro = {s['f1_macro']:.4f}   "
           f"ECE = {s['ece']:.4f} (hedef ≤0.05)")
@@ -137,7 +142,9 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="BERT-TR dava-sonucu eval (silver/gold)")
     parser.add_argument("--data", default=_DEFAULT_DATA, help="Silver JSONL (split'lenir)")
-    parser.add_argument("--gold", default=None, help="İnsan-doğrulanmış GOLD JSONL (varsa asıl ölçüm)")
+    parser.add_argument("--gold", default=None, help="Referans GOLD JSONL (varsa asıl ölçüm)")
+    parser.add_argument("--gold-kind", default="llm-ref", choices=["human", "llm-ref"],
+                        help="GOLD kaynağı: human (insan-doğrulanmış) | llm-ref (Qwen-ref köprü)")
     parser.add_argument("--model-dir", default=_DEFAULT_MODEL_DIR)
     parser.add_argument("--split", default="test", choices=["test", "val", "all"])
     parser.add_argument("--max-length", type=int, default=512)
@@ -150,8 +157,8 @@ def main() -> int:
     reports = {}
     if args.gold and Path(args.gold).exists():
         gold = load_jsonl(args.gold)
-        print(f"[*] GOLD eval: {len(gold)} insan-doğrulanmış örnek")
-        reports["gold"] = evaluate(gold, args.model_dir, args.max_length, "gold")
+        print(f"[*] GOLD eval ({args.gold_kind}): {len(gold)} örnek")
+        reports["gold"] = evaluate(gold, args.model_dir, args.max_length, args.gold_kind)
 
     records = load_jsonl(args.data)
     _train, val, test = stratified_split(records, seed=42)
