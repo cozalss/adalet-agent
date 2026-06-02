@@ -64,10 +64,24 @@ def _isolate_hukum(text_low: str) -> str:
         return text_low[m.end():]
     return text_low[-_HUKUM_TAIL_CHARS:]
 
+
+def _facts_before_hukum(text: str) -> str:
+    """Karar metninin HÜKÜM ÖNCESİ (olay+gerekçe) kısmı — BERT serve girdisi.
+
+    Model eğitim girdisi (input_text) = olay+gerekçe, hüküm HARİÇ (auto_label leak-free).
+    Canlıda da BERT'e aynı dağılım verilmeli: emsal kararın hüküm-öncesi metni. Hüküm
+    DIŞLANIR → modelin sonucu metinden 'okuyup' kopya çekmesi (sızıntı) önlenir. Başlık
+    yoksa tüm metin (kısa snippet'lerde hüküm zaten ayrışmaz). Cased model → orijinal case.
+    """
+    m = _HUKUM_HEADER_RE.search(text)
+    return text[: m.start()] if m else text
+
 # Kesinlik ima etmemek için tavan — heuristic asla "%100 kazanırsın" demez.
 _MAX_CONFIDENCE = 0.85
 # Anlamlı oylama için gereken minimum sınıflandırılabilir emsal.
 _MIN_SIGNAL = 2
+# BERT'e girecek emsal-facts'in min uzunluğu (kısa/boş facts kullanılmaz).
+_MIN_FACTS_CHARS = 40
 
 # Yargıtay karar sonuç-bölümü kalıpları (tr_lower'lanmış metinde aranır).
 # "kısmen ..." önce kontrol edilir: "kısmen kabul" ham "kabul" içerir.
@@ -197,28 +211,42 @@ def _load_model(model_dir: str) -> tuple[Any, Any, float]:
     return tok, model, temperature
 
 
-def _model_predict(question: str, case_ids: list[str]) -> Prediction:
-    """Fine-tuned BERT-TR ile kalibre tahmin. Sync (to_thread'den çağrılır)."""
+def _model_predict(
+    question: str, similar_case_texts: list[str], case_ids: list[str],
+) -> Prediction:
+    """Fine-tuned BERT-TR ile kalibre tahmin. Sync (to_thread'den çağrılır).
+
+    KRİTİK (train/serve hizalama): model olay+gerekçe karar metniyle eğitildi → canlıda
+    da BERT'e emsal kararların HÜKÜM-ÖNCESİ facts'i verilir (kullanıcının kısa sorusu
+    DEĞİL — eski bug). Her emsal için kalibre softmax alınır, emsal üzerinde ORTALAMA
+    olasılık → en olası sınıf (heuristic oylamasının yumuşak/BERT karşılığı). Kullanılabilir
+    emsal facts yoksa soruya düşülür (degraded; sızıntı yok, hüküm dışlandı).
+    """
     import torch
 
     from predictive.calibrate import softmax
     from predictive.data_loader import ID2LABEL
 
     tok, model, temperature = _load_model(_MODEL_DIR)
-    enc = tok(question, truncation=True, max_length=512, return_tensors="pt").to(_MODEL_DEVICE)
+    facts = [f for t in similar_case_texts
+             if len((f := _facts_before_hukum(t)).strip()) >= _MIN_FACTS_CHARS]
+    inputs = facts or [question]  # emsal-facts yoksa degraded fallback
+    enc = tok(inputs, truncation=True, max_length=512, padding=True,
+              return_tensors="pt").to(_MODEL_DEVICE)
     with torch.no_grad():
         logits = model(**enc).logits.cpu().numpy()
-    probs = softmax(logits, temperature)[0]
+    probs = softmax(logits, temperature).mean(axis=0)  # emsal üzerinde ortalama
     top = int(probs.argmax())
     cls: PredictionClass = ID2LABEL[top]  # type: ignore[assignment]
     # Kesinlik ima etmemek için tavan (heuristic ile aynı kural).
     conf = round(min(float(probs[top]), _MAX_CONFIDENCE), 3)
+    source = f"{len(facts)} emsalin olay+gerekçe metni" if facts else "soru (emsal facts yok)"
     return Prediction(
         verdict_class=cls,
         confidence=conf,
         similar_case_ids=case_ids,
         reasoning=(
-            f"Fine-tuned BERT-TR tahmini (kalibre, T={temperature}). Bu "
+            f"Fine-tuned BERT-TR tahmini ({source}, kalibre T={temperature}). Bu "
             "istatistiksel bir tahmindir, mahkeme garantisi değildir."
         ),
     )
@@ -238,7 +266,9 @@ async def predict_outcome(
 
     if _model_enabled():
         try:
-            prediction = await asyncio.to_thread(_model_predict, question, case_ids)
+            prediction = await asyncio.to_thread(
+                _model_predict, question, similar_case_texts, case_ids,
+            )
             log.info(
                 "predict_outcome", source="bert",
                 verdict=prediction["verdict_class"], confidence=prediction["confidence"],
