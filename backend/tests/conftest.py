@@ -14,6 +14,9 @@ from core import native_preload  # noqa: F401
 # Test ortamı: MockLLM zorunlu, HyDE kapalı (network'e gitmesin)
 os.environ.setdefault("LLM_MODE", "mock")
 os.environ.setdefault("HYDE_ENABLED", "0")
+# Güvenlik C1: AUTH_ENABLED default'u "1"e çekildi (fail-secure). Test ortamı EXPLICIT
+# "0" ile anonim kalır (auth-spesifik testler auth_mod.AUTH_ENABLED'i monkeypatch'ler).
+os.environ.setdefault("AUTH_ENABLED", "0")
 os.environ.setdefault("NLI_FP16", "0")
 # Sprint-4: LettuceDetect modeli ağır — test'te disabled, fallback yolu kullanır
 os.environ.setdefault("LETTUCE_ENABLED", "0")

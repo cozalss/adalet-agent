@@ -36,6 +36,8 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
+      - name: Bağımlılık güvenlik denetimi (pnpm audit — HIGH+ kırar)
+        run: pnpm audit --audit-level=high
       - name: Vitest + kapsam raporu
         run: pnpm test:coverage
       - name: Production build (tip-dışı smoke)

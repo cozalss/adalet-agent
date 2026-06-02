@@ -151,6 +151,7 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
     try:
         import pytesseract
         from PIL import Image, ImageOps
+        Image.MAX_IMAGE_PIXELS = 50_000_000  # güvenlik: decompression-bomb guard (~A4 300dpi)
     except ImportError as exc:
         # Tam detay (lib adı/exc) sadece sunucu log'una; kullanıcıya generic.
         log.warning("ocr_tesseract_import_failed", error=str(exc))
@@ -237,6 +238,7 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
     def _do() -> tuple[str, str | None]:
         try:
             from PIL import Image
+            Image.MAX_IMAGE_PIXELS = 50_000_000  # güvenlik: decompression-bomb guard
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             model_name = os.getenv("OCR_QWEN_VL_MODEL", "Qwen/Qwen2-VL-2B-Instruct")
             # Cache'li yükleme — process başına bir kez (OOM fix).

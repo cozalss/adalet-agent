@@ -41,7 +41,8 @@ def _check_ownership(entry_owner_sub: str, principal_sub: str) -> None:
     `entry.owner_sub == ""` durumu legacy (auth devre dışıyken üretilmiş
     eski kayıt) için tolere edilir; production'da bu durum oluşmamalı.
     """
-    if os.getenv("AUTH_ENABLED", "0") not in {"1", "true", "yes"}:
+    # Fail-secure default "1" (auth.py ile tutarlı — güvenlik C1). Lokal dev EXPLICIT "0".
+    if os.getenv("AUTH_ENABLED", "1") not in {"1", "true", "yes"}:
         return
     if not entry_owner_sub:
         return  # legacy entry — auth devre dışıyken üretilmiş, sahiplik yok

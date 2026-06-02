@@ -39,8 +39,17 @@ log = structlog.get_logger()
 
 # --- ENV config ------------------------------------------------------------
 
-AUTH_ENABLED = os.getenv("AUTH_ENABLED", "0").lower() in {"1", "true", "yes"}
+# FAIL-SECURE default (güvenlik C1): AUTH_ENABLED set EDİLMEZSE AÇIK kabul edilir →
+# yanlışlıkla korumasız production olmaz. Lokal dev/test EXPLICIT `AUTH_ENABLED=0` ile
+# kapatır (conftest autouse + backend/.env). Production'da ENV=production + AUTH_ENABLED!=1
+# → main.py startup'ı çökertir (fail-fast).
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "1").lower() in {"1", "true", "yes"}
+# Token sağlayıcı: "internal" (kendi HS256 JWT'miz, issue_token) | "supabase" (GoTrue JWT).
+AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "internal").lower()
 JWT_SECRET = os.getenv("JWT_SECRET", "")
+# Supabase GoTrue JWT secret (Dashboard → Settings → API → JWT Secret).
+# AUTH_PROVIDER=supabase iken frontend'in supabase-js token'ı bununla doğrulanır (Phase C).
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 # alg-confusion koruması: yalnız simetrik HMAC algoritmaları kabul (asla "none"
 # veya asimetrik). Geçersiz konfig → güvenli default'a düş + hata logla (fail-closed).
@@ -189,15 +198,28 @@ def issue_token(sub: str, role: str = "beta", **extra_claims: Any) -> str:
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    """JWT decode + verify; geçersizse HTTPException 401."""
-    if not JWT_SECRET:
+    """JWT decode + verify; geçersizse HTTPException 401.
+
+    AUTH_PROVIDER=supabase → frontend supabase-js token'ı (GoTrue, aud='authenticated')
+    SUPABASE_JWT_SECRET ile doğrulanır; iss proje-ref'e bağlı olduğundan atlanır.
+    Aksi halde kendi HS256 JWT'miz (issue_token) JWT_SECRET + aud/iss ile doğrulanır.
+    """
+    is_supabase = AUTH_PROVIDER == "supabase"
+    secret = SUPABASE_JWT_SECRET if is_supabase else JWT_SECRET
+    if not secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="JWT_SECRET ayarlanmadı (server config hatası)",
+            detail=f"{'SUPABASE_JWT_SECRET' if is_supabase else 'JWT_SECRET'} "
+                   "ayarlanmadı (server config hatası)",
         )
     try:
+        if is_supabase:
+            return jwt.decode(
+                token, secret, algorithms=["HS256"],
+                audience="authenticated", options={"verify_iss": False},
+            )
         return jwt.decode(
-            token, JWT_SECRET,
+            token, secret,
             algorithms=[JWT_ALGORITHM],
             audience=JWT_AUDIENCE,
             issuer=JWT_ISSUER,
@@ -278,6 +300,8 @@ async def authenticate(
 
 __all__ = (
     "AUTH_ENABLED",
+    "AUTH_PROVIDER",
+    "SUPABASE_JWT_SECRET",
     "Principal",
     "authenticate",
     "decode_token",

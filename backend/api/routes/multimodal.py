@@ -17,10 +17,11 @@ import re
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from api.limiter import limiter
 from api.middleware.auth import Principal, authenticate
 from api.pii import mask_pii
 from api.schemas import OCRUploadResponse, STTUploadResponse
@@ -119,7 +120,9 @@ class TTSRequest(BaseModel):
 # --------------------------------------------------------------------------
 
 @router.post("/ocr", response_model=OCRUploadResponse)
+@limiter.limit("5/minute")  # güvenlik: pahalı OCR (Tesseract+Qwen-VL) DoS guard
 async def ocr_upload(
+    request: Request,
     image: Annotated[UploadFile, File(...)],
     principal: Principal = Depends(authenticate),
 ) -> OCRUploadResponse:
@@ -169,7 +172,9 @@ async def ocr_upload(
 # --------------------------------------------------------------------------
 
 @router.post("/stt", response_model=STTUploadResponse)
+@limiter.limit("5/minute")  # güvenlik: Whisper inference DoS guard
 async def stt_upload(
+    request: Request,
     audio: Annotated[UploadFile, File(...)],
     principal: Principal = Depends(authenticate),
 ) -> STTUploadResponse:
@@ -220,7 +225,9 @@ async def stt_upload(
 # --------------------------------------------------------------------------
 
 @router.post("/tts")
+@limiter.limit("10/minute")  # güvenlik: Coqui TTS DoS guard
 async def tts_generate(
+    request: Request,
     req: TTSRequest,
     principal: Principal = Depends(authenticate),
 ) -> Response:

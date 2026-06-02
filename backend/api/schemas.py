@@ -97,6 +97,15 @@ class AskRequest(BaseModel):
         return v
 
 
+# Güvenlik: citation URL'leri yalnız bilinen TR-hukuk kaynak domain'lerinden olabilir.
+# Qdrant payload'ı zehirlense (source_url='http://evil/...') kullanıcıya sahte 'Yargıtay
+# linki' sunulmaz — open-redirect/phishing guard. Subdomain'ler endswith ile kapsanır.
+_ALLOWED_CITATION_DOMAINS = (
+    "mevzuat.gov.tr", "yargitay.gov.tr", "danistay.gov.tr",
+    "resmigazete.gov.tr", "adalet.gov.tr", "uyap.gov.tr",
+)
+
+
 class CitationSchema(BaseModel):
     """API yanıtındaki tek bir kaynak."""
 
@@ -106,6 +115,24 @@ class CitationSchema(BaseModel):
     snippet: str
     url: str
     score: float = Field(..., ge=0.0, le=1.0)
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        """Tanınmayan/zararlı host → boş string (link gösterilmez). javascript:/data: de düşer."""
+        if not v:
+            return ""
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(v)
+        except ValueError:
+            return ""
+        if parsed.scheme not in {"http", "https"}:
+            return ""
+        host = (parsed.hostname or "").lower()
+        if any(host == d or host.endswith("." + d) for d in _ALLOWED_CITATION_DOMAINS):
+            return v
+        return ""
 
 
 class ClaimSchema(BaseModel):

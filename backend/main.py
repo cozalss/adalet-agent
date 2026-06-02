@@ -143,20 +143,39 @@ async def _refresh_api_key_cache_safe() -> None:
 
 
 def _log_auth_visibility() -> None:
-    """Boot'ta auth durumunu görünür logla — sessiz prod misconfig'i önler."""
-    with contextlib.suppress(Exception):
-        from api.middleware import auth as _auth
-        if not _auth.AUTH_ENABLED:
-            log.warning(
-                "auth_disabled",
-                hint="AUTH_ENABLED=0 — tüm endpoint'ler anonim erişime açık. "
-                     "Production'da AUTH_ENABLED=1 + JWT_SECRET zorunlu.",
+    """Boot'ta auth durumunu görünür logla + PRODUCTION FAIL-FAST (güvenlik C1).
+
+    ENV=production iken korumasız (AUTH_ENABLED=0) veya secret'sız konfig startup'ı
+    ÇÖKERTİR — sessiz misconfig ile korumasız production'a çıkmayı imkânsız kılar.
+    Lokal dev (ENV!=production) yalnız uyarı loglar.
+    """
+    from api.middleware import auth as _auth
+    is_prod = os.getenv("ENV", "").lower() in {"production", "prod"}
+
+    if not _auth.AUTH_ENABLED:
+        if is_prod:
+            raise RuntimeError(
+                "GÜVENLİK (C1): ENV=production AMA AUTH_ENABLED!=1 — tüm endpoint'ler "
+                "korumasız. Production'da AUTH_ENABLED=1 zorunlu (fail-fast)."
             )
-        elif not _auth.JWT_SECRET:
-            log.critical(
-                "auth_enabled_without_secret",
-                hint="AUTH_ENABLED=1 ama JWT_SECRET boş — JWT decode 500 döner.",
-            )
+        log.warning(
+            "auth_disabled",
+            hint="AUTH_ENABLED=0 — endpoint'ler anonim erişime açık (lokal dev).",
+        )
+        return
+
+    # Auth açık — sağlayıcıya göre doğru secret zorunlu, yoksa tüm token'lar 500.
+    if _auth.AUTH_PROVIDER == "supabase" and not _auth.SUPABASE_JWT_SECRET:
+        msg = ("AUTH_PROVIDER=supabase AMA SUPABASE_JWT_SECRET boş — frontend token'ları "
+               "doğrulanamaz (500). Dashboard → Settings → API → JWT Secret'i ayarla.")
+        if is_prod:
+            raise RuntimeError("GÜVENLİK (C2): " + msg)
+        log.critical("auth_supabase_without_secret", hint=msg)
+    elif _auth.AUTH_PROVIDER != "supabase" and not _auth.JWT_SECRET:
+        msg = "AUTH_ENABLED=1 ama JWT_SECRET boş — JWT decode 500 döner."
+        if is_prod:
+            raise RuntimeError("GÜVENLİK: " + msg)
+        log.critical("auth_enabled_without_secret", hint=msg)
 
 
 @asynccontextmanager

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 
 import structlog
@@ -42,6 +43,21 @@ _HARD_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)reveal (your |the )?(system|hidden) prompt"),
 )
 
+# Agent prompt DELIMITER-escape kalıpları (güvenlik HIGH): triaj/compose/draft node'ları
+# kullanıcı metnini "--- KONUŞMA BAĞLAMI ---" / "<<<SORU>>>" gibi delimiter'lar arasına
+# koyuyor; saldırgan bu delimiter'ı kapatıp sistem-prompt gövdesine talimat enjekte edebilir.
+# Bu kalıplar hem SORUDAN çıkarılır (aşağıda _SOFT_PATTERNS) hem de session/history'den
+# (strip_injection_delimiters — sistem-prompt'a yazılmadan önce).
+_DELIMITER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(?i)---\s*/?\s*(KONUŞMA BAĞLAMI|SYSTEM CONTEXT|BAĞLAM|GEÇMİŞ)\s*---"),
+    re.compile(r"(?i)\[\s*Talimat\s*:[^\]]{0,200}\]"),
+    re.compile(r"(?i)\[\s*GEÇMİŞ DOMAIN HINT[^\]]{0,120}\]"),
+    re.compile(r"(?i)confidence\s*=\s*[\d.]+\s*,?\s*domain\s*=\s*\w+"),
+    re.compile(r"(?i)domain\s*=\s*\w+\s*,?\s*confidence\s*=\s*[\d.]+"),
+    re.compile(r"<<<\s*/?\s*SORU\s*>>>"),
+    re.compile(r"(?i)\bYEN[İI] TAL[İI]MAT\s*:[^\n]{0,200}"),
+)
+
 # Soft sanitize: kullanıcı sorusundan çıkar
 # NOT: [SYSTEM] etiketi yalnız etiket+kısa açıklama temizler; tüm metni
 # yutmasın diye max-100 char veya satır sonu sınırı.
@@ -51,7 +67,28 @@ _SOFT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"<\|im_start\|>system[^<]*<\|im_end\|>"),
     re.compile(r"###\s*SYSTEM[^\n]*\n"),
     re.compile(r"(?i)^assistant:\s*", re.MULTILINE),
+    *_DELIMITER_PATTERNS,
 )
+
+# Zero-width / görünmez karakterler — homoglyph/zero-width bypass guard.
+_ZERO_WIDTH_RE = re.compile("[​‌‍⁠﻿]")
+
+
+def _normalize(text: str) -> str:
+    """NFKC normalize + zero-width strip — fullwidth/homoglyph/zero-width filtre bypass'ını kapatır."""
+    return _ZERO_WIDTH_RE.sub("", unicodedata.normalize("NFKC", text))
+
+
+def strip_injection_delimiters(text: str) -> str:
+    """Session/history içeriğinden agent-prompt delimiter'larını çıkar (stored injection guard).
+
+    sanitize_question kapsamı yalnız req.question; session'a yazılmış geçmiş içerik
+    (triaj/draft _format_history) sistem-prompt'a girmeden ÖNCE bundan geçirilmeli.
+    """
+    cleaned = _normalize(text)
+    for pat in _DELIMITER_PATTERNS:
+        cleaned = pat.sub("[filtrelendi]", cleaned)
+    return cleaned
 
 
 @dataclass(frozen=True)
@@ -72,6 +109,9 @@ def sanitize_question(text: str) -> SanitizeResult:
     """
     if not SANITIZE_ENABLED or not text:
         return SanitizeResult(False, "", text, [], [])
+
+    # Filtre-bypass guard: fullwidth/homoglyph (NFKC) + zero-width karakterleri normalize et.
+    text = _normalize(text)
 
     matched_hard: list[str] = []
     for pat in _HARD_PATTERNS:
@@ -111,4 +151,5 @@ __all__ = (
     "SANITIZE_HARD_BLOCK",
     "SanitizeResult",
     "sanitize_question",
+    "strip_injection_delimiters",
 )

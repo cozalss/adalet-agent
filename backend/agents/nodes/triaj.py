@@ -326,11 +326,15 @@ def _format_history(history: list[ConversationTurn]) -> str:
     """Son N turu prompt'a uygun string'e dök."""
     if not history:
         return "(geçmiş yok — bu ilk soru)"
+    # Güvenlik (stored prompt injection): session'a yazılmış geçmiş içerik sistem-prompt'a
+    # girmeden ÖNCE delimiter-escape kalıplarından arındırılır (sanitize_question kapsamı dışı).
+    from api.middleware.sanitize import strip_injection_delimiters
+
     recent = history[-MAX_HISTORY_TURNS_IN_PROMPT:]
     lines = []
     for turn in recent:
         role = "KULLANICI" if turn["role"] == "user" else "ASİSTAN"
-        content = turn["content"][:400]  # token tasarrufu
+        content = strip_injection_delimiters(turn["content"][:400])  # token tasarrufu + injection guard
         domain_hint = ""
         if turn.get("domain") and turn["domain"] != "unknown":
             domain_hint = f"  [domain: {turn['domain']}]"

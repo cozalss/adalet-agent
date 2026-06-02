@@ -4,6 +4,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# MCP config (proje-yerel; proje-ref/secret içerebilir — accidental commit guard)
+.mcp.json
 .pub-cache/
 .dart_tool/
 
