@@ -1,92 +1,174 @@
-{"text": "Ayıplı malın bedel iadesini talep ediyorum, ne kadar sürem var?", "label": "tuketici"}
-{"text": "Ödeme emri tebliğ edildi ama borcu kabul etmiyorum, hukuki açıdan durumum nedir?", "label": "icra"}
-{"text": "Aracımda değer kaybı oluştu, hukuki açıdan durumum nedir?", "label": "trafik"}
-{"text": "Vergi dairesiyle uzlaşmak istiyorum, haklarım nelerdir?", "label": "vergi"}
-{"text": "Ruhsat başvurum haksız yere reddedildi, nereye başvurmalıyım?", "label": "idari"}
-{"text": "Belediyenin idari işlemine karşı iptal davası açmak istiyorum, haklarım nelerdir?", "label": "idari"}
-{"text": "Kiracım sözleşmeye aykırı davranıyor, hukuki açıdan durumum nedir?", "label": "kira"}
-{"text": "İşten çıkarıldım ve kıdem tazminatımı alamadım.", "label": "isHukuku"}
-{"text": "İşe iade davası açmak istiyorum, dava açabilir miyim?", "label": "isHukuku"}
-{"text": "Değer kaybı tazminatı talep etmek istiyorum, ne yapabilirim?", "label": "trafik"}
-{"text": "Trafik cezası yazıldı ama haksız olduğunu düşünüyorum, hangi yasal yola başvurabilirim?", "label": "trafik"}
-{"text": "Ortaklığın giderilmesi davası açmak istiyorum, dava açabilir miyim?", "label": "tapu"}
-{"text": "Konutu tahliye etmemi istiyorlar ama sözleşme devam ediyor, haklarım nelerdir?", "label": "kira"}
-{"text": "Ev sahibim depozitomu geri vermiyor, dava açabilir miyim?", "label": "kira"}
-{"text": "Gelir vergisi beyanımda hata yaptım, düzeltmek istiyorum, hangi yasal yola başvurabilirim?", "label": "vergi"}
-{"text": "Arsamın imar durumu değişti, nereye başvurmalıyım?", "label": "tapu"}
-{"text": "Kiracım sözleşmeye aykırı davranıyor, yasal olarak ne talep edebilirim?", "label": "kira"}
-{"text": "Mağazadan aldığım telefon iki gün sonra bozuldu, nasıl bir süreç izlemem gerekiyor?", "label": "tuketici"}
-{"text": "Hakkımda disiplin cezası verildi, ne yapabilirim?", "label": "idari"}
-{"text": "Trafik cezası yazıldı ama haksız olduğunu düşünüyorum, ne kadar sürem var?", "label": "trafik"}
-{"text": "Garantili ürünüm arızalandı ama satıcı tamir etmiyor, hangi yasal yola başvurabilirim?", "label": "tuketici"}
-{"text": "Değer kaybı tazminatı talep etmek istiyorum, yasal olarak ne talep edebilirim?", "label": "trafik"}
-{"text": "Kasko aracımı pert ilan etti, nasıl bir süreç izlemem gerekiyor?", "label": "trafik"}
-{"text": "Belediyenin idari işlemine karşı iptal davası açmak istiyorum, yasal olarak ne talep edebilirim?", "label": "idari"}
-{"text": "Komşum benim arsama tecavüz etti, bu konuda bana yardımcı olur musunuz?", "label": "tapu"}
-{"text": "Tüketici hakem heyetine başvurmak istiyorum, bu konuda bana yardımcı olur musunuz?", "label": "tuketici"}
-{"text": "Belediyenin idari işlemine karşı iptal davası açmak istiyorum, bu konuda bana yardımcı olur musunuz?", "label": "idari"}
-{"text": "Sigorta şirketi hasarımı ödemiyor.", "label": "trafik"}
-{"text": "Aracımda değer kaybı oluştu, nereye başvurmalıyım?", "label": "trafik"}
-{"text": "Taksitli aldığım ürünü erken ödemek istiyorum, ne kadar sürem var?", "label": "tuketici"}
-{"text": "Kaza sonrası zorunlu trafik sigortası ödeme yapmıyor, hangi yasal yola başvurabilirim?", "label": "trafik"}
-{"text": "İşe iade davası açmak istiyorum, ne yapabilirim?", "label": "isHukuku"}
-{"text": "Haczedilen eşyalarımı geri almak istiyorum.", "label": "icra"}
-{"text": "Değer kaybı tazminatı talep etmek istiyorum, hukuki açıdan durumum nedir?", "label": "trafik"}
-{"text": "İmzaya itiraz etmek istiyorum, ne yapabilirim?", "label": "icra"}
-{"text": "MTV borcumu taksitlendirmek istiyorum.", "label": "vergi"}
-{"text": "İşveren ihbar tazminatı ödemeden beni çıkardı, ne yapabilirim?", "label": "isHukuku"}
-{"text": "Maaşım iki aydır yatmıyor, hukuki açıdan durumum nedir?", "label": "isHukuku"}
-{"text": "Senedimi ödemedi, kambiyo takibi yapacağım, hukuki açıdan durumum nedir?", "label": "icra"}
+{"text": "Kat mülkiyetinde komşumla anlaşamıyorum, bana yardımcı olur musunuz?", "label": "tapu"}
+{"text": "Değer kaybı tazminatı talep edeceğim, yasal olarak ne talep edebilirim?", "label": "trafik"}
+{"text": "İcra dosyam kapanmadı borcu ödedim, nereye başvurmalıyım?", "label": "icra"}
+{"text": "Maaşıma haciz kondu, bana yardımcı olur musunuz?", "label": "icra"}
+{"text": "KDV iademi alamıyorum, hangi yasal yola başvurabilirim?", "label": "vergi"}
+{"text": "Belediye bana izin vermiyor, ne kadar sürem var?", "label": "idari"}
+{"text": "Miras kalan tarlayı paylaşamıyoruz, hangi yasal yola başvurabilirim?", "label": "tapu"}
+{"text": "Maaşıma haciz kondu, haklarım nelerdir?", "label": "icra"}
+{"text": "Motorlu taşıtlar vergisini taksitlendirmek istiyorum, tazminat alabilir miyim?", "label": "vergi"}
+{"text": "Borca itiraz etmek istiyorum, yasal olarak ne talep edebilirim?", "label": "icra"}
+{"text": "Belediye a başvurdum ama cevap vermedi zımni ret oldu, bana yardımcı olur musunuz?", "label": "idari"}
+{"text": "İnternetten aldığım telefon ayıplı çıktı, ne yapabilirim?", "label": "tuketici"}
+{"text": "Önalım hakkımı kullanmak istiyorum, hukuki açıdan durumum nedir?", "label": "tapu"}
+{"text": "İş yeri kiramı haksız yere artırdılar, hangi yasal yola başvurabilirim?", "label": "kira"}
+{"text": "Cep telefonu garantili olmasına rağmen tamir edilmiyor, nereye başvurmalıyım?", "label": "tuketici"}
+{"text": "Pişmanlıkla beyanname vermek istiyorum, tazminat alabilir miyim?", "label": "vergi"}
+{"text": "İade ettiğim klima parasını geri vermiyorlar, hukuki açıdan durumum nedir?", "label": "tuketici"}
+{"text": "Evime haciz için geldiler, haklarım nelerdir?", "label": "icra"}
+{"text": "Komşum arsama tecavüz etti, bana yardımcı olur musunuz?", "label": "tapu"}
+{"text": "İdare mahkemesinde tam yargı davası açmak istiyorum, yasal olarak ne talep edebilirim?", "label": "idari"}
+{"text": "Maaşım 8 ay dır yatmıyor, yasal olarak ne talep edebilirim?", "label": "isHukuku"}
+{"text": "Ev sahibim 12.000 TL depozitomu geri vermiyor, tazminat alabilir miyim?", "label": "kira"}
+{"text": "Miras kalan tarlayı paylaşamıyoruz, nasıl bir süreç izlemeliyim?", "label": "tapu"}
+{"text": "Ev sahibim 12.000 TL depozitomu geri vermiyor, dava açabilir miyim?", "label": "kira"}
+{"text": "İade ettiğim cep telefonu parasını geri vermiyorlar, ne kadar sürem var?", "label": "tuketici"}
+{"text": "Motorlu taşıtlar vergisini taksitlendirmek istiyorum, yasal olarak ne talep edebilirim?", "label": "vergi"}
+{"text": "Adıma haksız 5.000 TL vergi cezası kesildi, hangi yasal yola başvurabilirim?", "label": "vergi"}
+{"text": "Mağazadan aldığım koltuk takımı bozuldu, nasıl bir süreç izlemeliyim?", "label": "tuketici"}
+{"text": "İnternetten aldığım buzdolabı ayıplı çıktı, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "İnternetten aldığım spor ayakkabı ayıplı çıktı, nasıl bir süreç izlemeliyim?", "label": "tuketici"}
+{"text": "Il müdürlüğü bana izin vermiyor, ne kadar sürem var?", "label": "idari"}
+{"text": "Evi boşalttım ama depozitomu iade etmediler, ne kadar sürem var?", "label": "kira"}
+{"text": "5 yıl çalıştığım işten çıkarıldım kıdem tazminatımı alamadım.", "label": "isHukuku"}
+{"text": "Tapuda mülkiyet uyuşmazlığım var, dava açabilir miyim?", "label": "tapu"}
+{"text": "Vergi incelemesi başlatıldı ne yapmalıyım, haklarım nelerdir?", "label": "vergi"}
+{"text": "Haczedilen eşyalarımı geri almak istiyorum, bana yardımcı olur musunuz?", "label": "icra"}
+{"text": "Kamu görevlisiyim haksız bir işleme maruz kaldım, nasıl bir süreç izlemeliyim?", "label": "idari"}
+{"text": "Vergi dairesiyle uzlaşmak istiyorum, tazminat alabilir miyim?", "label": "vergi"}
+{"text": "Depozito iadesi için ne yapmalıyım, ne yapabilirim?", "label": "kira"}
+{"text": "Aldığım televizyon reklamdakinden farklı çıktı, ne kadar sürem var?", "label": "tuketici"}
+{"text": "Aracımda kaza sonrası değer kaybı oluştu, bana yardımcı olur musunuz?", "label": "trafik"}
+{"text": "Sipariş ettiğim cep telefonu hâlâ elime ulaşmadı, yasal olarak ne talep edebilirim?", "label": "tuketici"}
+{"text": "Taksitle aldığım bulaşık makinesi borcunu erken kapatmak istiyorum, ne yapabilirim?", "label": "tuketici"}
+{"text": "Kaskom aracımı pert ilan etti, bana yardımcı olur musunuz?", "label": "trafik"}
+{"text": "Deneme süresinde haksız yere kovuldum, ne kadar sürem var?", "label": "isHukuku"}
+{"text": "Sipariş ettiğim cep telefonu hâlâ elime ulaşmadı, dava açabilir miyim?", "label": "tuketici"}
+{"text": "Haksız yazıldığını düşündüğüm trafik cezası aldım, ne yapabilirim?", "label": "trafik"}
+{"text": "Evi boşalttım ama depozitomu iade etmediler.", "label": "kira"}
+{"text": "Bana ödeme emri geldi ama borcu kabul etmiyorum, ne kadar sürem var?", "label": "icra"}
+{"text": "İş kazası geçirdim haklarımı bilmiyorum, tazminat alabilir miyim?", "label": "isHukuku"}
+{"text": "Buzdolabı garantili olmasına rağmen tamir edilmiyor, hangi yasal yola başvurabilirim?", "label": "tuketici"}
+{"text": "Kaymakamlık a başvurdum ama cevap vermedi zımni ret oldu, dava açabilir miyim?", "label": "idari"}
+{"text": "Memuriyetten haksız ihraç edildim, nereye başvurmalıyım?", "label": "idari"}
+{"text": "Aracımda kaza sonrası değer kaybı oluştu, hangi yasal yola başvurabilirim?", "label": "trafik"}
+{"text": "Adıma haksız 35.000 TL vergi cezası kesildi, ne kadar sürem var?", "label": "vergi"}
+{"text": "İcra dosyam kapanmadı borcu ödedim, yasal olarak ne talep edebilirim?", "label": "icra"}
+{"text": "Kira artış oranı yasal sınırı aşıyor, dava açabilir miyim?", "label": "kira"}
+{"text": "Gelir vergisi beyanımda hata yaptım düzeltmek istiyorum.", "label": "vergi"}
+{"text": "6 ay çalıştığım işten çıkarıldım kıdem tazminatımı alamadım, hangi yasal yola başvurabilirim?", "label": "isHukuku"}
+{"text": "Tapu kaydında hata var düzelttirmek istiyorum, hukuki açıdan durumum nedir?", "label": "tapu"}
+{"text": "İade ettiğim klima parasını geri vermiyorlar, nereye başvurmalıyım?", "label": "tuketici"}
+{"text": "Kamu görevlisiyim haksız bir işleme maruz kaldım.", "label": "idari"}
+{"text": "Yıllık iznimi kullandırmıyorlar, hukuki açıdan durumum nedir?", "label": "isHukuku"}
+{"text": "İşten ayrıldım ama hakkımı vermediler, hukuki açıdan durumum nedir?", "label": "isHukuku"}
+{"text": "Motorlu taşıtlar vergisini taksitlendirmek istiyorum, nereye başvurmalıyım?", "label": "vergi"}
+{"text": "Memuriyetten haksız ihraç edildim, yasal olarak ne talep edebilirim?", "label": "idari"}
+{"text": "Online aldığım buzdolabı bedenini iade etmek istiyorum, haklarım nelerdir?", "label": "tuketici"}
+{"text": "Satıcı ayakkabı değişimini reddediyor, tazminat alabilir miyim?", "label": "tuketici"}
+{"text": "Kiracım kirayı ödemiyor, ne yapabilirim?", "label": "kira"}
+{"text": "Maaşım 8 ay dır yatmıyor, hukuki açıdan durumum nedir?", "label": "isHukuku"}
+{"text": "Kaskom aracımı pert ilan etti, tazminat alabilir miyim?", "label": "trafik"}
+{"text": "Aldığım telefon reklamdakinden farklı çıktı, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "Mükellefiyetim haksız açıldı, hangi yasal yola başvurabilirim?", "label": "vergi"}
+{"text": "İcra dosyam kapanmadı borcu ödedim, hangi yasal yola başvurabilirim?", "label": "icra"}
+{"text": "KDV iademi alamıyorum, ne kadar sürem var?", "label": "vergi"}
+{"text": "Mağazadan aldığım ayakkabı bozuldu, hukuki açıdan durumum nedir?", "label": "tuketici"}
+{"text": "Ev sahibi gerekçesiz tahliye istiyor, haklarım nelerdir?", "label": "kira"}
+{"text": "Aracımda kaza sonrası değer kaybı oluştu, nasıl bir süreç izlemeliyim?", "label": "trafik"}
+{"text": "Kredi kartıyla aldığım kol saati hiç gelmedi, ne yapabilirim?", "label": "tuketici"}
+{"text": "Hakkımda disiplin cezası verildi, dava açabilir miyim?", "label": "idari"}
 {"text": "Yıllık iznimi kullandırmıyorlar, haklarım nelerdir?", "label": "isHukuku"}
-{"text": "Önalım (şufa) hakkımı kullanmak istiyorum, yasal olarak ne talep edebilirim?", "label": "tapu"}
-{"text": "Aldığım hizmet sözleşmede belirtilenden farklı çıktı, nasıl bir süreç izlemem gerekiyor?", "label": "tuketici"}
-{"text": "Maaş haczinin kaldırılmasını istiyorum, nasıl bir süreç izlemem gerekiyor?", "label": "icra"}
-{"text": "Hakkımda icra takibi başlatıldı, ne yapabilirim?", "label": "icra"}
-{"text": "İşyeri kiramı ev sahibi haksız yere artırdı, yasal olarak ne talep edebilirim?", "label": "kira"}
-{"text": "Hakkımda icra takibi başlatıldı, hukuki açıdan durumum nedir?", "label": "icra"}
-{"text": "Vatandaşlık başvurum reddedildi, haklarım nelerdir?", "label": "idari"}
-{"text": "Yıllık iznimi kullandırmıyorlar, bu konuda bana yardımcı olur musunuz?", "label": "isHukuku"}
-{"text": "Mağazadan aldığım telefon iki gün sonra bozuldu, yasal olarak ne talep edebilirim?", "label": "tuketici"}
-{"text": "Maaş haczinin kaldırılmasını istiyorum, hukuki açıdan durumum nedir?", "label": "icra"}
-{"text": "Satıcı haksız bir şart dayattı, ne yapabilirim?", "label": "tuketici"}
-{"text": "KDV iadesi alamıyorum, hangi yasal yola başvurabilirim?", "label": "vergi"}
-{"text": "Trafik kazası geçirdim ve karşı taraf kusurlu, bu konuda bana yardımcı olur musunuz?", "label": "trafik"}
-{"text": "Vatandaşlık başvurum reddedildi, ne kadar sürem var?", "label": "idari"}
-{"text": "Adıma haksız bir vergi cezası kesildi, bu konuda bana yardımcı olur musunuz?", "label": "vergi"}
-{"text": "Ödeme emri tebliğ edildi ama borcu kabul etmiyorum, ne yapabilirim?", "label": "icra"}
-{"text": "İşe iade davası açmak istiyorum, yasal olarak ne talep edebilirim?", "label": "isHukuku"}
-{"text": "Tapuda muvazaalı bir devir olduğunu düşünüyorum, ne kadar sürem var?", "label": "tapu"}
-{"text": "Konutu tahliye etmemi istiyorlar ama sözleşme devam ediyor, ne kadar sürem var?", "label": "kira"}
-{"text": "Gelir vergisi beyanımda hata yaptım, düzeltmek istiyorum, hukuki açıdan durumum nedir?", "label": "vergi"}
-{"text": "Ruhsat başvurum haksız yere reddedildi, ne yapabilirim?", "label": "idari"}
-{"text": "Komşum benim arsama tecavüz etti, nereye başvurmalıyım?", "label": "tapu"}
-{"text": "İdare mahkemesinde tam yargı davası açmak istiyorum.", "label": "idari"}
-{"text": "Kiracı kirayı ödemiyor, bu konuda bana yardımcı olur musunuz?", "label": "kira"}
-{"text": "Kat mülkiyeti konusunda komşumla anlaşmazlığım var, nereye başvurmalıyım?", "label": "tapu"}
-{"text": "Gelir vergisi beyanımda hata yaptım, düzeltmek istiyorum, nereye başvurmalıyım?", "label": "vergi"}
-{"text": "Maaşım iki aydır yatmıyor, nereye başvurmalıyım?", "label": "isHukuku"}
-{"text": "İpotekli taşınmazımı satmak istiyorum.", "label": "tapu"}
+{"text": "Site yönetimi haksız aidat istiyor, nereye başvurmalıyım?", "label": "tapu"}
+{"text": "İdari para cezasına itiraz edeceğim, dava açabilir miyim?", "label": "idari"}
+{"text": "Haksız yazıldığını düşündüğüm trafik cezası aldım, tazminat alabilir miyim?", "label": "trafik"}
+{"text": "Patronum sebep göstermeden beni çıkardı, nereye başvurmalıyım?", "label": "isHukuku"}
+{"text": "Maaşıma haciz kondu, dava açabilir miyim?", "label": "icra"}
+{"text": "Belediye işlemine karşı iptal davası açacağım, ne yapabilirim?", "label": "idari"}
+{"text": "İade ettiğim klima parasını geri vermiyorlar.", "label": "tuketici"}
+{"text": "Sipariş ettiğim ayakkabı hâlâ elime ulaşmadı, dava açabilir miyim?", "label": "tuketici"}
+{"text": "Depozito iadesi için ne yapmalıyım, hukuki açıdan durumum nedir?", "label": "kira"}
+{"text": "Adıma haksız 35.000 TL vergi cezası kesildi, hukuki açıdan durumum nedir?", "label": "vergi"}
+{"text": "Usulsüzlük cezasına itiraz edeceğim, tazminat alabilir miyim?", "label": "vergi"}
+{"text": "Aldığım televizyon reklamdakinden farklı çıktı, tazminat alabilir miyim?", "label": "tuketici"}
+{"text": "İnternetten aldığım buzdolabı ayıplı çıktı, dava açabilir miyim?", "label": "tuketici"}
 {"text": "Gecikme faizi haksız hesaplanmış, ne kadar sürem var?", "label": "vergi"}
-{"text": "Tespit tutanağına itirazım var, hangi yasal yola başvurabilirim?", "label": "trafik"}
-{"text": "Sipariş ettiğim ürün hâlâ elime ulaşmadı, hukuki açıdan durumum nedir?", "label": "tuketici"}
-{"text": "KDV iadesi alamıyorum.", "label": "vergi"}
-{"text": "Ev sahibim depozitomu geri vermiyor, hukuki açıdan durumum nedir?", "label": "kira"}
-{"text": "Maaşım iki aydır yatmıyor, dava açabilir miyim?", "label": "isHukuku"}
-{"text": "Ayıplı malın bedel iadesini talep ediyorum, haklarım nelerdir?", "label": "tuketici"}
-{"text": "Arsamın imar durumu değişti, dava açabilir miyim?", "label": "tapu"}
-{"text": "Hız ihlali cezasına itiraz etmek istiyorum, nereye başvurmalıyım?", "label": "trafik"}
-{"text": "Vergi ziyaı cezası geldi, yasal olarak ne talep edebilirim?", "label": "vergi"}
-{"text": "Arsamın imar durumu değişti, ne kadar sürem var?", "label": "tapu"}
-{"text": "İşten çıkarıldım ve kıdem tazminatımı alamadım, nasıl bir süreç izlemem gerekiyor?", "label": "isHukuku"}
-{"text": "Konutu tahliye etmemi istiyorlar ama sözleşme devam ediyor, yasal olarak ne talep edebilirim?", "label": "kira"}
-{"text": "Aracıma çarpan kişi kaçtı.", "label": "trafik"}
-{"text": "Garantili ürünüm arızalandı ama satıcı tamir etmiyor, bu konuda bana yardımcı olur musunuz?", "label": "tuketici"}
-{"text": "Pişmanlıkla beyanname vermek istiyorum, nereye başvurmalıyım?", "label": "vergi"}
-{"text": "Tarhiyat öncesi uzlaşma talep ediyorum, hukuki açıdan durumum nedir?", "label": "vergi"}
-{"text": "Maaş haczinin kaldırılmasını istiyorum, ne kadar sürem var?", "label": "icra"}
-{"text": "Tespit tutanağına itirazım var, ne yapabilirim?", "label": "trafik"}
-{"text": "Kiracı kirayı ödemiyor, hangi yasal yola başvurabilirim?", "label": "kira"}
-{"text": "Maaş haczinin kaldırılmasını istiyorum.", "label": "icra"}
-{"text": "Maaş haczinin kaldırılmasını istiyorum, ne yapabilirim?", "label": "icra"}
-{"text": "Kiracı kirayı ödemiyor, hukuki açıdan durumum nedir?", "label": "kira"}
-{"text": "Tapuda muvazaalı bir devir olduğunu düşünüyorum, dava açabilir miyim?", "label": "tapu"}
+{"text": "Vergi dairesiyle uzlaşmak istiyorum.", "label": "vergi"}
+{"text": "Aldığım televizyon reklamdakinden farklı çıktı, haklarım nelerdir?", "label": "tuketici"}
+{"text": "Belediye bana izin vermiyor, yasal olarak ne talep edebilirim?", "label": "idari"}
+{"text": "Adıma haksız 35.000 TL vergi cezası kesildi, nereye başvurmalıyım?", "label": "vergi"}
+{"text": "Mağazadan aldığım koltuk takımı bozuldu, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "Depozito iadesi için ne yapmalıyım, yasal olarak ne talep edebilirim?", "label": "kira"}
+{"text": "Ev sahibi gerekçesiz tahliye istiyor, hangi yasal yola başvurabilirim?", "label": "kira"}
+{"text": "Mağazadan aldığım cep telefonu bozuldu, nasıl bir süreç izlemeliyim?", "label": "tuketici"}
+{"text": "Satıcı haksız bir sözleşme şartı dayattı, yasal olarak ne talep edebilirim?", "label": "tuketici"}
+{"text": "İlamsız takibe itiraz ettim alacaklı iptalini istiyor, tazminat alabilir miyim?", "label": "icra"}
+{"text": "Maaşım 10 ay dır yatmıyor, ne yapabilirim?", "label": "isHukuku"}
+{"text": "Ev sahibim 20.000 TL depozitomu geri vermiyor, nasıl bir süreç izlemeliyim?", "label": "kira"}
+{"text": "Vergi incelemesi başlatıldı ne yapmalıyım, bana yardımcı olur musunuz?", "label": "vergi"}
+{"text": "Sigorta şirketi hasar bedelini ödemiyor, nereye başvurmalıyım?", "label": "trafik"}
+{"text": "Kira kontratım yenilenmiyor, nasıl bir süreç izlemeliyim?", "label": "kira"}
+{"text": "Gelir vergisi beyanımda hata yaptım düzeltmek istiyorum, bana yardımcı olur musunuz?", "label": "vergi"}
+{"text": "Tapuda mülkiyet uyuşmazlığım var, tazminat alabilir miyim?", "label": "tapu"}
+{"text": "İade ettiğim spor ayakkabı parasını geri vermiyorlar, tazminat alabilir miyim?", "label": "tuketici"}
+{"text": "Trafik kazasında karşı taraf kusurlu, tazminat alabilir miyim?", "label": "trafik"}
+{"text": "Spor ayakkabı garantili olmasına rağmen tamir edilmiyor, haklarım nelerdir?", "label": "tuketici"}
+{"text": "Kaymakamlık işlemine karşı iptal davası açacağım, haklarım nelerdir?", "label": "idari"}
+{"text": "Vatandaşlık başvurum reddedildi, hukuki açıdan durumum nedir?", "label": "idari"}
+{"text": "Kaskom aracımı pert ilan etti.", "label": "trafik"}
+{"text": "İade ettiğim cep telefonu parasını geri vermiyorlar, tazminat alabilir miyim?", "label": "tuketici"}
+{"text": "Kredi kartıyla aldığım televizyon hiç gelmedi, haklarım nelerdir?", "label": "tuketici"}
+{"text": "Mesafeli satışta buzdolabı için cayma hakkımı kullanmak istiyorum, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "Park hâlindeki aracıma çarptılar, hukuki açıdan durumum nedir?", "label": "trafik"}
+{"text": "SGK primlerim eksik gösterilmiş.", "label": "isHukuku"}
+{"text": "Senet imzama itiraz ediyorum, hukuki açıdan durumum nedir?", "label": "icra"}
+{"text": "Online aldığım buzdolabı bedenini iade etmek istiyorum, ne yapabilirim?", "label": "tuketici"}
+{"text": "Vatandaşlık başvurum reddedildi, bana yardımcı olur musunuz?", "label": "idari"}
+{"text": "Önalım hakkımı kullanmak istiyorum, tazminat alabilir miyim?", "label": "tapu"}
+{"text": "İş kazası geçirdim haklarımı bilmiyorum, yasal olarak ne talep edebilirim?", "label": "isHukuku"}
+{"text": "Motorlu taşıtlar vergisini taksitlendirmek istiyorum, hukuki açıdan durumum nedir?", "label": "vergi"}
+{"text": "Online aldığım klima bedenini iade etmek istiyorum, ne yapabilirim?", "label": "tuketici"}
+{"text": "Mağazadan aldığım koltuk takımı bozuldu, dava açabilir miyim?", "label": "tuketici"}
+{"text": "İnternetten aldığım telefon ayıplı çıktı, dava açabilir miyim?", "label": "tuketici"}
+{"text": "Cep telefonu garantili olmasına rağmen tamir edilmiyor, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "Gelir vergisi beyanımda hata yaptım düzeltmek istiyorum, haklarım nelerdir?", "label": "vergi"}
+{"text": "Bakanlık a başvurdum ama cevap vermedi zımni ret oldu, ne kadar sürem var?", "label": "idari"}
+{"text": "İade ettiğim spor ayakkabı parasını geri vermiyorlar, ne yapabilirim?", "label": "tuketici"}
+{"text": "İade ettiğim spor ayakkabı parasını geri vermiyorlar, yasal olarak ne talep edebilirim?", "label": "tuketici"}
+{"text": "Ev sahibi fahiş kira zammı talep ediyor, haklarım nelerdir?", "label": "kira"}
+{"text": "İade ettiğim spor ayakkabı parasını geri vermiyorlar, ne kadar sürem var?", "label": "tuketici"}
+{"text": "Gecikme faizi haksız hesaplanmış.", "label": "vergi"}
+{"text": "Taksitle aldığım bulaşık makinesi borcunu erken kapatmak istiyorum, yasal olarak ne talep edebilirim?", "label": "tuketici"}
+{"text": "Usulsüzlük cezasına itiraz edeceğim, nasıl bir süreç izlemeliyim?", "label": "vergi"}
+{"text": "Aracımda kaza sonrası değer kaybı oluştu, nereye başvurmalıyım?", "label": "trafik"}
+{"text": "Belediye işlemine karşı iptal davası açacağım, ne kadar sürem var?", "label": "idari"}
+{"text": "Satıcı ayakkabı değişimini reddediyor, hangi yasal yola başvurabilirim?", "label": "tuketici"}
+{"text": "Kredi kartıyla aldığım kol saati hiç gelmedi, haklarım nelerdir?", "label": "tuketici"}
+{"text": "İmar planına itiraz etmek istiyorum.", "label": "idari"}
+{"text": "Online aldığım bulaşık makinesi bedenini iade etmek istiyorum, yasal olarak ne talep edebilirim?", "label": "tuketici"}
+{"text": "Satıcı haksız bir sözleşme şartı dayattı, nasıl bir süreç izlemeliyim?", "label": "tuketici"}
+{"text": "İş yeri kiramı haksız yere artırdılar, hukuki açıdan durumum nedir?", "label": "kira"}
+{"text": "Motorlu taşıtlar vergisini taksitlendirmek istiyorum, hangi yasal yola başvurabilirim?", "label": "vergi"}
+{"text": "Doğum izni sonrası işe geri alınmadım, nasıl bir süreç izlemeliyim?", "label": "isHukuku"}
+{"text": "Bana ödeme emri geldi ama borcu kabul etmiyorum, yasal olarak ne talep edebilirim?", "label": "icra"}
+{"text": "Ev sahibi fahiş kira zammı talep ediyor, nasıl bir süreç izlemeliyim?", "label": "kira"}
+{"text": "Aldığım telefon reklamdakinden farklı çıktı, hangi yasal yola başvurabilirim?", "label": "tuketici"}
+{"text": "Online aldığım bulaşık makinesi bedenini iade etmek istiyorum, nereye başvurmalıyım?", "label": "tuketici"}
+{"text": "İade ettiğim klima parasını geri vermiyorlar, dava açabilir miyim?", "label": "tuketici"}
+{"text": "Kira artış oranı yasal sınırı aşıyor, hangi yasal yola başvurabilirim?", "label": "kira"}
+{"text": "İş kazası geçirdim haklarımı bilmiyorum, hangi yasal yola başvurabilirim?", "label": "isHukuku"}
+{"text": "Maaşıma haciz kondu, ne yapabilirim?", "label": "icra"}
+{"text": "Borca itiraz etmek istiyorum, dava açabilir miyim?", "label": "icra"}
+{"text": "Maaşım 8 ay dır yatmıyor, ne yapabilirim?", "label": "isHukuku"}
+{"text": "Aboneliğimi iptal etmek istiyorum ama izin vermiyorlar, nasıl bir süreç izlemeliyim?", "label": "tuketici"}
+{"text": "Arsamın imar durumu değişti, nasıl bir süreç izlemeliyim?", "label": "tapu"}
+{"text": "İmar planına itiraz etmek istiyorum, hukuki açıdan durumum nedir?", "label": "idari"}
+{"text": "Ehliyetime el konuldu, bana yardımcı olur musunuz?", "label": "trafik"}
+{"text": "Satıcı cep telefonu değişimini reddediyor, tazminat alabilir miyim?", "label": "tuketici"}
+{"text": "İdari para cezasına itiraz edeceğim, ne kadar sürem var?", "label": "idari"}
+{"text": "Kamulaştırma bedeli çok düşük belirlendi, ne yapabilirim?", "label": "idari"}
+{"text": "Zorunlu trafik sigortası ödeme yapmıyor.", "label": "trafik"}
+{"text": "Kira kontratım yenilenmiyor, bana yardımcı olur musunuz?", "label": "kira"}
+{"text": "Spor ayakkabı garantili olmasına rağmen tamir edilmiyor, bana yardımcı olur musunuz?", "label": "tuketici"}
+{"text": "Maaş haczinin kaldırılmasını istiyorum, dava açabilir miyim?", "label": "icra"}
+{"text": "Ruhsat başvurum haksız reddedildi, haklarım nelerdir?", "label": "idari"}

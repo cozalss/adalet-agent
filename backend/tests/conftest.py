@@ -93,6 +93,18 @@ def _force_heuristic_predictor(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _disable_triage_model(monkeypatch):
+    """Testler triaj DistilBERT checkpoint'ini (varsa) YÜKLEMESİN — deterministik.
+
+    train.py lokal bir checkpoint üretirse classify_domain modeli yükler ve triaj
+    model-yolundan döner → mevcut LLM/keyword-yolu testleri non-deterministik olur.
+    Model-yolu testleri classify_domain'i doğrudan mock'lar (bu env'den bağımsız).
+    (predictive `_force_heuristic_predictor` ile aynı desen.)
+    """
+    monkeypatch.setenv("TRIAGE_USE_MODEL", "0")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_feedback_writes(tmp_path, monkeypatch):
     """/feedback endpoint test'lerde gerçek `data/feedback/`'a satır yazmasın.
 

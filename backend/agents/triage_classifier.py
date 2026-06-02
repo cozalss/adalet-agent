@@ -29,7 +29,9 @@ _MODEL_DIR = os.getenv("TRIAGE_MODEL_DIR", "models/triage-distilbert")
 # Inference cihazı — VARSAYILAN CPU (model küçük, ~50ms; GPU Qwen'e ayrılır).
 _MODEL_DEVICE = os.getenv("TRIAGE_DEVICE", "cpu").lower()
 # Model bu güvenin ALTINDAYSA "emin değil" → None (LLM'e düş). Yanlış-hızlı atama önler.
-_MIN_MODEL_CONFIDENCE = float(os.getenv("TRIAGE_MODEL_MIN_CONF", "0.75"))
+# 0.65: 10-soruluk gerçek-ifade kalibrasyon setinde tüm doğru tahminler ≥0.68 güven
+# aldı (val %100); 0.65 eşiği bunları geçirir, gerçek belirsizliği LLM'e bırakır.
+_MIN_MODEL_CONFIDENCE = float(os.getenv("TRIAGE_MODEL_MIN_CONF", "0.65"))
 
 # 8 sivil domain — eğitim (gen_data/train) ile inference ORTAK sırası (id ↔ label).
 # Bu sıra DEĞİŞTİRİLEMEZ (model checkpoint'i bu indekslemeye göre eğitilir).

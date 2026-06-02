@@ -26,9 +26,12 @@ def test_returns_none_when_disabled(monkeypatch):
 
 
 def test_returns_none_when_no_checkpoint(monkeypatch):
-    """Varsayılan checkpoint dizini yok → None → mevcut LLM yolu aynen korunur."""
+    """Checkpoint dizini yoksa None → mevcut LLM yolu korunur (model 'enabled' olsa bile)."""
+    from agents import triage_classifier as tc
+
     monkeypatch.setenv("TRIAGE_USE_MODEL", "1")
-    assert classify_domain("Kira sözleşmem bitti, ne yapmalıyım?") is None
+    monkeypatch.setattr(tc, "_MODEL_DIR", "models/__checkpoint_yok__")
+    assert tc.classify_domain("Kira sözleşmem bitti, ne yapmalıyım?") is None
 
 
 @pytest.mark.asyncio
