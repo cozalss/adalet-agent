@@ -47,8 +47,12 @@ AUTH_ENABLED = os.getenv("AUTH_ENABLED", "1").lower() in {"1", "true", "yes"}
 # Token sağlayıcı: "internal" (kendi HS256 JWT'miz, issue_token) | "supabase" (GoTrue JWT).
 AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "internal").lower()
 JWT_SECRET = os.getenv("JWT_SECRET", "")
-# Supabase GoTrue JWT secret (Dashboard → Settings → API → JWT Secret).
-# AUTH_PROVIDER=supabase iken frontend'in supabase-js token'ı bununla doğrulanır (Phase C).
+# Supabase projesi URL'i (https://<ref>.supabase.co) — MODERN ES256/asimetrik JWT'de
+# kullanılır: backend public anahtarı JWKS endpoint'inden çeker (PAYLAŞIMLI SECRET YOK,
+# sızıntı riski yok). Frontend'le aynı değer (VITE_SUPABASE_URL).
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+# LEGACY HS256 fallback — yalnız eski (simetrik) JWT projeleri için. Modern ES256'da
+# GEREKMEZ (SUPABASE_URL yeter). Dashboard → JWT Keys → Legacy JWT Secret.
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 # alg-confusion koruması: yalnız simetrik HMAC algoritmaları kabul (asla "none"
@@ -197,42 +201,71 @@ def issue_token(sub: str, role: str = "beta", **extra_claims: Any) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+_jwks_client: Any = None
+
+
+def _get_jwks_client() -> Any:
+    """Supabase JWKS client (public ES256/RS256 anahtarları, in-memory cache). Bir kez kurulur."""
+    global _jwks_client
+    if _jwks_client is None:
+        from jwt import PyJWKClient
+        url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(url)  # anahtarları ilk kullanımda çeker + cache'ler
+    return _jwks_client
+
+
+def _decode_supabase(token: str) -> dict[str, Any]:
+    """Supabase GoTrue token doğrula. MODERN ES256/RS256 (JWKS public key) tercih;
+    LEGACY HS256 (paylaşımlı secret) fallback. aud='authenticated'; iss proje-ref'e
+    bağlı olduğundan atlanır."""
+    if SUPABASE_URL:
+        key = _get_jwks_client().get_signing_key_from_jwt(token).key
+        return jwt.decode(
+            token, key, algorithms=["ES256", "RS256"],
+            audience="authenticated", options={"verify_iss": False},
+        )
+    if SUPABASE_JWT_SECRET:  # legacy simetrik proje
+        return jwt.decode(
+            token, SUPABASE_JWT_SECRET, algorithms=["HS256"],
+            audience="authenticated", options={"verify_iss": False},
+        )
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="AUTH_PROVIDER=supabase ama SUPABASE_URL/SUPABASE_JWT_SECRET ayarlanmadı",
+    )
+
+
 def decode_token(token: str) -> dict[str, Any]:
     """JWT decode + verify; geçersizse HTTPException 401.
 
-    AUTH_PROVIDER=supabase → frontend supabase-js token'ı (GoTrue, aud='authenticated')
-    SUPABASE_JWT_SECRET ile doğrulanır; iss proje-ref'e bağlı olduğundan atlanır.
-    Aksi halde kendi HS256 JWT'miz (issue_token) JWT_SECRET + aud/iss ile doğrulanır.
+    AUTH_PROVIDER=supabase → frontend supabase-js token'ı (modern ES256 → JWKS public
+    key, ya da legacy HS256 → secret). Aksi halde kendi HS256 JWT'miz (issue_token).
     """
-    is_supabase = AUTH_PROVIDER == "supabase"
-    secret = SUPABASE_JWT_SECRET if is_supabase else JWT_SECRET
-    if not secret:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"{'SUPABASE_JWT_SECRET' if is_supabase else 'JWT_SECRET'} "
-                   "ayarlanmadı (server config hatası)",
-        )
     try:
-        if is_supabase:
-            return jwt.decode(
-                token, secret, algorithms=["HS256"],
-                audience="authenticated", options={"verify_iss": False},
+        if AUTH_PROVIDER == "supabase":
+            return _decode_supabase(token)
+        if not JWT_SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="JWT_SECRET ayarlanmadı (server config hatası)",
             )
         return jwt.decode(
-            token, secret,
+            token, JWT_SECRET,
             algorithms=[JWT_ALGORITHM],
             audience=JWT_AUDIENCE,
             issuer=JWT_ISSUER,
         )
+    except HTTPException:
+        raise  # 500 config hatası — olduğu gibi yükselt
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="token süresi doldu",
         ) from exc
-    except jwt.InvalidTokenError as exc:
-        # İç JWT hata detayını (imza/audience/issuer) istemciye SIZDIRMA — token
-        # forgery'ye oracle olur. Spesifik sebebi yalnız sunucu log'una yaz.
-        log.warning("jwt_invalid", reason=str(exc))
+    except Exception as exc:
+        # InvalidToken / PyJWKClientError (kid yok, ağ) vb → tek 401. İç detayı
+        # istemciye SIZDIRMA (token forgery oracle'ı); yalnız sunucu log'una yaz.
+        log.warning("jwt_invalid", reason=str(exc) or type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="geçersiz veya süresi dolmuş token",
@@ -302,6 +335,7 @@ __all__ = (
     "AUTH_ENABLED",
     "AUTH_PROVIDER",
     "SUPABASE_JWT_SECRET",
+    "SUPABASE_URL",
     "Principal",
     "authenticate",
     "decode_token",

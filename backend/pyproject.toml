@@ -40,6 +40,8 @@ dependencies = [
     "langfuse>=2.50.0",
     "snowballstemmer>=3.1.0",
     "pyjwt>=2.13.0",
+    # Supabase ES256 (asimetrik JWT) doğrulama — JWKS public key (auth.py C2).
+    "cryptography>=42.0.0",
     # Sprint-5 W16: APScheduler — Resmi Gazete + Yargıtay delta refresh cron
     "apscheduler>=3.10.4",
     "faster-whisper>=1.2.1",

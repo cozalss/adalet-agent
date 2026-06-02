@@ -164,13 +164,14 @@ def _log_auth_visibility() -> None:
         )
         return
 
-    # Auth açık — sağlayıcıya göre doğru secret zorunlu, yoksa tüm token'lar 500.
-    if _auth.AUTH_PROVIDER == "supabase" and not _auth.SUPABASE_JWT_SECRET:
-        msg = ("AUTH_PROVIDER=supabase AMA SUPABASE_JWT_SECRET boş — frontend token'ları "
-               "doğrulanamaz (500). Dashboard → Settings → API → JWT Secret'i ayarla.")
+    # Auth açık — sağlayıcıya göre doğrulama anahtarı zorunlu, yoksa tüm token'lar 500.
+    if _auth.AUTH_PROVIDER == "supabase" and not (_auth.SUPABASE_URL or _auth.SUPABASE_JWT_SECRET):
+        msg = ("AUTH_PROVIDER=supabase AMA SUPABASE_URL ve SUPABASE_JWT_SECRET ikisi de boş — "
+               "frontend token'ları doğrulanamaz (500). Modern ES256: SUPABASE_URL="
+               "https://<ref>.supabase.co ayarla (secret GEREKMEZ).")
         if is_prod:
             raise RuntimeError("GÜVENLİK (C2): " + msg)
-        log.critical("auth_supabase_without_secret", hint=msg)
+        log.critical("auth_supabase_without_key", hint=msg)
     elif _auth.AUTH_PROVIDER != "supabase" and not _auth.JWT_SECRET:
         msg = "AUTH_ENABLED=1 ama JWT_SECRET boş — JWT decode 500 döner."
         if is_prod:
