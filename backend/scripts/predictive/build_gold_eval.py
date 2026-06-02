@@ -25,6 +25,7 @@ import argparse
 import asyncio
 import json
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -86,18 +87,32 @@ def agreement_stats(pairs: list[tuple[str, str]]) -> dict:
 _SHARDS = range(9)
 
 
-def extract_full_hukum(text: str, cap: int = 4000) -> str:
-    """Tam karar metninden HÜKÜM bölümü (cased, başlıktan sona). Başlık yoksa son kısım.
+# Disposition (sonuç bölümü) başlangıç işaretleri — Yargıtay kararı varyantları.
+# "HÜKÜM:" / "SONUÇ:" + "VI. KARAR" / "Açıklanan (neden|sebep)..." gibi.
+_DISPOSITION_RE = re.compile(
+    r"(?i)\b(h[üu]k[üu]m\s*[:\.]|sonu[cç]\s*[:\.]|[ivx]{1,4}\s*[\.\-]\s*karar\b|"
+    r"a[çc][ıi]klanan\s+(neden|sebep|gerek))",
+)
 
-    hukum_excerpt (auto_label) yalnız ilk 400 char + küçük-harf'ti → hukukçu/Qwen
-    yarım hükümden sonuç çıkaramıyordu. Bu, başlıktan METNİN SONUNA kadar tam,
-    orijinal-case hükmü verir (nihai disposition tam görünür).
+
+def extract_full_hukum(text: str, cap: int = 3000) -> str:
+    """Karar metninin SONUÇ (disposition) bölümü — temiz başlar, sonuna kadar tam.
+
+    hukum_excerpt (auto_label) yalnız ilk 400 char + küçük-harf'ti → yarım. Bu:
+    disposition marker'dan (HÜKÜM/SONUÇ/VI.KARAR/Açıklanan sebeplerle) sona kadar
+    alır (orijinal case). Marker yoksa son `cap` karakter ama mid-cümle başlangıcı
+    ilk '. ' sonrasına kırpılır (başı kesik 'l olacak...' görünmez). Disposition
+    metnin SONUNDA olduğu için son daima korunur.
     """
-    from predictive.inference import _HUKUM_HEADER_RE, _HUKUM_TAIL_CHARS
-
-    m = _HUKUM_HEADER_RE.search(text)
-    seg = text[m.start():] if m else text[-_HUKUM_TAIL_CHARS:]
-    return " ".join(seg.split())[:cap]
+    flat = " ".join(text.split())
+    m = _DISPOSITION_RE.search(flat)
+    seg = flat[m.start():] if m else flat
+    if len(seg) > cap:
+        seg = seg[-cap:]
+        dot = seg.find(". ")
+        if 0 <= dot < 600:           # mid-cümle başlangıcını temizle
+            seg = seg[dot + 2:]
+    return seg
 
 
 def fetch_full_texts(needed_ids: set[str]) -> dict[str, str]:
@@ -178,10 +193,16 @@ async def run(n: int) -> None:
     llm = get_llm()
     candidates: list[dict] = []
     pairs: list[tuple[str, str]] = []
+    n_fail = 0
     for i, r in enumerate(sample):
         full_text = full.get(r.get("doc_id", "")[2:], "")
         hukum_full = extract_full_hukum(full_text) if full_text else str(r.get("hukum_excerpt", ""))
-        res = await _adjudicate(llm, r.get("input_text", ""), hukum_full)
+        try:
+            res = await _adjudicate(llm, r.get("input_text", ""), hukum_full)
+        except Exception as exc:  # bir vaka LLM hatası tüm koşuyu öldürmesin
+            n_fail += 1
+            print(f"    [!] {i} adjudication hatası ({type(exc).__name__}), atlanıyor", flush=True)
+            res = None
         if res is None:
             continue
         qwen_label, quote = res
@@ -215,7 +236,8 @@ async def run(n: int) -> None:
 
     stats = agreement_stats(pairs)
     bar = "=" * 60
-    print(f"\n{bar}\n  GOLD-ADAY İNŞASI — {len(candidates)} vaka (LLM-adjudicated)\n{bar}")
+    print(f"\n{bar}\n  GOLD-ADAY İNŞASI — {len(candidates)} vaka "
+          f"(LLM-adjudicated, {n_fail} LLM hatası atlandı)\n{bar}")
     print(f"  silver↔qwen genel uyum = {stats['overall']:.1%}  → silver kalitesi ~bu")
     for lab, m in stats["per_silver"].items():
         print(f"    silver={lab:<10} n={m['n']:<4} qwen-uyum={m['agree']:.1%}")

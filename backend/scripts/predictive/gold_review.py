@@ -218,16 +218,15 @@ def main() -> None:
     candidates = _load_candidates()
 
     if args.mode == "export":
-        # hukum_excerpt yalnız 400-char kesit → hukukçu yarım hüküm görür. Tam hükmü
-        # parquet'ten çek (yoksa) + gold_candidates'a kalıcı yaz.
-        if not all(c.get("hukum_full") for c in candidates):
-            from scripts.predictive.build_gold_eval import enrich_candidates
-            print("[*] tam hüküm parquet'ten çekiliyor...", flush=True)
-            n_enr = enrich_candidates(candidates)
-            with _CANDIDATES.open("w", encoding="utf-8") as f:
-                for c in candidates:
-                    f.write(json.dumps(c, ensure_ascii=False) + "\n")
-            print(f"[*] {n_enr}/{len(candidates)} adaya tam hüküm eklendi")
+        # hukum_excerpt 400-char kesitti → tam hükmü parquet'ten ÇEK (her zaman taze:
+        # en güncel extract_full_hukum'u uygula) + gold_candidates'a kalıcı yaz.
+        from scripts.predictive.build_gold_eval import enrich_candidates
+        print("[*] tam hüküm parquet'ten çekiliyor...", flush=True)
+        n_enr = enrich_candidates(candidates)
+        with _CANDIDATES.open("w", encoding="utf-8") as f:
+            for c in candidates:
+                f.write(json.dumps(c, ensure_ascii=False) + "\n")
+        print(f"[*] {n_enr}/{len(candidates)} adaya tam hüküm eklendi")
         n = export_xlsx(candidates)           # hukukçu-dostu Excel (asıl)
         export_csv(candidates)                # yedek (CSV)
         _TALIMAT.write_text(_TALIMAT_METNI, encoding="utf-8")
