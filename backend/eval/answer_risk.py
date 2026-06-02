@@ -57,9 +57,12 @@ def implausible_article_numbers(text: str) -> list[str]:
 # --- 3. Kaynaksız hukuki iddia ---
 # Kesin hukuki iddia içeren ama [src:] etiketi taşımayan cümle.
 _SRC_TAG_RE = re.compile(r"\[src:\s*[^\]]+\]")
+# Hukuki iddia işaretleri — stem-tabanlı (çekim varyantlarını da yakalar). Detektör
+# YALNIZ [src:]-SİZ cümleleri tarar → kaynaklı (temiz) cümleler genişletmeden etkilenmez.
 _LEGAL_CLAIM_MARKERS = (
-    "hak kazan", "zorunlu", "yükümlü", "hakkınız var", "talep edebilir",
-    "dava açabilir", "tazminat", "madde", "kanun", "hükmü", "yasal",
+    "hak kazan", "hak doğ", "hakkınız", "zorunlu", "zorund", "yükümlü",
+    "talep ed", "dava aç", "iptal ed", "mümkün değil",
+    "tazminat", "madde", "kanun", "hükmü", "yasal",
 )
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _BOILERPLATE = ("avukata danış", "bilgilendirme amaç", "hukuki tavsiye değil",

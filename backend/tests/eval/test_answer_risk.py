@@ -76,6 +76,26 @@ def test_boilerplate_not_flagged_as_unsourced():
     assert len(unsourced_legal_claims(txt)) == 0
 
 
+def test_detects_unsourced_varied_claim_verbs():
+    """Genişletilmiş marker'lar: farklı fiil/kalıplı kaynaksız iddialar da yakalanır."""
+    for txt in (
+        "Tahliye talep etmeniz mümkün değildir.",          # talep et + mümkün değil
+        "Bu durumda kira artışına itiraz hakkınız doğmaz.",  # hak doğ
+        "İade ve bedel talep etme hakkınız bulunmaktadır.",  # talep et / hakkınız
+        "İdari işlem iptal edilir ve yeniden değerlendirilir.",  # iptal ed
+    ):
+        assert len(unsourced_legal_claims(txt)) >= 1, f"yakalanmadı: {txt}"
+
+
+def test_varied_claims_sourced_not_flagged():
+    """Aynı kalıplar KAYNAKLI olunca bayraklanMAMALI (FP guard)."""
+    for txt in (
+        "Tahliye talep etmeniz mümkün değildir [src: m-TBK-350].",
+        "İtiraz hakkınız doğmaz [src: m-TBK-344].",
+    ):
+        assert unsourced_legal_claims(txt) == [], f"kaynaklı iddia bayraklandı: {txt}"
+
+
 # --- measure_risk orkestratör ---
 
 def test_measure_risk_aggregates_all():
