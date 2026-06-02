@@ -16,15 +16,21 @@ Kullanım (GPU): cd backend && uv run python -m scripts.reranker.train
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 # Windows: pyarrow'u torch'tan ÖNCE yükle (transformers/datasets segfault guard).
 from core import native_preload  # noqa: F401
 
+# CUDA bellek parçalanmasını azalt (torch CUDA init'ten ÖNCE ayarlanmalı).
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 _DIR = Path("data/reranker")
 _DEFAULT_WARM_START = "BAAI/bge-reranker-v2-m3"  # proje reranker'ı — drop-in yedek
 _OUT_DIR = "models/reranker-tr-legal"
+# Uzun karar metinlerini kes — 12GB GPU'da OOM guard (tam metin binlerce token).
+_MAX_LENGTH = 320
 
 
 def _load_split(name: str):
@@ -37,7 +43,7 @@ def _load_split(name: str):
 
 
 def train(warm_start: str, out_dir: str, epochs: int, batch_size: int,
-          lr: float) -> None:
+          lr: float, max_length: int, grad_accum: int) -> None:
     from sentence_transformers import CrossEncoder
     from sentence_transformers.cross_encoder import (
         CrossEncoderTrainer,
@@ -47,19 +53,24 @@ def train(warm_start: str, out_dir: str, epochs: int, batch_size: int,
 
     train_ds = _load_split("train")
     eval_ds = _load_split("val")
-    print(f"[*] train {len(train_ds)} / val {len(eval_ds)} | warm-start: {warm_start}",
-          flush=True)
+    eff_batch = batch_size * grad_accum
+    print(f"[*] train {len(train_ds)} / val {len(eval_ds)} | warm-start: {warm_start} | "
+          f"batch {batch_size}x{grad_accum}={eff_batch} | max_len {max_length}", flush=True)
 
-    model = CrossEncoder(warm_start, num_labels=1)
+    # max_length: uzun karar passage'larını kes (OOM guard + inference ile tutarlı).
+    model = CrossEncoder(warm_start, num_labels=1, max_length=max_length)
     loss = BinaryCrossEntropyLoss(model)
     args = CrossEncoderTrainingArguments(
         output_dir=f"{out_dir}-ckpt",
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
+        gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
         warmup_steps=0.1,  # float = oran (Transformers v5: warmup_ratio deprecated)
         fp16=True,
+        # adafactor: AdamW'nin ~6.8GB optimizer-state'ini ~0'a indirir (12GB OOM fix).
+        optim="adafactor",
         eval_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=1,
@@ -85,10 +96,15 @@ def main() -> None:
                         help="Başlangıç checkpoint (varsayılan proje reranker'ı)")
     parser.add_argument("--out", default=_OUT_DIR)
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--grad-accum", type=int, default=2,
+                        help="Gradient accumulation (efektif batch = batch_size x grad_accum)")
+    parser.add_argument("--max-length", type=int, default=_MAX_LENGTH,
+                        help="Token kesme uzunluğu (uzun karar metni OOM guard)")
     parser.add_argument("--lr", type=float, default=2e-5)
     args = parser.parse_args()
-    train(args.warm_start, args.out, args.epochs, args.batch_size, args.lr)
+    train(args.warm_start, args.out, args.epochs, args.batch_size, args.lr,
+          args.max_length, args.grad_accum)
 
 
 if __name__ == "__main__":
