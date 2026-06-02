@@ -58,7 +58,12 @@ _DRAFT_SYSTEM = (
     "9. Ayıplı mal/iade/değişim sorusunda TKHK 8 ve TKHK 11'i esas al; "
     "servis/garanti yönetmeliğini yalnız soru servis veya garanti süreciyle ilgiliyse kullan.\n"
     "10. Kullanıcının söylediği süreyi kanuni süre gibi yorumlama. Kaynakta açık süre yoksa "
-    "'bu süre geçtiği için hakkınız yok' veya 'şu gün içinde hakkınız var' deme."
+    "'bu süre geçtiği için hakkınız yok' veya 'şu gün içinde hakkınız var' deme.\n"
+    "11. Kanunun ADINI yalnızca kaynak başlığında (title) yazıldığı gibi kullan "
+    "(örn. başlık '6502 TKHK m.11' ise 'Tüketicinin Korunması Hakkında Kanun / TKHK', "
+    "'4857 İK' ise 'İş Kanunu'). Kanun adını KENDİN değiştirme veya uydurma; özellikle "
+    "TKHK'yi 'Ticaret Kanunu', İş Kanunu'nu başka bir kanun diye YAZMA. Emin değilsen "
+    "kanun adını hiç yazma, yalnız 'ilgili madde [src: ID]' de."
 )
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
