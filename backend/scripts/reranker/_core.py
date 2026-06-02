@@ -228,3 +228,33 @@ def split_train_val(rows: list, val_frac: float = 0.1, seed: int = 42) -> tuple[
     random.Random(seed).shuffle(shuffled)
     n_val = max(1, int(len(shuffled) * val_frac))
     return shuffled[n_val:], shuffled[:n_val]
+
+
+def rerank_pairwise_accuracy(scored: list[tuple[str, float, float]]) -> dict:
+    """Reranker A/B metriği: sorgu başına pozitifi negatiften YÜKSEK skorluyor mu?
+
+    scored = [(query, score, label)]. Aynı sorgunun pozitif×negatif tüm çiftleri için
+    `pozitif_skor > negatif_skor` oranı (pairwise accuracy) — bir reranker'ın ne kadar
+    iyi sıraladığının doğrudan ölçüsü, eşikten bağımsız. Saf (model gerekmez).
+    """
+    groups: dict[str, list[tuple[float, float]]] = {}
+    for q, s, lab in scored:
+        groups.setdefault(q, []).append((s, lab))
+    total = correct = 0
+    pos_scores: list[float] = []
+    neg_scores: list[float] = []
+    for items in groups.values():
+        pos = [s for s, lab in items if lab >= 0.5]
+        neg = [s for s, lab in items if lab < 0.5]
+        pos_scores += pos
+        neg_scores += neg
+        for ps in pos:
+            for ns in neg:
+                total += 1
+                correct += int(ps > ns)
+    return {
+        "pairwise_accuracy": round(correct / total, 4) if total else 0.0,
+        "n_comparisons": total,
+        "mean_pos": round(sum(pos_scores) / len(pos_scores), 4) if pos_scores else 0.0,
+        "mean_neg": round(sum(neg_scores) / len(neg_scores), 4) if neg_scores else 0.0,
+    }

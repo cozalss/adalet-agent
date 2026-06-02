@@ -14,6 +14,7 @@ from scripts.reranker._core import (
     dedup_pairs,
     is_out_of_scope,
     labeled_pairs_from_mined,
+    rerank_pairwise_accuracy,
     roundtrip_keep,
     split_train_val,
     tag_domain,
@@ -198,3 +199,28 @@ def test_split_train_val_min_one_val():
     train, v = split_train_val([1, 2, 3], val_frac=0.01)
     assert len(v) == 1
     assert len(train) == 2
+
+
+# --- Reranker A/B pairwise metriği ---
+
+
+def test_rerank_pairwise_accuracy_perfect():
+    # Her sorguda pozitif negatiften yüksek → 1.0
+    scored = [
+        ("q1", 0.9, 1.0), ("q1", 0.2, 0.0), ("q1", 0.1, 0.0),
+        ("q2", 0.8, 1.0), ("q2", 0.3, 0.0),
+    ]
+    m = rerank_pairwise_accuracy(scored)
+    assert m["pairwise_accuracy"] == 1.0
+    assert m["n_comparisons"] == 3  # q1: 1x2 + q2: 1x1
+    assert m["mean_pos"] > m["mean_neg"]
+
+
+def test_rerank_pairwise_accuracy_half():
+    scored = [("q1", 0.5, 1.0), ("q1", 0.9, 0.0), ("q1", 0.1, 0.0)]
+    m = rerank_pairwise_accuracy(scored)
+    assert m["pairwise_accuracy"] == 0.5  # 0.5>0.1 doğru, 0.5>0.9 yanlış
+
+
+def test_rerank_pairwise_accuracy_empty():
+    assert rerank_pairwise_accuracy([])["pairwise_accuracy"] == 0.0
