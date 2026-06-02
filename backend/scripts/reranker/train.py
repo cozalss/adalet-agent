@@ -58,7 +58,7 @@ def train(warm_start: str, out_dir: str, epochs: int, batch_size: int,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=lr,
-        warmup_ratio=0.1,
+        warmup_steps=0.1,  # float = oran (Transformers v5: warmup_ratio deprecated)
         fp16=True,
         eval_strategy="epoch",
         save_strategy="epoch",
