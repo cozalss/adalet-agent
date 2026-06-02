@@ -121,6 +121,12 @@ DILEKCE_CACHE_TTL_S = int(os.getenv("DILEKCE_CACHE_TTL_S", "900"))
 #     GPU / quantization) çözülmeli.
 # Latans-öncelikli dağıtımda LLM_MAX_TOKENS=240 env ile override edilebilir.
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
+# DRAFT cevabı zengin/yapısal format (Kısa cevap→Durumuna uygulama→Dayanak→Ne yapmalı→
+# Dikkat→Güven, 240-360 kelime ≈ avukat ön-görüşmesi). 320 token bunu kesiyordu → 768.
+# Yalnız draft_node kullanır; diğer LLM çağrıları (HyDE/MQ/clarifier) LLM_MAX_TOKENS'ta kalır.
+# Latans ↑ (daha uzun üretim) ama kullanıcıya tam, uygulanabilir cevap. LATANS-öncelikli
+# dağıtımda DRAFT_MAX_TOKENS=420 ile kısalt.
+DRAFT_MAX_TOKENS = int(os.getenv("DRAFT_MAX_TOKENS", "768"))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.

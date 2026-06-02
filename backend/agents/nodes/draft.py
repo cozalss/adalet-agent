@@ -18,7 +18,11 @@ from typing import Any
 
 import structlog
 
-from agents.config import LLM_CONTEXT_BUDGET, LLM_MAX_TOKENS, LLM_TEMPERATURE
+from agents.config import (
+    DRAFT_MAX_TOKENS,
+    LLM_CONTEXT_BUDGET,
+    LLM_TEMPERATURE,
+)
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, Citation, Claim
 from core.observability import observe_node
@@ -106,7 +110,7 @@ async def draft_node(state: AgentState) -> dict[str, object]:
                 ChatMessage(role="user", content=user_prompt),
             ],
             temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
+            max_tokens=DRAFT_MAX_TOKENS,  # zengin yapısal format için (320→768)
             json_mode=False,
         )
     except Exception as exc:
