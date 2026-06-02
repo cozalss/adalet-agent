@@ -104,6 +104,23 @@ def test_clean_synth_query_rejects_madde_jargon():
         "kira sözleşmesi") is None
 
 
+def test_clean_synth_query_rejects_foreign_script():
+    # Qwen dil kayması — Çince karakter içeren çıktı reddedilmeli (gerçek demo bug'ı).
+    assert clean_synth_query(
+        "Tapumu iptal ettirdiler, ancak bana ilgili 期限不超过60天 ne yapmalıyım?",
+        "tapu iptali sicil kaydı") is None
+    # Kiril de reddedilir
+    assert clean_synth_query("Аракам çarpıldı sigorta ödemiyor ne yaparım acaba?",
+                             "trafik kazası") is None
+
+
+def test_clean_synth_query_accepts_pure_turkish_with_special_chars():
+    # Türkçe özel karakterler (çğıöşü) yabancı-alfabe sayılMAZ.
+    q = clean_synth_query("İşyerimden çıkarıldım, kıdem tazminatımı alabilir miyim ağabey?",
+                          "iş hukuku kıdem tazminatı")
+    assert q is not None
+
+
 def test_clean_synth_query_rejects_copied_document():
     doc = "mecurun erken tahliyesi ihbar öneline uymaksızın güvence bedeli iadesi talebi"
     # Belgeyi neredeyse birebir kopyalamış → AT

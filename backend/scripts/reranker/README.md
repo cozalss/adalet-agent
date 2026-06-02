@@ -35,8 +35,13 @@ uv run python -m scripts.reranker.load_sources            # tam set
 
 # 2) Konuşma-dili soru sentezi (Qwen few-shot + round-trip filtre) — YEREL LLM GEREKİR
 #    Üretir: data/reranker/synth_pairs.jsonl
-LLM_MODE=llamacpp_server uv run python -m scripts.reranker.synth_queries
+#    Bu kutuda çalışan mod: in-process llamacpp (GGUF + CUDA-DLL trick). Sunucu modu
+#    (llamacpp_server) prebuilt binary ister — yoksa llamacpp kullan.
+LLM_MODE=llamacpp LLM_MODEL_PATH=./models/Qwen2.5-14B-Instruct-Q5_K_M.gguf \
+  uv run python -m scripts.reranker.synth_queries
 # --no-roundtrip ile embedder consistency filtresini atla (daha hızlı, daha gürültülü)
+# NOT: round-trip embedder'ı + Qwen aynı anda VRAM ister; 12GB GPU'da EMBEDDING_DEVICE=cpu
+#      ekleyerek embedder'ı CPU'ya al (Qwen GPU'da kalsın), VRAM çakışmasını önle.
 
 # 3) Hard-negative madenle (resmî + sentez çiftleri birleşir) → eğitim seti
 #    Üretir: data/reranker/train.jsonl, val.jsonl  ({query, passage, label})

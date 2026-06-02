@@ -45,7 +45,7 @@ from scripts.reranker._core import (
 )
 
 _OUT_DIR = Path("data/reranker")
-_SYNTH_TEMPERATURE = 0.7  # çeşitlilik için (deterministik değil — kolokyal varyasyon)
+_SYNTH_TEMPERATURE = 0.6  # çeşitlilik + tutarlılık dengesi (yüksekte Qwen bozuluyor)
 _SYNTH_MAX_TOKENS = 120   # bir soru kısadır
 
 

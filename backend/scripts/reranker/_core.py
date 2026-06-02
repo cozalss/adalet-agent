@@ -100,9 +100,10 @@ _SYNTH_SYSTEM = (
     "Sen Türkiye'de yaşayan SIRADAN bir vatandaşsın, hukukçu DEĞİLSİN. Sana bir hukuki "
     "metnin (kanun maddesi veya mahkeme kararı) konusu verilecek. Bu konunun anlattığı "
     "durumu BİZZAT yaşayan birinin, günlük konuşma diliyle soracağı TEK bir soru yaz. "
-    "Kurallar: (1) Hukuk terimi/jargon kullanma, sade Türkçe. (2) Kanun adı, madde "
-    "numarası veya karar numarası VERME. (3) Kendi başına geçmiş gibi, somut ve kısa "
-    "yaz. (4) Sadece soruyu yaz, açıklama ekleme."
+    "Kurallar: (1) YALNIZCA TÜRKÇE yaz — Çince, İngilizce veya başka hiçbir dil/alfabe "
+    "KULLANMA. (2) Hukuk terimi/jargon kullanma, sade Türkçe. (3) Kanun adı, madde "
+    "numarası veya karar numarası VERME. (4) Kendi başına geçmiş gibi, somut ve kısa "
+    "yaz. (5) Sadece soruyu yaz, açıklama ekleme."
 )
 
 # Few-shot: (resmî konu → konuşma-dili vatandaş sorusu). SAHTE/örnek, gerçek kişi yok.
@@ -145,6 +146,11 @@ def build_synth_messages(pos_text: str, *, topic_chars: int = 600) -> list[dict[
 
 _MADDE_NO_RE = re.compile(r"\bmadde\s*\d+|\bm\.\s*\d+|\d+\s*sayılı", re.IGNORECASE)
 _QUOTE_STRIP_RE = re.compile(r'^["\'`“”]+|["\'`“”]+$')
+# Yabancı alfabe — Qwen dil kayması guard'ı (CJK / kana / hangul / kiril / arap / tay).
+# Türkçe yalnız Latin + çğıöşü; bu bloklardan KARAKTER varsa sentez çıktısı bozuk.
+_FOREIGN_SCRIPT_RE = re.compile(
+    "[一-鿿぀-ヿ가-힯Ѐ-ӿ؀-ۿ฀-๿]"
+)
 
 
 def _token_set(text: str) -> set[str]:
@@ -164,6 +170,8 @@ def clean_synth_query(raw: str, pos_text: str, *, min_len: int = 15,
     q = _QUOTE_STRIP_RE.sub("", raw.strip().splitlines()[0].strip()) if raw.strip() else ""
     if not (min_len <= len(q) <= max_len):
         return None
+    if _FOREIGN_SCRIPT_RE.search(q):
+        return None  # Qwen dil kayması (Çince/Kiril/Arapça vb.) — bozuk çıktı, AT
     if _MADDE_NO_RE.search(q):
         return None  # jargon/atıf — konuşma-dili değil
     # Belgeyi kopyalamış mı? (sentez sorgu token'larının çoğu belgedeyse AT)
