@@ -80,8 +80,12 @@ def _patch_model(monkeypatch, logits):
 
 def test_model_predict_kazandi_from_emsal_facts(monkeypatch):
     _patch_model(monkeypatch, [4.0, 0.0, 0.0])  # kazandi=0 baskın
-    emsal = ["Olay: davacı kıdem tazminatı istedi, bir yıl çalıştı. Gerekçe: hak doğdu. HÜKÜM: kabul"]
-    pred = inf._model_predict("kıdem alır mıyım", emsal, ["c1"])
+    # ≥_MIN_SIGNAL (2) yeterli-uzunlukta emsal-facts → gerçek tahmin (guard'ı geçer).
+    emsal = [
+        "Olay: davacı kıdem tazminatı istedi, bir yıl çalıştı ve hak doğdu gerekçesi. HÜKÜM: kabul",
+        "Olay: başka davacı kıdem için başvurdu, yeterince uzun gerekçe metni mevcut. HÜKÜM: kabul",
+    ]
+    pred = inf._model_predict("kıdem alır mıyım", emsal, ["c1", "c2"])
     assert pred["verdict_class"] == "kazandi"
     assert pred["confidence"] <= 0.85  # tavan korunur
     assert "emsal" in pred["reasoning"].lower()  # emsal-facts kaynaklı
@@ -99,9 +103,11 @@ def test_model_predict_averages_over_emsal(monkeypatch):
     assert "2 emsal" in pred["reasoning"]
 
 
-def test_model_predict_falls_back_to_question_without_facts(monkeypatch):
-    _patch_model(monkeypatch, [0.0, 0.0, 4.0])  # kismi=2
-    # facts çok kısa (hüküm-öncesi <40 char) → soruya düşer
+def test_model_predict_belirsiz_without_enough_facts(monkeypatch):
+    _patch_model(monkeypatch, [0.0, 0.0, 4.0])  # logit önemsiz — guard önce devreye girer
+    # Yetersiz emsal-facts (tek karar + hüküm-öncesi <40 char) → kendinden emin BERT
+    # tahmini YERİNE düşük-güven "belirsiz" (vatandaşı yanıltma; question-fallback YOK).
     pred = inf._model_predict("Kısa soru", ["HÜKÜM: kabul"], ["c1"])
-    assert pred["verdict_class"] == "kismi"
-    assert "emsal facts yok" in pred["reasoning"]
+    assert pred["verdict_class"] == "belirsiz"
+    assert pred["confidence"] <= 0.25  # yetersiz emsal → düşük güven
+    assert "yetersiz" in pred["reasoning"].lower()

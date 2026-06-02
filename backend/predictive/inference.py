@@ -230,8 +230,13 @@ def _model_predict(
     tok, model, temperature = _load_model(_MODEL_DIR)
     facts = [f for t in similar_case_texts
              if len((f := _facts_before_hukum(t)).strip()) >= _MIN_FACTS_CHARS]
-    inputs = facts or [question]  # emsal-facts yoksa degraded fallback
-    enc = tok(inputs, truncation=True, max_length=512, padding=True,
+    if len(facts) < _MIN_SIGNAL:
+        # Yeterli emsal-facts yok (≥_MIN_FACTS_CHARS, ≥_MIN_SIGNAL karar) → tek/zayıf
+        # emsalden kendinden emin BERT tahmini YANILTICI olur (vatandaşı haklı davadan
+        # caydırabilir). Heuristic ile tutarlı: düşük-güven "belirsiz" dön. Eski
+        # question-fallback (OOD, çıplak soru) kaldırıldı — sızıntısız + güvenli.
+        return _belirsiz(case_ids, len(facts), len(similar_case_texts))
+    enc = tok(facts, truncation=True, max_length=512, padding=True,
               return_tensors="pt").to(_MODEL_DEVICE)
     with torch.no_grad():
         logits = model(**enc).logits.cpu().numpy()
@@ -240,7 +245,7 @@ def _model_predict(
     cls: PredictionClass = ID2LABEL[top]  # type: ignore[assignment]
     # Kesinlik ima etmemek için tavan (heuristic ile aynı kural).
     conf = round(min(float(probs[top]), _MAX_CONFIDENCE), 3)
-    source = f"{len(facts)} emsalin olay+gerekçe metni" if facts else "soru (emsal facts yok)"
+    source = f"{len(facts)} emsal kararın olay+gerekçe metni"
     return Prediction(
         verdict_class=cls,
         confidence=conf,
