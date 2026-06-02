@@ -82,6 +82,63 @@ def agreement_stats(pairs: list[tuple[str, str]]) -> dict:
     return {"n": len(pairs), "overall": round(overall, 3), "per_silver": per}
 
 
+# --- Tam hüküm zenginleştirme (parquet join — hukum_excerpt yalnız 400-char kesitti) ---
+_SHARDS = range(9)
+
+
+def extract_full_hukum(text: str, cap: int = 4000) -> str:
+    """Tam karar metninden HÜKÜM bölümü (cased, başlıktan sona). Başlık yoksa son kısım.
+
+    hukum_excerpt (auto_label) yalnız ilk 400 char + küçük-harf'ti → hukukçu/Qwen
+    yarım hükümden sonuç çıkaramıyordu. Bu, başlıktan METNİN SONUNA kadar tam,
+    orijinal-case hükmü verir (nihai disposition tam görünür).
+    """
+    from predictive.inference import _HUKUM_HEADER_RE, _HUKUM_TAIL_CHARS
+
+    m = _HUKUM_HEADER_RE.search(text)
+    seg = text[m.start():] if m else text[-_HUKUM_TAIL_CHARS:]
+    return " ".join(seg.split())[:cap]
+
+
+def fetch_full_texts(needed_ids: set[str]) -> dict[str, str]:
+    """Parquet shard'larını tara → {parquet_id: full_text} (yalnız gerekli id'ler, early-stop)."""
+    import pyarrow.parquet as pq
+    from huggingface_hub import hf_hub_download
+
+    from scripts.seed_hf_yargitay import REPO
+
+    found: dict[str, str] = {}
+    for shard in _SHARDS:
+        if len(found) >= len(needed_ids):
+            break
+        fp = hf_hub_download(repo_id=REPO, repo_type="dataset",
+                             filename=f"data/train-{shard:05d}-of-00009.parquet")
+        pf = pq.ParquetFile(fp)
+        for batch in pf.iter_batches(batch_size=2000, columns=["id", "text"]):
+            ids = batch.column("id").to_pylist()
+            texts = batch.column("text").to_pylist()
+            for did, txt in zip(ids, texts, strict=True):
+                sid = str(did)
+                if sid in needed_ids and sid not in found:
+                    found[sid] = txt or ""
+            if len(found) >= len(needed_ids):
+                break
+    return found
+
+
+def enrich_candidates(candidates: list[dict]) -> int:
+    """Her aday'a tam hüküm (`hukum_full`) ekle (parquet join). Eklenen sayısı döner."""
+    needed = {c["doc_id"][2:] for c in candidates if c.get("doc_id", "").startswith("h-")}
+    full = fetch_full_texts(needed)
+    n = 0
+    for c in candidates:
+        txt = full.get(c.get("doc_id", "")[2:])
+        if txt:
+            c["hukum_full"] = extract_full_hukum(txt)
+            n += 1
+    return n
+
+
 def _sample(records: list[dict], n: int, seed: int = 7) -> list[dict]:
     """Silver-sınıfı stratifiye örnek (her sınıftan ~n/3)."""
     by: dict[str, list[dict]] = {}
@@ -101,7 +158,7 @@ def _sample(records: list[dict], n: int, seed: int = 7) -> list[dict]:
 async def _adjudicate(llm, facts: str, hukum: str) -> tuple[str, str] | None:
     msgs = [
         ChatMessage(role="system", content=_ADJUDICATE_SYSTEM),
-        ChatMessage(role="user", content=f"OLAY ÖZETİ:\n{facts[:500]}\n\nHÜKÜM:\n{hukum[:600]}"),
+        ChatMessage(role="user", content=f"OLAY ÖZETİ:\n{facts[:600]}\n\nHÜKÜM:\n{hukum[:1800]}"),
     ]
     resp = await llm.chat(msgs, temperature=0.0, max_tokens=160, json_mode=True)
     return parse_adjudication(resp.content)
@@ -111,13 +168,20 @@ async def run(n: int) -> None:
     records = load_jsonl(_DATA)
     _train, _val, test = stratified_split(records, seed=42)  # held-out test (modelin görmediği)
     sample = _sample(test, n)
-    print(f"[*] {len(sample)} held-out vaka Qwen ile adjudicate ediliyor...", flush=True)
+    # TAM hükmü parquet'ten çek (hukum_excerpt yalnız 400-char kesit → Qwen yarım okurdu).
+    print(f"[*] {len(sample)} vaka — tam hüküm parquet'ten çekiliyor...", flush=True)
+    full = fetch_full_texts({r["doc_id"][2:] for r in sample
+                             if r.get("doc_id", "").startswith("h-")})
+    print(f"[*] {len(full)}/{len(sample)} tam metin bulundu; Qwen adjudication (tam hüküm)...",
+          flush=True)
 
     llm = get_llm()
     candidates: list[dict] = []
     pairs: list[tuple[str, str]] = []
     for i, r in enumerate(sample):
-        res = await _adjudicate(llm, r.get("input_text", ""), str(r.get("hukum_excerpt", "")))
+        full_text = full.get(r.get("doc_id", "")[2:], "")
+        hukum_full = extract_full_hukum(full_text) if full_text else str(r.get("hukum_excerpt", ""))
+        res = await _adjudicate(llm, r.get("input_text", ""), hukum_full)
         if res is None:
             continue
         qwen_label, quote = res
@@ -126,6 +190,7 @@ async def run(n: int) -> None:
             "doc_id": r.get("doc_id", ""),
             "input_text": r["input_text"],
             "hukum_excerpt": r.get("hukum_excerpt", ""),
+            "hukum_full": hukum_full,  # TAM hüküm (hukukçu + Qwen bunu okur)
             "silver_label": r["label"],
             "qwen_label": qwen_label,
             "quote": quote,

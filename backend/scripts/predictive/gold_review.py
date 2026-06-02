@@ -77,8 +77,8 @@ def export_csv(candidates: list[dict], csv_path: Path = _CSV) -> int:
             w.writerow([
                 i, c.get("doc_id", ""),
                 "İNCELE" if c.get("needs_review") else "",
-                " ".join(str(c.get("input_text", "")).split())[:1500],
-                " ".join(str(c.get("hukum_excerpt", "")).split())[:800],
+                " ".join(str(c.get("input_text", "")).split())[:2500],
+                " ".join(str(c.get("hukum_full") or c.get("hukum_excerpt", "")).split())[:4000],
                 c.get("qwen_label", ""), c.get("quote", ""),
                 "",  # karar — hukukçu doldurur
                 "",  # not
@@ -124,9 +124,9 @@ def export_xlsx(candidates: list[dict], xlsx_path: Path = _XLSX) -> int:
     for i, c in enumerate(candidates, 1):
         ws.append([
             i, "İNCELE" if c.get("needs_review") else "",
-            _clean(c.get("hukum_excerpt"), 1800), "",  # KARAR boş
-            c.get("qwen_label", ""), _clean(c.get("quote"), 400),
-            _clean(c.get("input_text"), 1500), "", c.get("doc_id", ""),
+            _clean(c.get("hukum_full") or c.get("hukum_excerpt"), 4000), "",  # TAM hüküm; KARAR boş
+            c.get("qwen_label", ""), _clean(c.get("quote"), 500),
+            _clean(c.get("input_text"), 2500), "", c.get("doc_id", ""),
         ])
 
     for idx, w in enumerate(_XLSX_WIDTHS):
@@ -218,6 +218,16 @@ def main() -> None:
     candidates = _load_candidates()
 
     if args.mode == "export":
+        # hukum_excerpt yalnız 400-char kesit → hukukçu yarım hüküm görür. Tam hükmü
+        # parquet'ten çek (yoksa) + gold_candidates'a kalıcı yaz.
+        if not all(c.get("hukum_full") for c in candidates):
+            from scripts.predictive.build_gold_eval import enrich_candidates
+            print("[*] tam hüküm parquet'ten çekiliyor...", flush=True)
+            n_enr = enrich_candidates(candidates)
+            with _CANDIDATES.open("w", encoding="utf-8") as f:
+                for c in candidates:
+                    f.write(json.dumps(c, ensure_ascii=False) + "\n")
+            print(f"[*] {n_enr}/{len(candidates)} adaya tam hüküm eklendi")
         n = export_xlsx(candidates)           # hukukçu-dostu Excel (asıl)
         export_csv(candidates)                # yedek (CSV)
         _TALIMAT.write_text(_TALIMAT_METNI, encoding="utf-8")

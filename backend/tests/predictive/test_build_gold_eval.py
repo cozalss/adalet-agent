@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
-from scripts.predictive.build_gold_eval import agreement_stats, parse_adjudication
+from scripts.predictive.build_gold_eval import (
+    agreement_stats,
+    extract_full_hukum,
+    parse_adjudication,
+)
+
+
+def test_extract_full_hukum_from_header():
+    text = "Olay kısmı uzun metin. HÜKÜM: davanın kabulüne oybirliğiyle karar verildi."
+    h = extract_full_hukum(text)
+    assert h.startswith("HÜKÜM") and "kabulüne" in h  # tam hüküm, cased, başlıktan sona
+
+
+def test_extract_full_hukum_no_header_tail():
+    text = "x" * 5000  # başlık yok → son kısım (tail) döner
+    h = extract_full_hukum(text, cap=4000)
+    assert len(h) <= 4000 and len(h) > 0
 
 
 def test_parse_valid_json():
