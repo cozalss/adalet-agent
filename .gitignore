@@ -51,6 +51,10 @@ backend/models/
 backend/data/predictive/
 backend/predictive/checkpoints/
 
+# Reranker (Faz-4) — corpus.jsonl ~120MB + üretilen çiftler/triplet (regenerable;
+# load_sources/synth_queries/mine_negatives kullanıcı kutusunda yeniden üretir)
+backend/data/reranker/
+
 # Smoke test artifacts (büyük JSON output)
 backend/data/smoke_runs/
 
