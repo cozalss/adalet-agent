@@ -12,26 +12,33 @@ export function AnswerCard({ answer, sources, onJump }) {
     ? answer.sections
     : [{ label: "Cevap", lead: true, runs: [{ t: answer?.text || "" }] }];
 
-  // B4 — 60fps.design D1: Her bölüm scroll görünüme girince yukarıdan açılır.
-  // prefers-reduced-motion varsa gizleme yapma (instantly visible).
+  // Cevap gelince bölümleri SIRAYLA aç ("bir anda dökülme" yerine yazılma hissi):
+  // her bölüm bir öncekinden ~200ms sonra yukarıdan belirir, o an "yazılan" bölümün
+  // etiketinde yanıp sönen gold imleç olur. prefers-reduced-motion: anında göster.
   useEffect(() => {
     const el = cardRef.current; if (!el) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
-    const secs = el.querySelectorAll(".sec");
-    secs.forEach((s) => s.classList.add("reveal-target"));
-    const obs = new IntersectionObserver(
-      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("visible"); obs.unobserve(e.target); } }),
-      { threshold: 0.1 }
-    );
-    secs.forEach((s) => obs.observe(s));
-    return () => obs.disconnect();
+    const secs = Array.from(el.querySelectorAll(".sec"));
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      secs.forEach((s) => s.classList.add("visible"));
+      return;
+    }
+    const STAGGER = 200; // ms — bölüm başına
+    const timers = secs.map((s, i) => setTimeout(() => {
+      s.classList.add("visible", "writing");
+      secs[i - 1]?.classList.remove("writing"); // imleç bir sonraki bölüme geçer
+    }, 60 + i * STAGGER));
+    // son bölümün imlecini kısa süre sonra kaldır (yazma bitti)
+    timers.push(setTimeout(
+      () => secs[secs.length - 1]?.classList.remove("writing"),
+      60 + secs.length * STAGGER + 500,
+    ));
+    return () => timers.forEach(clearTimeout);
   }, [sections.length]);
 
   return (
     <div className="card answer" ref={cardRef}>
       {sections.map((sec, i) => (
-        <div className="sec" key={i}>
+        <div className="sec reveal-target" key={i}>
           <div className="sec-label">{sec.label}</div>
           {sec.steps ? (
             <ol className="steps">
