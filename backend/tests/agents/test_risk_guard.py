@@ -8,10 +8,46 @@ from __future__ import annotations
 
 from agents.risk_guard import (
     fabricated_citation_claims,
+    fabricated_eligibility_threshold,
     fabricated_law_names,
     negative_eligibility_claims,
     verify_risk_veto,
 )
+
+# --- FABRİKE-eşik (kaynak-temelli, deterministik TRUE-vs-FABRİKE ayrımı) ---
+
+
+def test_fabricated_threshold_flags_ungrounded():
+    """Kaynakta OLMAYAN eşik ('5 yıldan az verilmez', kaynak '1 yıl') → FABRİKE."""
+    flags = fabricated_eligibility_threshold(
+        "5 yıldan az çalıştıysanız kıdem tazminatı verilmez.",
+        ["Kıdem için en az 1 yıl çalışma şartı aranır (m.14)."],
+    )
+    assert flags  # işaretlenmeli
+
+
+def test_fabricated_threshold_allows_grounded_true():
+    """Kaynakta OLAN eşik ('1 yılın altında kazanamaz', kaynak '1 yıl') → DOĞRU, vetolanmaz."""
+    flags = fabricated_eligibility_threshold(
+        "Bir yılın altında çalıştıysanız kıdem tazminatına hak kazanamazsınız.",
+        ["Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir."],
+    )
+    assert flags == []  # DOĞRU bilgilendirme — false-positive YOK
+
+
+def test_fabricated_threshold_no_sources_silent():
+    """Kaynak yoksa temellendirme yapılamaz → sessiz (baseline güvenli)."""
+    assert fabricated_eligibility_threshold("5 yıldan az ise verilmez.", []) == []
+
+
+def test_fabricated_threshold_eval_precision_perfect():
+    """Adversarial gold set: precision=1.0 (DOĞRU/temiz cevap ASLA yanlış-işaretlenmez)
+    + recall yüksek. 'Sıfır halüsinasyon' kanıtı + valid cevabı bozmama garantisi."""
+    from eval.eligibility_eval import evaluate, load_gold
+    res = evaluate(load_gold())
+    assert res["precision"] == 1.0, "FALSE-POSITIVE = valid cevabı bozar (kabul edilemez)"
+    assert res["recall"] >= 0.85
+    assert res["n"] >= 16
 
 # Gerçek Qwen 14B çıktısı (2026-05-30) — üç ölümcül hata içeriyor.
 REAL_HALLUCINATED_ANSWER = (

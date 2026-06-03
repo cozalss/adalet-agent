@@ -78,6 +78,50 @@ def negative_eligibility_claims(text: str) -> list[str]:
     return flags
 
 
+# --- FABRİKE-eşik (kaynak-temelli, DETERMİNİSTİK) ---
+# "Sıfır halüsinasyon"un en zayıf noktası: süre/eşik gerekçeli hak-reddinin DOĞRU
+# (kaynakta var: "kıdem için en az 1 yıl" → "1 yılın altında kazanamaz" DOĞRU) vs
+# FABRİKE (kaynakta YOK: "5 yıldan az tazminat verilmez" = uydurma eşik) ayrımı.
+# Çözüm: iddiadaki SAYISAL eşiği getirilen KAYNAK metinleriyle karşılaştır.
+# İddia-eşiği hiçbir kaynakta geçmiyorsa → FABRİKE (uydurma eşik → veto).
+# Kaynakta geçiyorsa → TRUE (doğru bilgilendirme → vetolanmaz, false-positive önlenir).
+_NUM_DURATION_RE = re.compile(r"\b(\d+)\s*(yıl|sene|ay|hafta|gün)", re.IGNORECASE)
+_UNIT_CANON = {"yıl": "yıl", "sene": "yıl", "ay": "ay", "hafta": "hafta", "gün": "gün"}
+
+
+def _norm_thresholds(text: str) -> set[tuple[str, str]]:
+    """Metindeki tüm süre-eşiklerini (sayı, kanonik-birim) kümesi olarak çıkar."""
+    return {
+        (m.group(1), _UNIT_CANON.get(m.group(2).lower(), m.group(2).lower()))
+        for m in _NUM_DURATION_RE.finditer(text)
+    }
+
+
+def fabricated_eligibility_threshold(text: str, source_texts: list[str]) -> list[str]:
+    """Hak-reddi cümlesindeki SAYISAL eşik getirilen kaynaklarda YOK ise FABRİKE döner.
+
+    DETERMİNİSTİK (prompt/regex tahminİ değil): iddia-eşiği vs kaynak-eşiği karşılaştırır.
+    - "5 yıldan az tazminat verilmez" + kaynak yalnız "1 yıl" diyorsa → '5 yıl' FABRİKE.
+    - "1 yılın altında kıdem doğmaz" + kaynak "en az 1 yıl" diyorsa → '1 yıl' DOĞRU (boş).
+    Sayısal eşiği olmayan hak-reddi (örn "süreniz yetersiz") bu detektörü ATLAR — genel
+    negative_eligibility_claims + diğer katmanlar onu ele alır. source_texts boşsa boş döner
+    (temellendirme yapılamaz → bu detektör sessiz; baseline güvenli).
+    """
+    if not source_texts:
+        return []
+    source_thresholds = _norm_thresholds(" ".join(source_texts).lower())
+    flags: list[str] = []
+    for sent in _SENT_SPLIT_RE.split(text):
+        if not _NEGATIVE_ELIGIBILITY_RE.search(sent):
+            continue
+        claim_thresholds = _norm_thresholds(sent.lower())
+        if not claim_thresholds:
+            continue  # sayısal eşik yok → bu detektör kapsamı dışı
+        if any(th not in source_thresholds for th in claim_thresholds):
+            flags.append(sent.strip()[:160])
+    return flags
+
+
 def fabricated_citation_claims(text: str) -> list[str]:
     """İmkânsız mahkeme dairesi atıflarını döndür (örn '99. Hukuk Dairesi').
 

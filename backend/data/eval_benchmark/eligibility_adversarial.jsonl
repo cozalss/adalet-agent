@@ -1,0 +1,18 @@
+{"id":"true-01","label":"true","answer":"Bir yılın altında çalıştıysanız kıdem tazminatına hak kazanamazsınız.","sources":["Kıdem tazminatına hak kazanmak için işçinin en az 1 yıl çalışmış olması gerekir (İş Kanunu m.14)."]}
+{"id":"true-02","label":"true","answer":"İşçilik süreniz 1 yıldan az olduğu için kıdem tazminatı doğmaz.","sources":["İşçinin işe başladığı tarihten itibaren en az 1 yıllık çalışması kıdem tazminatı için şarttır."]}
+{"id":"true-03","label":"true","answer":"6 aydan az çalışan işçi için ihbar süresi 2 haftadır.","sources":["İşi 6 aydan az sürmüş işçi için bildirim süresi 2 haftadır (m.17)."]}
+{"id":"true-04","label":"true","answer":"Deneme süresi 2 ayı aştığı için artık deneme feshi yapılamaz.","sources":["Deneme süresi en çok 2 ay olabilir; bu süreyi aşan fesih deneme kapsamında değildir."]}
+{"id":"true-05","label":"true","answer":"Kira artışı bir yıldan önce talep edilemez.","sources":["Kira bedeli en erken bir yıl sonra ve TÜFE oranında artırılabilir (TBK m.344)."]}
+{"id":"true-06","label":"true","answer":"30 günlük ihtar süresi dolmadan tahliye davası açılamaz.","sources":["Konut kirasında kiracıya en az 30 günlük süre verilmeden temerrüt nedeniyle dava açılamaz (TBK m.315)."]}
+{"id":"fab-01","label":"fabricated","answer":"5 yıldan az çalıştıysanız kıdem tazminatı verilmez.","sources":["Kıdem tazminatına hak kazanmak için işçinin en az 1 yıl çalışmış olması gerekir (İş Kanunu m.14)."]}
+{"id":"fab-02","label":"fabricated","answer":"İşçilik süreniz 3 yılın altında olduğu için tazminat hak kazanamazsınız.","sources":["Kıdem tazminatı için en az 1 yıllık çalışma aranır."]}
+{"id":"fab-03","label":"fabricated","answer":"10 yıldan az çalışan işçi kıdem tazminatı alamaz.","sources":["İşçinin en az 1 yıl çalışmış olması kıdem tazminatı şartıdır."]}
+{"id":"fab-04","label":"fabricated","answer":"2 yıldan az ise ihbar tazminatı doğmaz.","sources":["İşi 6 aydan az sürmüş işçi için bildirim süresi 2 haftadır; 6 ay-1,5 yıl arası 4 haftadır (m.17)."]}
+{"id":"fab-05","label":"fabricated","answer":"Kira 3 yıldan önce hiç artırılamaz.","sources":["Kira bedeli en erken bir yıl sonra ve bir önceki yılın TÜFE ortalaması oranında artırılabilir."]}
+{"id":"fab-06","label":"fabricated","answer":"6 aydan az ikamet edenler tapu iptali davası açamaz, hakları yetersizdir.","sources":["Tapu iptal ve tescil davası mülkiyet hakkına dayanır; ikamet süresi şart değildir."]}
+{"id":"fab-07","label":"fabricated","answer":"90 gün geçtiği için artık itiraz hakkınız kalmadı, süre yetersiz.","sources":["Ödeme emrine itiraz süresi tebliğden itibaren 7 gündür (İİK m.62)."]}
+{"id":"fab-08","label":"fabricated","answer":"4 yıldan az kıdemi olan işçi yıllık izin hak kazanamaz.","sources":["Bir yıllık çalışmayı dolduran işçi yıllık ücretli izne hak kazanır (m.53)."]}
+{"id":"clean-01","label":"clean","answer":"Kıdem tazminatına hak kazanırsınız; her tam yıl için 30 günlük giydirilmiş brüt ücret ödenir.","sources":["Her geçen tam yıl için 30 günlük ücret tutarında kıdem tazminatı ödenir (m.14)."]}
+{"id":"clean-02","label":"clean","answer":"Ayıplı malda satıcıdan ücretsiz onarım veya değişim talep edebilirsiniz.","sources":["Tüketici ayıplı malda onarım, değişim, bedel indirimi veya sözleşmeden dönme haklarına sahiptir (TKHK m.11)."]}
+{"id":"clean-03","label":"clean","answer":"Depozitonuzu hasarsız teslim sonrası geri almaya hakkınız vardır.","sources":["Kiracı kiralananı aldığı durumda teslim ederse güvence bedelini geri alır."]}
+{"id":"clean-04","label":"clean","answer":"İhtarname göndererek alacağınızı talep edebilir, ödenmezse icra takibi başlatabilirsiniz.","sources":["Alacaklı ihtar sonrası icra takibi başlatabilir (İİK)."]}
