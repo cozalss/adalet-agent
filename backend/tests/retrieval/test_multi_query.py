@@ -222,6 +222,31 @@ def _sr(chunk_id: str, score: float = 1.0) -> SearchResult:
     )
 
 
+# --- rrf_merge (paylaşılan RRF — fan_out + speculative tek kaynak) ---
+
+def test_rrf_merge_boosts_common_high_rank():
+    """İki listede de üst-sırada olan chunk en yüksek RRF skorunu alır (concat değil)."""
+    l1 = [_sr("A"), _sr("B"), _sr("C")]   # A@0, B@1
+    l2 = [_sr("B"), _sr("D"), _sr("A")]   # B@0, A@2
+    out = mq.rrf_merge([l1, l2], top_k=4)
+    ids = [r.chunk_id for r in out]
+    # B: 1/61+1/60 > A: 1/60+1/62 → B ilk sırada (ortak isabet + ikisinde de üstte)
+    assert ids[0] == "B"
+    assert set(ids) == {"A", "B", "C", "D"}
+
+
+def test_rrf_merge_score_is_fused_rrf():
+    out = mq.rrf_merge([[_sr("X", score=0.99)]], top_k=1)
+    assert out[0].score == pytest.approx(1.0 / mq.RRF_K)  # orijinal 0.99 değil, RRF skoru
+
+
+def test_rrf_merge_empty_and_top_k():
+    assert mq.rrf_merge([], top_k=5) == []
+    assert mq.rrf_merge([[]], top_k=5) == []
+    out = mq.rrf_merge([[_sr(c) for c in "ABCDE"]], top_k=2)
+    assert len(out) == 2
+
+
 @pytest.mark.asyncio
 async def test_fan_out_search_rrf_merges_overlap(monkeypatch):
     """Iki sorgu farklı sıralar — RRF birleştirir, overlap yüksek skor alır."""

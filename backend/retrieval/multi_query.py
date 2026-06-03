@@ -211,6 +211,37 @@ class _Hit:
     rrf_score: float
 
 
+def rrf_merge(
+    result_lists: list[list[SearchResult]], top_k: int, k: int = RRF_K,
+) -> list[SearchResult]:
+    """Birden çok SIRALI sonuç listesini Reciprocal Rank Fusion ile birleştir.
+
+    RANK-tabanlı (skor-ölçeği BAĞIMSIZ): her listede pozisyon → 1/(rank+k) katkısı; aynı chunk
+    birden çok listede üst-sıradaysa skoru toplanır → ORTAK isabet öne çıkar. SearchResult.score
+    fused-RRF skoruyla güncellenir (downstream tutarlılık). Farklı skor-ölçekli kaynakları
+    (HyDE-RRF, MQ-RRF, hybrid) güvenle birleştirir — concat'in 'ilk-gören-kazanır' kayıbını önler.
+    Saf fonksiyon (Qdrant/LLM yok) → test edilebilir.
+    """
+    acc: dict[str, _Hit] = {}
+    for results in result_lists:
+        for rank, sr in enumerate(results):
+            inc = 1.0 / (rank + k)
+            existing = acc.get(sr.chunk_id)
+            if existing:
+                existing.rrf_score += inc
+            else:
+                acc[sr.chunk_id] = _Hit(sr=sr, rrf_score=inc)
+    merged = sorted(acc.values(), key=lambda h: h.rrf_score, reverse=True)
+    return [
+        SearchResult(
+            chunk_id=h.sr.chunk_id, score=float(h.rrf_score), text=h.sr.text,
+            source=h.sr.source, source_url=h.sr.source_url, domain=h.sr.domain,
+            metadata=h.sr.metadata,
+        )
+        for h in merged[:top_k]
+    ]
+
+
 async def fan_out_search(
     queries: list[str],
     top_k: int = 10,
@@ -240,37 +271,15 @@ async def fan_out_search(
     ]
     results_per_query = await asyncio.gather(*tasks, return_exceptions=True)
 
-    accumulator: dict[str, _Hit] = {}
+    valid: list[list[SearchResult]] = []
     for q_results in results_per_query:
         if isinstance(q_results, BaseException):
             log.warning("mq_query_failed", error=str(q_results))
             continue
-        for rank, sr in enumerate(q_results):
-            inc = 1.0 / (rank + RRF_K)
-            existing = accumulator.get(sr.chunk_id)
-            if existing:
-                existing.rrf_score += inc
-            else:
-                accumulator[sr.chunk_id] = _Hit(sr=sr, rrf_score=inc)
+        valid.append(q_results)
 
-    merged = sorted(accumulator.values(), key=lambda h: h.rrf_score, reverse=True)
-
-    # SearchResult.score'u RRF score ile güncelle (downstream tutarlılık)
-    out: list[SearchResult] = []
-    for hit in merged[:top_k]:
-        sr = hit.sr
-        sr = SearchResult(
-            chunk_id=sr.chunk_id,
-            score=float(hit.rrf_score),
-            text=sr.text,
-            source=sr.source,
-            source_url=sr.source_url,
-            domain=sr.domain,
-            metadata=sr.metadata,
-        )
-        out.append(sr)
-
-    log.info("mq_merged", n_queries=len(queries), n_unique=len(accumulator), top_k=len(out))
+    out = rrf_merge(valid, top_k)  # paylaşılan RRF (speculative_search ile tek kaynak)
+    log.info("mq_merged", n_queries=len(queries), top_k=len(out))
     return out
 
 
@@ -366,5 +375,6 @@ __all__ = (
     "expand_queries",
     "fan_out_search",
     "reset_cache",
+    "rrf_merge",
     "search_multi_query",
 )

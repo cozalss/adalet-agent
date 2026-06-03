@@ -30,7 +30,7 @@ import structlog
 from retrieval.adaptive_router import RoutingDecision
 from retrieval.hybrid_search import SearchResult, search  # noqa: F401
 from retrieval.hyde import search_with_hyde
-from retrieval.multi_query import search_multi_query
+from retrieval.multi_query import rrf_merge, search_multi_query
 
 log = structlog.get_logger()
 
@@ -59,12 +59,10 @@ async def search_speculative(  # noqa: C901
         (results, strategy_used)
         strategy_used: "hybrid" | "hyde" | "mq" | "hyde+mq" | "hybrid_fallback"
     """
-    def _dedup(primary: list, secondary: list) -> list:
-        seen: dict = {}
-        for r in [*primary, *secondary]:
-            if r.chunk_id not in seen:
-                seen[r.chunk_id] = r
-        return list(seen.values())
+    # Tamamlanan advanced (HyDE/MQ) sonuç-listeleri burada toplanır; concat YERİNE sonda
+    # RRF ile birleştirilir (rank-tabanlı → farklı RRF skor-ölçekleri sorunsuz, ortak isabet
+    # öne çıkar). Eski _dedup 'ilk-gören-kazanır' füzyonu kaybediyordu (denetim 2026-06-04).
+    collected_lists: list[list] = []
 
     loop = asyncio.get_event_loop()
 
@@ -108,15 +106,13 @@ async def search_speculative(  # noqa: C901
 
     # --- 4. Advanced task'lar zaten bitti mi? ---
     remaining = []
-    done_results: list[Any] = []
     done_keys: list[str] = []
 
     for key, task in advanced_tasks.items():
         if task.done():
             exc = task.exception()
             if exc is None:
-                res = task.result()
-                done_results = _dedup(list(res), done_results) if done_results else list(res)
+                collected_lists.append(list(task.result()))
                 done_keys.append(key)
             else:
                 log.warning("speculative_task_error", key=key, error=str(exc))
@@ -142,8 +138,7 @@ async def search_speculative(  # noqa: C901
             for task in done:
                 exc = task.exception()
                 if exc is None:
-                    res = task.result()
-                    done_results = _dedup(list(res), done_results) if done_results else list(res)
+                    collected_lists.append(list(task.result()))
                     for key, t in remaining:
                         if t is task:
                             done_keys.append(key)
@@ -161,9 +156,10 @@ async def search_speculative(  # noqa: C901
     advanced_ms = round(total_ms - hybrid_ms)
 
     # --- 6. Sonuç seç ---
-    if done_results:
-        # HyDE/MQ en az biri bütçe içinde bitti → kaliteli sonuç
-        final_results = done_results[:top_k]
+    if collected_lists:
+        # HyDE/MQ en az biri bütçe içinde bitti → RRF füzyonu (concat değil): farklı
+        # skor-ölçekli HyDE/MQ listeleri rank-tabanlı birleşir, ortak isabet öne çıkar.
+        final_results = rrf_merge(collected_lists, top_k)
         strategy = "+".join(done_keys) if done_keys else "hybrid_fallback"
         log.info(
             "speculative_done",
