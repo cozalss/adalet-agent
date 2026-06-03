@@ -158,6 +158,13 @@ async def _graph_expand_correct(
     çevirip URL'siz/snippet'siz placeholder döner — verify reddedecektir,
     ama akış kırılmaz.
     """
+    # DEVRE DIŞI (denetim 2026-06-04, #18): URL/snippet'siz placeholder citation'lar verify
+    # tarafından ZATEN reddedilir → recall katkısı 0; sadece draft prompt'una + NLI verify'a
+    # gürültü + token + latency ekler (net-negatif). Graph transparency emsal_node'da ayrıca
+    # toplanıyor (emsal_graph_neighbors). Gerçek graph_node_id→chunk_id→Qdrant snippet lookup
+    # (Sprint-9) tamamlanınca aşağıdaki gövde yeniden etkinleşir.
+    return {"law": [], "case": []}
+
     try:
         from retrieval.graph_rag import GRAPH_RAG_ENABLED, extract_seed_ids, get_graph
     except Exception:
