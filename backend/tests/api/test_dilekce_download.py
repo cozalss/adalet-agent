@@ -30,7 +30,31 @@ def client() -> TestClient:
 
 
 def _valid_uuid() -> str:
-    return str(uuid.uuid4())
+    # GERÇEK biçim: backend conversation_id'yi uuid4().hex (TİRESİZ) üretir. Testler
+    # eskiden str(uuid.uuid4()) (tireli) kullanıp gerçek indirme akışını kaçırıyordu.
+    return uuid.uuid4().hex
+
+
+# --- conversation_id format sözleşmesi (denetim 2026-06-04: gerçek ID bug'ı) ---
+
+def test_uuid_re_accepts_real_backend_conversation_id():
+    """REGRESYON: _new_conversation_id()'nin ÜRETTİĞİ ID, dilekçe endpoint'inin KABUL
+    ettiği biçim olmalı. Eski tireli-only regex gerçek uuid4().hex'i 400'lüyordu."""
+    from api.routes.ask import _new_conversation_id
+    from api.routes.dilekce import _UUID_RE
+
+    real_id = _new_conversation_id()
+    assert "-" not in real_id and len(real_id) == 32  # uuid4().hex sözleşmesi
+    assert _UUID_RE.match(real_id), "gerçek conversation_id endpoint regex'ini geçmeli"
+
+
+def test_uuid_re_accepts_both_forms_rejects_traversal():
+    from api.routes.dilekce import _UUID_RE
+
+    assert _UUID_RE.match(uuid.uuid4().hex)          # tiresiz (gerçek)
+    assert _UUID_RE.match(str(uuid.uuid4()))         # tireli (legacy/canonical)
+    for bad in ("../etc/passwd", "abc", "g" * 32, "../../x", "%2e%2e", ""):
+        assert not _UUID_RE.match(bad), f"geçersiz ID kabul edildi: {bad!r}"
 
 
 # --- Endpoint güvenliği ---

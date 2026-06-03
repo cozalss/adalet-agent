@@ -28,10 +28,14 @@ from api.middleware.auth import Principal, authenticate
 
 router = APIRouter(prefix="/api/dilekce", tags=["dilekce"])
 
-# UUID4 strict — backend conversation_id zaten UUID4 üretiyor (api/routes/ask.py
-# _new_conversation_id). Path traversal / SSRF / enumeration koruması.
+# UUID4 — backend conversation_id'yi `uuid.uuid4().hex` ile üretir (TİRESİZ, 32 hane;
+# bkz. api/routes/ask.py _new_conversation_id). Eski regex SADECE tireli biçimi (8-4-4-4-12)
+# kabul ediyordu → GERÇEK indirme akışı 400 alıyordu (test tireli UUID kullandığı için bug'ı
+# kaçırıyordu — denetim 2026-06-04). Her iki biçim de kabul edilir; ikisi de yalnız hex
+# (+ sabit konumlu tire) → path traversal / SSRF / enumeration koruması korunur.
 _UUID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    r"^(?:[0-9a-fA-F]{32}"
+    r"|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
 )
 
 
