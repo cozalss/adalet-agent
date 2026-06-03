@@ -68,6 +68,19 @@ _SPARSE_DOMAINS: frozenset[str] = frozenset(
     os.getenv("SPARSE_ENABLED_DOMAINS", "vergi,trafik,icra").split(",")
 ) if _SPARSE_MODEL else frozenset()
 
+# Füzyon stratejisi (Context7/Qdrant best-practice): RRF (rank-tabanlı, DEFAULT) veya DBSF
+# (Distribution-Based Score Fusion, Qdrant 1.10+ — skorları mean±3σ ile normalize edip toplar;
+# farklı skor-DAĞILIMLI sparse+dense kollarını birleştirmede RRF'den robust). HYBRID_FUSION=dbsf
+# ile A/B ablation (eval_run.py ile ölç). Tek-kol (dense-only Mursit) → DBSF anlamsız, RRF kalır.
+_HYBRID_FUSION = os.getenv("HYBRID_FUSION", "rrf").strip().lower()
+
+
+def _fusion_for(n_prefetch: int) -> models.Fusion:
+    """≥2 prefetch (sparse+dense) varken HYBRID_FUSION=dbsf → DBSF; aksi halde RRF."""
+    if _HYBRID_FUSION == "dbsf" and n_prefetch >= 2:
+        return models.Fusion.DBSF
+    return models.Fusion.RRF
+
 
 def _get_embedder() -> Embedder | MursitEmbedder:
     """EMBEDDING_MODEL env'e göre doğru embedder singleton döndür."""
@@ -188,7 +201,7 @@ async def search(
     result = await client.query_points(
         collection_name=COLLECTION_NAME,
         prefetch=prefetch_list,
-        query=models.FusionQuery(fusion=models.Fusion.RRF),
+        query=models.FusionQuery(fusion=_fusion_for(len(prefetch_list))),
         limit=top_k,
         with_payload=True,
     )
