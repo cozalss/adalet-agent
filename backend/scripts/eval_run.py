@@ -108,6 +108,40 @@ def _keyword_recall(text: str, keywords: list[str]) -> float:
         return hits / len(keywords)
 
 
+def madde_level_metrics(
+    results: list[Any], expected_kanun: list, expected_madde_no: list, k: int = 5,
+) -> dict[str, float]:
+    """Madde-düzeyi recall@k + MRR — 8-yönlü domain proxy'sinden ÇOK daha sıkı (denetim 2026-06-04).
+
+    Headline domain@k/MRR yalnız 'doğru topic'i ölçer: yanlış maddeyi içeren bir chunk bile
+    'isabet' sayılır. Bu metrik 'doğru MADDEYİ getirdik mi'yi ölçer: chunk'ın (kanun_kodu,
+    madde_no) metadata'sı beklenen kanun+madde gold'uyla eşleşmeli. Saf fonksiyon (Qdrant'sız
+    test edilebilir). expected_madde_no boşsa {} döner → vaka madde-düzeyi ortalamadan hariç.
+    """
+    exp = {int(m) for m in (expected_madde_no or []) if str(m).strip().lstrip("-").isdigit()}
+    if not exp:
+        return {}
+    got: set[int] = set()
+    mrr = 0.0
+    for i, r in enumerate(results[:k], 1):
+        md = getattr(r, "metadata", None) or {}
+        if expected_kanun and md.get("kanun_kodu") not in expected_kanun:
+            continue
+        try:
+            mn = int(md.get("madde_no"))
+        except (TypeError, ValueError):
+            continue
+        if mn in exp:
+            got.add(mn)
+            if mrr == 0.0:
+                mrr = 1.0 / i
+    return {
+        f"madde_recall@{k}": round(len(got) / len(exp), 3),
+        "madde_mrr": round(mrr, 3),
+        "n_expected_madde": float(len(exp)),
+    }
+
+
 async def _eval_one(
     case: dict[str, Any],
     use_rerank: bool = False,
@@ -124,6 +158,7 @@ async def _eval_one(
     soru = case["soru"]
     expected_domain = case["expected_domain"]
     expected_kanun = case.get("expected_kanun", [])
+    expected_madde_no = case.get("expected_madde_no", [])
     gt_keywords = case.get("ground_truth_keywords", [])
 
     # Mode resolution — use_rerank için geriye dönük tutarlılık
@@ -177,6 +212,9 @@ async def _eval_one(
     n_relevant = sum(1 for d in top5 if d == expected_domain)
     context_precision_at_5 = n_relevant / 5.0 if top5 else 0.0
 
+    # Madde-düzeyi (en sıkı): 'doğru maddeyi getirdik mi' — domain proxy'sini tamamlar.
+    madde_metrics = madde_level_metrics(results, expected_kanun, expected_madde_no)
+
     return {
         "id": case["id"],
         "soru": soru,
@@ -186,6 +224,7 @@ async def _eval_one(
         "domain@5": domain_at_5,
         "kanun@5": kanun_at_5,
         "mrr": mrr,
+        **madde_metrics,
         "keyword_recall": kw_recall,
         "context_precision@5": context_precision_at_5,
         "elapsed_ms": elapsed_ms,
@@ -212,7 +251,15 @@ def _print_summary(results: list[dict[str, Any]], mode: str) -> None:
     print(f"  Domain Accuracy @1 (top-1 doğru):   {d1*100:5.1f}%")
     print(f"  Domain Accuracy @5 (top-5'te var):  {d5*100:5.1f}%")
     print(f"  Kanun Match @5 (mevzuat döndü):     {k5*100:5.1f}%")
-    print(f"  MRR (Mean Reciprocal Rank):         {mrr:.3f}")
+    print(f"  MRR (domain-düzeyi, proxy):         {mrr:.3f}")
+    # Madde-düzeyi (en sıkı) — yalnız expected_madde_no taşıyan vakalar üzerinden.
+    madde_cases = [r for r in results if r.get("n_expected_madde")]
+    if madde_cases:
+        m = len(madde_cases)
+        mr5 = sum(r.get("madde_recall@5", 0.0) for r in madde_cases) / m
+        mmrr = sum(r.get("madde_mrr", 0.0) for r in madde_cases) / m
+        print(f"  Madde Recall @5 (DOĞRU madde):      {mr5*100:5.1f}%   ({m} vaka)")
+        print(f"  Madde MRR (madde-düzeyi, SIKI):     {mmrr:.3f}")
     print(f"  Keyword Recall (gt kw in top-5):    {kwr*100:5.1f}%")
     print(f"  Avg latency:  {avg_ms:6.0f} ms   |   P95: {p95_ms:6.0f} ms")
     print()
