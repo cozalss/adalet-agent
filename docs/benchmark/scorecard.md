@@ -23,7 +23,7 @@
 
 Tehlikeli yanlış-çıkarımın ("5 yıldan az tazminat verilmez" = uydurma eşik) DOĞRU bilgilendirmeden ("1 yılın altında kıdem doğmaz" = kaynakta var) ayrımı.
 
-- Vaka: **18** adversarial · precision: **1.0** (%95 CI [0.646, 1.000]) · recall: **0.875** (%95 CI [0.529, 0.978]) · F1: **0.9333** · doğruluk: **0.9444**
+- Vaka: **46** adversarial · precision: **1.0** (%95 CI [0.845, 1.000]) · recall: **0.9545** (%95 CI [0.782, 0.992]) · F1: **0.9767** · doğruluk: **0.9783**
 
 > Küçük-N notu: nokta-tahminleri (P=1.0) yanıltabilir; Wilson %95 güven aralıkları örneklem belirsizliğini dürüstçe gösterir. Setler büyüdükçe aralıklar daralır.
 
@@ -32,7 +32,7 @@ Tehlikeli yanlış-çıkarımın ("5 yıldan az tazminat verilmez" = uydurma eş
 | Set | Açıklama | Vaka |
 |---|---|---|
 | `hallucination_gold.jsonl` | Halüsinasyon adversarial gold | 104 |
-| `eligibility_adversarial.jsonl` | Süre-uygunluk FABRİKE-eşik gold | 18 |
+| `eligibility_adversarial.jsonl` | Süre-uygunluk FABRİKE-eşik gold | 46 |
 | `verify_gold.jsonl` | Doğrulama (verify) gold | 59 |
 | `nli_tr_gold.jsonl` | Türkçe NLI gold | 28 |
 | `benchmark_v2.jsonl` | Ana benchmark (v2) | 186 |
