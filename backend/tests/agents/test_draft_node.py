@@ -287,18 +287,36 @@ def test_remove_unsafe_duration_inferences_without_eligibility():
     assert "Satıcıya yazılı başvurun" in out
 
 
-def test_keep_duration_inferences_when_eligibility_supplied():
+def test_keep_eligibility_denial_when_eligibility_supplied():
+    """Saf uygunluk-reddi (deadline markeri YOK) — eligibility node karar verdiyse korunur."""
     import agents.nodes.draft as draft_mod
 
-    text = "Belirtilen süre geçtiği için bu şartı karşılamadınız. [src: m-X]"
+    text = "Çalışma süreniz yetersiz olduğundan bu şartı karşılamadınız. [src: m-X]"
 
     out = draft_mod._remove_unsafe_duration_inferences(
         text,
-        {"sure": "10 gün"},
+        {"sure": "6 ay"},
         [{"saglaniyor": "hayir", "madde": "m-X"}],
     )
 
     assert out == text
+
+
+def test_remove_deadline_fabrication_even_with_eligibility():
+    """KIRMIZI ÇİZGİ (denetim 2026-06-04): deadline-uydurma (kullanıcı süresini kanuni
+    deadline'a çevirme) eligibility VARKEN BİLE silinir — deadline ≠ uygunluk-asgarisi,
+    eligibility node bunu adjudike etmez. Eski 'eligibility varsa atla' deliği kapandı."""
+    import agents.nodes.draft as draft_mod
+
+    text = "Belirtilen 10 günlük süre geçtiği için itiraz hakkınız kalmadı. [src: m-X]"
+
+    out = draft_mod._remove_unsafe_duration_inferences(
+        text,
+        {"sure": "10 gün"},
+        [{"saglaniyor": "evet", "madde": "m-X"}],
+    )
+
+    assert "geçtiği için" not in out
 
 
 @pytest.mark.asyncio

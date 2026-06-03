@@ -19,11 +19,39 @@ import structlog
 
 from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
+from agents.risk_guard import verify_risk_veto
 from agents.smalltalk import smalltalk_reply
 from agents.state import AgentState
 from core.observability import observe_node
 
 log = structlog.get_logger()
+
+# Düşük-güven hukuki soru (triaj domain=unknown) verify/veto hattını atlayıp chat'e
+# düşebilir. Serbest-form Qwen bir SPESİFİK hukuki iddiaya girerse (uydurma kanun adı,
+# imkânsız mahkeme dairesi, süre-eşik gerekçeli hak-reddi) bu deterministik yönlendirme
+# devreye girer → uydurma madde/eşik final cevaba/persist'e ULAŞMAZ. Genel sohbet ve
+# kavram-açıklamaları bu kalıpları taşımaz → vetolanmaz, akıcılık korunur.
+_LEGAL_REDIRECT = (
+    "Bu soruya kesin ve güvenilir bir hukuki cevap verebilmem için durumunuzu biraz "
+    "daha açmanız gerekiyor — ne olduğunu, tarafları ve varsa süre/tutar bilgisini "
+    "birkaç cümleyle yazarsanız, gerçek mevzuat ve Yargıtay kararlarıyla DOĞRULANMIŞ "
+    "bir yanıt hazırlarım. Çalıştığım alanlar: tüketici, iş, kira, icra, trafik, vergi, "
+    "tapu ve idari hukuk."
+)
+
+
+def _safe_or_redirect(text: str) -> str:
+    """Chat çıktısı deterministik içerik-risk veto'sunu tetiklerse (uydurma kanun/daire/
+    süre-eşik hak-reddi) güvenli yönlendirme döndür; aksi halde metni aynen geçir.
+
+    Saf fonksiyon (LLM'siz, test edilebilir). source_texts VERİLMEZ → muhafazakâr:
+    chat yolunda kaynak getirilmediğinden her doğrulanmamış hukuki iddia riskli sayılır
+    (fail-closed; kırmızı çizgi serbest-form yola da uygulanır)."""
+    blocked, reasons = verify_risk_veto(text)
+    if blocked:
+        log.info("chat_risky_redirect", n_reasons=len(reasons))
+        return _LEGAL_REDIRECT
+    return text
 
 _CHAT_SYSTEM = (
     "Sen ADALET'sin — Türkçe, samimi ve yardımcı bir yapay zeka asistanısın. "
@@ -118,6 +146,7 @@ async def chat_node(state: AgentState) -> dict[str, object]:
     if not text:
         text = smalltalk_reply("greeting")
 
+    text = _safe_or_redirect(text)  # kırmızı-çizgi backstop (uydurma hukuki iddia → yönlendir)
     log.info("chat_done", n_chars=len(text))
     return {
         "response": text,

@@ -106,6 +106,33 @@ def _norm_thresholds(text: str) -> set[tuple[str, str]]:
     return out
 
 
+# Bir süre-eşiğinin "kaynakta-temelli DOĞRU" sayılması için, eşiğin GEÇTİĞİ snippet bir
+# UYGUNLUK-ASGARİSİ bağlamı taşımalı. Aksi halde getirilen ilgisiz bir snippet'teki süre
+# ('alacak zamanaşımı 5 yıl', '5 yıl hapis') uydurma bir hak-reddi eşiğini ('5 yıl altında
+# hak kazanamazsınız') AKLAYIP veto'dan kaçırır (çapraz-kontaminasyon). Bu nedenle eşik
+# küresel havuzdan DEĞİL, yalnız asgari-gereklilik bağlamı taşıyan snippet'lerden alınır.
+_REQUIREMENT_MARKERS = (
+    "en az", "asgari", "minimum", "şart", "gerek", "dolduran", "doldur",
+    "dolması", "tamamla", "hak kazan", "aranır", "şartı", "koşul",
+)
+
+
+def _grounded_thresholds(source_texts: list[str]) -> set[tuple[str, str]]:
+    """Yalnız UYGUNLUK-ASGARİSİ bağlamı taşıyan snippet'lerdeki süre-eşikleri döndür.
+
+    Eşik, geçtiği snippet'in asgari-gereklilik bağlamından gelir (küresel havuzdan değil)
+    → ilgisiz bir snippet'teki süre uydurma bir eşiği aklayamaz (kırmızı-çizgi güvenliği).
+    Hiçbir snippet gereklilik bağlamı taşımıyorsa boş döner → fail-closed (eşik uydurma
+    sayılır, veto edilir) — CLAUDE.md §1 doğrulanamazsa reddedilir ilkesiyle uyumlu.
+    """
+    grounded: set[tuple[str, str]] = set()
+    for snip in source_texts:
+        low = snip.lower()
+        if any(m in low for m in _REQUIREMENT_MARKERS):
+            grounded |= _norm_thresholds(low)
+    return grounded
+
+
 def fabricated_eligibility_threshold(text: str, source_texts: list[str]) -> list[str]:
     """Hak-reddi cümlesindeki SAYISAL eşik getirilen kaynaklarda YOK ise FABRİKE döner.
 
@@ -118,7 +145,7 @@ def fabricated_eligibility_threshold(text: str, source_texts: list[str]) -> list
     """
     if not source_texts:
         return []
-    source_thresholds = _norm_thresholds(" ".join(source_texts).lower())
+    source_thresholds = _grounded_thresholds(source_texts)  # bağlam-kapsamlı (havuz değil)
     flags: list[str] = []
     for sent in _SENT_SPLIT_RE.split(text):
         if not _NEGATIVE_ELIGIBILITY_RE.search(sent):
@@ -150,7 +177,7 @@ def _grounded_true_eligibility(text: str, source_texts: list[str]) -> set[str]:
     Eşiksiz ('süreniz yetersiz') veya FABRİKE (kaynakta-olmayan eşikli) cümleler kümede
     DEĞİL → vetolanır. Yalnız kaynakta-temellendirilmiş DOĞRU bilgilendirmeyi serbest bırakır.
     """
-    src_th = _norm_thresholds(" ".join(source_texts).lower())
+    src_th = _grounded_thresholds(source_texts)  # bağlam-kapsamlı (ilgisiz snippet aklayamaz)
     out: set[str] = set()
     for sent in _SENT_SPLIT_RE.split(text):
         if not _NEGATIVE_ELIGIBILITY_RE.search(sent):

@@ -73,6 +73,29 @@ def test_verify_veto_no_sources_baseline_blocks():
     blocked, _ = verify_risk_veto("Bir yılın altında hak kazanamazsınız.")
     assert blocked
 
+
+def test_grounded_scoping_ignores_unrelated_snippet_threshold():
+    """ÇAPRAZ-KONTAMİNASYON (denetim 2026-06-04): ilgisiz bir snippet'teki süre
+    ('zamanaşımı 5 yıl') uydurma bir hak-reddi eşiğini ('5 yıl altında') AKLAYAMAZ.
+    Grounding küresel havuz değil, asgari-gereklilik bağlamı taşıyan snippet'lerden gelir."""
+    sources = [
+        "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.",
+        "Alacak için zamanaşımı süresi 5 yıldır.",  # ilgisiz — gereklilik bağlamı YOK
+    ]
+    answer = "5 yıldan az çalıştıysanız kıdem tazminatına hak kazanamazsınız."
+    assert fabricated_eligibility_threshold(answer, sources), "5 yıl FABRİKE kalmalı"
+    blocked, _ = verify_risk_veto(answer, source_texts=sources)
+    assert blocked, "ilgisiz snippet veto'dan kaçırmamalı (kırmızı çizgi)"
+
+
+def test_grounded_true_still_exempt_with_requirement_snippet():
+    """Regresyon: gereklilik bağlamlı snippet kaynaktaki DOĞRU eşiği aklamaya devam eder."""
+    sources = ["Kıdem için işçinin en az 1 yıl çalışmış olması gerekir."]
+    answer = "Bir yılın altında çalıştıysanız kıdem tazminatına hak kazanamazsınız."
+    assert fabricated_eligibility_threshold(answer, sources) == []  # DOĞRU bilgilendirme
+    blocked, _ = verify_risk_veto(answer, source_texts=sources)
+    assert not blocked
+
 # Gerçek Qwen 14B çıktısı (2026-05-30) — üç ölümcül hata içeriyor.
 REAL_HALLUCINATED_ANSWER = (
     "Kısa cevap: İşten çıkarıldığınızda kıdem tazminatınızın miktarı çalışma "

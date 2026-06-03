@@ -338,15 +338,22 @@ _LEGAL_CLAIM_MARKERS = (
     "hak", "iade", "yüküml", "gerek", "edebilir", "etmeli", "zorunda",
     "tazminat", "fesih", "başvur", "talep", "ispat",
 )
-_UNSAFE_DURATION_MARKERS = (
+# Hak düşürücü / zamanaşımı süresi UYDURMA — kullanıcının verdiği süreyi kaynakta olmayan
+# bir kanuni deadline'a çevirir. Bu çıkarım eligibility-asgarisinden (kıdem 1 yıl gibi)
+# BAĞIMSIZDIR; eligibility node bunu adjudike etmez → eligibility VARKEN BİLE silinir.
+_UNSAFE_DEADLINE_MARKERS = (
     "süre geçti",
     "süreniz kalmam",
-    "şartı karşılamadınız",
-    "hakkınız olmayabilir",
     "geçtiği için",
     "kanuni süre değildir",
     "süre geçerli değildir",
     "süresi geçerli değildir",
+)
+# Uygunluk (eligibility) reddi — eligibility node yapılandırılmış KARAR verdiyse onun
+# doğruluğuna bırakılır; yalnız eligibility YOKken küçük-model uydurmasına karşı silinir.
+_UNSAFE_ELIGIBILITY_MARKERS = (
+    "şartı karşılamadınız",
+    "hakkınız olmayabilir",
 )
 
 
@@ -404,16 +411,22 @@ def _remove_unsafe_duration_inferences(
 ) -> str:
     """Kullanıcının verdiği süreyi hak düşürücü süreye çeviren cümleleri sil.
 
-    Eligibility node açık ve yapılandırılmış karar verdiyse bu filtreden geçmeyiz.
-    Eligibility yokken küçük model, "10 gün önce aldım" bilgisini kaynakta olmayan
-    kanuni deadline gibi yorumlayabiliyor; bu cümleler güvenli tarafta atılır.
+    İKİ KATMAN (defense-in-depth, denetim 2026-06-04 bulgusu): deadline-uydurma
+    markerları (süre geçti / geçtiği için ...) eligibility'den BAĞIMSIZ tehlikeli
+    olduğundan eligibility VARKEN BİLE silinir — eski 'eligibility varsa filtreyi
+    tümüyle atla' davranışı bu en-tehlikeli yanlış-çıkarımı draft'ta hiç temizlemiyordu.
+    Uygunluk-reddi markerları (şartı karşılamadınız ...) ise eligibility node karar
+    verdiyse korunur (onun yapılandırılmış doğruluğuna güvenilir); yalnız eligibility
+    YOKken küçük-model uydurmasına karşı silinir.
     """
-    if not facts.get("sure") or eligibility:
+    if not facts.get("sure"):
         return text
+    markers = _UNSAFE_DEADLINE_MARKERS if eligibility else (
+        _UNSAFE_DEADLINE_MARKERS + _UNSAFE_ELIGIBILITY_MARKERS)
     out = text
     for sent in _split_claim_candidates(text):
         low = sent.lower()
-        if any(marker in low for marker in _UNSAFE_DURATION_MARKERS):
+        if any(marker in low for marker in markers):
             out = out.replace(sent, "", 1)
     out = re.sub(r"\n{3,}", "\n\n", out)
     out = re.sub(r"[ \t]{2,}", " ", out)
