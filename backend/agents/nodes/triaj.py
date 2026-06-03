@@ -371,19 +371,19 @@ async def triaj_node(state: AgentState) -> dict:
 
     # Sohbet kısa-yolu: selamlaşma/teşekkür/"ne yaparsın" → LLM'siz anında dostça
     # yanıt. Hukuki iddia yok (SIFIR HALÜSİNASYON güvenli); finalize bu metni basar.
-    # Yalnız ilk turda (geçmiş yoksa): konuşma ortasındaki "teşekkürler" yeni soru
-    # akışını kesmesin diye chat_history varsa atla.
-    if not (state.get("chat_history") or []):
-        category = detect_smalltalk(question)
-        if category is not None:
-            log.info("triaj_smalltalk", category=category, question=question[:60])
-            return {
-                "domain": "unknown",
-                "domain_confidence": 0.0,
-                "triage_reasoning": f"Sohbet girdisi ({category}) — hukuki akış atlandı.",
-                "response_intent": "smalltalk",
-                "smalltalk_response": smalltalk_reply(category),
-            }
+    # GEÇMİŞTEN BAĞIMSIZ çalışır: "merhaba"/"teşekkürler" konuşma ortasında da anında
+    # dostça yanıt almalı. detect_smalltalk zaten KISA + hukuki-ipuçsuz girdiyle sınırlı
+    # → güvenli (clarifier yanıtları olgu/rakam içerir, smalltalk kalıbına UYMAZ).
+    category = detect_smalltalk(question)
+    if category is not None:
+        log.info("triaj_smalltalk", category=category, question=question[:60])
+        return {
+            "domain": "unknown",
+            "domain_confidence": 0.0,
+            "triage_reasoning": f"Sohbet girdisi ({category}) — hukuki akış atlandı.",
+            "response_intent": "smalltalk",
+            "smalltalk_response": smalltalk_reply(category),
+        }
 
     if _is_out_of_scope(question):
         log.info("triaj_out_of_scope", question=question[:60])

@@ -84,15 +84,17 @@ async def test_triaj_smalltalk_skips_llm() -> None:
 
 
 @pytest.mark.asyncio
-async def test_triaj_smalltalk_skipped_when_history_exists() -> None:
-    """Konuşma ortasındaki 'teşekkürler' yeni soru akışını kesmemeli (geçmiş varsa
-    smalltalk kısa-yolu atlanır → normal triaj). Mock LLM ile domain çözülür."""
+async def test_triaj_smalltalk_detected_with_history() -> None:
+    """Konuşma ortasındaki 'teşekkürler' DE anında dostça yanıt almalı: smalltalk
+    tespiti GEÇMİŞTEN BAĞIMSIZ çalışır (selam/teşekkür her zaman selamdır). detect_smalltalk
+    kısa + hukuki-ipuçsuz girdiyle sınırlı olduğundan clarifier yanıtları (olgu/rakam) bu
+    yola DÜŞMEZ → 'merhaba' soğuk RejectCard yerine sıcak yanıt alır (asıl bug fix)."""
     out = await triaj_node({
         "question": "teşekkürler",
         "chat_history": [{"role": "user", "content": "kira sorusu", "domain": "kira"}],
     })
-    # smalltalk atlandı (geçmiş var) → normal triaj çalıştı, smalltalk_response YOK.
-    assert "smalltalk_response" not in out
+    assert out["response_intent"] == "smalltalk"
+    assert out.get("smalltalk_response")
 
 
 # --- Finalize entegrasyonu: dostça yanıt, disclaimer YOK ---

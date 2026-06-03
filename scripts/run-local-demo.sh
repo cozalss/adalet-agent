@@ -51,6 +51,9 @@ cd "$ROOT/backend"
 set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection, model yolu, ...)
 # --- demo override'ları (.env üstüne; Plan A: Qwen GPU / gerisi CPU-kapalı) ---
 export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=512 LLM_SPECULATIVE=0
+# HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
+# ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
+export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=512
 export SPARSE_EMBEDDER_MODEL=
 export RAPTOR_ENABLED=0 GRAPH_RAG_ENABLED=0 COLBERT_QUERY_ENABLED=0
 export EMBEDDING_DEVICE=cpu EMBEDDING_FP16=0 RERANKER_DEVICE=cpu RERANKER_FP16=0

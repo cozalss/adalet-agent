@@ -74,16 +74,35 @@ export function RejectCard({ data, onRetry }) {
 }
 
 export function ClarifyCard({ data, onPick }) {
+  // Yumuşak (soft): glass-ağırlık yerine sıcak zemin; numara yerine ok-ipucu → "diktat"
+  // değil sohbet tonu. Selam ASLA buraya/RejectCard'a düşmez (useChat smalltalk dalı önce).
   return (
-    <div className="card clarify">
+    <div className="card clarify soft" aria-live="polite">
       <p className="cl-q">{data.intro}</p>
       <div className="cl-opts">
         {data.options.map((o, i) => (
           <button className="cl-opt" key={i} onClick={() => onPick(o)}>
-            <span className="num">{i + 1}</span>{o}
+            <span className="cl-arrow" aria-hidden="true">→</span>{o}
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Hafif sohbet baloncuğu — KART DEĞİL (gölge/border yok). Selam/yönlendirme yanıtı;
+ *  ChatGPT-benzeri sol-hizalı düz metin. Hukuki iddia/kaynak yok → güvenli. */
+export function SmallTalkBubble({ text }) {
+  const paras = (text || "").split(/\n{2,}/).filter((p) => p.trim());
+  return (
+    <div className="smalltalk-bubble" aria-live="polite">
+      {paras.map((para, i) => (
+        <p key={i}>
+          {para.split("\n").map((line, j) => (
+            <React.Fragment key={j}>{j > 0 && <br />}{line}</React.Fragment>
+          ))}
+        </p>
+      ))}
     </div>
   );
 }

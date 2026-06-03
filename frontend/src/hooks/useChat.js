@@ -9,9 +9,9 @@
    geç gelen event'i yeni turn'ü bozamaz. */
 import { useCallback, useRef, useState } from "react";
 import { askStream } from "../lib/api.js";
-import { mapResponse, mapClarify } from "../lib/parseAnswer.js";
+import { mapResponse, mapClarify, looksSmalltalk, mapSmalltalk } from "../lib/parseAnswer.js";
 
-const TERMINAL = ["final", "reject", "clarify"];
+const TERMINAL = ["final", "reject", "clarify", "smalltalk"];
 
 export function useChat() {
   const [turns, setTurns] = useState([]);
@@ -56,12 +56,21 @@ export function useChat() {
     };
 
     let sawClarify = false;
+    let sawSmalltalk = false;
     try {
       await askStream(payload, {
-        onTriage: (d) => _patchData(key, {
-          domain: _domainLabel(d.domain),
-          domainConfidence: typeof d.confidence === "number" ? d.confidence : null,
-        }),
+        onTriage: (d) => {
+          // Hafif yollar (selam/yönlendirme/kapsam-dışı): erken işaretle → token akmaz,
+          // ağır stepper yerine hafif "yazıyor", final'da soğuk RejectCard değil baloncuk.
+          if (["smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent)) {
+            sawSmalltalk = true;
+          }
+          _patchData(key, {
+            domain: _domainLabel(d.domain),
+            domainConfidence: typeof d.confidence === "number" ? d.confidence : null,
+            intent: d.intent || null,
+          });
+        },
         // Ara 'clarify' event'i yalnız SOFT-sinyal — terminal kararı onFinal'da
         // verilir. (Aksi halde phase erken 'clarify'=TERMINAL olur, busy düşer,
         // geç gelen final yanlış turn'e yazılır — race.)
@@ -75,21 +84,27 @@ export function useChat() {
         // DOĞRULANMAMIŞ taslak — UI "yazıyor/doğrulanıyor" rozetiyle gösterir; final
         // gelince mapResponse data'yı doğrulanmış cevapla DEĞİŞTİRİR (draftText düşer).
         onDraftToken: (d) => {
-          if (sawClarify) return;
+          if (sawClarify || sawSmalltalk) return;
           setTurns((ts) => ts.map((x) =>
             x.key === key
               ? { ...x, phase: "drafting",
                   data: { ...x.data, draftText: (x.data.draftText || "") + (d.t || "") } }
               : x));
         },
-        onDrafting: () => { if (!sawClarify) _patch(key, { phase: "drafting" }); },
-        onVerifying: () => { if (!sawClarify) _patch(key, { phase: "verifying" }); },
+        onDrafting: () => { if (!sawClarify && !sawSmalltalk) _patch(key, { phase: "drafting" }); },
+        onVerifying: () => { if (!sawClarify && !sawSmalltalk) _patch(key, { phase: "verifying" }); },
         onTiming: () => {}, // timing latency event — gelecekte metrikler için; şimdi no-op
         onFinal: (resp) => {
           if (ac.signal.aborted) return; // stop sonrası gecikmeli final → state'i ezme
           if (resp.conversation_id) {
             convRef.current = resp.conversation_id;
             setConversationId(resp.conversation_id);
+          }
+          // Smalltalk/yönlendirme → hafif baloncuk (soğuk RejectCard DEĞİL). clarify'dan
+          // ÖNCE: SSE intent geldiyse final ne derse desin (reject olsa bile) baloncuk basar.
+          if (sawSmalltalk || looksSmalltalk(resp)) {
+            _patch(key, { phase: "smalltalk", data: mapSmalltalk(resp) });
+            return;
           }
           if (sawClarify || ((resp.errors || []).length === 0 && _looksClarify(resp))) {
             _patch(key, {

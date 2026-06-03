@@ -435,7 +435,9 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                     # smalltalk/redirect/clarify yolları da (domain=unknown olsa bile)
                     # frontend'e erken sinyal verir — yol türünü ayırt edebilir.
                     intent = state.get("response_intent")
-                    if not _sent_triage and intent:
+                    # Triaj ÇALIŞTIKTAN SONRA gerçek niyeti yay (initial default
+                    # "legal_answer"ı değil): triage_reasoning'i triaj set eder, initial'da boş.
+                    if not _sent_triage and intent and state.get("triage_reasoning"):
                         _sent_triage = True
                         triage_evt = {
                             "intent": intent,
@@ -626,6 +628,7 @@ def _state_to_response(
         domain_confidence=float(state.get("domain_confidence", 0.0)),
         confidence=float(state.get("confidence", 0.0)),
         verdict=state.get("debate_verdict", "pass"),
+        response_intent=state.get("response_intent"),
         citations=citations,
         claims=claims,
         disclaimers=state.get("disclaimers", []),

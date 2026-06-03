@@ -206,6 +206,24 @@ export function mapClarify(answerText) {
   };
 }
 
+/** Smalltalk/redirect = hafif sohbet yanıtı mı? (soğuk RejectCard değil, baloncuk).
+ *  Önce backend'in kesin sinyali response_intent; yoksa (eski/geçmiş yanıt) heuristik. */
+export function looksSmalltalk(resp) {
+  const i = resp.response_intent;
+  if (i) return i === "smalltalk" || i === "redirect" || i === "out_of_scope_sensitive";
+  return resp.verdict === "pass"
+    && (resp.confidence || 0) >= 0.99
+    && (resp.citations || []).length === 0
+    && (resp.disclaimers || []).length === 0
+    && resp.domain === "unknown";
+}
+
+/** Smalltalk/redirect yanıtını hafif baloncuk şekline indir (kaynak/disclaimer kuyruğu silinir). */
+export function mapSmalltalk(resp) {
+  const text = (resp.answer || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
+  return { kind: "smalltalk", domain: "", smalltalk: { text } };
+}
+
 const DOMAIN_LABELS = {
   tuketici: "Tüketici Hukuku",
   isHukuku: "İş Hukuku",

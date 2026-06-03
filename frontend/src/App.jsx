@@ -5,8 +5,8 @@ import { Icon, SB_NAV, CIVIL_DOMAINS } from "./components/icons.jsx";
 import {
   StreamStepper, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
-import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
-import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats, LiveDraft } from "./components/panels.jsx";
+import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./components/cards.jsx";
+import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats, LiveDraft, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
@@ -566,17 +566,30 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
   const d = turn.data;
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
+  // Hafif yol (selam/yönlendirme/kapsam-dışı): token akmaz → ağır stepper yerine hafif gösterge.
+  const softPath = ["smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent);
   return (
     <React.Fragment>
       <UserBubble text={turn.question} onEdit={onEdit} />
       <div className="assistant-row">
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">
-          {streaming && <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />}
-          {["drafting", "verifying"].includes(p) && (
+          {/* İlk an (triage) + hafif yol → ChatGPT-feel hafif "yazıyor/düşünüyor". */}
+          {streaming && (softPath || p === "triage") && (
+            <QuickTyping label={softPath ? "Yazıyor" : "Düşünüyor"} />
+          )}
+          {/* sources/verifying → 7-ajan şeffaflık stepper'ı (ADALET'in farkı) korunur. */}
+          {streaming && !softPath && p !== "triage" && (
+            <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />
+          )}
+          {["drafting", "verifying"].includes(p) && !softPath && (
             d.draftText
               ? <LiveDraft text={d.draftText} verifying={p === "verifying"} />
               : <ThinkingSkeleton />
+          )}
+
+          {p === "smalltalk" && d.smalltalk && (
+            <SmallTalkBubble text={d.smalltalk.text} />
           )}
 
           {d.kind === "clarify" && p === "clarify" && (

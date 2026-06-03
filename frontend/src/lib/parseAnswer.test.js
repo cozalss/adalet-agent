@@ -1,6 +1,25 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, deriveRisk } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk } from "./parseAnswer.js";
+
+describe("looksSmalltalk — selam/yönlendirme ayrımı", () => {
+  it("response_intent ile kesin ayırır", () => {
+    expect(looksSmalltalk({ response_intent: "smalltalk" })).toBe(true);
+    expect(looksSmalltalk({ response_intent: "redirect" })).toBe(true);
+    expect(looksSmalltalk({ response_intent: "out_of_scope_sensitive" })).toBe(true);
+    expect(looksSmalltalk({ response_intent: "legal_answer" })).toBe(false);
+    expect(looksSmalltalk({ response_intent: "needs_clarification" })).toBe(false);
+  });
+  it("response_intent yoksa (eski yanıt) heuristik imza", () => {
+    expect(looksSmalltalk({ verdict: "pass", confidence: 1, citations: [], disclaimers: [], domain: "unknown" })).toBe(true);
+    expect(looksSmalltalk({ verdict: "pass", confidence: 0.7, citations: [{}], disclaimers: ["x"], domain: "kira" })).toBe(false);
+  });
+  it("mapSmalltalk: kaynak/disclaimer kuyruğunu siler", () => {
+    const r = mapSmalltalk({ answer: "Merhaba!\n\n---\n**Kaynaklar:**\n- x\n\n⚠️ disclaimer" });
+    expect(r.kind).toBe("smalltalk");
+    expect(r.smalltalk.text).toBe("Merhaba!");
+  });
+});
 
 describe("mapResponse — answer", () => {
   const resp = {

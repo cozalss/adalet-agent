@@ -171,6 +171,14 @@ class AskResponse(BaseModel):
     domain_confidence: float = Field(..., ge=0.0, le=1.0)
     confidence: float = Field(..., ge=0.0, le=1.0, description="Genel güven skoru")
     verdict: Verdict
+    response_intent: str | None = Field(
+        None,
+        description=(
+            "Yanıt türü: legal_answer / smalltalk / redirect / out_of_scope_sensitive / "
+            "needs_clarification. Frontend ton seçer (smalltalk/redirect → hafif baloncuk, "
+            "soğuk RejectCard değil)."
+        ),
+    )
     citations: list[CitationSchema] = Field(default_factory=list)
     claims: list[ClaimSchema] = Field(default_factory=list)
     disclaimers: list[str] = Field(default_factory=list)

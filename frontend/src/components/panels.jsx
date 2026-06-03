@@ -220,6 +220,19 @@ export function LiveDraft({ text, verifying }) {
   );
 }
 
+/* ---------- Anında "düşünüyor/yazıyor" (ChatGPT-feel hafif gösterge) ----------
+   Token gelmeden önceki kısa boşluğu doldurur; ağır 4-adım stepper yerine ilk anlarda. */
+export function QuickTyping({ label = "Düşünüyor" }) {
+  return (
+    <div className="quick-typing" role="status" aria-live="polite">
+      <span className="qt-dots" aria-hidden="true">
+        <span className="qt-dot"></span><span className="qt-dot"></span><span className="qt-dot"></span>
+      </span>
+      <span className="qt-label">{label}…</span>
+    </div>
+  );
+}
+
 /* ---------- Düşünme/draft iskeleti (shimmer) ---------- */
 export function ThinkingSkeleton() {
   return (

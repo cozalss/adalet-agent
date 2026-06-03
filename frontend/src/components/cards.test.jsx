@@ -2,9 +2,19 @@
 import React from "react";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./cards.jsx";
+import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./cards.jsx";
 
 const html = (n) => renderToStaticMarkup(n);
+
+describe("SmallTalkBubble", () => {
+  it("hafif baloncuk: metin render, KART değil (gölge/border yok)", () => {
+    const out = html(<SmallTalkBubble text={"Merhaba! Ben ADALET.\n\nYardımcı olabilirim."} />);
+    expect(out).toContain("Merhaba! Ben ADALET.");
+    expect(out).toContain("Yardımcı olabilirim.");
+    expect(out).toContain("smalltalk-bubble");
+    expect(out).not.toContain('class="card'); // kart değil → soğuk RejectCard hissi yok
+  });
+});
 
 describe("AnswerCard", () => {
   it("bölümleri (label + içerik) render eder", () => {
@@ -39,12 +49,14 @@ describe("RejectCard", () => {
 });
 
 describe("ClarifyCard", () => {
-  it("intro + numaralı seçenekler", () => {
+  it("yumuşak: intro + ok-ipuçlu seçenekler (numara değil)", () => {
     const out = html(<ClarifyCard data={{ intro: "Netleştirelim", options: ["Kira ne kadar", "Sözleşme var mı"] }} />);
     expect(out).toContain("Netleştirelim");
     expect(out).toContain("Kira ne kadar");
     expect(out).toContain("Sözleşme var mı");
-    expect(out).toContain(">1<"); // seçenek numarası
+    expect(out).toContain("clarify soft"); // glass-ağırlık yerine yumuşak ton
+    expect(out).toContain("cl-arrow"); // numara değil ok-ipucu
+    expect(out).not.toContain('class="num"'); // eski diktat numarası KALDIRILDI
   });
 });
 

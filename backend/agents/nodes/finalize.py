@@ -238,6 +238,10 @@ def _reject_response(state: AgentState, reason: str | None = None) -> dict:
 
     # Yanıt tonu: neyin neden olmadığını kısaca, insanca açıkla; kullanıcıyı yönlendir.
     if domain == "unknown":
+        # Kapsam-dışı/belirsiz = dostça YÖNLENDİRME, gerçek "verify-reddi" DEĞİL.
+        # response_intent="redirect" → frontend soğuk RejectCard yerine yumuşak
+        # baloncuk gösterir. verdict "reject" kalır (hukuki cevap üretilmedi) ama
+        # frontend response_intent'e bakıp tonu yumuşatır.
         body = state.get("composed_response") or redirect_to_scope_fallback()
         return {
             "response": body,
@@ -245,6 +249,7 @@ def _reject_response(state: AgentState, reason: str | None = None) -> dict:
             "disclaimers": [],
             "prediction": None,
             "debate_verdict": "reject",
+            "response_intent": "redirect",
         }
     if verdict == "retry":
         # retry-limit doldu, debate "reject"e çevirdi

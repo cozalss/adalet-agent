@@ -2,9 +2,18 @@
 import React from "react";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PredictionCard, AgentTrace, EvidenceStats } from "./panels.jsx";
+import { PredictionCard, AgentTrace, EvidenceStats, QuickTyping } from "./panels.jsx";
 
 const html = (n) => renderToStaticMarkup(n);
+
+describe("QuickTyping", () => {
+  it("role=status + 3 nokta + etiket", () => {
+    const out = html(<QuickTyping label="Yazıyor" />);
+    expect(out).toContain('role="status"');
+    expect(out).toContain("Yazıyor");
+    expect((out.match(/qt-dot"/g) || []).length).toBe(3); // 3 nokta (kapsayıcı qt-dots hariç)
+  });
+});
 
 describe("PredictionCard", () => {
   it("null tahmin → hiçbir şey render etmez", () => {
