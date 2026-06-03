@@ -210,7 +210,7 @@ export function mapClarify(answerText) {
  *  Önce backend'in kesin sinyali response_intent; yoksa (eski/geçmiş yanıt) heuristik. */
 export function looksSmalltalk(resp) {
   const i = resp.response_intent;
-  if (i) return i === "smalltalk" || i === "redirect" || i === "out_of_scope_sensitive";
+  if (i) return i === "chat" || i === "smalltalk" || i === "redirect" || i === "out_of_scope_sensitive";
   return resp.verdict === "pass"
     && (resp.confidence || 0) >= 0.99
     && (resp.citations || []).length === 0

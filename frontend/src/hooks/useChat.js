@@ -84,7 +84,10 @@ export function useChat() {
         // DOĞRULANMAMIŞ taslak — UI "yazıyor/doğrulanıyor" rozetiyle gösterir; final
         // gelince mapResponse data'yı doğrulanmış cevapla DEĞİŞTİRİR (draftText düşer).
         onDraftToken: (d) => {
-          if (sawClarify || sawSmalltalk) return;
+          // clarifier LLM'siz (token yok) → orada kapat. AMA chat node (selam/genel)
+          // ARTIK streaming → tokenları göster (ChatGPT-gibi canlı yazım). sawSmalltalk'ta
+          // bile akıt: hukuki-olmayan chat yanıtı canlı baloncukta yazılsın.
+          if (sawClarify) return;
           setTurns((ts) => ts.map((x) =>
             x.key === key
               ? { ...x, phase: "drafting",

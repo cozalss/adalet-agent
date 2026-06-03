@@ -31,6 +31,19 @@ async def finalize_node(state: AgentState) -> dict:
     domain = state.get("domain", "unknown")
     verdict = state.get("debate_verdict", "pass")
 
+    # Genel sohbet (chat node Qwen ile doğal cevap ürettiyse): doğrudan bas.
+    # Hukuki iddia yok → hukuki disclaimer yok, reddetme yok. ChatGPT-akıcılığı.
+    # Sinyal response_intent="chat" (chat_response şema-dışıydı → düşüyordu); response
+    # ve response_intent şemada → güvenle merge olur.
+    if state.get("response_intent") == "chat":
+        log.info("finalize_chat")
+        return {
+            "response": state.get("response") or "",
+            "confidence": 1.0,
+            "disclaimers": [],
+            "prediction": None,
+        }
+
     # Sohbet kısa-yolu (triaj set etti): hazır dostça yanıtı doğrudan bas.
     # Hukuki içerik yok → soğuk ret yerine sıcak karşılama, hukuki disclaimer yok.
     smalltalk = state.get("smalltalk_response")

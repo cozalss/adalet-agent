@@ -17,18 +17,21 @@ from agents.policy import (
 
 # --- decide_path: intent passthrough ---
 
-def test_smalltalk_intent_returns_smalltalk():
-    assert decide_path({"response_intent": "smalltalk", "domain": "unknown"}) == "smalltalk"
+def test_smalltalk_intent_returns_chat():
+    # Hukuki-olmayan → genel sohbet (chat node, Qwen doğal cevap), eski "smalltalk" değil.
+    assert decide_path({"response_intent": "smalltalk", "domain": "unknown"}) == "chat"
 
 
-def test_out_of_scope_sensitive_returns_reject_sensitive():
+def test_out_of_scope_sensitive_returns_chat():
+    # Ceza/aile kapsam-dışı → chat node (system-prompt detaylı tavsiye vermez, avukat önerir).
     state = {"response_intent": "out_of_scope_sensitive", "domain": "unknown"}
-    assert decide_path(state) == "reject_sensitive"
+    assert decide_path(state) == "chat"
 
 
-def test_unknown_domain_returns_redirect():
-    state = {"response_intent": "redirect_to_scope", "domain": "unknown"}
-    assert decide_path(state) == "redirect"
+def test_unknown_domain_returns_chat():
+    # Belirsiz/genel soru → chat node (doğal cevap), eski soğuk "redirect" değil.
+    state = {"response_intent": "legal_answer", "domain": "unknown", "question": "fransa başkenti ne"}
+    assert decide_path(state) == "chat"
 
 
 # --- decide_path: clarify vs answer ---

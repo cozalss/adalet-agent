@@ -15,7 +15,7 @@ from typing import Literal
 
 from agents.state import AgentState
 
-PolicyDecision = Literal["answer", "clarify", "redirect", "reject_sensitive", "smalltalk"]
+PolicyDecision = Literal["answer", "clarify", "chat", "redirect", "reject_sensitive", "smalltalk"]
 
 # En fazla kaç tur netleştirme istenebilir. 1 → en çok bir clarify turu, sonra
 # elde olanla best-effort cevapla (sonsuz soru-sorma döngüsünü kapatır).
@@ -97,14 +97,15 @@ def decide_path(state: AgentState) -> PolicyDecision:
       7. aksi (olgu-eksik durumsal şikâyet) → clarify
     """
     intent = state.get("response_intent", "legal_answer")
-    if intent == "smalltalk":
-        return "smalltalk"
-    if intent == "out_of_scope_sensitive":
-        return "reject_sensitive"
+    # Hukuki-OLMAYAN her şey (selam, kapsam-dışı ceza/aile, belirsiz/genel soru) →
+    # genel sohbet: chat node, Qwen'in gerçek-beyni ile doğal akan cevap (ChatGPT gibi).
+    # Net hukuki domain (8 sivil alan) DOĞRULAMALI boruya gider (sıfır-halüsinasyon korunur).
+    if intent in ("smalltalk", "out_of_scope_sensitive"):
+        return "chat"
 
     domain = state.get("domain", "unknown")
     if domain == "unknown":
-        return "redirect"
+        return "chat"
 
     if state.get("clarification_round", 0) >= MAX_CLARIFICATION_ROUNDS:
         return "answer"

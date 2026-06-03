@@ -111,15 +111,17 @@ async def test_graph_e2e_consumer_question(mocked_retrieval):
 
 
 @pytest.mark.asyncio
-async def test_graph_out_of_scope_rejects_fast():
-    """'Cinayet' → kapsam dışı → triaj unknown → finalize reject."""
+async def test_graph_out_of_scope_goes_to_chat():
+    """'Cinayet' (ceza, kapsam dışı) → triaj unknown/out_of_scope → CHAT node (Qwen
+    doğal cevap). Soğuk reject yerine sohbet: response_intent='chat', cevap üretilir.
+    Gerçek Qwen'de system-prompt ceza/aile'de detaylı tavsiye vermez + avukat önerir;
+    mock LLM'de sadece routing + cevap üretimi doğrulanır."""
     graph = build_graph()
     state = make_initial_state("Cinayetten yargılanıyorum, ne yapayım?")
     result = await graph.ainvoke(state)
     assert result["domain"] == "unknown"
-    assert result["confidence"] == 0.0
-    # Avukata danışın mesajı
-    assert "avukat" in result["response"].lower()
+    assert result.get("response_intent") == "chat"
+    assert result["response"].strip()  # boş değil — chat node yanıt üretti
 
 
 @pytest.mark.asyncio

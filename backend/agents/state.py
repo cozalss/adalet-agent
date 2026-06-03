@@ -37,6 +37,7 @@ ResponseIntent = Literal[
     "needs_clarification",
     "redirect_to_scope",
     "smalltalk",
+    "chat",  # genel sohbet (chat node Qwen ile doğal cevap) — hukuki-olmayan
     "out_of_scope_sensitive",
     "reject_unverified",
 ]

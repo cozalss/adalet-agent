@@ -222,6 +222,7 @@ def test_ask_stream_success_contract(monkeypatch):
                 "domain": "kira",
                 "domain_confidence": 0.9,
                 "response_intent": "legal_answer",
+                "triage_reasoning": "kira hukuku sorusu",  # triaj set eder → triage SSE event'i
                 "retry_count": 0,
                 "mevzuat_refs": [],
                 "emsal_refs": [],

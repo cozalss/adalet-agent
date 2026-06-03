@@ -52,6 +52,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from agents.config import MAX_RETRY
+from agents.nodes.chat import chat_node
 from agents.nodes.clarifier import clarifier_node
 from agents.nodes.compose import compose_node
 from agents.nodes.crag import crag_node
@@ -122,6 +123,8 @@ def _route_after_triaj(state: AgentState) -> list[str] | str:
     decision = decide_path(state)
     if decision == "clarify":
         return "clarifier"
+    if decision == "chat":
+        return "chat"
     if decision == "answer":
         return ["mevzuat", "emsal"]
     return _sink()
@@ -185,6 +188,9 @@ def build_graph() -> Any:
     # dokunmadan finalize'a akar (takip soruları döner). Baseline'da (policy=answer)
     # bu node hiç ziyaret edilmez → topoloji davranışı korunur.
     g.add_node("clarifier", clarifier_node)
+    # Genel sohbet: policy "chat" derse (hukuki-olmayan/selam/genel) → Qwen ile doğal
+    # akan cevap, retrieval/verify YOK → finalize basar. Hukuki yol etkilenmez.
+    g.add_node("chat", chat_node)
     # HyDE/multi-query mevzuat_node içinde env-toggle (HYDE_ENABLED,
     # MULTI_QUERY_ENABLED) ile ele alınır; iç asyncio.wait_for + plain-hybrid
     # fallback ile latency güvende.
@@ -230,6 +236,8 @@ def build_graph() -> Any:
     g.add_edge("compose", "finalize")
     # Clarifier dur-ve-sor dalı: tek tur, doğrudan finalize'a.
     g.add_edge("clarifier", "finalize")
+    # Genel sohbet: chat → finalize (chat_response doğrudan basılır, disclaimer yok).
+    g.add_edge("chat", "finalize")
 
     # Finalize öncesi son durak — sıralama: tahmin → dilekce → compose → finalize.
     sink = (
@@ -243,7 +251,7 @@ def build_graph() -> Any:
     g.add_conditional_edges(
         "triaj",
         _route_after_triaj,
-        ["mevzuat", "emsal", "clarifier", sink],
+        ["mevzuat", "emsal", "clarifier", "chat", sink],
     )
 
     # Fan-in: mevzuat ve emsal bittiğinde → retrieve-sonrası zincir → draft.

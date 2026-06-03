@@ -574,10 +574,15 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
       <div className="assistant-row">
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">
-          {/* İlk an (triage) + hafif yol → ChatGPT-feel hafif "yazıyor/düşünüyor". */}
-          {streaming && (softPath || p === "triage") && (
-            <QuickTyping label={softPath ? "Yazıyor" : "Düşünüyor"} />
+          {/* Hafif yol (selam/genel sohbet): chat node Qwen ile CANLI yazar → tokenlar
+              geldikçe baloncukta akar (ChatGPT gibi). Token gelmeden hafif "yazıyor". */}
+          {streaming && softPath && (
+            d.draftText
+              ? <SmallTalkBubble text={d.draftText} />
+              : <QuickTyping label="Yazıyor" />
           )}
+          {/* İlk an (triage) hukuki yolda → hafif "düşünüyor". */}
+          {streaming && !softPath && p === "triage" && <QuickTyping label="Düşünüyor" />}
           {/* sources/verifying → 7-ajan şeffaflık stepper'ı (ADALET'in farkı) korunur. */}
           {streaming && !softPath && p !== "triage" && (
             <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />
