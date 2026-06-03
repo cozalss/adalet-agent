@@ -65,9 +65,14 @@ def build_scorecard() -> dict:
     from eval.eligibility_eval import load_gold as load_elig
     from eval.hallucination_eval import load_gold as load_hallu
     from eval.hallucination_eval import score_gold
+    from eval.stats import wilson_interval
 
     hallu = score_gold(load_hallu(str(_BENCH / "hallucination_gold.jsonl")))
     elig = elig_evaluate(load_elig())
+
+    def _ci(k: int, n: int) -> list[float]:
+        lo, hi = wilson_interval(k, n)
+        return [round(lo, 3), round(hi, 3)]
 
     # Kalkan PASS koşulu (kırmızı çizgi): hiç yanlış-veto YOK + tam yakalama +
     # FABRİKE-eşik precision tam (valid cevabı asla bozma garantisi).
@@ -88,8 +93,13 @@ def build_scorecard() -> dict:
             "micro_precision": hallu["micro_precision"],
             "micro_recall": hallu["micro_recall"],
             "hallucination_recall": hallu["hallucination_recall"],
+            # %95 Wilson CI (küçük-N dürüstlüğü): recall=caught/n_risky.
+            "hallucination_recall_ci95": _ci(hallu["caught"], hallu["n_bad"]),
             "false_veto_count": hallu["veto_false_positives"],
             "false_veto_rate": hallu["veto_fp_rate"],
+            # Yanlış-veto oranının %95 ÜST-sınırı (0/32 → 'üst-sınırla X'in altında').
+            "false_veto_rate_upper95": round(
+                wilson_interval(hallu["veto_false_positives"], hallu["n_clean"])[1], 3),
             "per_type": {t: {"precision": m["precision"], "recall": m["recall"], "f1": m["f1"]}
                         for t, m in hallu["per_type"].items()},
         },
@@ -99,6 +109,8 @@ def build_scorecard() -> dict:
             "recall": elig["recall"],
             "f1": elig["f1"],
             "accuracy": elig["accuracy"],
+            "precision_ci95": _ci(elig["tp"], elig["tp"] + elig["fp"]),
+            "recall_ci95": _ci(elig["tp"], elig["tp"] + elig["fn"]),
         },
         "dataset_coverage": _dataset_coverage(),
     }
@@ -122,9 +134,12 @@ def render_markdown(sc: dict) -> str:
         "",
         f"- Vaka: **{hs['n']}** ({hs['n_clean']} temiz / {hs['n_risky']} riskli, adversarial)",
         f"- Mikro precision: **{hs['micro_precision']}** · mikro recall: **{hs['micro_recall']}**",
-        f"- Halüsinasyon yakalama (recall): **{hs['hallucination_recall']:.0%}**",
+        f"- Halüsinasyon yakalama (recall): **{hs['hallucination_recall']:.0%}** "
+        f"(%95 Wilson CI [{hs['hallucination_recall_ci95'][0]:.3f}, "
+        f"{hs['hallucination_recall_ci95'][1]:.3f}])",
         f"- **Yanlış-veto (iyi cevabı reddetme): {hs['false_veto_count']}/{hs['n_clean']} "
-        f"({hs['false_veto_rate']:.0%})** ← kritik garanti",
+        f"({hs['false_veto_rate']:.0%})** ← kritik garanti "
+        f"(oran %95 üst-sınır ≤ {hs['false_veto_rate_upper95']:.1%})",
         "",
         "| Detektör türü | Precision | Recall | F1 |",
         "|---|---|---|---|",
@@ -145,8 +160,13 @@ def render_markdown(sc: dict) -> str:
         "Tehlikeli yanlış-çıkarımın (\"5 yıldan az tazminat verilmez\" = uydurma eşik) "
         "DOĞRU bilgilendirmeden (\"1 yılın altında kıdem doğmaz\" = kaynakta var) ayrımı.",
         "",
-        f"- Vaka: **{ft['n']}** adversarial · precision: **{ft['precision']}** · "
-        f"recall: **{ft['recall']}** · F1: **{ft['f1']}** · doğruluk: **{ft['accuracy']}**",
+        f"- Vaka: **{ft['n']}** adversarial · precision: **{ft['precision']}** "
+        f"(%95 CI [{ft['precision_ci95'][0]:.3f}, {ft['precision_ci95'][1]:.3f}]) · "
+        f"recall: **{ft['recall']}** (%95 CI [{ft['recall_ci95'][0]:.3f}, "
+        f"{ft['recall_ci95'][1]:.3f}]) · F1: **{ft['f1']}** · doğruluk: **{ft['accuracy']}**",
+        "",
+        "> Küçük-N notu: nokta-tahminleri (P=1.0) yanıltabilir; Wilson %95 güven aralıkları "
+        "örneklem belirsizliğini dürüstçe gösterir. Setler büyüdükçe aralıklar daralır.",
         "",
         "## 3. Veri seti kapsamı (test tabanı breadth)",
         "",
@@ -184,6 +204,8 @@ def render_console(sc: dict) -> str:
         f"({hs['false_veto_rate']:.0%})  (hedef: 0 — iyi cevabı reddetme)",
         f"  FABRİKE-eşik          : {ft['n']} vaka · P={ft['precision']} "
         f"R={ft['recall']} F1={ft['f1']}",
+        f"  %95 Wilson CI         : recall {hs['hallucination_recall_ci95']} · "
+        f"FABRİKE-P {ft['precision_ci95']} · yanlış-veto oranı ≤ {hs['false_veto_rate_upper95']:.1%}",
         bar,
     ]
     return "\n".join(out)

@@ -102,6 +102,10 @@ def score_gold(rows: list[dict]) -> dict:
         "veto_false_positives": veto_fp,
         "veto_fp_rate": round(veto_fp / len(clean), 3) if clean else 0.0,
         "hallucination_recall": round(caught / len(bad), 3) if bad else 1.0,
+        # Ham sayımlar (güven aralığı hesabı için — eval/stats.wilson_interval):
+        "caught": caught,
+        "tot_tp": tot_tp,
+        "tot_fp": tot_fp,
         "per_type": {t: m.to_dict() for t, m in per_type.items()},
     }
 

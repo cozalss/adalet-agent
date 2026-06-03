@@ -8,8 +8,8 @@
 
 - Vaka: **104** (32 temiz / 72 riskli, adversarial)
 - Mikro precision: **1.0** · mikro recall: **1.0**
-- Halüsinasyon yakalama (recall): **100%**
-- **Yanlış-veto (iyi cevabı reddetme): 0/32 (0%)** ← kritik garanti
+- Halüsinasyon yakalama (recall): **100%** (%95 Wilson CI [0.949, 1.000])
+- **Yanlış-veto (iyi cevabı reddetme): 0/32 (0%)** ← kritik garanti (oran %95 üst-sınır ≤ 10.7%)
 
 | Detektör türü | Precision | Recall | F1 |
 |---|---|---|---|
@@ -23,7 +23,9 @@
 
 Tehlikeli yanlış-çıkarımın ("5 yıldan az tazminat verilmez" = uydurma eşik) DOĞRU bilgilendirmeden ("1 yılın altında kıdem doğmaz" = kaynakta var) ayrımı.
 
-- Vaka: **18** adversarial · precision: **1.0** · recall: **0.875** · F1: **0.9333** · doğruluk: **0.9444**
+- Vaka: **18** adversarial · precision: **1.0** (%95 CI [0.646, 1.000]) · recall: **0.875** (%95 CI [0.529, 0.978]) · F1: **0.9333** · doğruluk: **0.9444**
+
+> Küçük-N notu: nokta-tahminleri (P=1.0) yanıltabilir; Wilson %95 güven aralıkları örneklem belirsizliğini dürüstçe gösterir. Setler büyüdükçe aralıklar daralır.
 
 ## 3. Veri seti kapsamı (test tabanı breadth)
 
