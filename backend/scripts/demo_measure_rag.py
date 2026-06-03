@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")  # production config (mursit_hybrid, sparse...)
 
-import core.native_preload  # noqa: E402,F401  (BGE-M3 import-sırası crash fix — bu kutuda gerekli)
-from scripts.eval_run import _eval_one, _load_benchmark, _print_summary  # noqa: E402
+import core.native_preload  # noqa: F401  (BGE-M3 import-sırası crash fix — bu kutuda gerekli)
+from scripts.eval_run import _eval_one, _load_benchmark, _print_summary
 
 _SPARSE = ("vergi", "trafik", "icra")
 
