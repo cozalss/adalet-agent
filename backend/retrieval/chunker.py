@@ -94,11 +94,19 @@ def chunk_text(
     return _apply_overlap(cleaned, overlap_chars)
 
 
+# Bu boyutu (char) aşan madde çok-fıkralı sayılır → paragraf-aware alt-bölünür. Tek dev
+# chunk'ta dense embedding tüm madde üzerinde ortalanır, spesifik fıkra ('VUK 359/b')
+# sinyali dilüe olur (özellikle Mursit dense-only prod default'ta). Denetim 2026-06-04.
+_MEVZUAT_SUBCHUNK_THRESHOLD = 1500
+
+
 def chunk_mevzuat(text: str) -> list[Chunk]:
     """Mevzuat metnini madde başlıklarına göre böl.
 
     "Madde 11 — ..." gibi başlıklar ayrı chunk olur. Madde numarası metadata'ya
-    yazılır → citation verification'da hızlı arama için.
+    yazılır → citation verification'da hızlı arama için. Çok-fıkralı UZUN maddeler
+    (> _MEVZUAT_SUBCHUNK_THRESHOLD) paragraf-aware alt-chunk'lara bölünür; her alt-chunk
+    AYNI madde_no'yu taşır → citation/fetch_maddeler bozulmaz, yalnız madde başına >1 chunk.
     """
     text = text.strip()
     if not text:
@@ -111,10 +119,18 @@ def chunk_mevzuat(text: str) -> list[Chunk]:
         return [Chunk(text=text, seq=0, metadata={})]
 
     chunks: list[Chunk] = []
-    for seq, part in enumerate(parts):
+    seq = 0
+    for part in parts:
         madde_match = re.match(r"Madde\s+(\d+)", part, re.IGNORECASE)
         metadata = {"madde_no": int(madde_match.group(1))} if madde_match else {}
-        chunks.append(Chunk(text=part, seq=seq, metadata=metadata))
+        if len(part) > _MEVZUAT_SUBCHUNK_THRESHOLD:
+            # Uzun madde → paragraf/fıkra-aware alt-böl (overlap ile bağlam korunur).
+            for sub in chunk_text(part, chunk_chars=1000, overlap_chars=150) or [part]:
+                chunks.append(Chunk(text=sub, seq=seq, metadata=dict(metadata)))
+                seq += 1
+        else:
+            chunks.append(Chunk(text=part, seq=seq, metadata=metadata))
+            seq += 1
 
     return chunks
 
