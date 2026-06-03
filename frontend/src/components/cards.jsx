@@ -22,15 +22,15 @@ export function AnswerCard({ answer, sources, onJump }) {
       secs.forEach((s) => s.classList.add("visible"));
       return;
     }
-    const STAGGER = 200; // ms — bölüm başına
+    const STAGGER = 360; // ms — bölüm başına (belirgin sıralı yazılma hissi)
     const timers = secs.map((s, i) => setTimeout(() => {
       s.classList.add("visible", "writing");
       secs[i - 1]?.classList.remove("writing"); // imleç bir sonraki bölüme geçer
-    }, 60 + i * STAGGER));
+    }, 80 + i * STAGGER));
     // son bölümün imlecini kısa süre sonra kaldır (yazma bitti)
     timers.push(setTimeout(
       () => secs[secs.length - 1]?.classList.remove("writing"),
-      60 + secs.length * STAGGER + 500,
+      80 + secs.length * STAGGER + 600,
     ));
     return () => timers.forEach(clearTimeout);
   }, [sections.length]);

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import StreamingResponse
 
 from agents.config import get_ask_graph_timeout_s
+from agents.draft_stream import draft_token_sink
 from agents.graph import build_graph, make_initial_state
 from agents.state import ConversationTurn
 from api.audit import AuditEvent
@@ -85,6 +86,42 @@ def _sse_event(event: str, payload: dict[str, Any]) -> str:
     """Tek SSE serializer. `final` dışındaki payload'lar v=1 sözleşmesini taşır."""
     data = {"v": SSE_SCHEMA_VERSION, **payload}
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+async def _merge_tokens(
+    agen: AsyncIterator[dict], token_q: asyncio.Queue[str | None],
+) -> AsyncIterator[tuple[str, Any]]:
+    """astream state'lerini + canlı draft token kuyruğunu interleave et.
+
+    ('token', delta) ve ('state', state) çiftleri üretir. astream bir node'da
+    bloklarken (draft ~birkaç-on saniye) token kuyruğu canlı drenajlanır →
+    token'lar üretildikçe gelir. Graph bitince (StopAsyncIteration) durur.
+    """
+    ait = agen.__aiter__()
+    state_task: Any = asyncio.ensure_future(ait.__anext__())
+    token_task: Any = asyncio.ensure_future(token_q.get())
+    try:
+        while True:
+            done, _ = await asyncio.wait(
+                {state_task, token_task}, return_when=asyncio.FIRST_COMPLETED,
+            )
+            if token_task in done:
+                tok = token_task.result()
+                token_task = asyncio.ensure_future(token_q.get())
+                if tok is not None:
+                    yield ("token", tok)
+            if state_task in done:
+                try:
+                    state = state_task.result()
+                except StopAsyncIteration:
+                    break
+                state_task = asyncio.ensure_future(ait.__anext__())
+                yield ("state", state)
+    finally:
+        for t in (state_task, token_task):
+            t.cancel()
+            with contextlib.suppress(BaseException):
+                await t
 
 
 async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
@@ -309,7 +346,7 @@ async def ask(
 
 @router.post("/stream")
 @limiter.limit(ask_rate_for)
-async def ask_stream(
+async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canlı token akışı inherent dallı
     request: Request, req: AskRequest,
     principal: Principal = Depends(authenticate),
 ) -> StreamingResponse:
@@ -362,12 +399,25 @@ async def ask_stream(
             return int((time.perf_counter() - start) * 1000)
         _t_first_event: int | None = None      # ilk node (graph başladı)
         _t_retrieval_done: int | None = None    # mevzuat+emsal geldi
-        _t_first_token: int | None = None       # draft başladı (token-stream yok → proxy)
+        _t_first_token: int | None = None       # ilk CANLI draft token (gerçek)
+        # Canlı yazım: draft node üretirken token'ları bu kuyruğa iter (sink contextvar);
+        # _merge_tokens astream state'leriyle interleave eder → draft_token SSE eventi.
+        token_q: asyncio.Queue[str | None] = asyncio.Queue()
+        draft_token_sink.set(token_q.put_nowait)
         try:
             # stream_mode="values" → her node sonrası tüm state döner; en son
             # event final_state olur. İkinci graph.ainvoke gereksiz.
             async with guard:
-                async for state in graph.astream(initial, stream_mode="values"):
+                _agen = graph.astream(initial, stream_mode="values")
+                async for _kind, _item in _merge_tokens(_agen, token_q):
+                    if _kind == "token":
+                        # Canlı taslak token'ı — DOĞRULANMAMIŞ; frontend "doğrulanıyor"
+                        # rozetiyle gösterir, final geldiğinde verify'lı cevaba oturur.
+                        if _t_first_token is None:
+                            _t_first_token = _ms()
+                        yield _sse_event("draft_token", {"t": _item})
+                        continue
+                    state = _item
                     final_state = state
                     if _t_first_event is None:
                         _t_first_event = _ms()
@@ -414,7 +464,7 @@ async def ask_stream(
                     # Draft hazır → cevap yazılıyor (token-stream yok → first_token proxy)
                     if not _sent_drafting and state.get("draft_response"):
                         _sent_drafting = True
-                        _t_first_token = _ms()
+                        _t_first_token = _t_first_token or _ms()  # canlı token zaten set ettiyse koru
                         yield _sse_event("drafting", {"t_ms": _t_first_token})
 
                     # Doğrulama/Tartışma aşaması başladı → 4. stepper adımı canlanır.

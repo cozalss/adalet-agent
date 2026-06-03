@@ -704,3 +704,32 @@ a.btn:not(:disabled):active {
   .answer .sec.reveal-target { opacity: 1; transform: none; transition: none; }
   .answer .sec.writing .sec-label::after { display: none; animation: none; }
 }
+
+/* ================================================================
+   Canlı taslak (live draft streaming) — yazıyor → doğrulanıyor
+   DOĞRULANMAMIŞ akan metin; final gelince AnswerCard'a oturur.
+   ================================================================ */
+.live-draft .ld-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: .76rem; font-weight: 600; letter-spacing: .01em;
+  color: var(--accent, #D4A574); margin-bottom: 10px; opacity: .92;
+}
+.live-draft .ld-badge.verifying { color: var(--success, #5C8C5A); }
+.live-draft .ld-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; animation: ld-pulse 1s ease-in-out infinite;
+}
+@keyframes ld-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+.live-draft .ld-text {
+  white-space: pre-wrap; word-break: break-word;
+  line-height: 1.7; margin: 0; color: var(--text, #F5F0E8);
+}
+.live-draft .ld-caret {
+  display: inline-block; width: 2px; height: 1.05em; margin-left: 2px;
+  vertical-align: -0.18em; background: var(--accent, #D4A574);
+  animation: ld-caret .8s steps(1) infinite;
+}
+@keyframes ld-caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .live-draft .ld-dot, .live-draft .ld-caret { animation: none; }
+}

@@ -201,6 +201,25 @@ export function PredictionCard({ prediction: p }) {
   );
 }
 
+/* ---------- Canlı taslak (yazılıyor → doğrulanıyor) ----------
+   DOĞRULANMAMIŞ akan taslak. [src:] etiketleri + ** kalın işaretleri canlı görünümde
+   sadeleştirilir. final gelince App bunu DOĞRULANMIŞ AnswerCard ile DEĞİŞTİRİR —
+   akan taslak asla nihai cevap gibi sunulmaz (sıfır-halüsinasyon çizgisi). */
+export function LiveDraft({ text, verifying }) {
+  const clean = (text || "")
+    .replace(/\[src:[^\]]*\]/gi, "")
+    .replace(/\*\*/g, "");
+  return (
+    <div className="card live-draft" aria-live="polite">
+      <div className={"ld-badge" + (verifying ? " verifying" : "")}>
+        <span className="ld-dot"></span>
+        {verifying ? "Doğrulanıyor — iddialar kaynaklarla eşleştiriliyor" : "Yazıyor…"}
+      </div>
+      <p className="ld-text">{clean}<span className="ld-caret"></span></p>
+    </div>
+  );
+}
+
 /* ---------- Düşünme/draft iskeleti (shimmer) ---------- */
 export function ThinkingSkeleton() {
   return (

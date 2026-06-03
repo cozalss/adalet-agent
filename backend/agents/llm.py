@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -243,6 +244,60 @@ class LlamaCppClient:
             tokens_in=usage.get("prompt_tokens", 0),
             tokens_out=usage.get("completion_tokens", 0),
         )
+
+    async def chat_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.1,
+        max_tokens: int = 1024,
+        on_token: Callable[[str], None],
+    ) -> LLMResponse:
+        """chat() ile aynı üretim, AMA token'lar üretildikçe on_token(delta) ile yayılır.
+
+        on_token EVENT-LOOP thread'inde çağrılır (call_soon_threadsafe) → çağıran
+        güvenle async kuyruğa put_nowait edebilir. Tam içerik LLMResponse.content'te
+        döner (çağıran doğrulamaya yine TAM metni verir; akış yalnız UI içindir).
+        """
+        import asyncio
+
+        if self._model is None:
+            if self._load_lock is None:
+                self._load_lock = asyncio.Lock()
+            async with self._load_lock:
+                if self._model is None:
+                    self._model = await asyncio.to_thread(self._load)
+
+        max_tokens = self._fit_max_tokens(messages, max_tokens)
+        kwargs: dict[str, Any] = {
+            "messages": [m.to_dict() for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        loop = asyncio.get_running_loop()
+
+        def _run_stream() -> str:
+            parts: list[str] = []
+            for chunk in self._model.create_chat_completion(**kwargs):
+                try:
+                    delta = chunk["choices"][0]["delta"].get("content")
+                except (KeyError, IndexError, TypeError):
+                    delta = None
+                if delta:
+                    parts.append(delta)
+                    loop.call_soon_threadsafe(on_token, delta)
+            return "".join(parts)
+
+        # chat() ile aynı tek-worker decode executor (KV-cache yarışını önler).
+        if self._decode_executor is None:
+            import concurrent.futures
+            self._decode_executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="llama-decode",
+            )
+        cf_future = self._decode_executor.submit(_run_stream)
+        content = await asyncio.wrap_future(cf_future)
+        return LLMResponse(content=content, raw={}, finish_reason="stop")
 
     # En az bu kadar token cevaba bırakılır (clamp tabanı); chat template + güvenlik payı.
     _MIN_OUTPUT_TOKENS = 256

@@ -6,7 +6,7 @@ import {
   StreamStepper, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble } from "./components/cards.jsx";
-import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats } from "./components/panels.jsx";
+import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats, LiveDraft } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
@@ -573,7 +573,11 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
         <span className="ava"><Icon.scale /></span>
         <div className="assistant-body">
           {streaming && <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />}
-          {["drafting", "verifying"].includes(p) && <ThinkingSkeleton />}
+          {["drafting", "verifying"].includes(p) && (
+            d.draftText
+              ? <LiveDraft text={d.draftText} verifying={p === "verifying"} />
+              : <ThinkingSkeleton />
+          )}
 
           {d.kind === "clarify" && p === "clarify" && (
             <ClarifyCard data={d.clarify} onPick={onClarifyPick} />

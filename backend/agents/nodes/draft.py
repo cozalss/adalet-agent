@@ -23,6 +23,7 @@ from agents.config import (
     LLM_CONTEXT_BUDGET,
     LLM_TEMPERATURE,
 )
+from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, Citation, Claim
 from core.observability import observe_node
@@ -108,16 +109,29 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     )
 
     llm = get_llm()
+    messages = [
+        ChatMessage(role="system", content=_DRAFT_SYSTEM),
+        ChatMessage(role="user", content=user_prompt),
+    ]
+    # Canlı yazım: /ask/stream bir token-sink set ettiyse VE client streaming
+    # destekliyorsa token'ları üretildikçe yay (UI canlı gösterir). Aksi halde
+    # normal bloklayan chat() — /ask, mock/server client, testler etkilenmez.
+    sink = draft_token_sink.get()
     try:
-        response = await llm.chat(
-            messages=[
-                ChatMessage(role="system", content=_DRAFT_SYSTEM),
-                ChatMessage(role="user", content=user_prompt),
-            ],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=DRAFT_MAX_TOKENS,  # zengin yapısal format için (320→768)
-            json_mode=False,
-        )
+        if sink is not None and hasattr(llm, "chat_stream"):
+            response = await llm.chat_stream(
+                messages=messages,
+                temperature=LLM_TEMPERATURE,
+                max_tokens=DRAFT_MAX_TOKENS,
+                on_token=sink,
+            )
+        else:
+            response = await llm.chat(
+                messages=messages,
+                temperature=LLM_TEMPERATURE,
+                max_tokens=DRAFT_MAX_TOKENS,  # zengin yapısal format için (320→768)
+                json_mode=False,
+            )
     except Exception as exc:
         # LLM çağrısı çökerse (örn. context taşması, GPU OOM) tüm graph'ı
         # düşürme — boş draft döndür, finalize bunu fail-closed reddeder.

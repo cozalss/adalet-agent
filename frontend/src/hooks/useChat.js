@@ -71,6 +71,17 @@ export function useChat() {
           _patchData(key, { sourceCount: d.count || 0 });
         },
         onNode: () => {}, // node event'i UI'da işlenmez — sessiz yutulurdu, şimdi açık no-op
+        // Canlı yazım: draft token'ları üretildikçe biriktir + "drafting" fazına geç.
+        // DOĞRULANMAMIŞ taslak — UI "yazıyor/doğrulanıyor" rozetiyle gösterir; final
+        // gelince mapResponse data'yı doğrulanmış cevapla DEĞİŞTİRİR (draftText düşer).
+        onDraftToken: (d) => {
+          if (sawClarify) return;
+          setTurns((ts) => ts.map((x) =>
+            x.key === key
+              ? { ...x, phase: "drafting",
+                  data: { ...x.data, draftText: (x.data.draftText || "") + (d.t || "") } }
+              : x));
+        },
         onDrafting: () => { if (!sawClarify) _patch(key, { phase: "drafting" }); },
         onVerifying: () => { if (!sawClarify) _patch(key, { phase: "verifying" }); },
         onTiming: () => {}, // timing latency event — gelecekte metrikler için; şimdi no-op
