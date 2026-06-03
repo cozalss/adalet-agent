@@ -144,10 +144,14 @@ async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
     initial["case_facts"] = _merge_history_facts(history)
     initial["want_tts"] = req.want_tts
     # OCR belge ekleri → triaj bunlardan case_facts çıkarır (tarih/tutar/taraf/süre).
+    # PII MASKELEME (denetim 2026-06-04): ham OCR metni LLM prompt'una/state'e GİRMEDEN
+    # TCKN/telefon/IBAN maskelenir — fact çıkarımı bozulmaz (mask_pii süre/tutar/tarih'e
+    # dokunmaz, yalnız kimlik-tanımlayıcıları maskeler). Kullanıcı belgesindeki PII modele
+    # ve kalıcı depoya HAM ulaşmasın.
     if req.image_attachments:
         initial["image_attachments"] = [
             {"filename": a.filename, "ocr_engine": a.ocr_engine,
-             "text": a.text, "n_chars": a.n_chars or len(a.text)}
+             "text": mask_pii(a.text).masked_text, "n_chars": a.n_chars or len(a.text)}
             for a in req.image_attachments
         ]
     return initial, conv_id
@@ -168,8 +172,11 @@ async def _persist_turn(
     if domain and domain != "unknown":
         turn["domain"] = domain  # type: ignore[typeddict-unknown-key]
     if case_facts:
+        # PII MASKELEME (denetim 2026-06-04): LLM'in çıkardığı serbest-metin olgular
+        # (taraf/olay/tarih) içine sızmış TCKN/telefon/IBAN session store'a HAM yazılmasın.
         turn["case_facts"] = {
-            str(k): v for k, v in case_facts.items() if str(v).strip()
+            str(k): mask_pii(str(v)).masked_text
+            for k, v in case_facts.items() if str(v).strip()
         }  # type: ignore[typeddict-unknown-key]
     try:
         await store.append_turn(conv_id, turn)

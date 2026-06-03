@@ -33,14 +33,19 @@ log = structlog.get_logger()
 PII_MASK_TOKEN = os.getenv("PII_MASK_TOKEN", "[PII_MASKED]")
 PII_ENABLED = os.getenv("PII_ENABLED", "1").lower() in {"1", "true", "yes"}
 
-# TCKN: 11 hane, ilk ≠ 0. Lookaround ile false-pos azalt.
-_TCKN_RE = re.compile(r"(?<!\d)[1-9]\d{10}(?!\d)")
-# Telefon: +90 5xx ... veya 05xx ...
+# TCKN: 11 hane, ilk ≠ 0. Bitişik VEYA hane-arası tek boşluk/nokta ayraçlı
+# ('123 456 789 01', '123.456.789.01'). Araya HARF girerse eşleşme kırılır → güvenli
+# over-mask (denetim 2026-06-04: ayrılmış-haneli yazım maskelenmiyordu).
+_TCKN_RE = re.compile(r"(?<!\d)[1-9](?:[ .]?\d){10}(?!\d)")
+# Telefon: mobil 5xx VEYA sabit 2xx-4xx alan kodu; +90/0 öneki, parantez ve boşluk/tire/
+# nokta ayraçları opsiyonel ('(0555) 123 45 67', '0312 4567890', '+90 532 123 45 67').
 _PHONE_RE = re.compile(
-    r"(?<!\d)(?:\+?90[\s\-]?)?0?5\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}(?!\d)"
+    r"(?<!\d)(?:\+?90[\s\-.]?)?\(?0?(?:5\d{2}|[2-4]\d{2})\)?"
+    r"[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2}(?!\d)"
 )
 _EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
-_IBAN_RE = re.compile(r"\bTR\d{2}[\s]?(?:\d{4}[\s]?){5}\d{2}\b")
+# IBAN: TR + 24 hane (gruplu boşluklar opsiyonel). IGNORECASE → 'tr33…' küçük yazım da yakalanır.
+_IBAN_RE = re.compile(r"\bTR\d{2}[\s]?(?:\d{4}[\s]?){5}\d{2}\b", re.IGNORECASE)
 _PLATE_RE = re.compile(r"\b\d{2}[\s\-]?[A-Z]{1,3}[\s\-]?\d{2,4}\b")
 
 
@@ -66,11 +71,13 @@ def mask_pii(text: str) -> MaskResult:
     counts: dict[str, int] = {}
     masked = text
 
+    # SIRA önemli: IBAN (24 hane) TCKN'den (11 hane) ÖNCE maskelenir — aksi halde
+    # genişletilmiş TCKN deseni IBAN'ın hane alt-dizisini yer (false tckn → IBAN bozulur).
     for name, pat in (
+        ("iban", _IBAN_RE),
         ("tckn", _TCKN_RE),
         ("phone", _PHONE_RE),
         ("email", _EMAIL_RE),
-        ("iban", _IBAN_RE),
         ("plate", _PLATE_RE),
     ):
         matches = pat.findall(masked)

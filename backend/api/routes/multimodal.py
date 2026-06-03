@@ -206,10 +206,14 @@ async def stt_upload(
             ext = candidate
 
     result = await transcribe_audio(data, ext=ext)
+    # PII (denetim 2026-06-04): OCR ile SİMETRİK — transkriptte sesli okunan TCKN/telefon/
+    # IBAN olabilir; sızdırmadan tespit et, metni BOZMA (kullanıcının kendi girdisi).
+    pii = mask_pii(result.text) if result.text else None
     log.info(
         "stt_request",
         filename=safe_name, ext=ext,
         n_chars=len(result.text), duration=result.duration_s,
+        pii_detected=bool(pii and pii.has_pii),
     )
     return STTUploadResponse(
         text=result.text,
@@ -217,6 +221,8 @@ async def stt_upload(
         duration_s=result.duration_s,
         elapsed_ms=result.elapsed_ms,
         error=result.error,
+        pii_detected=bool(pii and pii.has_pii),
+        pii_counts=dict(pii.counts) if pii and pii.has_pii else {},
     )
 
 

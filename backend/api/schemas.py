@@ -228,13 +228,20 @@ class OCRUploadResponse(BaseModel):
 
 
 class STTUploadResponse(BaseModel):
-    """POST /multimodal/stt — sesli giriş → metin."""
+    """POST /multimodal/stt — sesli giriş → metin.
+
+    PII: kullanıcı 'TC kimliğim 123…, telefonum 0555…' diye sesli okuyabilir. OCR ile
+    SİMETRİK olarak `pii_detected`/`pii_counts` bayrakları transkriptteki TCKN/telefon/
+    IBAN'ı istemciye uyarır (metin BOZULMAZ — kullanıcının kendi girdisi).
+    """
 
     text: str
     language: str
     duration_s: float
     elapsed_ms: int
     error: str | None = None
+    pii_detected: bool = False
+    pii_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class ErrorResponse(BaseModel):
