@@ -11,12 +11,12 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![Qdrant](https://img.shields.io/badge/Qdrant-159k%20vektör-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Tests](https://img.shields.io/badge/tests-911%20passed-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
+[![Tests](https://img.shields.io/badge/tests-1135%20backend%20%2B%20138%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 911 test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
+**159k kaynak vektörü · 1135 backend + 138 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
 
-`Durum:` backend · retrieval · doğrulama · eval **olgun** &nbsp;·&nbsp; web/mobil **yol haritasında**
+`Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
 </div>
 
@@ -193,7 +193,7 @@ Aşağıdaki sayıların hepsi **gerçek ölçümdür** (tahmin/iddia değil). M
 
 | Verify ayırt-etme gücü¹ | Tahmin f1_macro | Kalibrasyon (ECE) | Corpus | Test / coverage |
 |:---:|:---:|:---:|:---:|:---:|
-| **+58.1 puan** | 0.825 | 0.0825 → **0.0109** | 159.362 vektör | 911 ✓ / ~%89 |
+| **+58.1 puan** | 0.825 | 0.0825 → **0.0109** | 159.362 vektör | 1135 ✓ / ≥%80 (CI kapısı) |
 
 > ¹ Verify açıkken cevap claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı
 > kaynaksız iddiaların **%58.1**'ini işaretliyor (gerçek Qwen 2.5 14B, 8 vatandaş sorusu).
@@ -255,7 +255,7 @@ Swagger UI → `http://127.0.0.1:8000/docs` &nbsp;·&nbsp; Sağlık → `http://
 
 ```bash
 # 3) Testleri çalıştır
-uv run --extra dev pytest tests/ -q       # 911 passed, 6 skipped
+uv run --extra dev pytest tests/ -q       # 1135 passed, 6 skipped
 uv run --extra dev ruff check .
 uv run --extra dev mypy .
 ```
@@ -336,7 +336,7 @@ Content-Type: application/json
 
 ```bash
 cd backend
-uv run --extra dev pytest tests/ -q                       # 911 passed, 6 skipped
+uv run --extra dev pytest tests/ -q                       # 1135 passed, 6 skipped
 uv run --extra dev ruff check .                            # geniş strict kural seti
 uv run --extra dev mypy .                                  # strict
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii
@@ -382,8 +382,8 @@ adalet-agent/
 │   ├── multimodal/    OCR · STT · TTS
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
-│   └── tests/         pytest suite (911+)
-├── frontend/          placeholder — UI henüz uygulanmadı (yol haritasında)
+│   └── tests/         pytest suite (1135+)
+├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (138 test)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları
 ├── infra/             Caddy ve deploy altyapısı
