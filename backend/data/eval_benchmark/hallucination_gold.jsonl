@@ -38,3 +38,67 @@
 {"id": "cl14", "answer": "Tapu Kanunu uyarınca tescil işlemi tapu müdürlüğünde yapılır [src: m-TK-26].", "types": [], "is_clean": true}
 {"id": "cl15", "answer": "İdari işlemin iptali için altmış gün içinde dava açabilirsiniz [src: m-IYUK-7].", "types": [], "is_clean": true}
 {"id": "cl16", "answer": "Kısa cevap: Aracınızda gizli ayıp varsa satıcıya karşı dava açabilirsiniz [src: m-TBK-219]. Bu cevap hukuki tavsiye değildir, bir avukata danışın.", "types": [], "is_clean": true}
+{"id": "fl07", "answer": "İşçilik Kanunu'nun ilgili maddesi gereğince işveren tazminat ödemekle yükümlüdür [src: m-IK-14].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl08", "answer": "Söz konusu Tüketicilik Yasası hükümleri cayma hakkını düzenler [src: m-TKHK-11].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl09", "answer": "Kiralama Kanunu çerçevesinde kira artış oranı sınırlandırılmıştır [src: m-TBK-344].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl10", "answer": "Vergi Yasası kapsamında beyanname süresi açıkça belirlenmiştir [src: m-VUK-1].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl11", "answer": "Trafik Yasası madde 81 kaza tutanağının düzenlenmesini öngörür [src: m-KTK-81].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl12", "answer": "İşçilik Yasası uyarınca ihbar öneli uygulanır [src: m-IK-17].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl13", "answer": "Kiralama Yasası'na göre depozito iadesi zorunludur [src: m-TBK-342].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "fl14", "answer": "Tüketicilik Kanunu'nun amir hükmü gereği bedel iadesi yapılır [src: m-TKHK-11].", "types": ["fabricated_law"], "is_clean": false}
+{"id": "ne07", "answer": "9 aylık çalışmanız kıdem tazminatı için yetersizdir [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne08", "answer": "Süreniz dava açmak için yeterli değildir [src: m-IYUK-7].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne09", "answer": "İki haftalık önelin altında kaldığınızdan ihbar tazminatı alamazsınız [src: m-IK-17].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne10", "answer": "10 günlük itiraz süresini geçirdiğiniz için hakkınız doğmaz [src: m-IIK-16].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne11", "answer": "3 yılın altında çalışmayla tazminat verilmez [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne12", "answer": "Kira süreniz yeterli olmadığından tahliye talep edemezsiniz ve dava açamazsınız.", "types": ["negative_eligibility", "unsourced_claim"], "is_clean": false}
+{"id": "ne13", "answer": "6 aydan az ikamet nedeniyle başvuru hakkınız doğmaz [src: m-X-1].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne14", "answer": "Borcunuz 5.000 TL altında olduğundan icra takibi mümkün değildir.", "types": ["negative_eligibility", "unsourced_claim"], "is_clean": false}
+{"id": "ne15", "answer": "5 yıllık sürede dava açmadığınız için talebiniz geçerli değildir [src: m-TBK-146].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne16", "answer": "Çalışma süreniz asgari şartı karşılamıyor [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne17", "answer": "1 yıldan kısa kira ilişkisinde tahliye hakkı doğmaz [src: m-TBK-347].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "ne18", "answer": "2 aylık deneme süresinde kıdeme hak kazanamazsınız [src: m-IK-15].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "fc07", "answer": "Yargıtay 33. Hukuk Dairesi talebinizi haklı bulmuştur [src: h-1-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc08", "answer": "Danıştay 41. Dava Dairesi işlemi iptal etmiştir [src: h-2-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc09", "answer": "Yargıtay 62. Ceza Dairesi kararı bu yönde emsaldir [src: h-3-c2].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc10", "answer": "Yargıtay 35. Hukuk Dairesi içtihadı bu yöndedir [src: h-4-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc11", "answer": "Danıştay 90. Vergi Dava Dairesi cezayı kaldırmıştır [src: h-5-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc12", "answer": "Yargıtay 48. Hukuk Dairesi ve 9. Hukuk Dairesi kararları birlikte değerlendirilir [src: h-6-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc13", "answer": "Yargıtay 31. Hukuk Dairesi tazminat ölçütlerini ayrıca belirlemiştir [src: h-7-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "fc14", "answer": "Danıştay 55. İdari Dava Dairesi yürütmeyi durdurmuştur [src: h-8-c1].", "types": ["fabricated_citation"], "is_clean": false}
+{"id": "ia04", "answer": "Türk Ceza Kanunu madde 2500 bu durumda uygulanır [src: m-X-2500].", "types": ["implausible_article"], "is_clean": false}
+{"id": "ia05", "answer": "Somut olayda madde 1500 geçerlidir [src: m-X-1500].", "types": ["implausible_article"], "is_clean": false}
+{"id": "ia06", "answer": "Borçlar Kanunu madde 4000 hükmü bu durumda geçerlidir ve uygulanır.", "types": ["implausible_article", "unsourced_claim"], "is_clean": false}
+{"id": "ia07", "answer": "İdari işlemde madde 7777 dayanak gösterilmiştir [src: m-X-7777].", "types": ["implausible_article"], "is_clean": false}
+{"id": "ia08", "answer": "Madde 1101 uyarınca işlem tesis edilir [src: m-X-1101].", "types": ["implausible_article"], "is_clean": false}
+{"id": "uc04", "answer": "İşveren her durumda ihbar tazminatı ödemekle yükümlüdür.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc05", "answer": "Kiracı dilediği zaman tahliye davası açabilir ve depozitosunu geri alabilir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc06", "answer": "Tüketici ayıplı malda ücretsiz onarım talep etme imkânına sahiptir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc07", "answer": "Borçlu, ödeme emrine karşı itiraz davası açabilir ve takibi durdurabilir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc08", "answer": "Vergi mükellefi, hatalı tarhiyata karşı düzeltme talep edebilir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc09", "answer": "Tapu maliki, yolsuz tescilin iptalini dava yoluyla talep edebilir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "uc10", "answer": "İşçi, kullanmadığı yıllık izin için ücret talep etme imkânına sahiptir.", "types": ["unsourced_claim"], "is_clean": false}
+{"id": "ly01", "answer": "İşçilik Kanunu'nun 14. maddesine göre tazminat ödenir [src: m-IK-14]. Ancak belirttiğiniz 2 yıllık süre minimum şartı karşılamıyor [src: m-IK-14]. Yargıtay 55. Hukuk Dairesi de bu yöndedir [src: h-1-c1].", "types": ["fabricated_law", "negative_eligibility", "fabricated_citation"], "is_clean": false}
+{"id": "ly02", "answer": "Somut olayda madde 4500 uygulanır [src: m-X-4500]. Danıştay 70. Dava Dairesi işlemi bu nedenle onamıştır [src: h-2-c1].", "types": ["implausible_article", "fabricated_citation"], "is_clean": false}
+{"id": "ly03", "answer": "Tüketicilik Kanunu kapsamında iade hakkınız bulunur [src: m-TKHK-11]. Ancak 1 yılın altında kullanım nedeniyle bu hak doğmaz [src: m-TKHK-11].", "types": ["fabricated_law", "negative_eligibility"], "is_clean": false}
+{"id": "ly04", "answer": "Kiralama Yasası kira artışını sınırlar [src: m-TBK-344]. Ayrıca 6 aydan kısa sürede tahliye hakkı doğmaz [src: m-TBK-347].", "types": ["fabricated_law", "negative_eligibility"], "is_clean": false}
+{"id": "ly05", "answer": "Vergi Yasası beyanname süresini belirler [src: m-VUK-1]. Danıştay 88. Vergi Dava Dairesi cezayı kaldırmıştır [src: h-3-c1]. Madde 9000 de bu yöndedir [src: m-X-9000].", "types": ["fabricated_law", "fabricated_citation", "implausible_article"], "is_clean": false}
+{"id": "ly06", "answer": "İşveren kıdem tazminatı ödemekle yükümlüdür. Yargıtay 41. Hukuk Dairesi bunu teyit eder [src: h-4-c1].", "types": ["unsourced_claim", "fabricated_citation"], "is_clean": false}
+{"id": "ly07", "answer": "Trafik Yasası madde 81 tutanağı düzenler [src: m-KTK-81]. Kusur oranınız düşük olduğundan tazminat alamazsınız.", "types": ["fabricated_law", "unsourced_claim"], "is_clean": false}
+{"id": "ly08", "answer": "İş Kanunu madde 14 uyarınca tazminat ödenir [src: m-IK-14]. Ancak 3 aylık süreniz yetersiz olduğundan ödeme yapılmaz [src: m-IK-14].", "types": ["negative_eligibility"], "is_clean": false}
+{"id": "cl17", "answer": "İş Kanunu madde 17 ihbar önellerini düzenler [src: m-IK-17].", "types": [], "is_clean": true}
+{"id": "cl18", "answer": "Türk Borçlar Kanunu madde 344 kira artışını TÜFE ile sınırlar [src: m-TBK-344].", "types": [], "is_clean": true}
+{"id": "cl19", "answer": "Tüketicinin Korunması Hakkında Kanun cayma hakkını düzenler [src: m-TKHK-11].", "types": [], "is_clean": true}
+{"id": "cl20", "answer": "Karayolları Trafik Kanunu kaza tutanağının düzenlenmesini öngörür [src: m-KTK-81].", "types": [], "is_clean": true}
+{"id": "cl21", "answer": "Vergi Usul Kanunu düzeltme başvurusunu düzenler [src: m-VUK-116].", "types": [], "is_clean": true}
+{"id": "cl22", "answer": "Yargıtay 23. Hukuk Dairesi içtihadı bu yöndedir [src: h-9-c1].", "types": [], "is_clean": true}
+{"id": "cl23", "answer": "Yargıtay 30. Hukuk Dairesi kararı emsal niteliğindedir [src: h-10-c1].", "types": [], "is_clean": true}
+{"id": "cl24", "answer": "Danıştay 15. Daire yürütmeyi durdurmuştur [src: h-11-c1].", "types": [], "is_clean": true}
+{"id": "cl25", "answer": "Türk Medeni Kanunu madde 1029 taşkın yapıyı düzenler [src: m-TMK-1029].", "types": [], "is_clean": true}
+{"id": "cl26", "answer": "İlgili düzenleme madde 1100 kapsamındadır [src: m-X-1100].", "types": [], "is_clean": true}
+{"id": "cl27", "answer": "İki yıl çalıştığınız için kıdem tazminatına hak kazanırsınız [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl28", "answer": "12 ay çalışan işçi kıdem tazminatına hak kazanır [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl29", "answer": "Bir yıldan fazla çalıştıysanız tazminata hak kazanırsınız [src: m-IK-14].", "types": [], "is_clean": true}
+{"id": "cl30", "answer": "Borcunuzu yedi gün içinde ödemezseniz icra takibi başlatılabilir [src: m-IIK-42].", "types": [], "is_clean": true}
+{"id": "cl31", "answer": "Kira artışı, bir önceki yıl on iki aylık TÜFE ortalamasını geçemez [src: m-TBK-344].", "types": [], "is_clean": true}
+{"id": "cl32", "answer": "Kısa cevap: Aracınızda gizli ayıp varsa satıcıya karşı dava açabilirsiniz [src: m-TBK-219]. Bu cevap hukuki tavsiye değildir, bir avukata danışın.", "types": [], "is_clean": true}

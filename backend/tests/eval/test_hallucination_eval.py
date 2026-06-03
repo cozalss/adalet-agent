@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from eval.hallucination_eval import TypeMetric, detect_types, score_gold
+from pathlib import Path
+
+from eval.answer_risk import unsourced_legal_claims
+from eval.hallucination_eval import TypeMetric, detect_types, load_gold, score_gold
+
+_REAL_GOLD = (
+    Path(__file__).resolve().parents[2]
+    / "data" / "eval_benchmark" / "hallucination_gold.jsonl"
+)
 
 
 def test_detect_types_fabricated_law():
@@ -51,3 +59,35 @@ def test_score_gold_counts_veto_false_positive():
     rows = [{"id": "bad", "answer": "İşçilik Kanunu hükmü uygulanır.", "types": [], "is_clean": True}]
     s = score_gold(rows)
     assert s["veto_false_positives"] == 1
+
+
+# --- ADVERSARIAL GOLD SETİ — yarışma kanıt-tablosu regresyon kapısı (iter-3) ---
+
+
+def test_real_gold_set_is_adversarial_scale():
+    """Gold set yeterince geniş ve adversarial: ≥100 vaka, hem temiz hem riskli sınıf.
+
+    'Halüsinasyon gold seti dar (40 satır)' boşluğunun (denetim 2026-06-03) kapanma kanıtı.
+    """
+    rows = load_gold(str(_REAL_GOLD))
+    assert len(rows) >= 100, f"adversarial set küçülmüş: {len(rows)}"
+    assert sum(1 for r in rows if r.get("is_clean")) >= 25  # hard-negative kapsamı
+    assert sum(1 for r in rows if not r.get("is_clean")) >= 60  # halüsinasyon kapsamı
+
+
+def test_real_gold_set_zero_false_veto_and_full_recall():
+    """KRİTİK: 104 adversarial vakada temiz cevap ASLA reddedilmez (veto_fp=0) ve
+    her riskli cevap yakalanır (recall=1.0). 'Sıfır halüsinasyon + valid'i bozma' kanıtı."""
+    s = score_gold(load_gold(str(_REAL_GOLD)))
+    assert s["veto_false_positives"] == 0, "valid cevabı reddetmek = kabul edilemez"
+    assert s["hallucination_recall"] == 1.0
+    assert s["micro_precision"] == 1.0
+
+
+def test_unsourced_detector_robust_to_turkish_inflection():
+    """Detektör Türkçe iyelik/mastar çekimine dayanıklı: 'tahliye davası açabilir'
+    ('dava aç' değil 'davası aç') ve 'talep etme' ('talep ed' değil 'talep et')."""
+    assert unsourced_legal_claims("Kiracı tahliye davası açabilir ve depozitosunu geri alabilir.")
+    assert unsourced_legal_claims("Tüketici ücretsiz onarım talep etme imkânına sahiptir.")
+    # kaynaklı (temiz) aynı çekim → bayraklanmaz (false-positive guard)
+    assert unsourced_legal_claims("Tahliye davası açabilirsiniz [src: m-TBK-347].") == []

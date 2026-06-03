@@ -67,6 +67,28 @@ def _strip_foreign_drift(text: str) -> str:
 async def chat_node(state: AgentState) -> dict[str, object]:
     """Hukuki-olmayan soruya Qwen ile doğal cevap. response_intent='chat' set eder;
     finalize bunu disclaimer'sız doğrudan basar. retrieval/verify/tahmin YOK."""
+    # KIRMIZI ÇİZGİ (CLAUDE.md §4): ceza/aile hukuku LLM'e BIRAKILMAZ — triaj'ın
+    # ürettiği deterministik 'avukata danışın' yönlendirmesi kullanılır. Böylece
+    # serbest-form LLM bir ceza/aile sorusuna asla detaylı tavsiye veremez (mock'ta
+    # bile garanti). Smalltalk/genel sohbet aşağıda Qwen'in gerçek beynine gider.
+    if state.get("response_intent") == "out_of_scope_sensitive":
+        text = (state.get("smalltalk_response") or "").strip() or (
+            "Bu konu sistemimizin kapsamı dışında; bu alanda bir avukata "
+            "danışmanızı öneririm. Tüketici, iş, kira, icra, trafik, vergi, tapu "
+            "veya idari hukuk konularında yardımcı olabilirim."
+        )
+        sink = draft_token_sink.get()
+        if sink is not None:
+            sink(text)  # SSE: deterministik mesajı da 'yazılıyor' gibi akıt
+        log.info("chat_out_of_scope_deterministic", n_chars=len(text))
+        return {
+            "response": text,
+            "response_intent": "chat",
+            "confidence": 1.0,
+            "disclaimers": [],
+            "prediction": None,
+        }
+
     question = state.get("question", "")
     messages = [ChatMessage(role="system", content=_CHAT_SYSTEM)]
     for turn in (state.get("chat_history") or [])[-_HISTORY_TURNS:]:

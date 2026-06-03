@@ -61,7 +61,9 @@ _SRC_TAG_RE = re.compile(r"\[src:\s*[^\]]+\]")
 # YALNIZ [src:]-SİZ cümleleri tarar → kaynaklı (temiz) cümleler genişletmeden etkilenmez.
 _LEGAL_CLAIM_MARKERS = (
     "hak kazan", "hak doğ", "hakkınız", "zorunlu", "zorund", "yükümlü",
-    "talep ed", "dava aç", "iptal ed", "mümkün değil",
+    # "talep ed" (edebilir/er) ve "talep et" (etme/etti/eder) AYRI köklerdir → ikisi de gerekir;
+    # "davası aç" iyelik-çekimini ("tahliye davası açabilir") yakalar, "dava aç" yakalamaz.
+    "talep ed", "talep et", "dava aç", "davası aç", "iptal ed", "mümkün değil",
     "tazminat", "madde", "kanun", "hükmü", "yasal",
 )
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
