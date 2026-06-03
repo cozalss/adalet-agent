@@ -112,8 +112,8 @@ def render_markdown(sc: dict) -> str:
     lines: list[str] = [
         "# ADALET — Sıfır-Halüsinasyon Kalkanı Karnesi",
         "",
-        f"> Deterministik (LLM'siz) ölçüm · commit `{sc['git_sha']}` · "
-        "`uv run python -m eval.scorecard` ile üretilir.",
+        "> Deterministik (LLM'siz) ölçüm · `uv run python -m eval.scorecard` ile üretilir "
+        "(üreten commit SHA'sı konsol çıktısında + `eval/runs/scorecard.json`'da).",
         "",
         f"**Genel durum: {verdict}** — temiz cevap asla reddedilmez (yanlış-veto=0) ve "
         "her riskli cevap yakalanır.",

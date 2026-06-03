@@ -1,6 +1,6 @@
 # ADALET — Sıfır-Halüsinasyon Kalkanı Karnesi
 
-> Deterministik (LLM'siz) ölçüm · commit `773a0ef` · `uv run python -m eval.scorecard` ile üretilir.
+> Deterministik (LLM'siz) ölçüm · `uv run python -m eval.scorecard` ile üretilir (üreten commit SHA'sı konsol çıktısında + `eval/runs/scorecard.json`'da).
 
 **Genel durum: ✅ GEÇTİ** — temiz cevap asla reddedilmez (yanlış-veto=0) ve her riskli cevap yakalanır.
 

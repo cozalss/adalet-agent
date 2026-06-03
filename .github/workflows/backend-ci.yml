@@ -114,6 +114,32 @@ jobs:
         # pattern match etmiyordu; config file sağlam.
         run: uv run bandit -r . -c pyproject.toml -ll -ii
 
+  eval-gate:
+    name: sıfır-halüsinasyon kalkanı (scorecard)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      LLM_MODE: mock
+      PRELOAD_MODELS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Deterministik kalkan regresyon kapısı
+        # LLM/GPU/ağ GEREKMEZ — kural/regex/eşik-tabanlı içerik-risk detektörleri.
+        # Yanlış-veto>0 (iyi cevabı reddetme) VEYA halüsinasyon-recall<1.0 VEYA
+        # precision<1.0 olursa exit 1 → CI KIRILIR. "Uydurmama" iddiasının metrik kapısı.
+        run: uv run python -m eval.scorecard --check
+
   docker-build:
     name: docker build smoke
     runs-on: ubuntu-latest
