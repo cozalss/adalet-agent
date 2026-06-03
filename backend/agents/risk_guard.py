@@ -171,6 +171,21 @@ def fabricated_citation_claims(text: str) -> list[str]:
     return flags
 
 
+# --- İmkânsız madde numarası (kesin hata → veto) ---
+# Hiçbir TR kanununda olamayacak madde no (en büyük TMK ~1030 madde). > _ABSURD_ARTICLE_MAX
+# muhafazakâr tavan (FP=0): gerçek maddeyi (1–~1030) ASLA reddetmez; 'madde 5000' gibi uydurma
+# atıfları yakalar. (Denetim 2026-06-04: eval-only iken production veto'ya terfi — layer1_rules
+# 1≤no≤99999'u syntactic geçerli sayıyordu, 'madde 5000' veto'suz geçebiliyordu.)
+_ABSURD_ARTICLE_MAX = 1100
+_ARTICLE_RE = re.compile(r"\bmadde\s*(\d{1,5})\b", re.IGNORECASE)
+
+
+def implausible_article_numbers(text: str) -> list[str]:
+    """Hiçbir TR kanununda olamayacak madde no (örn 'madde 5000') → kesin hata (veto)."""
+    return [m.group(0).strip() for m in _ARTICLE_RE.finditer(text)
+            if int(m.group(1)) > _ABSURD_ARTICLE_MAX]
+
+
 def _grounded_true_eligibility(text: str, source_texts: list[str]) -> set[str]:
     """Hak-reddi cümlelerinden TÜM sayısal eşiği kaynakta GEÇENLER (DOĞRU) → veto muafı.
 
@@ -214,4 +229,6 @@ def verify_risk_veto(text: str, source_texts: list[str] | None = None) -> tuple[
         reasons.append(f"süre/eşik gerekçeli hak-reddi: {sent}")
     for cite in fabricated_citation_claims(text):
         reasons.append(f"imkânsız mahkeme dairesi atfı: {cite}")
+    for art in implausible_article_numbers(text):
+        reasons.append(f"imkânsız madde numarası: {art}")
     return (bool(reasons), reasons)

@@ -10,9 +10,25 @@ from agents.risk_guard import (
     fabricated_citation_claims,
     fabricated_eligibility_threshold,
     fabricated_law_names,
+    implausible_article_numbers,
     negative_eligibility_claims,
     verify_risk_veto,
 )
+
+
+def test_implausible_article_vetoed():
+    """'madde 5000' imkânsız (TMK ~1030 max) → veto (denetim 2026-06-04: eval→production)."""
+    assert implausible_article_numbers("İş Kanunu madde 5000 uyarınca haklısınız.") == ["madde 5000"]
+    blocked, reasons = verify_risk_veto("Somut olayda madde 5000 geçerlidir [src: m-X-5000].")
+    assert blocked
+    assert any("madde numarası" in r for r in reasons)
+
+
+def test_real_article_number_not_vetoed():
+    """Gerçek yüksek madde (TMK madde 1029 ≤ 1100) bloklanMAMALI (FP guard — kritik)."""
+    assert implausible_article_numbers("Türk Medeni Kanunu madde 1029 taşkın yapıyı düzenler.") == []
+    blocked, _ = verify_risk_veto("Türk Medeni Kanunu madde 1029 uygulanır [src: m-TMK-1029].")
+    assert blocked is False
 
 # --- FABRİKE-eşik (kaynak-temelli, deterministik TRUE-vs-FABRİKE ayrımı) ---
 

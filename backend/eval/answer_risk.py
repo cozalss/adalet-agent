@@ -33,26 +33,15 @@ _DURATION_CLAIM_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# --- 2. Uydurma kanun adları + dairesi atfı: production guard'dan re-export ---
-# Bu detektörler artık production verify pipeline'ında da kullanılıyor →
+# --- 2+4. Uydurma kanun adı / dairesi atfı / imkânsız madde no: production guard'dan re-export ---
+# Bu detektörler artık production verify pipeline'ında (verify_risk_veto) da kullanılıyor →
 # tek kaynak agents/risk_guard.py. Eval geriye-uyumluluk için re-export eder.
+# (Denetim 2026-06-04: implausible_article_numbers eval-only iken veto'ya terfi etti.)
 from agents.risk_guard import (
     fabricated_citation_claims,
     fabricated_law_names,
+    implausible_article_numbers,
 )
-
-# --- 4. İmkânsız madde numarası (ÖLÇÜM-amaçlı — veto DEĞİL) ---
-# Hiçbir TR kanununda olamayacak madde no (en büyük: TMK ~1030 madde). > _ABSURD_ARTICLE_MAX
-# kesin imkânsız (örn "madde 5000"). Yasa-özel tespit (İş Kanunu m.200 gibi), kesin madde
-# sayıları mevzuat.gov.tr'den TEYİT edilince eklenir (o zaman veto'ya terfi edebilir).
-_ABSURD_ARTICLE_MAX = 1100
-_ARTICLE_RE = re.compile(r"\bmadde\s*(\d{1,5})\b", re.IGNORECASE)
-
-
-def implausible_article_numbers(text: str) -> list[str]:
-    """Hiçbir TR kanununda olamayacak madde no (örn 'madde 5000') — ölçüm-amaçlı."""
-    return [m.group(0).strip() for m in _ARTICLE_RE.finditer(text)
-            if int(m.group(1)) > _ABSURD_ARTICLE_MAX]
 
 # --- 3. Kaynaksız hukuki iddia ---
 # Kesin hukuki iddia içeren ama [src:] etiketi taşımayan cümle.
