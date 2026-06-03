@@ -8,6 +8,12 @@
 
 Durum: ✅ çözüldü · 🔲 backlog. Sıralama: competition_impact → severity.
 
+> **GÜNCELLEME 2026-06-04:** 20 onaylı bulgunun **14'ü çözüldü** (A-E + PII×3 + CI + resilience +
+> imkânsız-madde-veto + güvenlik×2 + finalize-Literal). Kalan 6 (debate retry→pass · speculative
+> re-scoring · NLI-gold · madde-recall metriği · istatistiksel CI · frontend-Supabase) net-bug DEĞİL,
+> **ranking/eşik heuristiği veya araştırma** → calibration/benchmark ÖLÇÜMÜ ile yapılmalı (kör değişiklik
+> regresyon riski). Git: a2f8b63 e19c320 9fd633a d929931 62fdf82 c531fc2 6c9e544 62165b2.
+
 ## ✅ Çözülenler (high-impact)
 
 | # | Bulgu | Dosya | Commit |
