@@ -201,7 +201,11 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     # varsa fail-closed REJECT (CLAUDE.md §1: doğrulanamazsa REDDEDİLİR).
     # temp=0'da retry aynı çıktıyı üretir → retry değil, doğrudan reject.
     draft_text = state.get("draft_response", "") or ""
-    blocked, risk_reasons = verify_risk_veto(draft_text)
+    # Kaynak snippet'lerini geçir: süre/eşik hak-reddinin KAYNAKTA-TEMELLİ DOĞRU olanı
+    # muaf tutulsun (FABRİKE/temellendirilemez hâlâ veto → kırmızı çizgi korunur).
+    _veto_refs = list(state.get("mevzuat_refs", []) or []) + list(state.get("emsal_refs", []) or [])
+    _veto_sources = [r.get("snippet", "") for r in _veto_refs if r.get("snippet")]
+    blocked, risk_reasons = verify_risk_veto(draft_text, source_texts=_veto_sources)
     if blocked:
         log.warning("verify_risk_veto", reasons=risk_reasons, prev_verdict=verdict)
         verdict = "reject"

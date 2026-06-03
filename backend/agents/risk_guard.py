@@ -85,16 +85,25 @@ def negative_eligibility_claims(text: str) -> list[str]:
 # Çözüm: iddiadaki SAYISAL eşiği getirilen KAYNAK metinleriyle karşılaştır.
 # İddia-eşiği hiçbir kaynakta geçmiyorsa → FABRİKE (uydurma eşik → veto).
 # Kaynakta geçiyorsa → TRUE (doğru bilgilendirme → vetolanmaz, false-positive önlenir).
-_NUM_DURATION_RE = re.compile(r"\b(\d+)\s*(yıl|sene|ay|hafta|gün)", re.IGNORECASE)
+# Türkçe sayı-kelimeleri de yakalanır ("bir yıl" = "1 yıl") → rakam/kelime eşiği eşleşir.
+_NUM_WORDS = {"bir": "1", "iki": "2", "üç": "3", "dört": "4", "beş": "5",
+              "altı": "6", "yedi": "7", "sekiz": "8", "dokuz": "9", "on": "10"}
+_NUM_DURATION_RE = re.compile(
+    r"\b(\d+|bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz|on)\s*(yıl|sene|ay|hafta|gün)",
+    re.IGNORECASE,
+)
 _UNIT_CANON = {"yıl": "yıl", "sene": "yıl", "ay": "ay", "hafta": "hafta", "gün": "gün"}
 
 
 def _norm_thresholds(text: str) -> set[tuple[str, str]]:
-    """Metindeki tüm süre-eşiklerini (sayı, kanonik-birim) kümesi olarak çıkar."""
-    return {
-        (m.group(1), _UNIT_CANON.get(m.group(2).lower(), m.group(2).lower()))
-        for m in _NUM_DURATION_RE.finditer(text)
-    }
+    """Metindeki süre-eşiklerini (sayı, kanonik-birim) kümesi yap. Sayı-kelime → rakam,
+    yıl/sene → yıl normalize → '1 yıl' ile 'bir sene' aynı eşik sayılır."""
+    out: set[tuple[str, str]] = set()
+    for m in _NUM_DURATION_RE.finditer(text):
+        num = _NUM_WORDS.get(m.group(1).lower(), m.group(1))
+        unit = _UNIT_CANON.get(m.group(2).lower(), m.group(2).lower())
+        out.add((num, unit))
+    return out
 
 
 def fabricated_eligibility_threshold(text: str, source_texts: list[str]) -> list[str]:
@@ -135,7 +144,24 @@ def fabricated_citation_claims(text: str) -> list[str]:
     return flags
 
 
-def verify_risk_veto(text: str) -> tuple[bool, list[str]]:
+def _grounded_true_eligibility(text: str, source_texts: list[str]) -> set[str]:
+    """Hak-reddi cümlelerinden TÜM sayısal eşiği kaynakta GEÇENLER (DOĞRU) → veto muafı.
+
+    Eşiksiz ('süreniz yetersiz') veya FABRİKE (kaynakta-olmayan eşikli) cümleler kümede
+    DEĞİL → vetolanır. Yalnız kaynakta-temellendirilmiş DOĞRU bilgilendirmeyi serbest bırakır.
+    """
+    src_th = _norm_thresholds(" ".join(source_texts).lower())
+    out: set[str] = set()
+    for sent in _SENT_SPLIT_RE.split(text):
+        if not _NEGATIVE_ELIGIBILITY_RE.search(sent):
+            continue
+        claim_th = _norm_thresholds(sent.lower())
+        if claim_th and all(th in src_th for th in claim_th):
+            out.add(sent.strip()[:160])
+    return out
+
+
+def verify_risk_veto(text: str, source_texts: list[str] | None = None) -> tuple[bool, list[str]]:
     """Verify pipeline veto kararı: cevapta BLOKLAYICI içerik-riski var mı?
 
     Bloklayıcı (fail-closed → reject) — yalnız YÜKSEK-KESİNLİKLİ sınıflar:
@@ -143,12 +169,21 @@ def verify_risk_veto(text: str) -> tuple[bool, list[str]]:
       - Süre/eşik gerekçeli hak-reddi (tehlikeli yanlış-çıkarım)
       - İmkânsız mahkeme dairesi atfı (uydurma kaynak)
 
+    source_texts VERİLİRSE (getirilen mevzuat/emsal snippet'leri): süre/eşik hak-reddinin
+    KAYNAKTA-TEMELLİ DOĞRU olanı muaf tutulur ('en az 1 yıl' kaynaktayken '1 yılın altında
+    kazanamaz' DOĞRU → vetolanmaz; valid cevap red-flakiness'i giderilir). FABRİKE (kaynakta
+    olmayan eşik), eşiksiz hak-reddi ve kaynaksız çağrı → HÂLÂ veto (kırmızı çizgi korunur).
+    Detektör precision=1.0 (eligibility_eval) → DOĞRU muafiyeti güvenli.
+
     Returns: (bloklanmalı_mı, gerekçe_listesi). CLAUDE.md §1: doğrulanamazsa REDDEDİLİR.
     """
     reasons: list[str] = []
     for law in fabricated_law_names(text):
         reasons.append(f"uydurma kanun adı: {law}")
+    grounded_true = _grounded_true_eligibility(text, source_texts) if source_texts else set()
     for sent in negative_eligibility_claims(text):
+        if sent in grounded_true:
+            continue  # kaynakta-temelli DOĞRU bilgilendirme → vetolanma
         reasons.append(f"süre/eşik gerekçeli hak-reddi: {sent}")
     for cite in fabricated_citation_claims(text):
         reasons.append(f"imkânsız mahkeme dairesi atfı: {cite}")

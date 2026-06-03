@@ -49,6 +49,30 @@ def test_fabricated_threshold_eval_precision_perfect():
     assert res["recall"] >= 0.85
     assert res["n"] >= 16
 
+
+def test_verify_veto_relaxes_grounded_true_with_sources():
+    """source_texts verilince kaynakta-temelli DOĞRU eşik MUAF (vetolanmaz) → flakiness fix."""
+    blocked, _ = verify_risk_veto(
+        "Bir yılın altında çalıştıysanız kıdem tazminatına hak kazanamazsınız.",
+        source_texts=["Kıdem için işçinin en az 1 yıl çalışmış olması gerekir."],
+    )
+    assert not blocked
+
+
+def test_verify_veto_blocks_fabricated_threshold_with_sources():
+    """source_texts verilince bile FABRİKE (kaynakta-olmayan) eşik → VETO (kırmızı çizgi)."""
+    blocked, _ = verify_risk_veto(
+        "5 yıldan az çalıştıysanız kıdem tazminatı verilmez.",
+        source_texts=["Kıdem için en az 1 yıl çalışma şartı aranır."],
+    )
+    assert blocked
+
+
+def test_verify_veto_no_sources_baseline_blocks():
+    """source_texts YOKsa baseline: süre/eşik hak-reddi veto (muhafazakâr, geriye-uyumlu)."""
+    blocked, _ = verify_risk_veto("Bir yılın altında hak kazanamazsınız.")
+    assert blocked
+
 # Gerçek Qwen 14B çıktısı (2026-05-30) — üç ölümcül hata içeriyor.
 REAL_HALLUCINATED_ANSWER = (
     "Kısa cevap: İşten çıkarıldığınızda kıdem tazminatınızın miktarı çalışma "
