@@ -108,7 +108,8 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         timeout_total = HYDE_TIMEOUT_S + 25.0
         _tasks: dict[str, Any] = {}
         if routing.use_hyde:
-            _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain, qdrant_domain=None)
+            _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain,
+                                              qdrant_domain=None, sparse_domain=domain)
         if routing.use_mq:
             _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N,
                                               domain=None, sparse_domain=domain)

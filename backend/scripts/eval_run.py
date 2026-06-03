@@ -170,7 +170,8 @@ async def _eval_one(
         results = await search_with_rerank(question=soru, top_k=5, candidates_n=20)
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
-        results = await search_with_hyde(soru, top_k=10)
+        # sparse_domain: HyDE'nin dual-sparse (BM25) fix'ini ölç (denetim 2026-06-04).
+        results = await search_with_hyde(soru, top_k=10, sparse_domain=expected_domain)
     elif mode == "multi_query":
         from agents.config import MULTI_QUERY_N
         from retrieval.multi_query import search_multi_query

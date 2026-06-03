@@ -24,7 +24,12 @@ import structlog
 from qdrant_client import models
 
 from agents.llm import ChatMessage, get_llm
-from retrieval.hybrid_search import SearchResult, _get_embedder, _to_result
+from retrieval.hybrid_search import (
+    SearchResult,
+    _get_embedder,
+    _to_result,
+    maybe_dual_sparse,
+)
 from retrieval.vector_store import COLLECTION_NAME, get_shared_client
 
 log = structlog.get_logger()
@@ -73,6 +78,7 @@ async def search_with_hyde(
     prefetch_limit: int = 50,
     domain: str | None = None,
     qdrant_domain: str | None = None,
+    sparse_domain: str | None = None,
 ) -> list[SearchResult]:
     """Hybrid search ama dense kolu HyDE hipotetik metnine göre embed edilir.
 
@@ -83,6 +89,9 @@ async def search_with_hyde(
         question: vatandaşın orijinal sorusu
         domain: HyDE prompt'una verilecek hukuk alanı ipucu (LLM jargon için)
         qdrant_domain: Qdrant payload filter (None = tüm domainler)
+        sparse_domain: BGE-M3 sparse embedder seçim hint'i (Qdrant filtresi DEĞİL).
+            Mursit dense-only + sparse-kritik domain (vergi/trafik/icra) → BM25 sparse aktive
+            edilir; aksi halde HyDE bu domainlerde -45pp BM25 kaybı yaşardı (denetim 2026-06-04).
     """
     if not question.strip():
         return []
@@ -101,6 +110,8 @@ async def search_with_hyde(
     out = await embedder.aencode([hypo, question])
     hypo_dense = out.dense[0]
     sparse_idx, sparse_val = out.sparse[1]
+    # Mursit dense-only + sparse-kritik domain → BGE-M3 BM25 sparse'ı al (search() ile simetri).
+    sparse_idx, sparse_val = await maybe_dual_sparse(question, sparse_idx, sparse_val, sparse_domain)
 
     query_filter = None
     if qdrant_domain:

@@ -82,6 +82,23 @@ def _fusion_for(n_prefetch: int) -> models.Fusion:
     return models.Fusion.RRF
 
 
+async def maybe_dual_sparse(
+    question: str, sparse_idx: list, sparse_val: list, sparse_domain: str | None,
+) -> tuple[list, list]:
+    """Mursit dense-only'de sparse BOŞken + domain BM25-kritikse (SPARSE_ENABLED_DOMAINS)
+    BGE-M3 ile sparse vektörünü al; aksi halde değiştirmeden döner.
+
+    vergi/trafik/icra: BGE-M3 sparse +27-45pp domain@1. search() VE search_with_hyde() bu
+    helper'ı PAYLAŞIR (DRY) → HyDE yolu da sparse-kritik domainlerde BM25'i kaybetmez
+    (denetim 2026-06-04: HyDE dense-only çalışıp vergi'de -45pp BM25 kaybı yaşıyordu)."""
+    if sparse_idx or not _SPARSE_MODEL:
+        return sparse_idx, sparse_val
+    if sparse_domain and sparse_domain in _SPARSE_DOMAINS:
+        _, (sparse_idx, sparse_val), _ = await _get_sparse_embedder().aencode_query(question)
+        log.debug("dual_sparse_activated", domain=sparse_domain)
+    return sparse_idx, sparse_val
+
+
 def _get_embedder() -> Embedder | MursitEmbedder:
     """EMBEDDING_MODEL env'e göre doğru embedder singleton döndür."""
     global _embedder_singleton
@@ -154,18 +171,10 @@ async def search(
         question, return_colbert=want_colbert,
     )
 
-    # Dual embedder: Mursit dense-only iken (sparse boş) BGE-M3 ile sparse al.
-    # SPARSE_EMBEDDER_MODEL=BAAI/bge-m3 ile etkin; boşsa tek embedder kullanılır.
-    # Domain-aware dual embedder: sadece BM25 kritik domainlerde spare ekle.
-    # vergi/trafik/icra: BGE-M3 sparse +27-45pp domain@1 kazandırıyor.
-    # idari/tuketici/kira: sparse ekleme → -9-30pp regresyon yapıyor.
-    # sparse_domain: domain hint yalnızca embedder seçimi için; Qdrant filtresi değil.
-    _sd = sparse_domain or domain
-    use_dual = not sparse_idx and _SPARSE_MODEL and (_sd in _SPARSE_DOMAINS if _sd else False)
-    if use_dual:
-        sparse_embedder = _get_sparse_embedder()
-        _, (sparse_idx, sparse_val), _ = await sparse_embedder.aencode_query(question)
-        log.debug("dual_sparse_activated", domain=domain)
+    # Dual embedder (paylaşılan helper): Mursit dense-only + sparse-kritik domain → BGE-M3 sparse.
+    # vergi/trafik/icra +27-45pp; idari/tuketici/kira'da sparse zaten devre dışı (regresyon önlenir).
+    sparse_idx, sparse_val = await maybe_dual_sparse(
+        question, sparse_idx, sparse_val, sparse_domain or domain)
 
     query_filter = _build_filter(domain, kanun_kodu, source)
 

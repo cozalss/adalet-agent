@@ -73,8 +73,10 @@ async def search_speculative(  # noqa: C901
     t_start = loop.time()
 
     # --- 1. Hybrid HEMEN başlat ---
+    # sparse_domain=routing.domain: deadline aşımında 'hybrid_fallback' bu baseline'ı döner;
+    # sparse-kritik domain (vergi/trafik/icra) BM25'i fallback'te de korumalı (denetim 2026-06-04).
     hybrid_task: asyncio.Task = loop.create_task(
-        search(question=question, top_k=target_k, domain=None),
+        search(question=question, top_k=target_k, domain=None, sparse_domain=routing.domain),
         name="hybrid",
     )
 
@@ -82,7 +84,8 @@ async def search_speculative(  # noqa: C901
     advanced_tasks: dict[str, asyncio.Task] = {}
     if routing.use_hyde:
         advanced_tasks["hyde"] = loop.create_task(
-            search_with_hyde(question, top_k=target_k, domain=routing.domain, qdrant_domain=None),
+            search_with_hyde(question, top_k=target_k, domain=routing.domain,
+                             qdrant_domain=None, sparse_domain=routing.domain),
             name="hyde",
         )
     if routing.use_mq:
