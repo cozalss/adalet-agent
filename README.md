@@ -14,7 +14,7 @@
 [![Tests](https://img.shields.io/badge/tests-1135%20backend%20%2B%20138%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 1135 backend + 138 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
+**159k kaynak vektörü · 1135 backend + 149 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
@@ -383,7 +383,7 @@ adalet-agent/
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
 │   └── tests/         pytest suite (1135+)
-├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (138 test)
+├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (149 test)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları
 ├── infra/             Caddy ve deploy altyapısı
