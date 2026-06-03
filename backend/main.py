@@ -8,6 +8,7 @@ GET  /health      → liveness + ana bileşenlerin durumu
 from __future__ import annotations
 
 import contextlib
+import hmac
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ with contextlib.suppress(Exception):
     from core import native_preload as _native_preload  # noqa: F401
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -426,8 +427,29 @@ async def health() -> HealthResponse:
     return HealthResponse(status=status_value, components=components)
 
 
+def _require_metrics_token(request: Request) -> None:
+    """Opsiyonel METRICS_TOKEN guard (defense-in-depth, denetim 2026-06-04).
+
+    METRICS_TOKEN env AYARLIYSA: /metrics* yalnız `Authorization: Bearer <token>` veya
+    `X-Metrics-Token` başlığı ile erişilir (timing-bilgisi sızıntısı + reverse-proxy yanlış-
+    yapılandırması koruması). AYARLI DEĞİLSE davranış DEĞİŞMEZ → mevcut ağ-izolasyonuna
+    güvenilir (private deploy / özel-ağ Prometheus scrape bozulmaz).
+    """
+    token = os.getenv("METRICS_TOKEN", "").strip()
+    if not token:
+        return
+    auth = request.headers.get("authorization", "")
+    supplied = (
+        auth[7:].strip() if auth[:7].lower() == "bearer "
+        else request.headers.get("x-metrics-token", "")
+    )
+    if not (supplied and hmac.compare_digest(supplied, token)):
+        raise HTTPException(status_code=401, detail="metrics token gerekli")
+
+
 @app.get("/metrics/latency")
-async def metrics_latency() -> dict:
+@limiter.limit("60/minute")
+async def metrics_latency(request: Request) -> dict:
     """SSE stream stage latans yüzdelikleri — P50/P95/P99 görünürlüğü.
 
     "P95/P99 trendi görünmezse kör uçarız." In-process rolling pencere (son 500
@@ -442,12 +464,14 @@ async def metrics_latency() -> dict:
     KISIT: tek-process pencere; multi-worker dağıtımda her worker ayrı snapshot.
     Kalıcı trend için JSON log'ları (stream_timings) bir aggregator'a aktarın.
     """
+    _require_metrics_token(request)
     from core.metrics import snapshot_all
     return {"window": 500, "stages": snapshot_all()}
 
 
 @app.get("/metrics")
-async def metrics_prometheus():
+@limiter.limit("60/minute")
+async def metrics_prometheus(request: Request):
     """Prometheus exposition format — Grafana scrape path (self-hosted, KVKK-safe).
 
     Pipeline stage latans yüzdelikleri (P50/P95/P99) gauge olarak. Prometheus
@@ -460,6 +484,7 @@ async def metrics_prometheus():
 
     İnsan-okuması için JSON sürüm: GET /metrics/latency.
     """
+    _require_metrics_token(request)
     from fastapi.responses import PlainTextResponse
 
     from core.metrics import render_prometheus

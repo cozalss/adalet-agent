@@ -66,7 +66,12 @@ class AskRequest(BaseModel):
     want_dilekce: bool = Field(False, description="Resmi dilekçe taslağı istenir mi?")
     want_tts: bool = Field(False, description="Cevabı sesli üret (TTS)")
     conversation_id: str | None = Field(
-        None, max_length=128, description="Multi-turn için session anahtarı",
+        None, max_length=128,
+        # Güvenlik (denetim 2026-06-04): char-sınıfı kısıtı → ':'/'*' gibi Redis özel
+        # karakterleri session key'ine (adalet:session:{id}) sızamaz (key injection /
+        # namespace kirliliği). DELETE /ask/session/{id} ve frontend ile aynı pattern.
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="Multi-turn için session anahtarı (yalnız harf/rakam/_-)",
     )
     user_meta: dict[str, Any] | None = Field(None, description="Şehir, taraf, vb. opsiyonel metadata")
     stream: bool = Field(False, description="True → SSE stream'le aşama aşama dön")

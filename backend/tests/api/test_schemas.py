@@ -41,6 +41,21 @@ def test_question_max_length_enforced():
         AskRequest(question="x" * 2001)  # > 2000
 
 
+# --- conversation_id güvenlik (denetim 2026-06-04: Redis key injection guard) ---
+
+def test_conversation_id_valid_hex_accepted():
+    """Gerçek backend formatı (uuid4().hex, 32 hane) kabul edilmeli."""
+    req = AskRequest(question="soru?", conversation_id="10e73f7d562a4f0b8ba00c4aaa7cddf0")
+    assert req.conversation_id == "10e73f7d562a4f0b8ba00c4aaa7cddf0"
+
+
+@pytest.mark.parametrize("bad", ["abc:owner", "star*", "a/b", "sp ace", "id;drop", "x" * 129])
+def test_conversation_id_injection_chars_rejected(bad):
+    """':'/'*'/'/'/boşluk gibi Redis özel/path karakterleri reddedilir (422)."""
+    with pytest.raises(ValidationError):
+        AskRequest(question="soru?", conversation_id=bad)
+
+
 # --- OCR belge ekleri (image_attachments) ---
 
 def test_attachment_accepted():
