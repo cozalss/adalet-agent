@@ -114,7 +114,8 @@ async def _multi_query_correct(
 
     try:
         results = await search_multi_query(
-            question, top_k=CRAG_TOP_K, n_queries=4, per_query_k=20, domain=None,
+            question, top_k=CRAG_TOP_K, n_queries=4, per_query_k=20,
+            domain=None, sparse_domain=domain,
         )
     except Exception as exc:
         log.warning("crag_mq_search_failed", error=str(exc))

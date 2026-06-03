@@ -89,7 +89,8 @@ async def search_speculative(  # noqa: C901
         )
     if routing.use_mq:
         advanced_tasks["mq"] = loop.create_task(
-            search_multi_query(question, top_k=target_k, n_queries=multi_query_n, domain=None),
+            search_multi_query(question, top_k=target_k, n_queries=multi_query_n,
+                               domain=None, sparse_domain=routing.domain),
             name="mq",
         )
 

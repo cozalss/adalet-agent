@@ -110,17 +110,26 @@ async def search_with_hyde(
         ])
 
     # 3) Qdrant hybrid query (RRF fusion) — paylaşılan client (kapatma).
+    # Mursit dense-only iken sparse=([],[]) gelir; BOŞ SparseVector prefetch'i RRF'i
+    # kirletir (eşleşmesiz ikinci kol → HyDE'nin dense sinyalini sulandırır) ve
+    # qdrant-client>=1.12'de hata fırlatabilir. has_sparse guard'ı ile sparse kolu yalnız
+    # gerçek sparse varken eklenir (hybrid_search.search ile simetrik). HyDE-aktif domainler
+    # (tuketici/kira/isHukuku) zaten sparse-kritik DEĞİL → dense-only HyDE doğru davranış.
+    has_sparse = bool(sparse_idx)
+    prefetch = [
+        models.Prefetch(query=hypo_dense, using="dense",
+                        limit=prefetch_limit, filter=query_filter),
+    ]
+    if has_sparse:
+        prefetch.append(
+            models.Prefetch(query=models.SparseVector(indices=sparse_idx, values=sparse_val),
+                            using="sparse", limit=prefetch_limit, filter=query_filter)
+        )
+
     client = get_shared_client()
     result = await client.query_points(
         collection_name=COLLECTION_NAME,
-        prefetch=[
-            models.Prefetch(query=hypo_dense, using="dense",
-                            limit=prefetch_limit, filter=query_filter),
-            models.Prefetch(query=models.SparseVector(indices=sparse_idx,
-                                                     values=sparse_val),
-                            using="sparse",
-                            limit=prefetch_limit, filter=query_filter),
-        ],
+        prefetch=prefetch,
         query=models.FusionQuery(fusion=models.Fusion.RRF),
         limit=top_k,
         with_payload=True,

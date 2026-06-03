@@ -100,7 +100,8 @@ async def mevzuat_node(state: AgentState) -> dict:
         if routing.use_hyde:
             _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain, qdrant_domain=None)
         if routing.use_mq:
-            _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N, domain=None)
+            _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N,
+                                              domain=None, sparse_domain=domain)
         _keys = list(_tasks.keys())
         _coros = [asyncio.wait_for(c, timeout=timeout_total) for c in _tasks.values()]
         _done = await asyncio.gather(*_coros, return_exceptions=True)

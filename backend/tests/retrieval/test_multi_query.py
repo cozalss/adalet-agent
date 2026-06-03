@@ -226,7 +226,7 @@ def _sr(chunk_id: str, score: float = 1.0) -> SearchResult:
 async def test_fan_out_search_rrf_merges_overlap(monkeypatch):
     """Iki sorgu farklı sıralar — RRF birleştirir, overlap yüksek skor alır."""
     # search() mock: query'ye göre farklı sonuç
-    async def fake_search(question, top_k=5, prefetch_limit=50, domain=None):
+    async def fake_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
         if "q1" in question:
             return [_sr("A"), _sr("B"), _sr("C")]
         if "q2" in question:
@@ -249,9 +249,24 @@ async def test_fan_out_search_empty_queries():
 
 
 @pytest.mark.asyncio
+async def test_fan_out_search_forwards_sparse_domain(monkeypatch):
+    """KIRMIZI METRİK (denetim 2026-06-04): sparse_domain HER alt-sorguya iletilmeli →
+    trafik/icra MQ alt-sorguları BGE-M3 BM25 sparse'ı kaybetmez."""
+    seen: list[str | None] = []
+
+    async def spy_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
+        seen.append(sparse_domain)
+        return [_sr("A")]
+
+    monkeypatch.setattr(mq, "search", spy_search)
+    await mq.fan_out_search(["q1", "q2", "q3"], top_k=4, sparse_domain="trafik")
+    assert seen == ["trafik", "trafik", "trafik"]  # tüm alt-sorgular sparse hint aldı
+
+
+@pytest.mark.asyncio
 async def test_fan_out_search_handles_query_failure(monkeypatch):
     """Bir sorgu exception fırlatsa diğerleri devam etmeli."""
-    async def flaky_search(question, top_k=5, prefetch_limit=50, domain=None):
+    async def flaky_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
         if "fail" in question:
             raise RuntimeError("simulated qdrant down")
         return [_sr("X"), _sr("Y")]
