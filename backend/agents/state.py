@@ -35,7 +35,11 @@ DebateVerdict = Literal["pass", "retry", "reject"]
 ResponseIntent = Literal[
     "legal_answer",
     "needs_clarification",
-    "redirect_to_scope",
+    "redirect_to_scope",  # triaj iç-niyeti (unknown domain) — finalize'a varmadan chat'e dönüşür
+    "redirect",           # finalize'ın EMİT ettiği dış değer; frontend bunu bekler (App.jsx/
+                          # useChat/parseAnswer "redirect" arar) → yumuşak yönlendirme baloncuğu.
+                          # Denetim 2026-06-04: finalize 'redirect' döndürüyordu ama Literal'da
+                          # yoktu (tip ihlali). Frontend sözleşmesi 'redirect' → geçerli kılındı.
     "smalltalk",
     "chat",  # genel sohbet (chat node Qwen ile doğal cevap) — hukuki-olmayan
     "out_of_scope_sensitive",

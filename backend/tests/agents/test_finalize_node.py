@@ -129,6 +129,14 @@ async def test_finalize_unknown_domain_redirects_to_scope_without_disclaimer(bas
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
     assert out["disclaimers"] == []
+    # Tip sözleşmesi (denetim 2026-06-04): emit edilen response_intent GEÇERLİ bir
+    # ResponseIntent üyesi olmalı VE frontend'in tanıdığı 'redirect' değeri olmalı
+    # (App.jsx/useChat/parseAnswer 'redirect' arar). Eski 'redirect' Literal'da yoktu.
+    from typing import get_args
+
+    from agents.state import ResponseIntent
+    assert out["response_intent"] == "redirect"
+    assert out["response_intent"] in get_args(ResponseIntent)
     response = _asciiish(out["response"])
     assert "guvenilir bir cevap verecek sekilde tasarlanmadim" in response
     assert "benim ana amacim" in response
