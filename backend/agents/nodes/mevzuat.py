@@ -60,12 +60,22 @@ async def mevzuat_node(state: AgentState) -> dict:
     HyDE+multi-query stratejisi: vatandaş dilini kanun jargonuna çevirmek
     için HyDE; lexical varyasyon için multi-query. E7 vergi (top=0.66) ve
     E8 tapu (top=0.62) gibi düşük skorlu sorgulara yardım eder.
+
+    FAN-IN DAYANIKLILIĞI (denetim 2026-06-04): retrieval beklenmedik bir exception ile
+    çökse bile (embedding/Qdrant/reranker) TÜM graph'ı 500'lememeli → boş mevzuat_refs +
+    errors döndürür; emsal kolu + verify ayakta kalır (dejenere ama yanıt üretir).
     """
-    question = state["question"]
     domain = state.get("domain", "unknown")
     if domain == "unknown":
         return {"mevzuat_refs": []}
+    try:
+        return await _mevzuat_retrieve(state["question"], domain)
+    except Exception as exc:
+        log.error("mevzuat_node_degraded", error=str(exc) or type(exc).__name__)
+        return {"mevzuat_refs": [], "errors": [f"mevzuat: {type(exc).__name__}"]}
 
+
+async def _mevzuat_retrieve(question: str, domain: str) -> dict:
     target_k = TOP_K_LAW * 4
 
     # Adaptive routing: domain + karmaşıklık bazlı HyDE/MQ kararı.

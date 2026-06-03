@@ -30,11 +30,21 @@ GRAPH_NEIGHBORS_TOP_K = int(os.getenv("GRAPH_NEIGHBORS_TOP_K", "3"))
 
 @observe_node(name="emsal")
 async def emsal_node(state: AgentState) -> dict:
-    question = state["question"]
+    """Emsal retrieval. FAN-IN DAYANIKLILIĞI (denetim 2026-06-04): mevzuat ile PARALEL
+    koşar; birincil retrieval beklenmedik bir exception ile çökse bile (embedding
+    RuntimeError, Qdrant ValueError, reranker AttributeError) TÜM graph'ı 500'lememeli →
+    boş emsal_refs + errors döndürür, diğer kol (mevzuat) + verify ayakta kalır."""
     domain = state.get("domain", "unknown")
     if domain == "unknown":
         return {"emsal_refs": []}
+    try:
+        return await _emsal_retrieve(state["question"], domain)
+    except Exception as exc:
+        log.error("emsal_node_degraded", error=str(exc) or type(exc).__name__)
+        return {"emsal_refs": [], "errors": [f"emsal: {type(exc).__name__}"]}
 
+
+async def _emsal_retrieve(question: str, domain: str) -> dict:
     # Ana yol: mevcut search_with_rerank (hibrit + rerank). Anayasa hacmi (~9:1)
     # dense'i boğduğunda preferred (DOMAIN_PREFERRED_COURTS) mahkemelerin
     # adaylarını ayrı source-scoped search ile garanti et → tier-sort'a
