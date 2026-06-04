@@ -27,6 +27,14 @@ log = structlog.get_logger()
 # eski davranış birebir korunur (test'ler regression-free).
 GRAPH_NEIGHBORS_TOP_K = int(os.getenv("GRAPH_NEIGHBORS_TOP_K", "3"))
 
+# Emsal aday kabul edilen karar/kurum kaynakları (seed'lerde doc_type her zaman
+# yazılmıyor → source-fallback). Corpus'taki TÜM karar kaynaklarını içermeli;
+# eksikse o kaynak SESSİZCE filtrelenir (sayistay 231 chunk böyle düşüyordu —
+# doc_type=None + sette yok → hiç yüzeye çıkmıyordu, 2026-06-04 denetim).
+_CASE_SOURCES = frozenset(
+    {"anayasa", "yargitay", "danistay", "bedesten", "uyap", "gib_ozelge", "sayistay"}
+)
+
 
 @observe_node(name="emsal")
 async def emsal_node(state: AgentState) -> dict:
@@ -80,7 +88,7 @@ async def _emsal_retrieve(question: str, domain: str) -> dict:
     case_results = [
         rr for rr in rerank_results
         if rr.metadata.get("doc_type") == "case"
-        or rr.source in {"anayasa", "yargitay", "danistay", "bedesten", "uyap", "gib_ozelge"}
+        or str(rr.source or "").lower() in _CASE_SOURCES
     ]
 
     # Mahkeme-öncelikli tier-sort — Anayasa bireysel başvuru hacmi (corpus'ta

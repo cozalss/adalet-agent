@@ -79,6 +79,31 @@ def test_tapu_prefers_both_yargitay_and_danistay():
     assert n_pref == 2
 
 
+def test_sayistay_and_danistay_preferred_for_idari():
+    """İdari domain'de Sayıştay + Danıştay tier-0; Yargıtay tier-1; anayasa tier-2.
+
+    Regresyon: Sayıştay corpus'ta var (231) ama emsal kaynak setinde DEĞİLDİ → hiç
+    yüzeye çıkmıyordu (2026-06-04 fix). Artık idari/vergi'de öncelikli emsal."""
+    cases = [
+        _rr("ana", 0.99, "anayasa"),
+        _rr("yarg", 0.70, "yargitay"),
+        _rr("say", 0.40, "sayistay"),
+        _rr("dan", 0.30, "danistay"),
+    ]
+    out, n_pref = emsal_mod._court_priority_sort(cases, "idari")
+    ids = [c.chunk_id for c in out]
+    assert ids[:2] == ["say", "dan"]  # tier-0 (cross-encoder sırasında say>dan)
+    assert ids[2] == "yarg"           # tier-1
+    assert ids[3] == "ana"            # tier-2
+    assert n_pref == 2
+
+
+def test_case_sources_includes_decision_courts():
+    """Karar kaynak seti corpus'taki TÜM mahkemeleri içermeli — sayistay eksikse
+    doc_type=None olduğu için sessizce filtrelenir (gerçek bug'dı)."""
+    assert {"sayistay", "danistay", "anayasa", "yargitay", "uyap", "gib_ozelge"} <= emsal_mod._CASE_SOURCES
+
+
 def test_domain_without_preference_is_noop():
     """DOMAIN_PREFERRED_COURTS'ta olmayan domain → sıra değişmez."""
     cases = [_rr("a", 0.9, "anayasa"), _rr("b", 0.4, "yargitay")]

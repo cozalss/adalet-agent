@@ -411,8 +411,10 @@ DOMAIN_PREFERRED_COURTS: dict[str, tuple[str, ...]] = {
     "icra": ("yargitay", "uyap"),
     "trafik": ("yargitay", "uyap"),
     "tapu": ("yargitay", "danistay", "uyap"),
-    "vergi": ("danistay", "gib_ozelge"),
-    "idari": ("danistay",),
+    "vergi": ("danistay", "gib_ozelge", "sayistay"),
+    # Sayıştay (kamu mali denetimi) idari + vergi emsali; corpus'ta 231 chunk var ama
+    # emsal kaynak setinde olmadığı için hiç yüzeye çıkmıyordu (2026-06-04 fix) → tier-0.
+    "idari": ("danistay", "sayistay"),
 }
 
 # --- Disclaimer ---
