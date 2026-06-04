@@ -44,9 +44,13 @@ _CHAMBER_RE = re.compile(
 # --- Süre/eşik gerekçeli HAK-REDDİ (sıkı — denial kalıbı) ---
 # Yalnız TEHLİKELİ kalıbı yakalar: süre/eşik gerekçe gösterip hak reddeden cümle.
 # "1 yıl gerekir" gibi DOĞRU bilgilendirme yakalanmaz (false-positive minimize).
+# `karşılamı(?!ş)` / `sağlamı(?!ş)`: olumsuz "karşılamıyor/sağlamıyor"u yakalar ama OLUMLU
+# geçmiş "karşılamış/sağlamış" (= şartı KARŞILADI, hak doğar) cümlesini HARİÇ tutar. Aksi halde
+# "1 yıl şartını karşılamış olabilirsiniz" gibi OLUMLU uygunluk cümlesi yanlışlıkla hak-reddi
+# sanılıp tüm cevap veto ediliyordu → modelin aşırı-tereddütünün kök sebebi (gerçek-LLM 2026-06-04).
 _DENIAL_VERB = (
-    r"(?:karşılamı\w*|yetersiz|yeterli\s+değil|hak\s+kazanama\w*|kazanamaz|"
-    r"verilmez|verilmeyebilir|alamaz\w*|doğmaz|sağlamı\w*|sağlamaz|"
+    r"(?:karşılamı(?!ş)\w*|yetersiz|yeterli\s+değil|hak\s+kazanama\w*|kazanamaz|"
+    r"verilmez|verilmeyebilir|alamaz\w*|doğmaz|sağlamı(?!ş)\w*|sağlamaz|"
     r"yeterli\s+olm\w*|geçerli\s+değil|mümkün\s+değil)"
 )
 _DURATION_OR_THRESHOLD = r"(?:\d+\s*(?:yıl|sene|ay|hafta|gün)|süre\w*|altında|aşağı)"

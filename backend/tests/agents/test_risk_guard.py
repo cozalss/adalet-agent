@@ -170,6 +170,26 @@ def test_positive_eligibility_not_blocked():
     assert blocked is False
 
 
+def test_positive_met_requirement_not_vetoed():
+    """OLUMLU 'şartı karşılamış olabilirsiniz' (hak DOĞAR) vetolanMAMALI (gerçek-LLM 2026-06-04
+    bug: 'karşılamış' yanlışlıkla 'karşılamıyor' gibi yakalanıp tüm cevap reddediliyordu)."""
+    for good in (
+        "2 yıl çalıştığınız için en az 1 yıllık kıdem şartını karşılamış olabilirsiniz [src: m-IK-14].",
+        "Belirttiğiniz süre asgari koşulu sağlamış görünüyor [src: m-IK-14].",
+    ):
+        blocked, reasons = verify_risk_veto(good)
+        assert blocked is False, f"olumlu uygunluk yanlış vetolandı: {reasons}"
+
+
+def test_negative_not_met_still_vetoed():
+    """OLUMSUZ 'karşılamıyor/sağlamıyor' HÂLÂ veto (kırmızı çizgi korunur)."""
+    for bad in (
+        "6 aylık süreniz 1 yıllık kıdem şartını karşılamıyor.",
+        "Süreniz asgari koşulu sağlamıyor.",
+    ):
+        assert verify_risk_veto(bad)[0] is True, f"olumsuz hak-reddi veto edilmedi: {bad}"
+
+
 def test_real_law_name_not_flagged():
     good = "İş Kanunu madde 14 uyarınca kıdem tazminatı ödenir [src: m-IK-14]."
     assert fabricated_law_names(good) == []
