@@ -89,6 +89,26 @@ def is_clatter_gate_enabled() -> bool:
     return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def is_cite_grounding_check_enabled() -> bool:
+    """Citation-grounding kontrolü (opt-in, default 0) — 'correct ≠ faithful'.
+
+    `CITE_GROUNDING_CHECK=1`: cite_ids TAŞIYAN bir iddia için FUZZY eşleşme TEK BAŞINA
+    "supported" sayılmaz; cite'ın işaret ettiği kaynak iddiayı GERÇEKTEN temellendirmeli
+    (LettuceDetect grounding VEYA NLI entailment). 'Doğru madde-no + yanlış içerik atfı'
+    (misgrounded citation — fuzzy yüzeysel kelime örtüşmesiyle geçen) yakalanır.
+
+    pick_evidence zaten kanıtı cite hedefine daraltıyor; bu kapı yalnız "fuzzy yeter"
+    yolunu cited iddialar için kapatır (lettuce/NLI grounding'i korur). Default `0`:
+    baseline korunur; mock/dev'de NLI+lettuce yok → açılırsa over-reject → yalnız
+    production'da (NLI yüklü, VERIFY_STRICT) açılır. CLATTER kapısıyla (is_clatter_gate_enabled)
+    zincirlenir. Dinamik okunur → testler monkeypatch.setenv ile toggle eder.
+
+    SOTA: Stanford-2024 / RAGAS faithfulness (arXiv 2412.18004) — misgrounded citation
+    (gerçek kaynak ama desteklemiyor) daha tehlikeli/fark edilmesi zor.
+    """
+    return os.getenv("CITE_GROUNDING_CHECK", "0").lower() in {"1", "true", "yes"}
+
+
 def get_ask_graph_timeout_s() -> float:
     """/ask + /ask/stream uçtan uca graph timeout (saniye). 0 = devre dışı.
 

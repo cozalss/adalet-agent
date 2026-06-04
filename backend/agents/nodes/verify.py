@@ -35,6 +35,7 @@ from agents.config import (
     MAX_RETRY,
     MIN_VERIFIED_CLAIMS_RATIO,
     NLI_ENTAILMENT_THRESHOLD,
+    is_cite_grounding_check_enabled,
     is_clatter_gate_enabled,
 )
 from agents.risk_guard import is_high_risk_eligibility_claim, verify_risk_veto
@@ -150,12 +151,17 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     verified: list[Claim] = []
     contradictions = 0
     n_supported = 0
+    # 2.3 (opt-in): cited iddialarda FUZZY tek başına 'supported' sayılmaz → gerçek
+    # grounding (lettuce/NLI-entail) şart. pick_evidence kanıtı zaten cite hedefine
+    # daraltıyor; bu yalnız "fuzzy yeter" yolunu cited iddialar için kapatır (misgrounded).
+    cite_check = is_cite_grounding_check_enabled()
 
     for i, claim in enumerate(claims):
         l1_ok, l1_msg = layer1_results[i]
         l2_score, l2_msg, _l2_best_idx = layer2_results[i]
         l25_score, l25_fallback = layer25_results[i]
         l3_contradicted, l3_ent, l3_con, l3_msg = layer3_results[i]
+        _cited = cite_check and bool(claim.get("cite_ids"))
 
         # NLI hard veto — claim kaynakla çelişiyor
         if l3_contradicted:
@@ -176,8 +182,9 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
             verified.append(_mark(claim, False, 0.0, f"Format: {l1_msg}"))
             continue
 
-        # Fuzzy positive
-        if l2_score >= FUZZY_SUPPORT_THRESHOLD:
+        # Fuzzy positive — cited iddialarda (cite_check) fuzzy TEK BAŞINA yetmez:
+        # cite hedefi gerçekten temellendirmeli (lettuce/NLI). 'correct ≠ faithful'.
+        if l2_score >= FUZZY_SUPPORT_THRESHOLD and not _cited:
             verified.append(_mark(claim, True, l2_score, f"Fuzzy {l2_score:.2f}: {l2_msg}"))
             n_supported += 1
             continue
