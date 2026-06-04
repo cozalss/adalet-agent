@@ -714,7 +714,9 @@ a.btn:not(:disabled):active {
   font-size: .76rem; font-weight: 600; letter-spacing: .01em;
   color: var(--accent, #D4A574); margin-bottom: 10px; opacity: .92;
 }
-.live-draft .ld-badge.verifying { color: var(--success, #5C8C5A); }
+/* "drafting"→"verifying" geçişinde rozet rengi SABİT altın kalır (eski gold→yeşil flip
+   "renk değişti" algısı yaratıyordu). Doğrulama anlamı final EvidenceStats güven-çubuğunda. */
+.live-draft .ld-badge.verifying { color: var(--accent, #D4A574); }
 .live-draft .ld-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: currentColor; animation: ld-pulse 1s ease-in-out infinite;

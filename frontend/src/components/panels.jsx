@@ -10,6 +10,7 @@
                   taranabilir stat-bloklar olarak gösterir (Güven · Kaynak · İddia). */
 import React, { useState, useEffect } from "react";
 import { Icon } from "./icons.jsx";
+import { stripAnswerTail } from "../lib/parseAnswer.js";
 
 /** %0→value ease-out-cubic sayaç (reduced-motion saygılı). */
 function useCountUp(value) {
@@ -206,7 +207,10 @@ export function PredictionCard({ prediction: p }) {
    sadeleştirilir. final gelince App bunu DOĞRULANMIŞ AnswerCard ile DEĞİŞTİRİR —
    akan taslak asla nihai cevap gibi sunulmaz (sıfır-halüsinasyon çizgisi). */
 export function LiveDraft({ text, verifying }) {
-  const clean = (text || "")
+  // ÖNCE finalize kuyruğunu (⚠️ disclaimer + Kaynaklar) kes — model kendi kapanış
+  // disclaimer'ını token olarak yazsa bile akışta görünüp final'de kaybolmasın
+  // (içerik-flip önlenir; disclaimer tek otorite DisclaimerBar'da). Sonra [src:]/** sadeleştir.
+  const clean = stripAnswerTail(text)
     .replace(/\[src:[^\]]*\]/gi, "")
     .replace(/\*\*/g, "");
   return (

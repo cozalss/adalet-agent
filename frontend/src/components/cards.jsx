@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "./icons.jsx";
 import { RunText } from "./ui.jsx";
+import { stripAnswerTail } from "../lib/parseAnswer.js";
 
 export function AnswerCard({ answer, sources, onJump }) {
   const cardRef = useRef(null);
@@ -93,7 +94,9 @@ export function ClarifyCard({ data, onPick }) {
 /** Hafif sohbet baloncuğu — KART DEĞİL (gölge/border yok). Selam/yönlendirme yanıtı;
  *  ChatGPT-benzeri sol-hizalı düz metin. Hukuki iddia/kaynak yok → güvenli. */
 export function SmallTalkBubble({ text }) {
-  const paras = (text || "").split(/\n{2,}/).filter((p) => p.trim());
+  // Finalize kuyruğunu (⚠️ disclaimer + Kaynaklar) kes — hem CANLI streaming (ham draftText)
+  // hem final aynı temiz gövdeyi gösterir → "akışta var, final'de yok" flip'i biter.
+  const paras = stripAnswerTail(text).split(/\n{2,}/).filter((p) => p.trim());
   return (
     <div className="smalltalk-bubble" aria-live="polite">
       {paras.map((para, i) => (

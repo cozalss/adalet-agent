@@ -567,7 +567,7 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
   // Hafif yol (selam/yönlendirme/kapsam-dışı): token akmaz → ağır stepper yerine hafif gösterge.
-  const softPath = ["smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent);
+  const softPath = ["chat", "smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent);
   return (
     <React.Fragment>
       <UserBubble text={turn.question} onEdit={onEdit} />
@@ -594,7 +594,12 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
           )}
 
           {p === "smalltalk" && d.smalltalk && (
-            <SmallTalkBubble text={d.smalltalk.text} />
+            <React.Fragment>
+              <SmallTalkBubble text={d.smalltalk.text} />
+              {/* Hukuki-ipuçlu chat'te backend disclaimers[] doldurur → TEK otorite bar'da
+                  göster (gövdeye gömme yok → akış/final tutarlı). Saf selam → liste boş → bar yok. */}
+              {d.disclaimers?.length ? <DisclaimerBar items={d.disclaimers} /> : null}
+            </React.Fragment>
           )}
 
           {d.kind === "clarify" && p === "clarify" && (

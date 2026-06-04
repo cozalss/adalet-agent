@@ -72,6 +72,9 @@ _CHAT_SYSTEM = (
     "kavramını sade dille açıklayabilirsin ama somut atıf/numara verme.\n"
     "- Ceza ve aile hukukunda detaylı tavsiye verme; bir avukata danışmayı öner.\n"
     "- Zararlı, yasadışı, nefret içeren veya tehlikeli içerik üretme.\n"
+    "- Yanıtının sonuna ⚠️ ile başlayan sorumluluk reddi / 'hukuki tavsiye değildir' / "
+    "genel 'bir avukata danışın' KAPANIŞ cümlesi EKLEME; gerektiğinde sistem otomatik ekler. "
+    "(Ceza/aile gibi kapsam-dışı konuda yönlendirme ayrı ele alınır.)\n"
     "- ÇOK ÖNEMLİ: Yanıtının TAMAMI Türkçe olsun — tek bir kelime, harf veya cümle "
     "bile başka dilde (Çince, İngilizce, Japonca vb.) OLMASIN."
 )

@@ -128,7 +128,7 @@ export function mapResponse(resp, question) {
       reject: {
         title: "Bu konuda emin değilim",
         body:
-          (resp.answer || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim() ||
+          stripAnswerTail(resp.answer) ||
           "Sorunuzu güvenilir kaynaklarla doğrulanmış şekilde yanıtlayamadım. " +
             "Yanlış bilgi vermektense bir avukata danışmanızı öneririm.",
       },
@@ -138,7 +138,7 @@ export function mapResponse(resp, question) {
   }
 
   const citeMap = buildCiteMap(citations);
-  let body = (resp.answer || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
+  const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
 
   return {
@@ -191,7 +191,7 @@ function mapPrediction(p) {
 
 /** Netleştirme cevabını {intro, options[]} şekline ayır (numaralı sorular). */
 export function mapClarify(answerText) {
-  const clean = (answerText || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
+  const clean = stripAnswerTail(answerText);
   const lines = clean.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const options = [];
   let intro = "";
@@ -218,10 +218,24 @@ export function looksSmalltalk(resp) {
     && resp.domain === "unknown";
 }
 
-/** Smalltalk/redirect yanıtını hafif baloncuk şekline indir (kaynak/disclaimer kuyruğu silinir). */
+/** Cevap gövdesinden finalize kuyruğunu (Kaynaklar listesi + ⚠️ disclaimer) kes.
+ *  ORTAK: hem final (mapSmalltalk) hem CANLI streaming (App akan baloncuk) kullanır →
+ *  streaming ile final AYNI temiz metni gösterir (LLM kendi disclaimer'ını eklese bile
+ *  akış sırasında görünüp final'de kaybolmaz = içerik-flip önlenir). */
+export function stripAnswerTail(text) {
+  return (text || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
+}
+
+/** Smalltalk/redirect yanıtını hafif baloncuk şekline indir (kaynak/disclaimer kuyruğu
+ *  gövdeden silinir; disclaimer varsa AYRI taşınır → UI tek otorite DisclaimerBar'da basar,
+ *  gövdeye gömülü "akışta-var-final'de-yok" flip'i önlenir). Saf selam → liste boş → bar yok. */
 export function mapSmalltalk(resp) {
-  const text = (resp.answer || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
-  return { kind: "smalltalk", domain: "", smalltalk: { text } };
+  return {
+    kind: "smalltalk",
+    domain: "",
+    smalltalk: { text: stripAnswerTail(resp.answer) },
+    disclaimers: Array.isArray(resp.disclaimers) ? resp.disclaimers : [],
+  };
 }
 
 const DOMAIN_LABELS = {

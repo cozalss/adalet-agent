@@ -62,7 +62,9 @@ export function useChat() {
         onTriage: (d) => {
           // Hafif yollar (selam/yönlendirme/kapsam-dışı): erken işaretle → token akmaz,
           // ağır stepper yerine hafif "yazıyor", final'da soğuk RejectCard değil baloncuk.
-          if (["smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent)) {
+          // "chat" DAHİL (selam/genel sohbet de hafif baloncuk yolu) — eksikti: chat
+          // intent'i ağır "drafting" yolundan akıp final'de hafif baloncuğa FLIP ediyordu.
+          if (["chat", "smalltalk", "redirect", "out_of_scope_sensitive"].includes(d.intent)) {
             sawSmalltalk = true;
           }
           _patchData(key, {
