@@ -49,13 +49,14 @@ if [ "$1" = "stop" ]; then stop_demo; exit 0; fi
 # --- Backend (FastAPI + in-process Qwen) -------------------------------------
 cd "$ROOT/backend"
 set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection, model yolu, ...)
-# --- demo override'ları (.env üstüne; Plan C: Qwen3-8B Q4 GPU + yardımcılar da GPU) ---
-# Qwen3-8B-Q4 (~5GB) → 7B ayak izinde + daha iyi muhakeme/düşük halüsinasyon. Embedder+
-# reranker GPU'da (retrieval ~5s), üretim ~34 tok/s (ölçüldü). LLM_NO_THINK=1 ZORUNLU:
-# Qwen3 varsayılan <think> bloğu üretir (draft parse'ı bozar + UI'a akar) → /no_think kapatır.
+# --- demo override'ları (.env üstüne; Plan D: Qwen3.5-9B UD-Q4_K_XL GPU + yardımcılar da GPU) ---
+# Qwen3.5-9B (Gated DeltaNet hibrit, ~6GB Q4) — 8B'ye karşı head-to-head 2-1 kazandı (judge-workflow:
+# kira+kıdem'de daha az uydurma/sahte-grounding; 8B kıdem'i reject ederken 3.5 doğru+emsal). Runtime
+# 0.3.25'te YÜKLENİYOR (upgrade yok), thinking DEFAULT KAPALI, VRAM ~8.5/12.3GB, ~23 tok/s. Apache-2.0,
+# 201 dil (TR), 262k ctx, benchmark 8B'den belirgin üstün (GPQA 81.7/MMLU-Pro 82.5).
 export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=512 LLM_SPECULATIVE=0
-export LLM_MODEL_PATH=./models/Qwen3-8B-Q4_K_M.gguf
-export LLM_NO_THINK=1
+export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
+export LLM_NO_THINK=1   # 3.5 default-off; /no_think + _strip_think backstop (defansif)
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
 # ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
 export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=512
