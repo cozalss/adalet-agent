@@ -356,3 +356,31 @@ async def test_draft_no_refs_returns_empty(monkeypatch):
     assert out["draft_response"] == ""
     assert out["claims"] == []
     assert called["chat"] is False
+
+
+def test_clean_draft_drops_truncated_trailing_section():
+    """truncated=True: kesik son bölüm ('**Güven:** …8., 10. ve 11.') atılır, tam
+    bölümler ('11.' numara-noktası tam cümle sanılmaz) korunur (gerçek-LLM 2026-06-04)."""
+    import agents.nodes.draft as draft_mod
+
+    raw = (
+        "**Kısa cevap:** Ayıplı maldan dolayı iade hakkınız var. [src: m-TKHK-8]\n\n"
+        "**Dikkat:** Süreyi kaçırmayın.\n\n"
+        "**Güven:** Bu yanıt, TKHK'nın 8., 10. ve 11."
+    )
+    out = draft_mod._clean_draft_response(raw, truncated=True)
+    assert "**Güven:**" not in out
+    assert out.rstrip().endswith("Süreyi kaçırmayın.")
+
+
+def test_clean_draft_keeps_complete_section_when_truncated_flag():
+    """truncated=True ama son bölüm TAM ise düşürülmez (aşırı kırpma yok)."""
+    import agents.nodes.draft as draft_mod
+
+    raw = (
+        "**Kısa cevap:** Hakkınız var. [src: m-TKHK-8]\n\n"
+        "**Güven:** Bu yanıt TKHK 8. maddesine dayanır."
+    )
+    out = draft_mod._clean_draft_response(raw, truncated=True)
+    assert "**Güven:**" in out
+    assert out.rstrip().endswith("dayanır.")

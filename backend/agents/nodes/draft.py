@@ -142,7 +142,10 @@ async def draft_node(state: AgentState) -> dict[str, object]:
             "errors": [f"draft: LLM hatası ({type(exc).__name__})"],
         }
 
-    draft_text = _clean_draft_response(response.content)
+    draft_text = _clean_draft_response(
+        response.content,
+        truncated=getattr(response, "finish_reason", "stop") == "length",
+    )
     draft_text = _backfill_missing_source_tags(draft_text, refs, question)
     draft_text = _remove_unsafe_duration_inferences(
         draft_text,
@@ -357,18 +360,38 @@ _UNSAFE_ELIGIBILITY_MARKERS = (
 )
 
 
-def _clean_draft_response(raw: str) -> str:
+# Markdown kalın bölüm başlığı (**Güven:**, **Dikkat:** …) — kesik trailing bölümü bulmak için.
+_SECTION_HEADER_RE = re.compile(r"\n\s*\*\*[^*\n]{1,40}:\*\*")
+# Kesik sayım: "…8., 10. ve 11." gibi numara+nokta ile biten yarım enumerasyon. Bu "."
+# normal cümle-sonu sanılıp kesilmişlik gizlenir; bu kalıpla tam-cümle kontrolünden ayrılır.
+_ENUM_CUT_RE = re.compile(r"\b\d+\.\s*$")
+
+
+def _clean_draft_response(raw: str, *, truncated: bool = False) -> str:
     """Model çıktısını final aşamasına girmeden önce güvenli, tam gövdeye indir.
 
     Llama.cpp token sınırında kesilirse kaynak etiketi veya son cümle yarım kalabilir.
     Ayrıca model bazen prompt'a rağmen kendi "Kaynaklar" bloğunu üretir; kaynak listesi
     finalize_node tarafından tekilleştirilerek ekleneceği için burada gövde dışına atılır.
+
+    truncated=True (LLM finish_reason='length'): son bölüm (örn. "**Güven:** …8., 10. ve 11.")
+    yarım kalmış olabilir; "11." gibi numara+nokta sonu normal cümle-sonu sanıldığından kesik
+    trailing bölüm tespit edilip atılır (en az bir tam bölüm kalıyorsa).
     """
     text = _MODEL_SOURCE_BLOCK_RE.sub("", raw.strip())
     text = _INCOMPLETE_SRC_AT_END_RE.sub("", text).rstrip()
     if not text:
         return ""
-    if text[-1] in ".!?" or _COMPLETE_SRC_AT_END_RE.search(text):
+    if truncated:
+        sections = list(_SECTION_HEADER_RE.finditer(text))
+        if sections:
+            head_start = sections[-1].start()
+            body = text[sections[-1].end():].lstrip(": ").strip()
+            incomplete = not body or _ENUM_CUT_RE.search(body) or body[-1] not in ".!?"
+            trimmed = text[:head_start].rstrip()
+            if incomplete and trimmed:
+                text = trimmed
+    if (text[-1] in ".!?" and not _ENUM_CUT_RE.search(text)) or _COMPLETE_SRC_AT_END_RE.search(text):
         return text
     matches = list(_SENTENCE_END_RE.finditer(text))
     if not matches:
