@@ -34,6 +34,7 @@ from retrieval.adaptive_router import route_query
 from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
+from retrieval.query_rewrite import search_with_step_back, should_rewrite
 from retrieval.reranker import get_reranker
 from retrieval.speculative_search import search_speculative
 
@@ -138,12 +139,33 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type="law")
         retrieval_mode = "hybrid"
 
-    laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)
+    # Step-back query rewrite (opt-in, 1.1): konuşma-dili sorguyu resmî hukuki terimlere
+    # çevirip AYRI arar + RRF ile havuza katar VE rewrite'ı rerank sorgusu yapar →
+    # cross-encoder ranking-reversal'ı (konuşma-dili → yanlış madde) hedefler. rewrite ""
+    # ise (LLM yok/başarısız/no-op) baseline birebir korunur. Default OFF (should_rewrite False).
+    rerank_query = question
+    if should_rewrite(question, domain):
+        try:
+            sb_results, rewrite = await search_with_step_back(
+                question, top_k=target_k, per_query_k=target_k,
+                sparse_domain=domain, doc_type="law",
+            )
+            if rewrite:
+                results = _merge_dedup(sb_results, results)
+                rerank_query = rewrite
+                retrieval_mode = f"{retrieval_mode}+stepback"
+        except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
+            log.warning("step_back_failed", error=str(exc) or type(exc).__name__)
+
+    laws = await _rank_and_build_laws(
+        question, domain, results, retrieval_mode, rerank_query=rerank_query,
+    )
     return {"mevzuat_refs": laws}
 
 
 async def _rank_and_build_laws(
     question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
+    rerank_query: str | None = None,
 ) -> list[Citation]:
     """Retrieve sonrası law adaylarını sırala + çapa garantisi + Citation üret.
 
@@ -202,7 +224,7 @@ async def _rank_and_build_laws(
     if MEVZUAT_RERANK_ENABLED and law_cands:
         try:
             rr = await asyncio.to_thread(
-                get_reranker().rerank, question, law_cands, TOP_K_LAW * 3,
+                get_reranker().rerank, rerank_query or question, law_cands, TOP_K_LAW * 3,
             )
             if rr:
                 law_cands = rr

@@ -181,6 +181,14 @@ async def _eval_one(
         from agents.config import MULTI_QUERY_N
         from retrieval.multi_query import search_multi_query
         results = await search_multi_query(soru, top_k=10, n_queries=MULTI_QUERY_N)
+    elif os.getenv("EVAL_STEP_BACK", "0").lower() in {"1", "true", "yes"}:
+        # Step-back query rewrite A/B (1.1): konuşma-dili → resmî rewrite + RRF.
+        # Gerçek LLM gerekir (LLM_MODE=llamacpp_server + QUERY_REWRITE_ENABLED=1).
+        from retrieval.query_rewrite import search_with_step_back
+        results, _rw = await search_with_step_back(
+            soru, top_k=10, sparse_domain=expected_domain,
+            doc_type=os.getenv("EVAL_DOC_TYPE") or None,
+        )
     else:  # "hybrid"
         # EVAL_DOC_TYPE=law → query-time law filtresi ölç (case-law gürültüsü dışlanır, #denetim).
         results = await search(question=soru, top_k=10, sparse_domain=expected_domain,
