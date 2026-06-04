@@ -22,6 +22,23 @@ log = structlog.get_logger()
 _SENT_BOUNDARY_RE = re.compile(r"(?<=[.!?\]])\s+")
 _SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
 _NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof", "doç"}
+# "Kısa cevap" başlık-kaybı guard'ı: verify filtresi ilk bölümü düşürürse gövde başka bir
+# kalın-başlıkla başlar; zorunlu özet başlığı eklenir (hukuki iddia DEĞİL).
+_KISACEVAP_RE = re.compile(r"^\s*\*\*\s*Kısa cevap", re.IGNORECASE)
+_BOLD_HEADER_RE = re.compile(r"^\s*\*\*[^*\n]{1,40}:\*\*")
+
+
+def _ensure_kisacevap_header(text: str) -> str:
+    """Gövde 'Kısa cevap' DIŞINDA bir kalın-başlıkla başlıyorsa (verify ilk bölümü
+    düşürmüş veya model atlamış) zorunlu özet başlığı ekle. Hukuki iddia DEĞİL — yapısal
+    placeholder; başlıksız düz metni veya zaten doğru başlıklı draft'ı ETKİLEMEZ."""
+    body = text.lstrip()
+    if not _KISACEVAP_RE.match(body) and _BOLD_HEADER_RE.match(body):
+        return (
+            "**Kısa cevap:** Aşağıdaki değerlendirme yalnızca doğrulanmış kaynaklara "
+            "dayanmaktadır.\n\n" + text
+        )
+    return text
 
 
 @observe_node(name="finalize")
@@ -108,6 +125,7 @@ async def finalize_node(state: AgentState) -> dict:
     filtered_draft = _remove_orphan_source_tags(filtered_draft)
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
+    filtered_draft = _ensure_kisacevap_header(filtered_draft)
 
     # Citation bloğu
     citations_md = _format_citations(state)

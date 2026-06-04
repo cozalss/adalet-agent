@@ -139,6 +139,11 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
             log.info("rarr_layer_invoked", n_claims=len(claims))
         except ImportError:
             log.debug("rarr_module_missing")
+        except Exception as exc:
+            # RARR best-effort 4. katman — runtime hatası (network/model/timeout)
+            # verify_node'u 500'e taşımasın; kalan 3 katman + aggregation çalışır,
+            # verdict değişmez (RARR evidence ekler, silmez). (hardening 2026-06-04)
+            log.warning("rarr_layer_failed", error=str(exc) or type(exc).__name__)
 
     # --- Aggregate per claim ---
     verified: list[Claim] = []

@@ -181,3 +181,17 @@ async def test_triaj_node_injects_doc_facts(monkeypatch):
     # Fast-path domain=kira; belge olguları (süre/tutar) prior_facts'tan akmalı
     assert facts.get("sure") == "1 yıl"
     assert "15000" in facts.get("tutar", "")
+
+
+def test_fast_facts_broad_markers_trafik_vergi_idari():
+    """Genişletilmiş marker'lar doğal-dil sorularda olay çıkarır (gereksiz clarify önlenir, 2026-06-04)."""
+    from agents.nodes.triaj import _fast_facts
+    assert _fast_facts("Park halindeyken aracıma çarpıp kaçtılar, kamera var", "trafik").get("olay")
+    assert _fast_facts("Adıma fazladan emlak vergisi tahakkuk ettirilmiş, itiraz", "vergi").get("olay")
+    assert _fast_facts("Memuruyken disiplin cezasıyla görevden uzaklaştırıldım", "idari").get("olay")
+
+
+def test_fast_facts_vague_question_still_clarifies():
+    """Belirsiz soru olay ÇIKARMAMALI → clarify korunur (over-answer önlenir)."""
+    from agents.nodes.triaj import _fast_facts
+    assert not _fast_facts("vergi konusunda genel bir sorum olacaktı", "vergi").get("olay")

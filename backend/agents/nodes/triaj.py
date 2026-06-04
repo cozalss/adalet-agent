@@ -205,15 +205,21 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
             facts["taraf"] = label
             break
 
+    # Marker'lar domain-scoped (yalnız o domain seçiliyken bakılır) → geniş tutmak güvenli.
+    # 2026-06-04: trafik/vergi/idari doğal-dil sorularda hiç eşleşmiyordu (gereksiz clarify);
+    # marker'lar vatandaş diline genişletildi.
     olay_by_domain = {
-        "kira": ("kira artış", "tahliye", "depozito"),
-        "tuketici": ("ayıplı", "bozuk", "iade", "değişim", "garanti"),
-        "isHukuku": ("işten çıkar", "kıdem", "ihbar", "maaş", "fazla mesai"),
-        "icra": ("icra", "haciz", "ödeme emri", "itiraz"),
-        "trafik": ("trafik kaz", "sigorta", "değer kaybı"),
-        "vergi": ("vergi cezası", "kdv", "ötv", "mtv"),
-        "tapu": ("tapu", "kat mülkiyeti", "mülkiyet"),
-        "idari": ("idari işlem", "kamulaştırma", "ruhsat"),
+        "kira": ("kira artış", "tahliye", "depozito", "güvence", "kira sözleşme", "ev sahib"),
+        "tuketici": ("ayıplı", "bozuk", "iade", "değişim", "garanti", "satıcı", "internetten al"),
+        "isHukuku": ("işten çıkar", "kıdem", "ihbar", "maaş", "fazla mesai", "tazminat", "istifa"),
+        "icra": ("icra", "haciz", "ödeme emri", "itiraz", "borç", "alacaklı", "takip"),
+        "trafik": ("trafik kaz", "sigorta", "değer kaybı", "çarp", "kaza", "park", "kasko",
+                   "hasar", "ehliyet", "plaka", "kaçtı", "tutanak"),
+        "vergi": ("vergi cezası", "kdv", "ötv", "mtv", "emlak vergisi", "itiraz", "tarhiyat",
+                  "tahakkuk", "beyanname", "matrah", "ihbarname", "ödeme emri"),
+        "tapu": ("tapu", "kat mülkiyeti", "mülkiyet", "devir", "tescil", "satış", "daire", "arsa"),
+        "idari": ("idari işlem", "kamulaştırma", "ruhsat", "disiplin", "memur", "görevden",
+                  "soruşturma", "atama", "ihraç", "kamu görevlis"),
     }
     for marker in olay_by_domain.get(domain, ()):
         if marker in q_low:

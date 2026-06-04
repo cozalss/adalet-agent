@@ -338,3 +338,21 @@ def test_remove_orphan_source_tags_after_sentence_filtering():
     out = _remove_orphan_source_tags("[src: y-1]\n\nDayanak: Geçerli cümle.")
 
     assert out == "Dayanak: Geçerli cümle."
+
+
+def test_ensure_kisacevap_header_prepends_when_first_section_lost():
+    """Gövde 'Kısa cevap' DIŞI başlıkla başlıyorsa zorunlu özet eklenir (verify ilk bölümü düşürünce)."""
+    from agents.nodes.finalize import _ensure_kisacevap_header
+    body = "**Durumunuza uygulama:** Hakkınız var [src: m-TKHK-8].\n\n**Dayanak:** TKHK 8."
+    out = _ensure_kisacevap_header(body)
+    assert out.startswith("**Kısa cevap:**")
+    assert "**Durumunuza uygulama:**" in out
+
+
+def test_ensure_kisacevap_header_noop_when_present_or_plain():
+    """Zaten 'Kısa cevap' varsa VEYA düz metin ise dokunma (çift-başlık/bozma yok)."""
+    from agents.nodes.finalize import _ensure_kisacevap_header
+    ok = "**Kısa cevap:** Hakkınız var."
+    plain = "Hakkınız var, dava açabilirsiniz."
+    assert _ensure_kisacevap_header(ok) == ok
+    assert _ensure_kisacevap_header(plain) == plain
