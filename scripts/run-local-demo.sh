@@ -58,6 +58,10 @@ export SPARSE_EMBEDDER_MODEL=
 export RAPTOR_ENABLED=0 GRAPH_RAG_ENABLED=0 COLBERT_QUERY_ENABLED=0
 export EMBEDDING_DEVICE=cpu EMBEDDING_FP16=0 RERANKER_DEVICE=cpu RERANKER_FP16=0
 export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
+# Verify sertleştirme — E2E ölçülmüş-güvenli (2026-06-04, over-reject yok): yüksek-riskli
+# uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded
+# halüsinasyon kapısı). Yalnız NLI yüklüyken anlamlı; bu demo NLI yüklü.
+export CLATTER_GATE_ENABLED=1 CITE_GROUNDING_CHECK=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 

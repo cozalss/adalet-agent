@@ -73,7 +73,10 @@ def should_rewrite(question: str, domain: str) -> bool:
 
 
 def _timeout_s() -> float:
-    return float(os.getenv("QUERY_REWRITE_TIMEOUT_S", "6.0"))
+    # 12s default: E2E (2026-06-04, in-process Qwen 14B) 6s'te 2/3 çağrı TimeoutError
+    # verdi (step-back ekstra serial LLM çağrısı; cold/meşgul modelde 6s yetmiyor).
+    # Server modunda paralel → daha hızlı; in-process için 12s makul. 0 = devre dışı.
+    return float(os.getenv("QUERY_REWRITE_TIMEOUT_S", "12.0"))
 
 
 def _max_tokens() -> int:
