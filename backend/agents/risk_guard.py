@@ -74,6 +74,36 @@ _NEGATIVE_ELIGIBILITY_RE = re.compile(
 
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# --- Yüksek-riskli UYGUNLUK-SONUCU (CLATTER kapısı için) ---
+# Süre/eşik gerekçeli bir uygunluk SONUCU (POZİTİF hak-tanıma VEYA NEGATİF hak-reddi).
+# "Çıkarım-halüsinasyonu"nun en tehlikeli sınıfı: model bir süre/eşikten hak SONUCU
+# türetiyor — "2 yıl → kıdem alabilirsiniz" (pozitif) / "2 yıl → yetersiz" (negatif).
+# Bu iddialarda fuzzy DOĞRU-YANLIŞ çıkarımı ayırt edemez (yüzeysel kelime örtüşmesi) →
+# CLATTER kapısı bunlar için POZİTİF NLI entailment ister (neutral/yalnız-fuzzy YETERSİZ).
+# DAR tutuldu: yalnız süre/eşik İLE BİRLİKTE sonuç fiili → "iade hakkınız var" gibi
+# eşiksiz genel uygunluk cümlesi yakalanmaz (false-positive minimize, CLATTER over-reject etmez).
+_GRANT_VERB = (
+    r"(?:hak\s+kazan\w*|kazanır\w*|kazanabilir\w*|alabilir\w*|alırsınız|"
+    r"talep\s+ed[a-zçğıöşü]*|isteyebilir\w*|hakk\w+\s+(?:var|doğar|bulun\w*)|"
+    r"dava\s+aç\w*|başvurabilir\w*)"
+)
+_ELIGIBILITY_VERB = rf"(?:{_DENIAL_VERB}|{_GRANT_VERB})"
+_HIGH_RISK_ELIGIBILITY_RE = re.compile(
+    rf"{_DURATION_OR_THRESHOLD}.{{0,80}}?{_ELIGIBILITY_VERB}"
+    rf"|{_ELIGIBILITY_VERB}.{{0,80}}?{_DURATION_OR_THRESHOLD}",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def is_high_risk_eligibility_claim(text: str) -> bool:
+    """Süre/eşik gerekçeli uygunluk SONUCU içeren iddia mı (pozitif veya negatif)?
+
+    CLATTER kapısı (verify) bu sınıf iddialar için POZİTİF entailment şartı koyar.
+    "2 yıl → kıdem alabilirsiniz", "1 yılın altında kıdem doğmaz" → True.
+    "iade hakkınız var" (eşiksiz), "ücret ayda bir ödenir" → False (dar kapsam).
+    """
+    return bool(_HIGH_RISK_ELIGIBILITY_RE.search(text))
+
 
 def fabricated_law_names(text: str) -> list[str]:
     """Bilinen uydurma/yanlış kanun adlarını döndür (kesin hata)."""

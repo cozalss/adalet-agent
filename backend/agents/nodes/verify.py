@@ -35,8 +35,9 @@ from agents.config import (
     MAX_RETRY,
     MIN_VERIFIED_CLAIMS_RATIO,
     NLI_ENTAILMENT_THRESHOLD,
+    is_clatter_gate_enabled,
 )
-from agents.risk_guard import verify_risk_veto
+from agents.risk_guard import is_high_risk_eligibility_claim, verify_risk_veto
 from agents.state import AgentState, Citation, Claim, DebateVerdict
 from agents.verifier_layers import (
     VerifierUnavailableError,
@@ -215,6 +216,36 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
         log.warning("verify_risk_veto", reasons=risk_reasons, prev_verdict=verdict)
         verdict = "reject"
 
+    # --- CLATTER KAPISI (opt-in) — "neutral = desteklenmedi" yüksek-riskli iddialarda ---
+    # Süre/eşik gerekçeli uygunluk-sonucu iddiaları ("2 yıl → kıdem alabilirsiniz" /
+    # "2 yıl → yetersiz") fuzzy ile DOĞRU-YANLIŞ çıkarımı ayırt edemez (çıkarım-
+    # halüsinasyonunun fuzzy'den kaçan sınıfı). Bunlar için POZİTİF NLI entailment ŞART:
+    # contradicted veya entailment < eşik → "entailment'sız yüksek-risk". Varsa pass
+    # ENGELLENİR (retry varsa retry, yoksa reject). Yalnız SIKILAŞTIRIR (reject'i pass yapmaz).
+    _clatter_note = ""
+    if is_clatter_gate_enabled():
+        clatter_unentailed = sum(
+            1
+            for i, claim in enumerate(claims)
+            if is_high_risk_eligibility_claim(claim.get("text", ""))
+            and (layer3_results[i][0] or layer3_results[i][1] < NLI_ENTAILMENT_THRESHOLD)
+        )
+        if clatter_unentailed and verdict == "pass":
+            new_verdict: DebateVerdict = (
+                "retry" if state.get("retry_count", 0) < MAX_RETRY else "reject"
+            )
+            log.warning(
+                "clatter_gate",
+                unentailed=clatter_unentailed,
+                prev_verdict="pass",
+                new_verdict=new_verdict,
+            )
+            verdict = new_verdict
+            _clatter_note = (
+                f" CLATTER: {clatter_unentailed} yüksek-riskli uygunluk iddiası "
+                "pozitif entailment alamadı."
+            )
+
     # Ölçüm-amaçlı hook: FORCE_RETRY_ONCE=1 → ilk geçişte (retry_count==0) verdict'i
     # retry'a zorla. retry yolu latans maliyetini (P99) deterministik ölçmek için —
     # production'da ASLA set edilmez (VERIFY_ENABLED ablation hook'u gibi).
@@ -228,7 +259,7 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     _veto_note = f" RİSK-VETO: {'; '.join(risk_reasons)}." if blocked else ""
     notes = (
         f"{n_supported}/{len(claims)} iddia doğrulandı, "
-        f"{contradictions} çelişki tespit edildi.{_veto_note}"
+        f"{contradictions} çelişki tespit edildi.{_veto_note}{_clatter_note}"
     )
 
     log.info(

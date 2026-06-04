@@ -69,6 +69,26 @@ def is_verify_strict() -> bool:
     """
     return os.getenv("VERIFY_STRICT", "0").lower() in {"1", "true", "yes"}
 
+def is_clatter_gate_enabled() -> bool:
+    """CLATTER entailment kapısı (opt-in, default 0).
+
+    `CLATTER_GATE_ENABLED=1`: süre/eşik gerekçeli uygunluk-sonucu iddiaları
+    (örn. "2 yıl → kıdem alabilirsiniz" / "2 yıl → yetersiz") için POZİTİF NLI
+    entailment ŞART; neutral veya yalnız-fuzzy destek YETERSİZ sayılır → pass
+    ENGELLENİR (retry varsa retry, yoksa reject). Çıkarım-halüsinasyonunun
+    (CLAUDE.md §1) fuzzy'den kaçan en tehlikeli sınıfını kapatır.
+
+    Default `0`: baseline davranış (1189-test) birebir korunur; mock/dev'de NLI
+    yok → açılırsa yüksek-riskli iddialar entailment alamayıp over-reject olur,
+    bu yüzden yalnız NLI yüklü production'da (VERIFY_STRICT ile birlikte) açılır.
+    Yalnız pass→retry/reject yönünde SIKILAŞTIRIR (reject'i asla pass yapmaz).
+
+    Dinamik okunur (is_verify_strict deseni) → testler monkeypatch.setenv ile toggle eder.
+    SOTA: CLATTER (arXiv 2506.05243) neutral=not-supported → attribution 0.72→0.97.
+    """
+    return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
+
+
 def get_ask_graph_timeout_s() -> float:
     """/ask + /ask/stream uçtan uca graph timeout (saniye). 0 = devre dışı.
 
