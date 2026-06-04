@@ -49,11 +49,13 @@ if [ "$1" = "stop" ]; then stop_demo; exit 0; fi
 # --- Backend (FastAPI + in-process Qwen) -------------------------------------
 cd "$ROOT/backend"
 set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection, model yolu, ...)
-# --- demo override'ları (.env üstüne; Plan B: Qwen 7B GPU + yardımcılar da GPU) ---
-# 7B (~5.5GB) → VRAM açılır: embedder+reranker GPU'ya alınır (retrieval ~40s→~5s) +
-# üretim ~2-3× hızlanır (14B ~6 tok/s → 7B daha hızlı). Latans hedefi ~20-35s (ölçüldü ~127s).
+# --- demo override'ları (.env üstüne; Plan C: Qwen3-8B Q4 GPU + yardımcılar da GPU) ---
+# Qwen3-8B-Q4 (~5GB) → 7B ayak izinde + daha iyi muhakeme/düşük halüsinasyon. Embedder+
+# reranker GPU'da (retrieval ~5s), üretim ~34 tok/s (ölçüldü). LLM_NO_THINK=1 ZORUNLU:
+# Qwen3 varsayılan <think> bloğu üretir (draft parse'ı bozar + UI'a akar) → /no_think kapatır.
 export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=512 LLM_SPECULATIVE=0
-export LLM_MODEL_PATH=./models/Qwen2.5-7B-Instruct-Q5_K_M.gguf
+export LLM_MODEL_PATH=./models/Qwen3-8B-Q4_K_M.gguf
+export LLM_NO_THINK=1
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
 # ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
 export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=512

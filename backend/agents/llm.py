@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,6 +48,32 @@ class LLMResponse:
     finish_reason: str = "stop"
     tokens_in: int = 0
     tokens_out: int = 0
+
+
+# --- Qwen3 thinking-mode kontrolü -------------------------------------------
+# Qwen3 (hibrit) VARSAYILAN olarak <think>...</think> muhakeme bloğu üretir →
+# draft parse'ını bozar + UI'a think token'ları akar. `/no_think` yumuşak anahtarı
+# bunu kapatır. LLM_NO_THINK=1 ile aktif (Qwen3 GGUF kullanırken run-local-demo set eder;
+# Qwen2.5'te /no_think zararsız metin → güvenle açık bırakılabilir).
+_NO_THINK = os.getenv("LLM_NO_THINK", "0").lower() in {"1", "true", "yes"}
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_think(text: str) -> str:
+    """Sızan <think>...</think> bloğunu kes (no-think tutmazsa backstop)."""
+    return _THINK_RE.sub("", text or "").strip()
+
+
+def _apply_no_think(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """LLM_NO_THINK=1 ise system mesajına ` /no_think` ekle (Qwen3 thinking kapatma)."""
+    if not _NO_THINK:
+        return messages
+    out = list(messages)
+    for i, m in enumerate(out):
+        if m.role == "system":
+            out[i] = ChatMessage(role="system", content=f"{m.content} /no_think")
+            return out
+    return [ChatMessage(role="system", content="/no_think"), *out]
 
 
 class LLMClient(Protocol):
@@ -213,6 +240,7 @@ class LlamaCppClient:
                 if self._model is None:
                     self._model = await asyncio.to_thread(self._load)
 
+        messages = _apply_no_think(messages)  # Qwen3 thinking kapat (LLM_NO_THINK=1)
         # Context-taşma guard: prompt + cevap n_ctx'i aşarsa llama_decode -1 ile
         # ÇÖKER (kira/tapu gibi uzun-maddeli domain'lerde görüldü). max_tokens'ı
         # prompt'a göre clamp et — cevap kısalır ama sistem çökmez.
@@ -247,7 +275,7 @@ class LlamaCppClient:
         choice = result["choices"][0]
         usage = result.get("usage", {})
         return LLMResponse(
-            content=choice["message"]["content"],
+            content=_strip_think(choice["message"]["content"]),
             raw=result,
             finish_reason=choice.get("finish_reason", "stop"),
             tokens_in=usage.get("prompt_tokens", 0),
@@ -277,6 +305,7 @@ class LlamaCppClient:
                 if self._model is None:
                     self._model = await asyncio.to_thread(self._load)
 
+        messages = _apply_no_think(messages)  # Qwen3 thinking kapat (stream'e think token akmasın)
         max_tokens = self._fit_max_tokens(messages, max_tokens)
         kwargs: dict[str, Any] = {
             "messages": [m.to_dict() for m in messages],
@@ -306,7 +335,7 @@ class LlamaCppClient:
             )
         cf_future = self._decode_executor.submit(_run_stream)
         content = await asyncio.wrap_future(cf_future)
-        return LLMResponse(content=content, raw={}, finish_reason="stop")
+        return LLMResponse(content=_strip_think(content), raw={}, finish_reason="stop")
 
     # En az bu kadar token cevaba bırakılır (clamp tabanı); chat template + güvenlik payı.
     _MIN_OUTPUT_TOKENS = 256
@@ -388,6 +417,7 @@ class LlamaCppServerClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
 
+        messages = _apply_no_think(messages)  # Qwen3 thinking kapat (LLM_NO_THINK=1)
         payload: dict[str, Any] = {
             "messages": [m.to_dict() for m in messages],
             "temperature": temperature,
@@ -428,7 +458,7 @@ class LlamaCppServerClient:
             tokens_out=usage.get("completion_tokens", 0),
         )
         return LLMResponse(
-            content=choice["message"]["content"],
+            content=_strip_think(choice["message"]["content"]),
             raw=data,
             finish_reason=choice.get("finish_reason", "stop"),
             tokens_in=usage.get("prompt_tokens", 0),
