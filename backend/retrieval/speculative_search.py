@@ -43,6 +43,7 @@ async def search_speculative(  # noqa: C901
     multi_query_n: int = 5,
     hyde_timeout_s: float = 15.0,
     deadline_s: float = 2.0,
+    doc_type: str | None = None,
 ) -> tuple[list[Any], str]:
     """Spekülatif arama — latans garantili.
 
@@ -76,7 +77,8 @@ async def search_speculative(  # noqa: C901
     # sparse_domain=routing.domain: deadline aşımında 'hybrid_fallback' bu baseline'ı döner;
     # sparse-kritik domain (vergi/trafik/icra) BM25'i fallback'te de korumalı (denetim 2026-06-04).
     hybrid_task: asyncio.Task = loop.create_task(
-        search(question=question, top_k=target_k, domain=None, sparse_domain=routing.domain),
+        search(question=question, top_k=target_k, domain=None,
+               sparse_domain=routing.domain, doc_type=doc_type),
         name="hybrid",
     )
 
@@ -85,13 +87,13 @@ async def search_speculative(  # noqa: C901
     if routing.use_hyde:
         advanced_tasks["hyde"] = loop.create_task(
             search_with_hyde(question, top_k=target_k, domain=routing.domain,
-                             qdrant_domain=None, sparse_domain=routing.domain),
+                             qdrant_domain=None, sparse_domain=routing.domain, doc_type=doc_type),
             name="hyde",
         )
     if routing.use_mq:
         advanced_tasks["mq"] = loop.create_task(
             search_multi_query(question, top_k=target_k, n_queries=multi_query_n,
-                               domain=None, sparse_domain=routing.domain),
+                               domain=None, sparse_domain=routing.domain, doc_type=doc_type),
             name="mq",
         )
 

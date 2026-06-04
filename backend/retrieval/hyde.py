@@ -79,6 +79,7 @@ async def search_with_hyde(
     domain: str | None = None,
     qdrant_domain: str | None = None,
     sparse_domain: str | None = None,
+    doc_type: str | None = None,
 ) -> list[SearchResult]:
     """Hybrid search ama dense kolu HyDE hipotetik metnine göre embed edilir.
 
@@ -101,7 +102,8 @@ async def search_with_hyde(
     if not hypo:
         # Fallback: mevcut hybrid_search
         from retrieval.hybrid_search import search
-        return await search(question=question, top_k=top_k, domain=qdrant_domain)
+        return await search(question=question, top_k=top_k, domain=qdrant_domain,
+                            sparse_domain=sparse_domain, doc_type=doc_type)
 
     # 2) Tek batch encoding (iki ayrı forward yerine bir forward + to_thread):
     #    - dense: hipotetik metnin embedding'i (HyDE tohumu) → out[0]
@@ -113,12 +115,14 @@ async def search_with_hyde(
     # Mursit dense-only + sparse-kritik domain → BGE-M3 BM25 sparse'ı al (search() ile simetri).
     sparse_idx, sparse_val = await maybe_dual_sparse(question, sparse_idx, sparse_val, sparse_domain)
 
-    query_filter = None
+    _conds: list = []
     if qdrant_domain:
-        query_filter = models.Filter(must=[
-            models.FieldCondition(key="domain",
-                                  match=models.MatchValue(value=qdrant_domain))
-        ])
+        _conds.append(models.FieldCondition(
+            key="domain", match=models.MatchValue(value=qdrant_domain)))
+    if doc_type:  # query-time law/case filtresi (mevzuat yolu 'law')
+        _conds.append(models.FieldCondition(
+            key="doc_type", match=models.MatchValue(value=doc_type)))
+    query_filter = models.Filter(must=_conds) if _conds else None
 
     # 3) Qdrant hybrid query (RRF fusion) — paylaşılan client (kapatma).
     # Mursit dense-only iken sparse=([],[]) gelir; BOŞ SparseVector prefetch'i RRF'i

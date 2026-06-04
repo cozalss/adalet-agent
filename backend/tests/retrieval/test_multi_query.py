@@ -251,7 +251,7 @@ def test_rrf_merge_empty_and_top_k():
 async def test_fan_out_search_rrf_merges_overlap(monkeypatch):
     """Iki sorgu farklı sıralar — RRF birleştirir, overlap yüksek skor alır."""
     # search() mock: query'ye göre farklı sonuç
-    async def fake_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
+    async def fake_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None, doc_type=None):
         if "q1" in question:
             return [_sr("A"), _sr("B"), _sr("C")]
         if "q2" in question:
@@ -279,7 +279,7 @@ async def test_fan_out_search_forwards_sparse_domain(monkeypatch):
     trafik/icra MQ alt-sorguları BGE-M3 BM25 sparse'ı kaybetmez."""
     seen: list[str | None] = []
 
-    async def spy_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
+    async def spy_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None, doc_type=None):
         seen.append(sparse_domain)
         return [_sr("A")]
 
@@ -289,9 +289,24 @@ async def test_fan_out_search_forwards_sparse_domain(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fan_out_search_forwards_doc_type(monkeypatch):
+    """doc_type HER alt-sorguya iletilir → mevzuat law-filtresi MQ alt-sorgularında da geçerli
+    (denetim 2026-06-04: query-time law filtre +15.8pp madde_recall@5)."""
+    seen: list[str | None] = []
+
+    async def spy(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None, doc_type=None):
+        seen.append(doc_type)
+        return [_sr("A")]
+
+    monkeypatch.setattr(mq, "search", spy)
+    await mq.fan_out_search(["q1", "q2"], top_k=4, doc_type="law")
+    assert seen == ["law", "law"]
+
+
+@pytest.mark.asyncio
 async def test_fan_out_search_handles_query_failure(monkeypatch):
     """Bir sorgu exception fırlatsa diğerleri devam etmeli."""
-    async def flaky_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None):
+    async def flaky_search(question, top_k=5, prefetch_limit=50, domain=None, sparse_domain=None, doc_type=None):
         if "fail" in question:
             raise RuntimeError("simulated qdrant down")
         return [_sr("X"), _sr("Y")]

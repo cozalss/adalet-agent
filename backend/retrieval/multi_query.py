@@ -248,6 +248,7 @@ async def fan_out_search(
     per_query_k: int = 30,
     domain: str | None = None,
     sparse_domain: str | None = None,
+    doc_type: str | None = None,
 ) -> list[SearchResult]:
     """Her sorgu için paralel hybrid search → RRF merge → top_k.
 
@@ -266,7 +267,7 @@ async def fan_out_search(
     # Paralel arama — Qdrant client her sorguda yeniden açılıp kapanır
     tasks = [
         search(question=q, top_k=per_query_k, prefetch_limit=per_query_k,
-               domain=domain, sparse_domain=sparse_domain)
+               domain=domain, sparse_domain=sparse_domain, doc_type=doc_type)
         for q in queries
     ]
     results_per_query = await asyncio.gather(*tasks, return_exceptions=True)
@@ -290,16 +291,18 @@ async def search_multi_query(
     per_query_k: int = 30,
     domain: str | None = None,
     sparse_domain: str | None = None,
+    doc_type: str | None = None,
 ) -> list[SearchResult]:
     """Convenience: expand + fan-out tek seferde.
 
     sparse_domain: domain=None ile aranırken bile BGE-M3 sparse embedder seçimi için
     triaj domain'i geçilir → trafik/icra/vergi MQ alt-sorguları sparse'ı kaybetmez.
+    doc_type: query-time law/case filtresi (mevzuat yolu 'law' geçer → case-law gürültüsü dışlanır).
     """
     queries = await expand_queries(question, n=n_queries, domain=domain)
     return await fan_out_search(
         queries, top_k=top_k, per_query_k=per_query_k, domain=domain,
-        sparse_domain=sparse_domain,
+        sparse_domain=sparse_domain, doc_type=doc_type,
     )
 
 

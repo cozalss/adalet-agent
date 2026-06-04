@@ -181,7 +181,9 @@ async def _eval_one(
         from retrieval.multi_query import search_multi_query
         results = await search_multi_query(soru, top_k=10, n_queries=MULTI_QUERY_N)
     else:  # "hybrid"
-        results = await search(question=soru, top_k=10, sparse_domain=expected_domain)
+        # EVAL_DOC_TYPE=law → query-time law filtresi ölç (case-law gürültüsü dışlanır, #denetim).
+        results = await search(question=soru, top_k=10, sparse_domain=expected_domain,
+                               doc_type=os.getenv("EVAL_DOC_TYPE") or None)
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     # Metrik hesapla — efektif domain (kanun chunk'ları kanun_kodu→domain ile maplenir;

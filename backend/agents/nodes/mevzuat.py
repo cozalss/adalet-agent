@@ -91,6 +91,9 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
     # Kullanıcı max SPECULATIVE_DEADLINE_S ek bekler (~2s), sonra hybrid fallback.
     # SPECULATIVE_ENABLED=0 ise eski gather davranışına dön (test/debug için).
     results: list[SearchResult]
+    # doc_type="law" (denetim 2026-06-04, ÖLÇÜLDÜ +15.8pp madde_recall@5): query-time law
+    # filtresi → case-law (anayasa, corpus %64) gürültüsü top-K'yı kirletip mevzuat maddelerini
+    # dışarı itmez. Eski post-filter havuzdan çıkmış maddeyi kurtaramıyordu. (emsal_node ayrı kol.)
     if SPECULATIVE_ENABLED and (routing.use_hyde or routing.use_mq):
         results, retrieval_mode = await search_speculative(
             question=question,
@@ -100,6 +103,7 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
             multi_query_n=MULTI_QUERY_N,
             hyde_timeout_s=HYDE_TIMEOUT_S,
             deadline_s=SPECULATIVE_DEADLINE_S,
+            doc_type="law",
         )
     elif routing.use_hyde or routing.use_mq:
         # Eski davranış: gather ile tam HyDE/MQ bekleme
@@ -109,10 +113,10 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         _tasks: dict[str, Any] = {}
         if routing.use_hyde:
             _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain,
-                                              qdrant_domain=None, sparse_domain=domain)
+                                              qdrant_domain=None, sparse_domain=domain, doc_type="law")
         if routing.use_mq:
             _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N,
-                                              domain=None, sparse_domain=domain)
+                                              domain=None, sparse_domain=domain, doc_type="law")
         _keys = list(_tasks.keys())
         _coros = [asyncio.wait_for(c, timeout=timeout_total) for c in _tasks.values()]
         _done = await asyncio.gather(*_coros, return_exceptions=True)
@@ -127,11 +131,11 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
                 results = _merge_dedup(_result, results)  # type: ignore[arg-type]
                 retrieval_modes.append(_key)
         if not results:
-            results = await search(question=question, top_k=target_k, sparse_domain=domain)
+            results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type="law")
             retrieval_modes.append("hybrid")
         retrieval_mode = "+".join(retrieval_modes)
     else:
-        results = await search(question=question, top_k=target_k, sparse_domain=domain)
+        results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type="law")
         retrieval_mode = "hybrid"
 
     laws = await _rank_and_build_laws(question, domain, results, retrieval_mode)

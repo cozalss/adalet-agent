@@ -143,6 +143,7 @@ async def search(
     kanun_kodu: list[str] | None = None,
     source: list[str] | None = None,
     sparse_domain: str | None = None,
+    doc_type: str | None = None,
 ) -> list[SearchResult]:
     """Hybrid search — dense + sparse (+ ColBERT) prefetch, RRF fusion, top_k.
 
@@ -176,7 +177,7 @@ async def search(
     sparse_idx, sparse_val = await maybe_dual_sparse(
         question, sparse_idx, sparse_val, sparse_domain or domain)
 
-    query_filter = _build_filter(domain, kanun_kodu, source)
+    query_filter = _build_filter(domain, kanun_kodu, source, doc_type)
 
     # Mursit dense-only: sparse boşsa BM25 prefetch atla (dim uyumsuzluğu önler)
     has_sparse = bool(sparse_idx)
@@ -293,6 +294,7 @@ def _build_filter(
     domain: str | None,
     kanun_kodu: list[str] | None = None,
     source: list[str] | None = None,
+    doc_type: str | None = None,
 ) -> models.Filter | None:
     conditions: list[models.FieldCondition] = []
     if domain:
@@ -314,6 +316,16 @@ def _build_filter(
             models.FieldCondition(
                 key="source",
                 match=models.MatchAny(any=list(source)),
+            )
+        )
+    if doc_type:
+        # Query-time doc_type filtresi (denetim 2026-06-04): mevzuat retrieval'ı law-only'e
+        # daraltır → case-law (anayasa) gürültüsü top-K'yı kirletip maddeleri dışarı itmez.
+        # Ölçüldü: law-only filtre madde_recall@5 +3.3pp (icra +7.7pp).
+        conditions.append(
+            models.FieldCondition(
+                key="doc_type",
+                match=models.MatchValue(value=doc_type),
             )
         )
     if not conditions:
