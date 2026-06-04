@@ -287,21 +287,143 @@
     "expected_domain": "trafik",
     "question": "Park halindeyken aracıma çarpıp kaçtılar, kamera kaydı var, zararımı nasıl tahsil ederim?",
     "actual_domain": "trafik",
-    "verdict": null,
-    "intent": "needs_clarification",
-    "confidence": 0.0,
-    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. Trafikle ilgili sorununuzu (kaza, ceza, sigorta vb.) kısaca anlatır mısınız?\n2. Olayda tutanak tutuldu mu ya da bir ceza yazıldı mı?\n3. Karşı tarafla aranızda hasar/kusur konusunda anlaşmazlık var mı?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
-    "sources": []
+    "verdict": "pass",
+    "intent": "legal_answer",
+    "confidence": 0.625,
+    "response": "**Kısa cevap:**\nKazada zararınız varsa ve kamera kaydı varsa, zararınızın tahsil edilmesi için gerekli adımları atabilirsiniz. [src: m-KTK-67] Ancak, kazanın sorumlusu belirlenmesi ve zararın tahsil edilmesi için bazı ön koşullar karşılanmalıdır.\n\n**Durumunuza uygulama:**\nKazanın sorumlusu belirlenmesi için kamera kayıtlarını kullanabilirsiniz. Kazanın sorumlusu belirlenirse, zararınızı tahsil etmek için gerekli adımları atabilirsiniz. [src: m-KTK-67] Kazanın sorumlusu belirlenmediyse veya belirlenmesi mümkün değilse, kendi sigortanızdan tahsil etme seçeneğiniz de vardır.\n\n**Dayanak:**\nKazanın sorumlusu belirlenmesi ve zararın tahsil edilmesi için kamera kayıtlarının kullanılması önemlidir. Sigortanızın koşullarına ve sigorta polisinin raporlarına bakarak, sigortanızdan tahsil etme seçeneğiniz olup olmadığını kontrol edin.\n\n**Ne yapmalı:**\n1. Kamera kayıtlarını sigorta şirketine iletebilirsiniz.\n2. Sigortanızdan zararınızı tahsil etme seçeneğiniz olup olmadığını kontrol edin.\n3. Kazanın sorumlusu belirlenirse, zararınızı tahsil etmek için dava açabilirsiniz.\n4. Kazanın sorumlusu belirlenmediyse veya belirlenmesi mümkün değilse, sigortanızdan tahsil etme seçeneğiniz olup olmadığını kontrol edin.\n5. Sigortanızdan tahsil etme seçeneğiniz yoksa, dava açma seçeneğiniz vardır. Sigortanızdan tahsil etme seçeneğiniz yoksa, dava açma süresini kaçırma.\n\n**Güven:**\nBu yanıt, Yargıtay kararına dayanmaktadır. Sigortanızın koşullarına ve sigorta polisinin raporlarına bakarak, sigortanızdan tahsil etme seçeneğiniz olup olmadığını kontrol etmeniz önemlidir. Sigortanızdan tahsil etme seçeneğiniz yoksa, dava açma seçeneğiniz vardır.\n\n---\n**Kaynaklar:**\n- [Mevzuat] Karayolları Trafik Kanunu (KTK) Madde 67 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=2918&MevzuatTur=1)\n- [Emsal] yargitay 2022/11865/2024/2279 (https://karararama.yargitay.gov.tr/?aranan=1107821700)\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
   },
   {
     "expected_domain": "vergi",
     "question": "Adıma fazladan emlak vergisi tahakkuk ettirilmiş, bu vergiye nasıl itiraz edebilirim?",
     "actual_domain": "vergi",
-    "verdict": null,
-    "intent": "needs_clarification",
-    "confidence": 0.0,
-    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. Vergiyle ilgili sorununuzu (tarhiyat, ceza, itiraz vb.) kısaca anlatır mısınız?\n2. Size bir vergi/ceza ihbarnamesi tebliğ edildi mi? Ne zaman?\n3. Tebliğ edilen tutara itiraz mı etmek istiyorsunuz?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
-    "sources": []
+    "verdict": "pass",
+    "intent": "legal_answer",
+    "confidence": 0.701,
+    "response": "**Kısa cevap:**\nEmlak verginizde fazladan tahakkuk olmuşsa, itiraz hakkınız bulunmaktadır. [src: m-EMLAKV-47] İtiraz sürecini başlatmak için gerekli adımları atmalısınız. [src: m-EMLAKV-47]\n\n**Durumunuza uygulama:**\nEmlak verginizde fazladan tahakkuk ettiğinizi belirtiyorsunuz. [src: m-EMLAKV-47] Bu durumda, vergi dairesine itiraz hakkınız bulunmaktadır. [src: m-EMLAKV-47] İtiraz hakkınızı kullanmak için, ödeme emri tebliğ tarihinden itibaren 15 gün içinde itiraz işleminizi gerçekleştirmelisiniz [src: m-AATUHK-58].\n\n**Dayanak:**\nEmlak Vergisi Kanunu'na göre, mükellefler tarh edilen vergilere karşı vergi mahkemesinde dava açabilirler [src: m-VUK-377]. Ayrıca, Amme Alacaklarının Tahsil Usulü Hakkında Kanun, itiraz hakkının 15 gün içinde kullanılması gerektiğini belirtmektedir [src: m-AATUHK-58].\n\n**Ne yapmalı:**\n1. **Ödeme emri tebliğ tarihini belirleyin:** Ödeme emri size ne zaman tebliğ edildiğini belirleyin.\n2. **İtiraz formunu doldurun:** Vergi dairesine itiraz formunu doldurun ve gerekli belgeleri ekleyin.\n3. **İtiraz işlemini 15 gün içinde tamamlayın:** Itiraz hakkınızı 15 gün içinde kullanmak için itiraz işleminizi tamamlayın.\n\n**Dikkat:**\nİtiraz hakkınızı 15 gün içinde kullanmanız gerekmektedir. [src: m-EMLAKV-47] Bu süre geçerse, hakkınız kaybedilebilir. [src: m-EMLAKV-47]\n\n**Güven:**\nBu yanıt, Emlak Vergisi Kanunu, Amme Alacaklarının Tahsil Usulü Hakkında Kanunu ve Vergi Usul Kanunu'na dayanmaktadır. [src: m-EMLAKV-47] Emin olmadığınız durumlarda bir avukata danışmanızı öneririm.\n\n---\n**Kaynaklar:**\n- [Mevzuat] Vergi Usul Kanunu (VUK) Madde 377 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=213&MevzuatTur=1)\n- [Mevzuat] Emlak Vergisi Kanunu (EMLAKV) Madde 47 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=1319&MevzuatTur=1)\n- [Mevzuat] Amme Alacaklarının Tahsil Usulü Hakkında Kanun (AATUHK) Madde 58 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=6183&MevzuatTur=1)\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
   },
   {
     "expected_domain": "tapu",
@@ -378,11 +500,72 @@
     "expected_domain": "idari",
     "question": "Devlet memuruyken savunmam alınmadan disiplin cezasıyla görevden uzaklaştırıldım, dava açabilir miyim?",
     "actual_domain": "idari",
-    "verdict": null,
-    "intent": "needs_clarification",
-    "confidence": 0.0,
-    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. İdareyle (belediye, kurum vb.) yaşadığınız sorunu kısaca anlatır mısınız?\n2. Size yazılı bir idari işlem/karar tebliğ edildi mi? Ne zaman?\n3. İdareye başvurdunuz mu, yanıt aldınız mı?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
-    "sources": []
+    "verdict": "pass",
+    "intent": "legal_answer",
+    "confidence": 0.634,
+    "response": "**Kısa cevap:**\nSavunmanız alınmadan disiplin cezasıyla görevden uzaklaştırıldığınız durumda, haklarınızı korumak için dava açabilirsiniz. [src: m-DMK-130] Ancak, bu durumun hukuki sonuçları ve dava süreci karmaşık olabilir.\n\n**Durumunuza uygulama:**\nDevlet Memurları Kanunu'na göre, devlet memurlarının disiplin cezası konusunda savunma hakkına sahiptirler ve bu hakkın alınıp alınmadığına dair bir dava açabilirsiniz. [src: m-DMK-130] Savunma hakkınızın alındığı iddianızı destekleyici deliller toplayarak, savunma hakkınızın alındığını kanıtlayabilirsiniz. [src: m-DMK-130]\n\n**Dayanak:**\nDevlet Memurları Kanunu'nun 130. maddesi, devlet memurlarının disiplin cezası konusunda savunma hakkına sahip olduğunu belirtir. [src: m-DMK-130] Bu maddeye göre, savunma hakkının alınıp alınmadığı konusunda dava açabilirsiniz. [src: m-DMK-130]\n\n**Ne yapmalı:**\n1. Savunma hakkınızın alındığı iddianızı destekleyici delilleri toplayın.\n2. [src: m-DMK-130] İdare mahkemesine dava açın ve savunma hakkınızın alındığını kanıtlayın.\n3. [src: m-DMK-130] İdare mahkemesinin kararıyla memnun kalmazsanız, Danıştay'a temyiz başvurusu yapın. [src: m-DMK-130]\n\n**Dikkat:**\nSavunma hakkınızın alındığı iddianızı kanıtlayamazsanız, dava sürecinde zorlanabilirsiniz. [src: m-DMK-130] Bu nedenle, belge ve delillerinizi dikkatlice toplamanız önemlidir.\n\n**Güven:**\nBu yanıt, Devlet Memurları Kanunu'nun 130. maddesine dayanmaktadır. Dava sürecinde belge ve delillerinizi toplamanız ve savunma hakkınızın alındığını kanıtlayabilmeniz önemlidir. [src: m-DMK-130]\n\n---\n**Kaynaklar:**\n- [Mevzuat] Devlet Memurları Kanunu (DMK) Madde 130 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=657&MevzuatTur=1)\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
   },
   {
     "expected_domain": "ceza",
@@ -391,7 +574,7 @@
     "verdict": null,
     "intent": "chat",
     "confidence": 1.0,
-    "response": "Bu konuda yardımcı olabilecek yetkinlikte olduğumdan emin değilim. Tüketici, iş, kira, icra, trafik, vergi, tapu veya idari hukuk konularında soru sormayı deneyebilirsiniz; bu alanlarda gerçek mevzuat ve Yargıtay kararlarıyla destek olabilirim.",
+    "response": "Bu konuda yardımcı olabilecek yetkinlikte olduğumdan emin değilim. Tüketici, iş, kira, icra, trafik, vergi, tapu veya idari hukuk konularında soru sormayı deneyebilirsiniz; bu alanlarda gerçek mevzuat ve Yargıtay kararlarıyla destek olabilirim.\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
     "sources": []
   },
   {
@@ -401,7 +584,7 @@
     "verdict": null,
     "intent": "chat",
     "confidence": 1.0,
-    "response": "Selam! İyi bir günüm, teşekkür ederim. Siz nasılsınız?",
+    "response": "Selam! İyiyim, teşekkür ederim. Umarım sen de iyisindir. Size nasıl yardımcı olabilirim?",
     "sources": []
   }
 ]

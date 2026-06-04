@@ -1,0 +1,407 @@
+[
+  {
+    "expected_domain": "tuketici",
+    "question": "İnternetten aldığım telefon bozuk çıktı, satıcı iade kabul etmiyor, ne yapabilirim?",
+    "actual_domain": "tuketici",
+    "verdict": "pass",
+    "intent": "legal_answer",
+    "confidence": 0.615,
+    "response": "**Kısa cevap:**\nBozuk telefonunuzun ayıplı olduğunu gösterirseniz, satıcıdan iade veya indirim talep edebilirsiniz. [src: m-TKHK-11] Ancak, bu durumun kanunun size sağladığı hakları kullanmanızı gerektiği şekilde net bir şekilde belirlemek için daha fazla bilgiye ihtiyacımız var. [src: m-TKHK-11] Eğer bu ayıp, telefonun teslim anında ya da teslimden sonra ortaya çıktığını gösterirseniz, TKHK'nın size sağladığı hakları kullanabilirsiniz. [src: m-TKHK-11] Ancak, ayıplı malın tanımı ve ayıplı malın teslim anında var olup olmadığı konusunda kesin bir bilgiye ihtiyacımız var. [src: m-TKHK-8]\n\n**Dayanak:**\nTKHK'nın 8. maddesi, ayıplı malın tanımını ve 11. maddesi, ayıplı mal durumunda tüketici haklarını belirtir. [src: m-TKHK-11] Ayıplı mal, malın teslim anında veya teslimden sonra ortaya çıkan ayıplı malı ifade eder. Tüketicinin ayıplı mal durumunda, malı geri verebilir veya ayıp oranında indirim talep edebilir. [src: m-TKHK-8, m-TKHK-11] [src: m-TKHK-11]\n\n**Ne yapmalı:**\n1. Telefonunuzun ayıplı olduğunu ve bu ayıplı mal durumunu belirtin.\n2. Satıcıya telefonun ayıplı olduğunu ve bu durumun sözleşmeye aykırı olduğunu yazılı olarak bildirin.\n3. Telefonun ayıplı olduğunu ve bu durumun sözleşmeye aykırı olduğunu kanıtlamak için gerekli ispatları toplayın.\n4. [src: m-TKHK-11] Satıcıya telefonu iade etmek veya ayıp oranında indirim talep etmek için yazılı bir talep gönderin. [src: m-TKHK-11]\n\n**Dikkat:**\nTelefonun ayıplı olduğunu ve bu durumun sözleşmeye aykırı olduğunu kanıtlamanız gerekecektir. [src: m-TKHK-11] Satıcı, aksini ispatlamak zorundadır. [src: m-TKHK-11]\n\n**Güven:**\nBu yanıt, TKHK'nın 8. ve 11. maddelerine dayanmaktadır. Ancak, telefonun ayıplı olduğunu ve bu durumun sözleşmeye aykırı olduğunu kanıtlamanız gerekecektir. [src: m-TKHK-11] Bu konuda kesin bir bilgiye ihtiyacınız olabilir.\n\n---\n**Kaynaklar:**\n- [Mevzuat] Tüketicinin Korunması Hakkında Kanun (TKHK) Madde 11 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=6502&MevzuatTur=1)\n- [Mevzuat] Tüketicinin Korunması Hakkında Kanun (TKHK) Madde 8 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=6502&MevzuatTur=1)\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
+  },
+  {
+    "expected_domain": "is",
+    "question": "5 yıldır çalıştığım işten tazminatsız çıkarıldım, kıdem ve ihbar tazminatı alabilir miyim?",
+    "actual_domain": "isHukuku",
+    "verdict": "reject",
+    "intent": "legal_answer",
+    "confidence": 0.0,
+    "response": "Bu soruya şu an net bir yanıt veremiyorum. Konuyu daha ayrıntılı anlatan ek bilgi paylaşırsanız yeniden deneyebilirim; durumunuz karmaşıksa bir avukata danışmanızı öneririm.\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
+  },
+  {
+    "expected_domain": "kira",
+    "question": "Ev sahibim kira sözleşmem bittiğinde depozitomu iade etmiyor, evi hasarsız teslim ettim, ne yapabilirim?",
+    "actual_domain": "kira",
+    "verdict": "reject",
+    "intent": "legal_answer",
+    "confidence": 0.0,
+    "response": "Bu soruya şu an net bir yanıt veremiyorum. Konuyu daha ayrıntılı anlatan ek bilgi paylaşırsanız yeniden deneyebilirim; durumunuz karmaşıksa bir avukata danışmanızı öneririm.\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
+  },
+  {
+    "expected_domain": "icra",
+    "question": "Hiç tanımadığım bir alacaklı hakkımda icra takibi başlattı, borcum yok, nasıl itiraz ederim?",
+    "actual_domain": "icra",
+    "verdict": "reject",
+    "intent": "legal_answer",
+    "confidence": 0.0,
+    "response": "Bu soruya şu an net bir yanıt veremiyorum. Konuyu daha ayrıntılı anlatan ek bilgi paylaşırsanız yeniden deneyebilirim; durumunuz karmaşıksa bir avukata danışmanızı öneririm.\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
+  },
+  {
+    "expected_domain": "trafik",
+    "question": "Park halindeyken aracıma çarpıp kaçtılar, kamera kaydı var, zararımı nasıl tahsil ederim?",
+    "actual_domain": "trafik",
+    "verdict": null,
+    "intent": "needs_clarification",
+    "confidence": 0.0,
+    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. Trafikle ilgili sorununuzu (kaza, ceza, sigorta vb.) kısaca anlatır mısınız?\n2. Olayda tutanak tutuldu mu ya da bir ceza yazıldı mı?\n3. Karşı tarafla aranızda hasar/kusur konusunda anlaşmazlık var mı?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
+    "sources": []
+  },
+  {
+    "expected_domain": "vergi",
+    "question": "Adıma fazladan emlak vergisi tahakkuk ettirilmiş, bu vergiye nasıl itiraz edebilirim?",
+    "actual_domain": "vergi",
+    "verdict": null,
+    "intent": "needs_clarification",
+    "confidence": 0.0,
+    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. Vergiyle ilgili sorununuzu (tarhiyat, ceza, itiraz vb.) kısaca anlatır mısınız?\n2. Size bir vergi/ceza ihbarnamesi tebliğ edildi mi? Ne zaman?\n3. Tebliğ edilen tutara itiraz mı etmek istiyorsunuz?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
+    "sources": []
+  },
+  {
+    "expected_domain": "tapu",
+    "question": "Parasını ödediğim dairenin tapusu hâlâ üzerime devredilmedi, satıcı oyalıyor, ne yapmalıyım?",
+    "actual_domain": "tapu",
+    "verdict": "pass",
+    "intent": "legal_answer",
+    "confidence": 0.581,
+    "response": "**Kısa cevap:**\nTapu devre dışı kalma durumunuzda hakınız var. [src: m-TBK-266] Kiracı olarak, satıcının tapuyu sizin adınıza devretmesini talep edebilirsiniz. [src: m-TBK-266] Ancak, bu durumun çözümü için bazı adımlar atmanız gerekecek. [src: h-45515100-c3]\n\n**Durumunuza uygulama:**\nParasını ödediğiniz dairenin tapusu hâlâ üzerinize devredilmediyse, satıcınızın bu yükümlülüğü yerine getirmesi gerekmektedir. [src: m-TBK-266] Satış sözleşmesi gereği, satıcı mülkiyeti alıcıya devretmek zorundadır. [src: m-TBK-266] Tapu devre dışı kalması durumunda, alacaklı haklarını korumak için tapu iptali ve tescil davası açabilirsiniz. [src: m-TMK-890] [src: h-45515100-c3]\n\n**Dayanak:**\nTürk Medeni Kanunu'nun 890. maddesi, taşınmazın yeni malikinin borcu yüklenmesi durumunda tapu idaresinin alacaklıya bildirim yapmasını ve alacaklıya bir yıllık beyan süresi tanımıştır.\n\n**Ne yapmalı:**\n1. Satıcı ile doğrudan iletişime geçin ve tapu devretme konusunda baskı yapın.\n2. Satış sözleşmesini kontrol edin ve satıcının yükümlülüklerini hatırlatın.\n3. [src: m-TBK-266] Tapu idaresine başvurun ve tapu devre dışı kalma durumunu bildirin.\n4. [src: m-TBK-266] Tapu iptali ve tescil davası açın, böylece satıcının borcunu hakkınız olarak savunun.\n5. [src: m-TBK-266] Avukatınızla görüşün ve dava sürecini yönetin. Alacaklı haklarını korumak için belirlenen sürenin içinde hareket etmeniz önemlidir. [src: m-TMK-890]\n\n**Güven:**\nBu yanıt, Türk Medeni Kanunu'nun 890. maddesi ve Yargıtay kararına dayanmaktadır. Ancak, durumunuzu tam olarak değerlendirmek için avukatınızla görüşmeniz önerilir. [src: m-TMK-890] [src: h-45515100-c3]\n\n---\n**Kaynaklar:**\n- [Mevzuat] Türk Medeni Kanunu (TMK) Madde 890 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=4721&MevzuatTur=1)\n- [Mevzuat] Türk Borçlar Kanunu (TBK) Madde 266 (https://mevzuat.gov.tr/mevzuat?MevzuatNo=6098&MevzuatTur=1)\n- [Emsal] yargitay 2012/11811/2012/13371 (https://karararama.yargitay.gov.tr/?aranan=45515100)\n\n⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. Karmaşık veya kritik durumlarda lütfen bir avukata danışın.",
+    "sources": [
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      },
+      {
+        "id": null,
+        "doc_type": null,
+        "title": null,
+        "snippet": ""
+      }
+    ]
+  },
+  {
+    "expected_domain": "idari",
+    "question": "Devlet memuruyken savunmam alınmadan disiplin cezasıyla görevden uzaklaştırıldım, dava açabilir miyim?",
+    "actual_domain": "idari",
+    "verdict": null,
+    "intent": "needs_clarification",
+    "confidence": 0.0,
+    "response": "Daha doğru yardımcı olabilmem için birkaç bilgiye ihtiyacım var:\n\n1. İdareyle (belediye, kurum vb.) yaşadığınız sorunu kısaca anlatır mısınız?\n2. Size yazılı bir idari işlem/karar tebliğ edildi mi? Ne zaman?\n3. İdareye başvurdunuz mu, yanıt aldınız mı?\n\nBu soruları yanıtlarsanız durumunuza uygun, kaynaklı bir cevap hazırlayabilirim.",
+    "sources": []
+  },
+  {
+    "expected_domain": "ceza",
+    "question": "Komşumu dövdüm, hapis cezası alır mıyım?",
+    "actual_domain": "unknown",
+    "verdict": null,
+    "intent": "chat",
+    "confidence": 1.0,
+    "response": "Bu konuda yardımcı olabilecek yetkinlikte olduğumdan emin değilim. Tüketici, iş, kira, icra, trafik, vergi, tapu veya idari hukuk konularında soru sormayı deneyebilirsiniz; bu alanlarda gerçek mevzuat ve Yargıtay kararlarıyla destek olabilirim.",
+    "sources": []
+  },
+  {
+    "expected_domain": "smalltalk",
+    "question": "selam, bugün nasılsın?",
+    "actual_domain": "unknown",
+    "verdict": null,
+    "intent": "chat",
+    "confidence": 1.0,
+    "response": "Selam! İyi bir günüm, teşekkür ederim. Siz nasılsınız?",
+    "sources": []
+  }
+]
