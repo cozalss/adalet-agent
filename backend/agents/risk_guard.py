@@ -53,7 +53,19 @@ _DENIAL_VERB = (
     r"verilmez|verilmeyebilir|alamaz\w*|doğmaz|sağlamı(?!ş)\w*|sağlamaz|"
     r"yeterli\s+olm\w*|geçerli\s+değil|mümkün\s+değil)"
 )
-_DURATION_OR_THRESHOLD = r"(?:\d+\s*(?:yıl|sene|ay|hafta|gün)|süre\w*|altında|aşağı)"
+# `altında`/`aşağı` (sayısız edat → "yükümlülük altında doğmaz" false-positive) ÇIKARILDI;
+# yerine eşik DOĞRUDAN yakalanıyor — rakamsal süre ("5 yıl"), YAZIYLA süre ("bir yıl",
+# "iki haftalık") ve PARA tutarı ("5.000 TL"). Eski "altında" bu yazıyla/para eşiklerini
+# yakalıyordu (rakam `\d+` kaçırır); doğrudan eşik hem onları korur hem masum edatı eler
+# (2026-06-04 calibration: 4 fabrike-red vakası + depozito false-veto birlikte çözülür).
+_WRITTEN_NUM = r"(?:bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz|on|yirmi|otuz|kırk|elli)"
+_TIME_UNIT = r"(?:yıl|sene|ay|hafta|gün)\w*"
+_DURATION_OR_THRESHOLD = (
+    rf"(?:\d+\s*{_TIME_UNIT}"               # "5 yıl", "30 gün"
+    rf"|{_WRITTEN_NUM}\s+{_TIME_UNIT}"      # "bir yıl", "iki haftalık"
+    rf"|\d[\d.,]*\s*(?:tl|lira|₺)"          # "5.000 TL"
+    rf"|süre\w*)"                            # "süreniz yetersiz"
+)
 _NEGATIVE_ELIGIBILITY_RE = re.compile(
     rf"{_DURATION_OR_THRESHOLD}.{{0,80}}?{_DENIAL_VERB}"
     rf"|{_DENIAL_VERB}.{{0,80}}?{_DURATION_OR_THRESHOLD}",

@@ -111,14 +111,17 @@ def decide_path(state: AgentState) -> PolicyDecision:
         return "answer"
     if _user_already_answered_clarifier(state):
         return "answer"
-    if _looks_situational(state.get("question", "")) and not _is_general_question(state.get("question", "")):
-        return "clarify"
+    # ÖNCE olgu-yeterlilik: triaj case_facts'i doldurduysa (ör. trafik/vergi/idari
+    # MIN_FACTS=1 karşılanır) doğrudan cevapla. Aksi halde spesifik sorular gereksiz
+    # netleştirmeye düşüyordu (2026-06-04: "park halinde çarpıp kaçtılar" → clarify).
     if _facts_sufficient(domain, state.get("case_facts") or {}):
         return "answer"
-    # Olgu eksik AMA soru genel/tanımsal ise yine doğrudan cevapla (netleştirme
-    # yalnız durumsal-eksik sorular için). Genel-soru kalıbı yoksa → clarify.
+    # Olgu eksik AMA soru genel/tanımsal ise yine doğrudan cevapla.
     if _is_general_question(state.get("question", "")):
         return "answer"
+    # Olgu EKSİK ve durumsal görünüyorsa → netleştir (yalnız gerçekten eksik-bilgide).
+    if _looks_situational(state.get("question", "")) and not _is_general_question(state.get("question", "")):
+        return "clarify"
     return "clarify"
 
 

@@ -157,7 +157,7 @@ HYDE_TIMEOUT_S = float(os.getenv("HYDE_TIMEOUT_S", "15.0"))
 HYDE_MAX_TOKENS = 200
 # A/B bulgusu (2026-05-30): HyDE bu domainlerde pozitif, diğerlerinde negatif etki.
 HYDE_ENABLED_DOMAINS: frozenset[str] = frozenset(
-    os.getenv("HYDE_ENABLED_DOMAINS", "tuketici,kira,isHukuku,vergi").split(",")
+    os.getenv("HYDE_ENABLED_DOMAINS", "tuketici,kira,isHukuku,vergi,tapu").split(",")
 )
 MULTI_QUERY_ENABLED = os.getenv("MULTI_QUERY_ENABLED", "0") not in {"0", "false", "False"}
 # Sprint-4 W1: 4 → 5. Literatürde N=5-8 standard, paraphrase çeşitliliği +Recall@20.
@@ -275,12 +275,14 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "MYK",      # 5018 — Mali Yönetim
     ),
     "tapu":      (
-        "TMK",      # 4721 — Medeni
+        "TMK",      # 4721 — Medeni (eşya hukuku, tescil m.705-706)
+        "TBK",      # 6098 — Borçlar (satım sözleşmesi m.207+ — tapu devir ana akım)
         "TPK",      # 2644 — Tapu
         "KMK",      # 634 — Kat Mülkiyeti
         "IMARK",    # 3194 — İmar
-        "KAMK",     # 2942 — Kamulaştırma
         "KDK",      # 6306 — Kentsel Dönüşüm
+        # KAMK (kamulaştırma) çıkarıldı — nadir, idari'ye ait; satış/tescil sorgusunda
+        # _boost_by_domain ile öne çıkıp TMK/TBK satım maddelerini eziyordu (2026-06-04 ölçüm).
     ),
     "idari":     (
         "IYUK",     # 2577 — İdari Yargılama
@@ -327,6 +329,11 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15)),
     "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("EIK", 14)),
     "kira": (("TBK", 299), ("TBK", 315), ("TBK", 342), ("TBK", 344), ("TBK", 347), ("TBK", 350), ("TBK", 372)),
+    # icra: m.62 = ödeme emrine 7 GÜNlük itiraz (vatandaş "borcum yok itiraz"ının doğru maddesi);
+    # bu çapa eklenmeden m.62 aday havuzuna girmiyordu → yanlış süre/madde (2026-06-04 ölçüm).
+    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 89), ("IIK", 264)),
+    # tapu: tescil talebi (TMK 705/706) + taşınmaz satış şekli (TBK 207/237) — satış/devir ana akım.
+    "tapu": (("TMK", 705), ("TMK", 706), ("TBK", 207), ("TBK", 237)),
 }
 
 # Domain → ÖNCELİKLİ emsal mahkemesi (court-priority tier-sort).
@@ -373,6 +380,7 @@ OUT_OF_SCOPE_KEYWORDS = (
     "ağır ceza", "asliye ceza", "ceza mahkemesi",
     "cinayet", "öldürme", "tcm m.81", "kasten öldürme",
     "suç işle", "suç eylem",  # "suç" tek tanesi false-positive üretiyordu
+    "hapis cezası", "kasten yaralama", "taksirle yaralama",  # doğrudan ceza soruları
     "tutuklama", "tutuklu", "gözaltı",
     # Aile hukuku — çok-token form'lar
     "boşanma davası", "nafaka", "velayet", "evlat edinme",

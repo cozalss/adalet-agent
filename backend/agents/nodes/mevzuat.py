@@ -371,9 +371,14 @@ def _ensure_core_in_topk(
 
 
 def _format_law_title(r) -> str:
-    """'TKHK Madde 11' tarzı kompakt başlık."""
+    """'İcra ve İflas Kanunu (IIK) Madde 62' tarzı başlık — kanun_adi varsa açık ad +
+    kısaltma; yoksa kompakt 'IIK Madde 62'. Açık ad LLM'in 'IIK'yı 'İş Kanunu' diye yanlış
+    açmasını önler (2026-06-04 icra ölçümü); kanun_adi payload'da zaten mevcut."""
     kod = r.metadata.get("kanun_kodu", "")
     madde = r.metadata.get("madde_no", "")
+    kanun_adi = (r.metadata.get("kanun_adi") or "").strip()
     if kod and madde:
+        if kanun_adi:
+            return f"{kanun_adi} ({kod}) Madde {madde}"
         return f"{kod} Madde {madde}"
     return r.metadata.get("title") or r.source or r.chunk_id

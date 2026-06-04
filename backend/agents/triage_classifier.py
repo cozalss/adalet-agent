@@ -82,6 +82,12 @@ def classify_domain(question: str) -> tuple[Domain, float] | None:
     """
     if not _model_enabled():
         return None
+    # Kapsam-dışı (ceza/aile) sorular model path'te de engellenmeli: DistilBERT yalnız 8
+    # sivil label taşır ('unknown' yok) → ceza sorusunu zorla bir sivil domaine atıyordu
+    # ("komşumu dövdüm" → tapu, 2026-06-04). None → LLM triajı + out_of_scope guard devreye girer.
+    from agents.nodes.triaj import _is_out_of_scope
+    if _is_out_of_scope(question):
+        return None
     try:
         domain, conf = _model_classify(question)
     except Exception as exc:  # model bozuk/eksik → LLM'e düş (best-effort)

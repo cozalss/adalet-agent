@@ -55,6 +55,8 @@ _OUT_OF_SCOPE_PREFIX_KEYWORDS = frozenset({
     "cinayet", "öldürme", "tutuklama", "tutuklu", "gözaltı",
     "hırsız", "dolandırıc", "savcılık", "suç", "darp",
     "nafaka", "velayet", "boşan",
+    "hapis",   # hapis cezası/yatmak — ceza hukuku (sivil sözlükte geçmez)
+    "dövdü",   # dövdüm/dövdü/dövdün — kasten yaralama ("dövdü"; "döv" döviz'i de yakalardı)
 })
 
 _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
