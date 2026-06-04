@@ -89,6 +89,29 @@ def is_clatter_gate_enabled() -> bool:
     return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def is_emsal_live_fallback_enabled() -> bool:
+    """Canlı emsal fallback (CRAG, opt-in, default 0) — corpus zayıfsa internetten dava çek.
+
+    `EMSAL_LIVE_FALLBACK_ENABLED=1`: lokal emsal rerank skoru EMSAL_LIVE_TRIGGER_SCORE'un
+    ALTINDAysa (corpus alakalı dava bulamadı), domain'e uygun CANLI yargı-mcp kaynağından
+    aday çekilir + LOKAL reranker ile sıralanır (upstream relevance vermez, alakayı bizim
+    cross-encoder verir). Eşik-üstü yoksa dürüst 'emsal yok' (SIFIR HALÜSİNASYON korunur;
+    canlı snippet'ler verify'dan geçer). Network + latans → default kapalı; yalnız NLI/reranker
+    yüklü production'da anlamlı. Dinamik okunur → testler monkeypatch.setenv ile toggle eder.
+
+    DÜRÜST SINIR (ölçüldü): Tüketici Hakem Heyeti yargı-mcp'de YOK; en çok trafik
+    (sigorta_tahkim) + vergi (gib_ozelge) gibi keyword-aranabilir kaynaklarda fayda sağlar.
+    """
+    return os.getenv("EMSAL_LIVE_FALLBACK_ENABLED", "0").lower() in {"1", "true", "yes"}
+
+
+# Lokal emsal en-iyi rerank skoru bu değerin ALTINDAysa corpus 'zayıf' sayılır →
+# canlı fallback tetiklenir. Cross-encoder sigmoid (0-1); 0.35 = zayıf-alaka eşiği.
+EMSAL_LIVE_TRIGGER_SCORE = float(os.getenv("EMSAL_LIVE_TRIGGER_SCORE", "0.35"))
+# Canlı aday bir emsal olarak kabul edilmek için gereken min LOKAL-rerank skoru.
+EMSAL_LIVE_MIN_SCORE = float(os.getenv("EMSAL_LIVE_MIN_SCORE", "0.30"))
+
+
 def is_guided_cite_enabled() -> bool:
     """Guided-decoding citation-whitelist (opt-in, default 0) — 2.2.
 

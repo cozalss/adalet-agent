@@ -127,3 +127,66 @@ async def test_emsal_node_surfaces_yargitay_over_anayasa(monkeypatch):
     refs = out["emsal_refs"]
     # İlk emsal Yargıtay olmalı (anayasa hacim baskısı kırıldı)
     assert refs[0]["source_id"] == "yarg1"
+
+
+# --- CRAG canlı fallback (opt-in) ---
+
+async def _no_scoped(monkeypatch):
+    async def fake_search(**_k):
+        return []
+    monkeypatch.setattr(emsal_mod, "search", fake_search)
+
+
+@pytest.mark.asyncio
+async def test_live_fallback_off_by_default(monkeypatch):
+    """Flag kapali + zayif corpus → canli fallback CAGRILMAZ (baseline)."""
+    monkeypatch.delenv("EMSAL_LIVE_FALLBACK_ENABLED", raising=False)
+    async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
+        return [_rr("c1", 0.10, "yargitay")]  # zayif
+    monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
+    await _no_scoped(monkeypatch)
+    called = {"live": False}
+    async def fake_live(*_a, **_k):
+        called["live"] = True
+        return []
+    monkeypatch.setattr(emsal_mod, "fetch_and_rank_live", fake_live)
+    out = await emsal_mod.emsal_node({"question": "x", "domain": "trafik"})
+    assert called["live"] is False
+    assert out["emsal_refs"][0]["source_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_live_fallback_triggers_on_weak_corpus(monkeypatch):
+    """Flag acik + zayif corpus → internetten cekilen (canli) emsal ONE eklenir."""
+    monkeypatch.setenv("EMSAL_LIVE_FALLBACK_ENABLED", "1")
+    async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
+        return [_rr("c1", 0.10, "yargitay")]
+    monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
+    await _no_scoped(monkeypatch)
+    from retrieval.hybrid_search import SearchResult
+    async def fake_live(question, domain, **_k):
+        return [SearchResult("live1", 0.9, "canli trafik dava metni",
+                             "sigorta_tahkim", "http://x", domain, {"live": True})]
+    monkeypatch.setattr(emsal_mod, "fetch_and_rank_live", fake_live)
+    out = await emsal_mod.emsal_node({"question": "trafik kazasi", "domain": "trafik"})
+    refs = out["emsal_refs"]
+    assert refs[0]["source_id"] == "live1"
+    assert "canlı" in refs[0]["title"]
+
+
+@pytest.mark.asyncio
+async def test_live_fallback_skips_on_strong_corpus(monkeypatch):
+    """Flag acik AMA corpus GUCLU (skor > esik) → canli fallback gereksiz, cagrilmaz."""
+    monkeypatch.setenv("EMSAL_LIVE_FALLBACK_ENABLED", "1")
+    async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
+        return [_rr("c1", 0.80, "yargitay")]  # guclu
+    monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
+    await _no_scoped(monkeypatch)
+    called = {"live": False}
+    async def fake_live(*_a, **_k):
+        called["live"] = True
+        return []
+    monkeypatch.setattr(emsal_mod, "fetch_and_rank_live", fake_live)
+    out = await emsal_mod.emsal_node({"question": "x", "domain": "trafik"})
+    assert called["live"] is False
+    assert out["emsal_refs"][0]["source_id"] == "c1"

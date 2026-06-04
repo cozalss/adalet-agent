@@ -57,6 +57,9 @@ export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=512
 export SPARSE_EMBEDDER_MODEL=
 export RAPTOR_ENABLED=0 GRAPH_RAG_ENABLED=0 COLBERT_QUERY_ENABLED=0
 export EMBEDDING_DEVICE=cpu EMBEDDING_FP16=0 RERANKER_DEVICE=cpu RERANKER_FP16=0
+# Reranker: BASE bge-reranker-v2-m3 — A/B ÖLÇÜLDÜ optimal (madde_recall@5 +6pp); .env'deki
+# tr-legal fine-tune A/B'de DAHA KÖTÜ (commit 9ee919d) → BASE'i .env üstüne override et.
+export RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
 # Verify sertleştirme — E2E ölçülmüş-güvenli (2026-06-04, over-reject yok): yüksek-riskli
 # uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded
@@ -64,6 +67,9 @@ export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
 export CLATTER_GATE_ENABLED=1 CITE_GROUNDING_CHECK=1
 # Guided-decoding: cite_id'i known_ids'e GBNF ile kısıtla (uydurma cite üretilemez). E2E doğrulandı.
 export GUIDED_CITE_ENABLED=1
+# Canlı emsal fallback (CRAG): lokal corpus zayıfsa internetten (yargı-mcp) dava çek + lokal rerank.
+# E2E doğrulandı (trafik→sigorta_tahkim alakalı dava). Yalnız corpus-zayıf sorularda tetiklenir.
+export EMSAL_LIVE_FALLBACK_ENABLED=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 

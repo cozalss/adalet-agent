@@ -15,10 +15,18 @@ import os
 
 import structlog
 
-from agents.config import DOMAIN_PREFERRED_COURTS, RERANK_CANDIDATES, TOP_K_CASE
+from agents.config import (
+    DOMAIN_PREFERRED_COURTS,
+    EMSAL_LIVE_MIN_SCORE,
+    EMSAL_LIVE_TRIGGER_SCORE,
+    RERANK_CANDIDATES,
+    TOP_K_CASE,
+    is_emsal_live_fallback_enabled,
+)
 from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.hybrid_search import search, search_with_rerank
+from retrieval.live_emsal import fetch_and_rank_live
 from retrieval.reranker import get_reranker
 
 log = structlog.get_logger()
@@ -108,6 +116,32 @@ async def _emsal_retrieve(question: str, domain: str) -> dict:
         )
         for rr in case_results[:TOP_K_CASE]
     ]
+
+    # CRAG canlı fallback (opt-in): lokal corpus ZAYIFSA (en-iyi rerank skoru eşik altı)
+    # internetten (yargı-mcp) dava çek + LOKAL rerank → alakalı canlı emsalleri ÖNE ekle.
+    # Default OFF → bu blok atlanır (baseline birebir). Canlı snippet'ler verify'dan geçer.
+    best_local = max((rr.score for rr in case_results), default=0.0)
+    if is_emsal_live_fallback_enabled() and best_local < EMSAL_LIVE_TRIGGER_SCORE:
+        live = await fetch_and_rank_live(
+            question, domain, top_k=TOP_K_CASE, min_score=EMSAL_LIVE_MIN_SCORE,
+        )
+        if live:
+            live_cases = [
+                Citation(
+                    source_id=r.chunk_id,
+                    doc_type="case",
+                    title=f"{r.source} {r.chunk_id} (canlı)",
+                    snippet=r.text[:500],
+                    url=r.source_url,
+                    score=r.score,
+                )
+                for r in live
+            ]
+            # Canlı (daha alakalı) ÖNE; corpus arkada; chunk_id dedup; TOP_K_CASE'e kes.
+            seen = {c["source_id"] for c in live_cases}
+            cases = (live_cases + [c for c in cases if c["source_id"] not in seen])[:TOP_K_CASE]
+            log.info("emsal_live_fallback_used", domain=domain,
+                     best_local=round(best_local, 3), n_live=len(live_cases))
 
     # Sprint-4 W3.4: GraphRAG expand — bayrak açık ve graph yüklü ise
     # citation title'larından seed'ler çıkar, k-hop neighbor node id'leri al.
