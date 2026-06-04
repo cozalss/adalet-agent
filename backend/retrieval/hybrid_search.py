@@ -70,8 +70,15 @@ _SPARSE_DOMAINS: frozenset[str] = frozenset(
 
 # Füzyon stratejisi (Context7/Qdrant best-practice): RRF (rank-tabanlı, DEFAULT) veya DBSF
 # (Distribution-Based Score Fusion, Qdrant 1.10+ — skorları mean±3σ ile normalize edip toplar;
-# farklı skor-DAĞILIMLI sparse+dense kollarını birleştirmede RRF'den robust). HYBRID_FUSION=dbsf
-# ile A/B ablation (eval_run.py ile ölç). Tek-kol (dense-only Mursit) → DBSF anlamsız, RRF kalır.
+# farklı skor-DAĞILIMLI sparse+dense kollarını birleştirmede RRF'den robust). Tek-kol
+# (dense-only Mursit) → DBSF anlamsız, RRF kalır; yalnız sparse-enabled domainde (2 kol) tetiklenir.
+#
+# ÖLÇÜLDÜ A/B (2026-06-04, eval_run v2 186 vaka, law, eval/runs/fusion_{rrf,dbsf}.json):
+#   headline madde_recall@5 35.4%→35.7% (FLAT), madde_mrr 0.294→0.297 (FLAT),
+#   domain@5 95.7→95.2 / kanun@5 82.8→82.3 (-0.5pp), AMA sparse-domain domain@1:
+#   trafik 27.3→45.5% (+18pp, BM25 ölçek-normalizasyonu), icra 92.3→96.2% (+4pp), vergi =.
+# Karar: DEFAULT RRF (headline kazancı yok); DBSF opt-in (trafik/icra ağırlıklı dağıtım).
+# RRF_K Qdrant native FusionQuery'de expose EDİLMİYOR → sweep N/A (yalnız multi_query manual RRF'te).
 _HYBRID_FUSION = os.getenv("HYBRID_FUSION", "rrf").strip().lower()
 
 
