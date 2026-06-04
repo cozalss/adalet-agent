@@ -105,6 +105,12 @@ lora = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# Güvenlik: aiohttp 3.13.5'te CVE-2026-34993 + CVE-2026-47265 (ikisi de 3.14.0'da fixli).
+# aiohttp transitive bağımlılık (instructor/langchain-community/fsspec/datasets) → constraint ile
+# minimum güvenli sürümü zorla (doğrudan import yok; sadece güvenlik tabanı).
+constraint-dependencies = ["aiohttp>=3.14.0"]
+
 # PyTorch CUDA 12.4 wheel index — RTX 4070 GPU için
 [tool.uv.sources]
 torch = { index = "pytorch-cu124" }
