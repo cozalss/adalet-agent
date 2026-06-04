@@ -6,7 +6,7 @@ import {
   StreamStepper, RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
 } from "./components/ui.jsx";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./components/cards.jsx";
-import { AgentTrace, PredictionCard, ThinkingSkeleton, EvidenceStats, LiveDraft, QuickTyping } from "./components/panels.jsx";
+import { AgentTrace, PredictionCard, EvidenceStats, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
@@ -587,11 +587,10 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
           {streaming && !softPath && p !== "triage" && (
             <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />
           )}
-          {["drafting", "verifying"].includes(p) && !softPath && (
-            d.draftText
-              ? <LiveDraft text={d.draftText} verifying={p === "verifying"} />
-              : <ThinkingSkeleton />
-          )}
+          {/* HUKUK yolu "tek şey": ham DOĞRULANMAMIŞ taslak prose'u gösterilmez (kullanıcı
+              onu okuyup sonra kart'a dönüşmesi kafa karıştırıyordu + sıfır-halüsinasyon: doğrulanmamış
+              metni nihaiymiş gibi sunma). Canlı geri-bildirim = StreamStepper (yukarıda, "Cevap
+              hazırlanıyor…/İddialar doğrulanıyor…"). Sonra TEK kez doğrulanmış AnswerCard belirir. */}
 
           {p === "smalltalk" && d.smalltalk && (
             <React.Fragment>

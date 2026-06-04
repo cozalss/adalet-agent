@@ -7,6 +7,10 @@
 // Cevap gövdesinin sonundaki finalize boilerplate'ini (Kaynaklar + disclaimer) kes.
 const SOURCES_TAIL = /\n+-{2,}\s*\n+\*\*Kaynaklar:\*\*[\s\S]*$/;
 const DISCLAIMER_TAIL = /\n*⚠️[\s\S]*$/;
+// Qwen3.5 thinking bloğu (boş <think></think> dahil) — backend akış-süzgeci kesiyor; bu
+// frontend defansif yedek (kapanışlı + kapanışsız <think>).
+const THINK_BLOCK = /<think>[\s\S]*?<\/think>/gi;
+const THINK_OPEN = /<think>[\s\S]*$/i;
 
 // Bölüm başlıkları: **Kısa cevap:**, **Dayanak:**, **Durumuna uygulama:**, ...
 const SECTION_RE = /\*\*([^*:]+):\*\*/g;
@@ -223,7 +227,12 @@ export function looksSmalltalk(resp) {
  *  streaming ile final AYNI temiz metni gösterir (LLM kendi disclaimer'ını eklese bile
  *  akış sırasında görünüp final'de kaybolmaz = içerik-flip önlenir). */
 export function stripAnswerTail(text) {
-  return (text || "").replace(SOURCES_TAIL, "").replace(DISCLAIMER_TAIL, "").trim();
+  return (text || "")
+    .replace(THINK_BLOCK, "")
+    .replace(THINK_OPEN, "")
+    .replace(SOURCES_TAIL, "")
+    .replace(DISCLAIMER_TAIL, "")
+    .trim();
 }
 
 /** Smalltalk/redirect yanıtını hafif baloncuk şekline indir (kaynak/disclaimer kuyruğu

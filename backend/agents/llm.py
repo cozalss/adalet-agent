@@ -59,9 +59,14 @@ _NO_THINK = os.getenv("LLM_NO_THINK", "0").lower() in {"1", "true", "yes"}
 _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
 
 
+_THINK_OPEN_RE = re.compile(r"<think>.*$", re.DOTALL | re.IGNORECASE)
+
+
 def _strip_think(text: str) -> str:
-    """Sızan <think>...</think> bloğunu kes (no-think tutmazsa backstop)."""
-    return _THINK_RE.sub("", text or "").strip()
+    """Sızan <think>...</think> bloğunu kes (no-think tutmazsa backstop). Kapanışsız <think>
+    (Qwen3.5 ara sıra boş/yarım üretir) → o noktadan sonrası da atılır."""
+    cleaned = _THINK_RE.sub("", text or "")
+    return _THINK_OPEN_RE.sub("", cleaned).strip()
 
 
 def _apply_no_think(messages: list[ChatMessage]) -> list[ChatMessage]:
@@ -74,6 +79,63 @@ def _apply_no_think(messages: list[ChatMessage]) -> list[ChatMessage]:
             out[i] = ChatMessage(role="system", content=f"{m.content} /no_think")
             return out
     return [ChatMessage(role="system", content="/no_think"), *out]
+
+
+def _hold_partial(s: str, tag: str) -> tuple[str, str]:
+    """(safe, tail): tail = s'in, tag'in BAŞLANGICI olabilecek en uzun son-eki → emit edilmez.
+    Örn. ('abc<thi', '<think>') → ('abc', '<thi'). Etiket token sınırına bölünürse korunur."""
+    for k in range(min(len(s), len(tag) - 1), 0, -1):
+        if s.endswith(tag[:k]):
+            return s[:-k], s[-k:]
+    return s, ""
+
+
+class _StreamThinkFilter:
+    """Akan token'larda <think>...</think> bloğunu (Qwen3.5 boş üretse bile) UI'a SIZDIRMADAN kes.
+
+    Token'lar parça parça + etiket token sınırına bölünebilir → tampon + kısmi-etiket koruması.
+    on_token yerine bu filtreden geçen 'temiz' delta emit edilir; <think> içeriği + etiketler
+    düşürülür. (Dönen TAM içerik ayrıca _strip_think ile temizlenir — bu yalnız akış UI içindir.)
+    """
+
+    _OPEN = "<think>"
+    _CLOSE = "</think>"
+
+    def __init__(self, emit: Callable[[str], None]) -> None:
+        self._emit = emit
+        self._buf = ""
+        self._in_think = False
+
+    def feed(self, delta: str) -> None:
+        self._buf += delta
+        send: list[str] = []
+        while self._buf:
+            if not self._in_think:
+                i = self._buf.find(self._OPEN)
+                if i == -1:
+                    safe, tail = _hold_partial(self._buf, self._OPEN)
+                    if safe:
+                        send.append(safe)
+                    self._buf = tail
+                    break
+                if i:
+                    send.append(self._buf[:i])
+                self._buf = self._buf[i + len(self._OPEN):]
+                self._in_think = True
+            else:
+                j = self._buf.find(self._CLOSE)
+                if j == -1:
+                    _, self._buf = _hold_partial(self._buf, self._CLOSE)  # think içeriği AT
+                    break
+                self._buf = self._buf[j + len(self._CLOSE):]
+                self._in_think = False
+        if send:
+            self._emit("".join(send))
+
+    def flush(self) -> None:
+        if not self._in_think and self._buf:
+            self._emit(self._buf)
+        self._buf = ""
 
 
 class LLMClient(Protocol):
@@ -315,16 +377,22 @@ class LlamaCppClient:
         }
         loop = asyncio.get_running_loop()
 
+        def _emit_token(s: str) -> None:
+            loop.call_soon_threadsafe(on_token, s)
+
         def _run_stream() -> str:
             parts: list[str] = []
+            # <think> akış-filtresi: Qwen3.5 boş <think></think> üretse bile UI'a sızdırma.
+            think_filter = _StreamThinkFilter(_emit_token)
             for chunk in self._model.create_chat_completion(**kwargs):
                 try:
                     delta = chunk["choices"][0]["delta"].get("content")
                 except (KeyError, IndexError, TypeError):
                     delta = None
                 if delta:
-                    parts.append(delta)
-                    loop.call_soon_threadsafe(on_token, delta)
+                    parts.append(delta)  # TAM içerik (return için; ayrıca _strip_think'lenir)
+                    think_filter.feed(delta)  # UI'a yalnız <think>-dışı temiz delta
+            think_filter.flush()
             return "".join(parts)
 
         # chat() ile aynı tek-worker decode executor (KV-cache yarışını önler).
