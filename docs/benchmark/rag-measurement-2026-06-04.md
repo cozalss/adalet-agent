@@ -28,12 +28,22 @@ icra %37 · isHukuku %36 · vergi %25 · kira %28 · tüketici %64 · trafik %22
 - **CE rerank on/off:** law-filtreli sonuçlarda CE +1.6pp net-pozitif (domain-karışık: icra/isHukuku/
   tüketici'de yardımcı, vergi/kira/trafik'te zararlı). KORUNUR (net-pozitif).
 
-## Kalan zayıf noktalar + sonraki lever
-- **tapu %10, idari %20:** law-filtre sonrası bile düşük. tapu kanun@5=%70 (doğru kanun) ama madde %10 =
-  "doğru kanun, yanlış madde" → **chunk granülerliği (#2, commit 5ede892)**. chunk_mevzuat uzun-madde
-  alt-bölme YAPILDI ama **RE-SEED gerektiriyor** (seed_mevzuat mevzuat.gov.tr'den canlı fetch eder).
-  Re-seed sonrası bu domainlerde madde_recall artışı beklenir.
+## #2 chunk sub-split: ÖLÇÜMLE REDDEDİLDİ (değerli negatif sonuç)
+Scoped re-seed testi (7293 law chunk → 12267 sub-chunk → test koleksiyonu → benchmark,
+`scripts/exp_subchunk_reseed.py`): madde_recall@5 %35.4 → **%36.6 (+1.2pp net, KARIŞIK)**.
+tüketici %53→%71 (+18pp) AMA **icra %33→%25, vergi %38→%25 DÜŞTÜ.** Neden: overlap'li sub-split
+çok-maddeli vakalarda (icra [32,33]) tek maddenin 3-4 overlapping sub-chunk'ını top-5'e doldurup
+DİĞER beklenen maddeleri itiyor. **→ Production re-seed DEĞMEZ** (ağır + marjinal + icra/vergi'yi bozar).
+Ölçüm bizi yanlış bir corpus-rebuild'den kurtardı. (chunk_mevzuat fix commit 5ede892 kodda kalır —
+zararsız, default-safe; ama production'a re-seed ÖNERİLMEZ.)
+
+## Kalan zayıf noktalar (diminishing returns — daha ağır iş gerektirir)
+- **"Yanlış KANUN" vakaları** (V_idari_009/010 IYUK→DMK, V_tapu_004/006 TMK→KMK/HMK): query yanlış
+  yasaya daha yakın embed oluyor → **embedding limiti (Mursit)** veya benchmark-etiketi. Daha iyi
+  embedding modeli (heavy swap) veya benchmark review gerektirir.
 - **trafik domain@1 %45 (rerank):** rerank trafik'i bozuyor (hybrid %73) → domain-seçici rerank ablasyonu.
+- **SONUÇ:** Büyük lever (doc_type=law +15.2pp) yakalandı. Kalan kazançlar diminishing returns —
+  ölçüm-sürücülü loop maksimum FP-safe iyileştirmeyi sağladı.
 
 ## Ölçüm altyapısı (kullanıcı koşar)
 - `scripts/run_baseline.py --mode {hybrid,rerank}` — domain-bazlı madde_recall@5.
