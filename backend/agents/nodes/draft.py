@@ -22,6 +22,7 @@ from agents.config import (
     DRAFT_MAX_TOKENS,
     LLM_CONTEXT_BUDGET,
     LLM_TEMPERATURE,
+    is_guided_cite_enabled,
 )
 from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
@@ -181,12 +182,46 @@ _CLAIM_LLM_USER_TMPL = (
 )
 
 
+def build_claims_schema(known_ids: list[str]) -> dict[str, Any]:
+    """Claim-extraction JSON-schema'sı: cite_ids yalnız known_ids ENUM'undan (guided decoding).
+
+    llama-cpp / llama-server bunu GBNF'e çevirip cite_id'i decode-seviyesinde kısıtlar →
+    uydurma cite üretilemez. known_ids boşken çağrılmaz (enum boş = geçersiz grammar)."""
+    return {
+        "type": "object",
+        "properties": {
+            "claims": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "cite_ids": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": sorted(known_ids)},
+                        },
+                    },
+                    "required": ["text", "cite_ids"],
+                },
+            },
+        },
+        "required": ["claims"],
+    }
+
+
 async def _extract_claims_llm(
     text: str, refs: list[Citation], llm: object,
 ) -> list[Claim]:
     """LLM ile atomik claim extraction. Başarısız olursa boş döner."""
     known_ids = {r["source_id"] for r in refs}
     user = _CLAIM_LLM_USER_TMPL.format(draft=text[:3000])
+    # Guided decoding (2.2, opt-in): cite_id'i known_ids enum'una GBNF ile kısıtla →
+    # uydurma cite üretilemez. known_ids boşsa schema YOK (baseline json_mode). MockLLM yok sayar.
+    _schema = (
+        build_claims_schema(list(known_ids))
+        if (is_guided_cite_enabled() and known_ids)
+        else None
+    )
     resp = await llm.chat(  # type: ignore[attr-defined]
         messages=[
             ChatMessage(role="system", content=_CLAIM_LLM_SYSTEM),
@@ -195,6 +230,7 @@ async def _extract_claims_llm(
         temperature=0.0,
         max_tokens=600,
         json_mode=True,
+        json_schema=_schema,
     )
     data = json.loads(resp.content)
     raw = data.get("claims", []) if isinstance(data, dict) else []

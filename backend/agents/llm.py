@@ -59,6 +59,7 @@ class LLMClient(Protocol):
         temperature: float = 0.1,
         max_tokens: int = 1024,
         json_mode: bool = False,
+        json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse: ...
 
 
@@ -80,7 +81,9 @@ class MockLLM:
         temperature: float = 0.1,
         max_tokens: int = 1024,
         json_mode: bool = False,
+        json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
+        # MockLLM json_schema'yı yok sayar (gerçek grammar yok); json_mode davranışı korunur.
         self.call_count += 1
         if self.fixed_response is not None:
             content = self.fixed_response
@@ -196,6 +199,7 @@ class LlamaCppClient:
         temperature: float = 0.1,
         max_tokens: int = 1024,
         json_mode: bool = False,
+        json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         import asyncio
 
@@ -219,7 +223,12 @@ class LlamaCppClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if json_mode:
+        if json_schema is not None:
+            # Guided decoding (2.2): JSON-schema → GBNF (llama-cpp-python otomatik çevirir).
+            # cite_id enum'u decode-seviyesinde kısıtlanır → uydurma cite ÜRETİLEMEZ
+            # (post-hoc filtreden önce, claim-cite kopukluğu olmadan). json_object'ün üstünde.
+            kwargs["response_format"] = {"type": "json_object", "schema": json_schema}
+        elif json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
         # Tek-worker decode executor — asyncio.to_thread global pool'u kullansa
@@ -372,6 +381,7 @@ class LlamaCppServerClient:
         temperature: float = 0.1,
         max_tokens: int = 1024,
         json_mode: bool = False,
+        json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         import httpx
 
@@ -384,7 +394,14 @@ class LlamaCppServerClient:
             "max_tokens": max_tokens,
             "stream": False,
         }
-        if json_mode:
+        if json_schema is not None:
+            # Guided decoding (2.2): OpenAI uyumlu json_schema → llama.cpp GBNF grammar.
+            # cite_id enum'u decode-seviyesinde kısıtlanır (uydurma cite üretilemez).
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "claims", "schema": json_schema, "strict": True},
+            }
+        elif json_mode:
             # llama.cpp server OpenAI uyumlu — response_format ile JSON grammar
             payload["response_format"] = {"type": "json_object"}
 

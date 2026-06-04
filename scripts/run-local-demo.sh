@@ -62,6 +62,8 @@ export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
 # uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded
 # halüsinasyon kapısı). Yalnız NLI yüklüyken anlamlı; bu demo NLI yüklü.
 export CLATTER_GATE_ENABLED=1 CITE_GROUNDING_CHECK=1
+# Guided-decoding: cite_id'i known_ids'e GBNF ile kısıtla (uydurma cite üretilemez). E2E doğrulandı.
+export GUIDED_CITE_ENABLED=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 

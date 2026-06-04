@@ -89,6 +89,23 @@ def is_clatter_gate_enabled() -> bool:
     return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def is_guided_cite_enabled() -> bool:
+    """Guided-decoding citation-whitelist (opt-in, default 0) — 2.2.
+
+    `GUIDED_CITE_ENABLED=1`: claim-extraction LLM çağrısında JSON-schema → GBNF grammar
+    ile `cite_id` alanı O turdaki retrieved `source_id` ENUM'una DECODE-seviyesinde
+    kısıtlanır → uydurma cite ÜRETİLEMEZ (post-hoc filtreden önce; claim-cite kopukluğu
+    olmadan iddia geçerli cite ile kalır → CITE_GROUNDING_CHECK ile sinerjik).
+
+    Yalnız grammar destekleyen LLM'de (llamacpp / llamacpp_server) etkin; MockLLM yok sayar
+    (json_mode davranışı korunur) → testler etkilenmez. known_ids boşsa schema kurulmaz
+    (baseline). Dinamik okunur → testler monkeypatch.setenv ile toggle eder.
+
+    SOTA: guided-decoding (arXiv 2404.08189) 0-shot %100 halüsinasyon → 1-shot %1.8.
+    """
+    return os.getenv("GUIDED_CITE_ENABLED", "0").lower() in {"1", "true", "yes"}
+
+
 def is_cite_grounding_check_enabled() -> bool:
     """Citation-grounding kontrolü (opt-in, default 0) — 'correct ≠ faithful'.
 
