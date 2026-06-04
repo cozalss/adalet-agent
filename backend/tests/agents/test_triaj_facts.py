@@ -195,3 +195,21 @@ def test_fast_facts_vague_question_still_clarifies():
     """Belirsiz soru olay ÇIKARMAMALI → clarify korunur (over-answer önlenir)."""
     from agents.nodes.triaj import _fast_facts
     assert not _fast_facts("vergi konusunda genel bir sorum olacaktı", "vergi").get("olay")
+
+
+def test_is_minor_first_person_only():
+    """Çocuk filtresi (CLAUDE.md §4) yalnız 1. tekil şahıs <18 — ebeveyn/18+/selam yanlış-pozitif YOK."""
+    from agents.nodes.triaj import _is_minor
+    assert _is_minor("ben 15 yaşındayım, ne yapmalıyım")
+    assert _is_minor("reşit değilim, yardım eder misiniz")
+    assert not _is_minor("kızım 15 yaşında, hakkı var mı")   # ebeveyn (yetişkin)
+    assert not _is_minor("18 yaşındayım, çalışabilir miyim")  # reşit
+    assert not _is_minor("25 yaşındayım")
+    assert not _is_minor("merhaba nasılsın")
+
+
+def test_chat_disclaimer_only_for_legal_hint():
+    """Chat disclaimer (CLAUDE.md §2): hukuki kavramda eklenir, saf selamda eklenmez."""
+    from agents.nodes.finalize import _chat_needs_disclaimer
+    assert _chat_needs_disclaimer("kıdem tazminatı nedir", "Kıdem tazminatı işçinin hakkıdır.")
+    assert not _chat_needs_disclaimer("selam", "İyiyim, teşekkürler. Sen nasılsın?")

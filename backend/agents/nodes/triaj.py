@@ -156,6 +156,29 @@ def _is_out_of_scope(question: str) -> bool:
     return False
 
 
+# CLAUDE.md §4: çocuk (<18) özel filtresi. 1. TEKİL ŞAHIS odaklı — "kızım 15 yaşında"
+# (ebeveyn, yetişkin kullanıcı) yanlış-pozitifini önler; yalnız kullanıcının KENDİSİNİN
+# 18 yaş altı olduğunu söylediği kalıplar. "18 yaşındayım" eşleşmez (1[0-7] = 10-17).
+_MINOR_RE = re.compile(
+    r"(?:\b(?:1[0-7]|[1-9])\s*yaşındayım)"
+    r"|reşit\s+değilim"
+    r"|reşit\s+olmadım"
+    r"|18\s*yaşımı\s*doldurmadım"
+    r"|(?:18|on\s*sekiz)\s*yaşından\s*küçüğüm"
+)
+_MINOR_REPLY = (
+    "Sistemimiz yalnızca 18 yaş ve üzeri kullanıcılar içindir; bu nedenle hukuki "
+    "değerlendirme yapamıyorum. Bir sorun yaşıyorsan lütfen bir yetişkinden (veli veya "
+    "vasinden) yardım iste; ciddi durumlarda bir avukata ya da ALO 183 Sosyal Destek "
+    "Hattı'na başvurulabilir."
+)
+
+
+def _is_minor(question: str) -> bool:
+    """Kullanıcının KENDİSİNİN 18 yaş altı olduğunu belirttiğini sezer (CLAUDE.md §4)."""
+    return bool(_MINOR_RE.search(_tr_lower(question)))
+
+
 def _is_continuation(question: str) -> bool:
     q_low = _tr_lower(question).strip()
     return any(q_low.startswith(m) or f" {m}" in q_low[:30] for m in _CONTINUATION_MARKERS)
@@ -391,6 +414,16 @@ async def triaj_node(state: AgentState) -> dict:
             "triage_reasoning": f"Sohbet girdisi ({category}) — hukuki akış atlandı.",
             "response_intent": "smalltalk",
             "smalltalk_response": smalltalk_reply(category),
+        }
+
+    if _is_minor(question):
+        log.info("triaj_minor_user")
+        return {
+            "domain": "unknown",
+            "domain_confidence": 0.0,
+            "triage_reasoning": "Kullanıcı 18 yaş altı — kapsam dışı (CLAUDE.md §4 çocuk koruması).",
+            "response_intent": "out_of_scope_sensitive",
+            "smalltalk_response": _MINOR_REPLY,
         }
 
     if _is_out_of_scope(question):

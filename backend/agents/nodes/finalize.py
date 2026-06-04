@@ -28,6 +28,13 @@ _KISACEVAP_RE = re.compile(r"^\s*\*\*\s*Kısa cevap", re.IGNORECASE)
 _BOLD_HEADER_RE = re.compile(r"^\s*\*\*[^*\n]{1,40}:\*\*")
 
 
+def _chat_needs_disclaimer(question: str, response: str) -> bool:
+    """Chat yanıtı hukuki KAVRAM içeriyorsa (soru veya cevapta hukuki ipucu) True →
+    disclaimer eklenir. Saf selam/teşekkür (ipuçsuz) → False, gereksiz disclaimer yok."""
+    from agents.smalltalk import _has_legal_hint, _normalize
+    return _has_legal_hint(_normalize(question)) or _has_legal_hint(_normalize(response))
+
+
 def _ensure_kisacevap_header(text: str) -> str:
     """Gövde 'Kısa cevap' DIŞINDA bir kalın-başlıkla başlıyorsa (verify ilk bölümü
     düşürmüş veya model atlamış) zorunlu özet başlığı ekle. Hukuki iddia DEĞİL — yapısal
@@ -54,10 +61,17 @@ async def finalize_node(state: AgentState) -> dict:
     # ve response_intent şemada → güvenle merge olur.
     if state.get("response_intent") == "chat":
         log.info("finalize_chat")
+        resp = state.get("response") or ""
+        # CLAUDE.md §2: hukuki KAVRAM açıklaması içeren chat yanıtına disclaimer EKLE
+        # (saf selam/teşekkür hariç). Aksi halde hukuki bilgi disclaimer'sız çıkıyordu.
+        disc: list[str] = []
+        if _chat_needs_disclaimer(state.get("question", ""), resp) and DISCLAIMER_TR not in resp:
+            resp = resp.rstrip() + "\n\n" + DISCLAIMER_TR
+            disc = [DISCLAIMER_TR]
         return {
-            "response": state.get("response") or "",
+            "response": resp,
             "confidence": 1.0,
-            "disclaimers": [],
+            "disclaimers": disc,
             "prediction": None,
         }
 
