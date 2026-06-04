@@ -224,6 +224,7 @@ async def search_with_rerank(
     top_k: int = 5,
     candidates_n: int = 50,
     domain: str | None = None,
+    doc_type: str | None = None,
 ) -> list[RerankResult]:
     """İki aşamalı pipeline: hybrid → cross-encoder rerank → top_k.
 
@@ -241,6 +242,7 @@ async def search_with_rerank(
         top_k=candidates_n,
         prefetch_limit=candidates_n,
         domain=domain,
+        doc_type=doc_type,
     )
     if not candidates:
         return []

@@ -171,7 +171,8 @@ async def _eval_one(
         # candidates_n env-ayarlı (denetim #5 ablation): rerank aday havuzu. Çok küçükse
         # doğru madde hybrid'de >N sıradaysa rerank'a hiç ulaşamaz → madde_recall tavanı.
         _cand = int(os.getenv("EVAL_RERANK_CANDIDATES", "20"))
-        results = await search_with_rerank(question=soru, top_k=5, candidates_n=_cand)
+        results = await search_with_rerank(question=soru, top_k=5, candidates_n=_cand,
+                                           doc_type=os.getenv("EVAL_DOC_TYPE") or None)
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
         # sparse_domain: HyDE'nin dual-sparse (BM25) fix'ini ölç (denetim 2026-06-04).
