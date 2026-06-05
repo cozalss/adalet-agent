@@ -152,8 +152,8 @@ async def finalize_node(state: AgentState) -> dict:
     if n_dropped > 0 and is_partial_answer_note_enabled():
         filtered_draft = f"{filtered_draft}\n\n{_PARTIAL_ANSWER_NOTE}"
 
-    # Citation bloğu
-    citations_md = _format_citations(state)
+    # Citation bloğu — GÖSTERİLEN (filtrelenmiş) metindeki kaynaklardan (MEDIUM-3).
+    citations_md = _format_citations(state, filtered_draft)
     # Dilekçe linki (6. ajan üretmişse) — sadece markdown atıfı, bytes API'den
     # GET /dilekce/{conversation_id} ile servis edilir (bkz. api/routes/dilekce).
     dilekce_md_block = _format_dilekce_link(state)
@@ -352,8 +352,12 @@ def _format_dilekce_link(state: AgentState) -> str:
     )
 
 
-def _format_citations(state: AgentState) -> str:
-    cited_ids = set(_SRC_TAG_RE.findall(state.get("draft_response", "") or ""))
+def _format_citations(state: AgentState, cited_text: str | None = None) -> str:
+    # ECC review MEDIUM-3: kaynak listesini GÖSTERİLEN (filtrelenmiş) metinden çıkar — verify'da
+    # düşen cümlenin [src:] etiketi "Kaynaklar"da listelenmesin (şeffaflık). cited_text verilmezse
+    # ham draft_response (geriye-uyum: doğrudan çağıran testler).
+    src_text = cited_text if cited_text is not None else (state.get("draft_response", "") or "")
+    cited_ids = set(_SRC_TAG_RE.findall(src_text))
     raw_refs = list(state.get("mevzuat_refs", []) or []) + list(state.get("emsal_refs", []) or [])
     if cited_ids:
         cited_refs = [r for r in raw_refs if r.get("source_id") in cited_ids]

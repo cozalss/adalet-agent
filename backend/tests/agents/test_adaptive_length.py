@@ -82,3 +82,22 @@ def test_situational_marker_untouched():
 def test_already_short_untouched():
     short = "**Kısa cevap:** Evet. [src: m-EIK-14]\n\n**Dayanak:** m.14. [src: m-EIK-14]"
     assert _prune_sections_for_definitional(short, "kıdem nedir", {}) == short
+
+
+def test_definitional_prunes_alt_header_format():
+    # ECC MEDIUM-2: model "**Başlık**:" (iki nokta dışarıda) kullansa da prune çalışır.
+    alt = (
+        "**Kısa cevap**: Kıdem işçinin hakkıdır. [src: m-EIK-14]\n\n"
+        "**Durumunuza uygulama**: Sizin durumunuzda değerlendirme.\n\n"
+        "**Dayanak**: 1475 m.14. [src: m-EIK-14]\n\n"
+        "**Ne yapmalı**: 1. Başvurun."
+    )
+    out = _prune_sections_for_definitional(alt, "kıdem tazminatı nedir", {})
+    assert "Kısa cevap" in out and "Dayanak" in out
+    assert "Durumunuza uygulama" not in out and "Ne yapmalı" not in out
+
+
+def test_new_situational_marker_untouched():
+    # ECC LOW: 'yatırmadı' yeni situasyonel marker → tanım-işareti olsa da dokunma.
+    out = _prune_sections_for_definitional(_FIVE_SECTION, "işveren maaşımı yatırmadı, kıdem nedir", {})
+    assert out == _FIVE_SECTION

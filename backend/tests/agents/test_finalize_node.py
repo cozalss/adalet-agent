@@ -398,3 +398,18 @@ async def test_finalize_no_partial_note_when_disabled(base_state, monkeypatch):
     out = await finalize_node(_partial_state(base_state))
     assert "Destekli iddia cümlesi" in out["response"]
     assert "ayrı ayrı sorarsanız" not in out["response"]
+
+
+def test_format_citations_only_from_shown_text():
+    """ECC MEDIUM-3: kaynak listesi GÖSTERİLEN metinden — düşen cümlenin kaynağı listelenmez."""
+    state = {
+        "mevzuat_refs": [
+            {"source_id": "m-A", "doc_type": "law", "title": "Kanun-Alfa", "url": ""},
+            {"source_id": "m-B", "doc_type": "law", "title": "Kanun-Beta", "url": ""},
+        ],
+        "emsal_refs": [],
+        "draft_response": "Hepsi. [src: m-A] [src: m-B]",
+    }
+    # Filtrelenmiş metin yalnız m-A içeriyor → yalnız Alfa listelenir (m-B düştü).
+    out = _format_citations(state, "Gösterilen tek cümle. [src: m-A]")
+    assert "Alfa" in out and "Beta" not in out

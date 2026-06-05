@@ -54,10 +54,13 @@ _DEFINITIONAL_MARKERS = (
     "nedir", "ne demek", "ne anlama", "tanımı", "kimdir", "ne işe yar",
     "nasıl hesaplan", "kaç yıl", "kaç gün", "şartları ne", "koşulları ne", "nelerdir",
 )
-_SEC_HEADER_RE = re.compile(r"\*\*([^*:]+):\*\*")
+# Bölüm başlığı — SATIR-BAŞI çıpalı (mid-cümle **kalın**'ı header sanmaz) + iki kalıp:
+# "**Başlık:**" (iki nokta içeride) VE "**Başlık**:" (dışarıda). Yakalanan etikette iki nokta
+# içeride kalabilir → label başlangıçta startswith ile eşleşir (ECC review MEDIUM-2).
+_SEC_HEADER_RE = re.compile(r"(?m)^[ \t]*\*\*[ \t]*([^*\n]{1,60}?)[ \t]*\*\*[ \t]*:?")
 # Tanımsal cevapta tutulacak bölümler (tr-lower, startswith). startswith = "Dayanak ve gerekçe"
-# gibi varyant başlıkları da tutar (kapsam-koruyan). "güven" ÇIKARILDI: yeni prompt Güven bölümü
-# üretmez (ECC review HIGH-2: prompt↔prune tutarlılığı).
+# ve "kısa cevap:" (iki nokta dahil) gibi varyantları da tutar (kapsam-koruyan). "güven" ÇIKARILDI:
+# yeni prompt Güven bölümü üretmez (ECC review HIGH-2: prompt↔prune tutarlılığı).
 _DEFINITIONAL_KEEP = ("kısa cevap", "dayanak")
 # Kullanıcının KENDİ olayını anlattığı işaretler — varsa durumsal, prune ETME.
 _SITUATIONAL_MARKERS = (
@@ -65,6 +68,10 @@ _SITUATIONAL_MARKERS = (
     "çıkarıldım", "çıkardı", "kesildi", "geldi", "başlatıldı", "başlatılmış",
     "yaşıyorum", "sorunum var", "yedim", "yaptım", "konuldu", "el konuldu",
     "çalıştım", "kiracıyım", "aldım", "imzaladım",
+    # ECC review LOW — yaygın eksik durumsal kalıplar:
+    "reddetti", "yatırmadı", "ödemedi", "vermedi", "feshetti", "feshedildi",
+    "dolandırıldım", "aldatıldım", "tahliye", "borçluyum", "geç yatırıyor",
+    "çıkarttılar", "attılar", "kovuldum", "haciz", "ihtar",
 )
 
 
