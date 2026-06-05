@@ -25,7 +25,7 @@ _NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof
 # "Kısa cevap" başlık-kaybı guard'ı: verify filtresi ilk bölümü düşürürse gövde başka bir
 # kalın-başlıkla başlar; zorunlu özet başlığı eklenir (hukuki iddia DEĞİL).
 _KISACEVAP_RE = re.compile(r"^\s*\*\*\s*Kısa cevap", re.IGNORECASE)
-_BOLD_HEADER_RE = re.compile(r"^\s*\*\*[^*\n]{1,40}:\*\*")
+_BOLD_HEADER_RE = re.compile(r"^\s*\*\*[^*\n]{1,80}:\*\*")
 # Partial-answer dürüst notu — bazı iddialar kaynaklanamayıp düştüğünde eklenir (opt-in).
 _PARTIAL_ANSWER_NOTE = (
     "*Not: Sorunuzdaki bazı noktaları güvenilir bir kaynakla doğrulayamadığım için yanıta "
@@ -41,17 +41,71 @@ def _chat_needs_disclaimer(question: str, response: str) -> bool:
     return _has_legal_hint(_normalize(question)) or _has_legal_hint(_normalize(response))
 
 
-def _ensure_kisacevap_header(text: str) -> str:
-    """Gövde 'Kısa cevap' DIŞINDA bir kalın-başlıkla başlıyorsa (verify ilk bölümü
-    düşürmüş veya model atlamış) zorunlu özet başlığı ekle. Hukuki iddia DEĞİL — yapısal
-    placeholder; başlıksız düz metni veya zaten doğru başlıklı draft'ı ETKİLEMEZ."""
+_LEADING_ORPHAN_HEADER_RE = re.compile(
+    # YALNIZ gövde başındaki, içeriği kalmamış bölüm başlığı (sonrası boş/yeni-başlık/son).
+    # Gövde ilerisindeki "**Başlık:**\nsonraki-satırda-içerik" başlıklarına DOKUNMAZ.
+    r"^[ \t]*\*\*[^*\n]{1,80}:\*\*[ \t]*(?:\n+(?=\*\*|\Z)|\Z)"
+)
+
+
+def _first_content_sentence(text: str) -> str | None:
+    """İlk KAYNAĞA-BAĞLI ([src:] taşıyan) içerik cümlesini döndür.
+
+    Yalnız [src:] etiketli cümle promote edilir → BLUF daima bir kaynağa bağlıdır;
+    claim-çıkarıcının kaçırdığı dayanaksız çıkarım (ör. süre-uygunluk halüsinasyonu)
+    en görünür konuma TAŞINMAZ (CLAUDE.md §1). Başlık öneki sökülür; Türkçe sıra/
+    madde-no fragmanı ('342.') YALNIZ aynı bölüm içinde sonraki span'le birleştirilir
+    (yeni başlıkta sıfırlanır → bölüm sınırını aşan var-olmayan birleşik cümle YOK). Yoksa None.
+    """
+    buf = ""
+    for _start, _end, sent in _sentence_spans(text):
+        raw = sent.strip()
+        # Yeni bölüm başlığıyla başlayan span → biriken fragmanı sıfırla (bölüm
+        # sınırını geçip var-olmayan birleşik cümle üretme — adversarial MEDIUM).
+        if buf and _BOLD_HEADER_RE.match(raw):
+            buf = ""
+        content = raw
+        while True:
+            nxt = _BOLD_HEADER_RE.sub("", content, count=1).strip()
+            if nxt == content:
+                break
+            content = nxt
+        if not content:
+            continue
+        buf = f"{buf} {content}".strip() if buf else content
+        if re.search(r"\d\.$", buf) and len(buf) < 240:
+            continue  # sıra/madde-no fragmanı → bölüm İÇİNDE birleştir
+        if "[src:" in buf:
+            return buf            # yalnız kaynağa-bağlı cümle promote edilir
+        buf = ""                  # [src:]'siz tam cümle (framing/çıkarım) → promote ETME, atla
+    return None
+
+
+def _promote_first_verified_as_bluf(text: str) -> str:
+    """Gövde 'Kısa cevap' DIŞINDA bir kalın-başlıkla başlıyorsa (verify orijinal BLUF'u
+    düşürdü veya model atladı) ilk KAYNAĞA-BAĞLI cümleyi 'Kısa cevap' olarak öne çek.
+
+    Promote edilen cümle text'ten ([src:] etiketli, _filter_to_verified'dan geçmiş)
+    VERBATIM alınır → grounding korunur (yeni/uydurma iddia ÜRETİLMEZ). Eski boilerplate
+    placeholder'ın YERİNE geçer. No-op: BLUF zaten var / gövde düz metin / [src:]'li içerik
+    cümlesi yok / cümle gövdede birebir bulunamıyor (graceful — tekrar ÜRETME)."""
     body = text.lstrip()
-    if not _KISACEVAP_RE.match(body) and _BOLD_HEADER_RE.match(body):
-        return (
-            "**Kısa cevap:** Aşağıdaki değerlendirme yalnızca doğrulanmış kaynaklara "
-            "dayanmaktadır.\n\n" + text
-        )
-    return text
+    if _KISACEVAP_RE.match(body):          # BLUF zaten var → dokunma (çift başlık olmaz)
+        return text
+    if not _BOLD_HEADER_RE.match(body):    # düz metin başı → yapısal boşluk yok
+        return text
+    first_sentence = _first_content_sentence(body)
+    if not first_sentence or first_sentence not in body:
+        # içerik yok VEYA birleştirme whitespace farkı (paragraf-arası) → no-op (tekrar ÜRETME)
+        return text
+    # Çift gösterimi önle: cümleyi gövdeden çıkar; arta kalan SADECE-BAŞTAKİ boş başlığı sil
+    # (gövde ilerisindeki gerçek başlıkları KORU — adversarial HIGH).
+    remainder = body.replace(first_sentence, "", 1)
+    remainder = _LEADING_ORPHAN_HEADER_RE.sub("", remainder, count=1)
+    remainder = re.sub(r"[ \t]{2,}", " ", re.sub(r"\n{3,}", "\n\n", remainder)).strip()
+    if remainder:
+        return f"**Kısa cevap:** {first_sentence}\n\n{remainder}"
+    return f"**Kısa cevap:** {first_sentence}"
 
 
 @observe_node(name="finalize")
@@ -145,7 +199,7 @@ async def finalize_node(state: AgentState) -> dict:
     filtered_draft = _remove_orphan_source_tags(filtered_draft)
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
-    filtered_draft = _ensure_kisacevap_header(filtered_draft)
+    filtered_draft = _promote_first_verified_as_bluf(filtered_draft)
     # Citation bloğu — GÖSTERİLEN (filtrelenmiş) hukuki gövdeden, partial-NOT EKLENMEDEN ÖNCE
     # (MEDIUM-3 + ECC-sweep: not metni hiçbir koşulda kaynak çıkarımına karışmaz — phantom-source yalıtımı).
     citations_md = _format_citations(state, filtered_draft)
@@ -172,6 +226,11 @@ async def finalize_node(state: AgentState) -> dict:
     return {
         "response": final,
         "confidence": confidence,
+        # Güven ŞEFFAFLIĞI: çıplak skor yerine etiket + "n_verified/n_total iddia
+        # doğrulandı" (anti-halüsinasyon kalkanını GÖRÜNÜR kılar). Yeni iddia ÜRETMEZ.
+        "confidence_label": _confidence_label(confidence),
+        "n_verified_claims": n_verified,
+        "n_total_claims": n_claims,
         "disclaimers": [DISCLAIMER_TR],
         # Tahmin (8. ajan) hesapladıysa state'te var; pass cevapta gösterilir.
         "prediction": state.get("prediction"),
@@ -392,6 +451,26 @@ def _compute_confidence(state: AgentState, verified: list) -> float:
     retrieval_score = min(1.0, sum(r["score"] for r in refs[:5]) / 5.0) if refs else 0.0
 
     return round(0.4 * dom_conf + 0.4 * claim_ratio + 0.2 * retrieval_score, 3)
+
+
+# Güven etiketi — float skoru vatandaş-okunur etikete çevirir (çıplak %X anlamsız).
+# Eşikler _compute_confidence formülünden (0.4*dom + 0.4*claim_ratio + 0.2*retrieval)
+# türetildi: ~0.40 reddedilmeyen bir cevabın taban skoru; 0.70 hem domain net hem
+# claim oranı yüksek demek ([[verify-calibration-harness]] NLI 0.70 ölçülmüş-optimal).
+_LABEL_HIGH = "Yüksek güven"
+_LABEL_MEDIUM = "Orta güven"
+_LABEL_LOW = "Dikkatli olun"
+_THRESHOLD_HIGH = 0.70
+_THRESHOLD_MEDIUM = 0.45
+
+
+def _confidence_label(confidence: float) -> str:
+    """Float güven skorunu insan-okunur Türkçe etikete çevir (saf fonksiyon)."""
+    if confidence >= _THRESHOLD_HIGH:
+        return _LABEL_HIGH
+    if confidence >= _THRESHOLD_MEDIUM:
+        return _LABEL_MEDIUM
+    return _LABEL_LOW
 
 
 def _unverified_claims_reason(verified: list) -> str:

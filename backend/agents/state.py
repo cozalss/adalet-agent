@@ -212,5 +212,9 @@ class AgentState(TypedDict):
     # --- Çıkış ---
     response: str
     confidence: float              # 0..1
+    # Güven şeffaflığı (yalnız legal-answer path set eder; diğer path'lerde None/0 default).
+    confidence_label: NotRequired[str | None]   # "Yüksek güven" / "Orta güven" / "Dikkatli olun"
+    n_verified_claims: NotRequired[int]
+    n_total_claims: NotRequired[int]
     disclaimers: list[str]
     errors: Annotated[list[str], operator.add]

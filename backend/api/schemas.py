@@ -175,6 +175,19 @@ class AskResponse(BaseModel):
     domain: Domain
     domain_confidence: float = Field(..., ge=0.0, le=1.0)
     confidence: float = Field(..., ge=0.0, le=1.0, description="Genel güven skoru")
+    confidence_label: str | None = Field(
+        None,
+        description=(
+            "İnsan-okunur güven etiketi: 'Yüksek güven' / 'Orta güven' / 'Dikkatli olun'. "
+            "Hukuki yanıt yoksa (sohbet/yönlendirme/reddedildi) None."
+        ),
+    )
+    n_verified_claims: int = Field(
+        0, ge=0, description="Doğrulanmış iddia sayısı (halüsinasyon kalkanını geçti).",
+    )
+    n_total_claims: int = Field(
+        0, ge=0, description="Toplam iddia sayısı. UI 'n_verified/n_total iddia doğrulandı' gösterir.",
+    )
     verdict: Verdict
     response_intent: str | None = Field(
         None,

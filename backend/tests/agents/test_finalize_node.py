@@ -272,6 +272,52 @@ async def test_finalize_passes_when_all_claims_verified(base_state):
     assert out["confidence"] > 0.0
     assert "Tüketici ayıplı malda" in out["response"]
     assert "Kaynaklar" in out["response"]
+    # Güven şeffaflığı: legal path etiket + claim sayıları döndürür
+    assert out["confidence_label"] in ("Yüksek güven", "Orta güven", "Dikkatli olun")
+    assert out["n_verified_claims"] == 1
+    assert out["n_total_claims"] == 1
+
+
+@pytest.mark.asyncio
+async def test_finalize_promotes_first_verified_sentence_as_bluf(base_state):
+    """Orijinal 'Kısa cevap' (desteklenmeyen) düşünce, ilk DOĞRULANMIŞ cümle BLUF olur;
+    eski boilerplate dolgu ASLA görünmez; halüsinasyon sızmaz."""
+    claims = [
+        {"text": "Kesinlikle haklısınız ve kazanırsınız", "cite_ids": [],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+        {"text": "Tüketici ayıplı malda sözleşmeden dönebilir", "cite_ids": ["m-TKHK-11"],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+    ]
+    verified_claims = [
+        {**claims[0], "verified": False},  # açıkça doğrulanmadı → düşer
+        {**claims[1], "verified": True, "verify_score": 0.9, "verify_reason": "Fuzzy 0.90"},
+    ]
+    state = {
+        **base_state,
+        "draft_response": (
+            "**Kısa cevap:** Kesinlikle haklısınız ve kazanırsınız.\n\n"
+            "**Durumunuza uygulama:** Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11]."
+        ),
+        "claims": claims,
+        "verified_claims": verified_claims,
+        "debate_verdict": "pass",
+    }
+
+    out = await finalize_node(state)
+    resp = out["response"]
+
+    assert resp.lstrip().startswith("**Kısa cevap:** Tüketici ayıplı malda sözleşmeden dönebilir")
+    assert "Kesinlikle haklısınız" not in resp           # halüsinasyon iddia düştü
+    assert "yalnızca doğrulanmış kaynaklara dayanmaktadır" not in resp  # boilerplate yok
+    assert "[src: m-TKHK-11]" in resp                     # grounding korundu
+
+
+@pytest.mark.asyncio
+async def test_finalize_reject_has_no_confidence_label(base_state):
+    """Reddedilen yanıtta confidence_label None (legal analiz yok)."""
+    state = {**base_state, "debate_verdict": "retry", "debate_notes": "Retry doldu"}
+    out = await finalize_node(state)
+    assert out.get("confidence_label") is None
 
 
 @pytest.mark.asyncio
@@ -340,22 +386,92 @@ def test_remove_orphan_source_tags_after_sentence_filtering():
     assert out == "Dayanak: Geçerli cümle."
 
 
-def test_ensure_kisacevap_header_prepends_when_first_section_lost():
-    """Gövde 'Kısa cevap' DIŞI başlıkla başlıyorsa zorunlu özet eklenir (verify ilk bölümü düşürünce)."""
-    from agents.nodes.finalize import _ensure_kisacevap_header
+def test_promote_bluf_extracts_first_verified_sentence_grounded():
+    """BLUF düştüğünde gövdedeki ilk DOĞRULANMIŞ cümle 'Kısa cevap' olarak öne çekilir;
+    [src:] etiketi korunur (grounding garanti — yeni iddia üretilmez). Başlık öneki SÖKÜLÜR."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
     body = "**Durumunuza uygulama:** Hakkınız var [src: m-TKHK-8].\n\n**Dayanak:** TKHK 8."
-    out = _ensure_kisacevap_header(body)
-    assert out.startswith("**Kısa cevap:**")
-    assert "**Durumunuza uygulama:**" in out
+    out = _promote_first_verified_as_bluf(body)
+    assert out.startswith("**Kısa cevap:** Hakkınız var [src: m-TKHK-8].")
+    assert "**Dayanak:** TKHK 8." in out  # diğer bölümler korunur
+    # Çift gösterim YOK: promote edilen cümle gövdede tekrar etmez; boş kalan başlık silinir
+    assert out.count("Hakkınız var [src: m-TKHK-8].") == 1
+    assert "**Durumunuza uygulama:**" not in out
+    # Eski boilerplate dolgusu ASLA görünmez
+    assert "yalnızca doğrulanmış kaynaklara dayanmaktadır" not in out
 
 
-def test_ensure_kisacevap_header_noop_when_present_or_plain():
+def test_promote_bluf_keeps_remaining_sentences_in_section():
+    """İlk bölümde birden çok cümle varsa, ilki BLUF olur; kalanlar başlığı altında kalır."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = "**Durumunuza uygulama:** İlk cümle [src: a]. İkinci cümle [src: b].\n\n**Dayanak:** X [src: c]."
+    out = _promote_first_verified_as_bluf(body)
+    assert out.startswith("**Kısa cevap:** İlk cümle [src: a].")
+    assert "**Durumunuza uygulama:**" in out          # başlık korunur (içeriği kaldı)
+    assert "İkinci cümle [src: b]." in out
+    assert out.count("İlk cümle [src: a].") == 1       # çift yok
+
+
+def test_promote_bluf_preserves_downstream_header_with_next_line_content():
+    """HIGH regresyon: gövde İLERİSİNDEKİ 'başlık + sonraki satırda içerik' başlığı SİLİNMEZ
+    (leading-anchored orphan yalnız baştaki boş başlığı temizler)."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = "**Durum:** Hakkınız var [src: a].\n\n**Dayanak:**\nMadde 8 uygulanır [src: b]."
+    out = _promote_first_verified_as_bluf(body)
+    assert out.startswith("**Kısa cevap:** Hakkınız var [src: a].")
+    assert "**Dayanak:**" in out             # ilerideki başlık KORUNUR
+    assert "Madde 8 uygulanır [src: b]." in out
+
+
+def test_promote_bluf_noop_when_present_or_plain():
     """Zaten 'Kısa cevap' varsa VEYA düz metin ise dokunma (çift-başlık/bozma yok)."""
-    from agents.nodes.finalize import _ensure_kisacevap_header
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
     ok = "**Kısa cevap:** Hakkınız var."
     plain = "Hakkınız var, dava açabilirsiniz."
-    assert _ensure_kisacevap_header(ok) == ok
-    assert _ensure_kisacevap_header(plain) == plain
+    assert _promote_first_verified_as_bluf(ok) == ok
+    assert _promote_first_verified_as_bluf(plain) == plain
+
+
+def test_promote_bluf_noop_when_only_headers():
+    """Salt-başlık gövdesi (içerik cümlesi yok) → boilerplate EKLEME, çökme yok."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = "**Başlık:**\n\n**Alt başlık:**"
+    assert _promote_first_verified_as_bluf(body) == body
+
+
+def test_first_content_sentence_only_promotes_src_anchored():
+    """KAYNAĞA-BAĞLILIK garantisi: yalnız [src:] taşıyan cümle döner; salt-başlık atlanır,
+    başlık öneki sökülür, [src:]'siz framing/çıkarım cümlesi PROMOTE EDİLMEZ (CRITICAL)."""
+    from agents.nodes.finalize import _first_content_sentence
+    assert _first_content_sentence("**A:**\n\n**B:**") is None
+    assert _first_content_sentence("**Başlık:**\n\nGerçek cümle [src: x].") == "Gerçek cümle [src: x]."
+    assert _first_content_sentence("**Başlık:** Inline cümle [src: z].") == "Inline cümle [src: z]."
+    # CRITICAL: [src:]'siz cümle (dayanaksız çıkarım) BLUF'a çıkmaz
+    assert _first_content_sentence("**Durum:** Bu durumda hakkınız yoktur.") is None
+    # [src:]'siz framing önce gelse bile, ilk KAYNAKLI cümle seçilir
+    two = "**Durum:** Genel bir değerlendirme. Asıl kural budur [src: m-X-1]."
+    assert _first_content_sentence(two) == "Asıl kural budur [src: m-X-1]."
+
+
+def test_first_content_sentence_merges_ordinal_within_section_not_across():
+    """Sıra/madde-no fragmanı ('342.') bölüm İÇİNDE birleştirilir; yeni başlıkta sıfırlanır."""
+    from agents.nodes.finalize import _first_content_sentence
+    frag = "**Dayanak:** TBK'nın 342. maddesi güvenceyi sınırlar [src: m-TBK-342]."
+    assert _first_content_sentence(frag) == "TBK'nın 342. maddesi güvenceyi sınırlar [src: m-TBK-342]."
+    # Bölüm sınırını AŞMAZ: "342." fragmanı + sonraki BÖLÜM → birleşik uydurma cümle YOK
+    cross = "**Dayanak:** TBK 342.\n\n**Başka:** Bambaşka bir konu [src: m-Y-2]."
+    assert _first_content_sentence(cross) == "Bambaşka bir konu [src: m-Y-2]."
+
+
+def test_confidence_label_thresholds():
+    """Float skor → Türkçe etiket; eşikler (0.45 / 0.70) sınır değerlerinde doğru."""
+    from agents.nodes.finalize import _confidence_label
+    assert _confidence_label(0.0) == "Dikkatli olun"
+    assert _confidence_label(0.449) == "Dikkatli olun"
+    assert _confidence_label(0.45) == "Orta güven"
+    assert _confidence_label(0.699) == "Orta güven"
+    assert _confidence_label(0.70) == "Yüksek güven"
+    assert _confidence_label(1.0) == "Yüksek güven"
 
 
 # --- partial-answer dürüst notu (Hedef-2: çok-konulu sessiz-eksiltme → şeffaf) ---
