@@ -598,10 +598,14 @@ def _format_refs_for_prompt(refs: list[Citation], question: str = "") -> str:
     budget = int(LLM_CONTEXT_BUDGET * _CHARS_PER_TOKEN_TR)
     used = 0
     for r in _prioritize_refs_for_prompt(refs, question)[:_MAX_DRAFT_REFS]:
+        # title/url tek-satıra (injection vektörü, kısa). SNIPPET: paragraf-içi boşluk KORUNUR
+        # (tam tek-satıra indirmek draft kalitesini etkileyebilir) ama newline/CR → boşluk:
+        # sahte 'kaynak bloğu' (\n[m-FAKE]...) kuramaz. (qc2 reject inherent — sanitize değil.)
+        snippet = (r.get("snippet") or "")[:_DRAFT_SNIPPET_CHARS].replace("\n", " ").replace("\r", " ")
         chunk = (
             f"[{r['source_id']}] {_oneline(r.get('title'), 200)}\n"
             f"  Kaynak: {_oneline(r.get('url'), 200)}\n"
-            f"  Metin: {_oneline(r.get('snippet'), _DRAFT_SNIPPET_CHARS)}\n"
+            f"  Metin: {snippet}\n"
         )
         if used + len(chunk) > budget:
             break
