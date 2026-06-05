@@ -47,6 +47,55 @@ def _adaptive_max_tokens(question: str, facts: dict[str, object]) -> int:
         return DRAFT_MIN_TOKENS
     return (DRAFT_MIN_TOKENS + DRAFT_MAX_TOKENS) // 2
 
+
+# Tanımsal/kavram sorusu işaretleri (DAR küme — net "bilgi sorusu"). "nasıl başvururum" gibi
+# how-to BİLEREK dışarıda (o "Ne yapmalı" gerektirir, kesilmemeli).
+_DEFINITIONAL_MARKERS = (
+    "nedir", "ne demek", "ne anlama", "tanımı", "kimdir", "ne işe yar",
+    "nasıl hesaplan", "kaç yıl", "kaç gün", "şartları ne", "koşulları ne", "nelerdir",
+)
+_SEC_HEADER_RE = re.compile(r"\*\*([^*:]+):\*\*")
+_DEFINITIONAL_KEEP = ("kısa cevap", "dayanak", "güven")  # tr-lower, startswith
+# Kullanıcının KENDİ olayını anlattığı işaretler — varsa durumsal, prune ETME.
+_SITUATIONAL_MARKERS = (
+    "alamıyorum", "alamadım", "vermiyor", "ödemiyor", "ödenmedi", "reddedildi",
+    "çıkarıldım", "çıkardı", "kesildi", "geldi", "başlatıldı", "başlatılmış",
+    "yaşıyorum", "sorunum var", "yedim", "yaptım", "konuldu", "el konuldu",
+    "çalıştım", "kiracıyım", "aldım", "imzaladım",
+)
+
+
+def _tr_low(s: str) -> str:
+    return (s or "").replace("I", "ı").replace("İ", "i").lower()
+
+
+def _prune_sections_for_definitional(text: str, question: str, facts: dict[str, object]) -> str:
+    """Tanımsal soruda uygulanamayan bölümleri kes → gerçek kısa cevap.
+
+    Yalnız Kısa cevap + Dayanak (+ Güven) tutulur; Durumunuza uygulama / Ne yapmalı / Dikkat atılır
+    (olgu yokken 'sizin durumunuza' uygulanamaz; içi-boş adımlar mekanik şişme yaratıyordu).
+    Kapı SORU-işareti birincil (triaj olgusu stokastik/güvenilmez): tanım-işareti VAR + situasyonel
+    işaret YOK + ≥2 gerçek olgu YOK → prune. Aksi (durumsal/karmaşık) DOKUNMAZ. Saf, test edilebilir."""
+    n_facts = sum(1 for v in (facts or {}).values() if str(v).strip())
+    low_q = _tr_low(question)
+    if n_facts >= 2:
+        return text  # olgu-zengin → gerçekten durumsal
+    if any(m in low_q for m in _SITUATIONAL_MARKERS):
+        return text  # kullanıcı olayını anlatıyor → durumsal
+    if not any(m in low_q for m in _DEFINITIONAL_MARKERS):
+        return text  # tanımsal değil → dokunma
+    heads = list(_SEC_HEADER_RE.finditer(text))
+    if len(heads) <= 2:
+        return text  # zaten kısa
+    kept: list[str] = []
+    for i, h in enumerate(heads):
+        label = _tr_low(h.group(1).strip())
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        if any(label.startswith(a) for a in _DEFINITIONAL_KEEP):
+            kept.append(text[h.start():end].rstrip())
+    pruned = "\n\n".join(kept).strip()
+    return pruned or text  # her şey elendiyse (beklenmez) orijinali koru
+
 log = structlog.get_logger()
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "draft.tr.txt"
@@ -172,6 +221,12 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         draft_text,
         state.get("case_facts") or {},
         state.get("eligibility") or [],
+    )
+    # Adaptif bölüm: tanımsal soruda (olgu yok + "nedir/ne demek") model yine de 5 bölüm
+    # ürettiyse, uygulanamayan bölümleri (Durumunuza uygulama/Ne yapmalı/Dikkat) DETERMİNİSTİK
+    # kes → gerçek kısa cevap (Kısa cevap + Dayanak). Claim-extraction'dan ÖNCE (verify tutarlı).
+    draft_text = _prune_sections_for_definitional(
+        draft_text, question, state.get("case_facts") or {},
     )
     claims: list[Claim] = []
     if LLM_CLAIM_EXTRACTION_ENABLED:
