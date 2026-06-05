@@ -529,3 +529,75 @@ def test_format_citations_only_from_shown_text():
     # Filtrelenmiş metin yalnız m-A içeriyor → yalnız Alfa listelenir (m-B düştü).
     out = _format_citations(state, "Gösterilen tek cümle. [src: m-A]")
     assert "Alfa" in out and "Beta" not in out
+
+
+# --- proaktif next-step teklifi (keyword-only, hukuki iddia YOK) ---
+
+def test_next_step_offer_keyword_match_per_domain():
+    """Domain + gövdede anahtar eşleşince ilgili teklif döner; format doğru."""
+    from agents.nodes.finalize import _next_step_offer
+    out = _next_step_offer("kira", "Ev sahibi depozito iadesini reddediyor.", dilekce_shown=False)
+    assert out.startswith("\n\n💡 *") and out.rstrip().endswith("*")
+    assert "Depozito iadesi" in out
+    assert "Kıdem" in _next_step_offer("isHukuku", "kıdem tazminatı hakkı", dilekce_shown=False)
+
+
+def test_next_step_offer_suppressed_and_irrelevant_cases():
+    """dilekçe linki varsa, domain bilinmiyorsa veya anahtar eşleşmiyorsa → '' (gürültü yok)."""
+    from agents.nodes.finalize import _next_step_offer
+    assert _next_step_offer("kira", "depozito", dilekce_shown=True) == ""        # dilekçe zaten var
+    assert _next_step_offer("unknown", "depozito", dilekce_shown=False) == ""    # domain yok
+    assert _next_step_offer("kira", "genel bir bilgi metni", dilekce_shown=False) == ""  # anahtar yok
+
+
+def test_next_step_offer_turkish_capital_i_matches_and_no_legal_claim():
+    """Türkçe İ-başlangıçlı kelime eşleşir (_tr_lower; düz .lower() bozardı); teklif
+    metni madde-no/[src:] İÇERMEZ (kırmızı-çizgi)."""
+    from agents.nodes.finalize import _next_step_offer
+    # 'İşe iade' cümle başında İ ile → _tr_lower olmadan 'işe iade' anahtarı KAÇARDI
+    out = _next_step_offer("isHukuku", "İşe iade davası açabilirsiniz.", dilekce_shown=False)
+    assert out != "" and "İşe iade" in out
+    assert "[src:" not in out and "madde" not in out.lower()
+
+
+def test_next_step_offer_suppressed_on_negation():
+    """Cevap hakkı REDDEDİYORSA (anahtar yakınında olumsuzluk) teklif sunulmaz (HIGH)."""
+    from agents.nodes.finalize import _next_step_offer
+    assert _next_step_offer("kira", "Bu durumda tahliye edilmesi mümkün değildir.", dilekce_shown=False) == ""
+    assert _next_step_offer("tuketici", "Bu ürün için iade hakkınız bulunmamaktadır.", dilekce_shown=False) == ""
+    assert _next_step_offer("idari", "İtiraz süresi dolmuştur, başvuru yapılamaz.", dilekce_shown=False) == ""
+    # Pozitif bağlamda aynı anahtar → teklif sunulur (olumsuzluk yok)
+    assert _next_step_offer("kira", "Tahliye için dava açabilirsiniz.", dilekce_shown=False) != ""
+
+
+def test_next_step_offer_no_false_positive_on_zaman_cezaevi():
+    """Sıkılaştırılmış anahtarlar: 'zam'→'zaman', 'ceza'→'cezaevi' YANLIŞ tetiklemez (MEDIUM)."""
+    from agents.nodes.finalize import _next_step_offer
+    assert _next_step_offer("kira", "Zamanaşımı süresi beş yıldır.", dilekce_shown=False) == ""
+    assert _next_step_offer("trafik", "Cezaevi koşulları ayrı bir konudur.", dilekce_shown=False) == ""
+
+
+@pytest.mark.asyncio
+async def test_finalize_legal_answer_includes_offer_before_sources(base_state):
+    """Legal yanıtta teklif Kaynaklar ayıracından ÖNCE; disclaimer en sonda kalır."""
+    claims = [{"text": "Tüketici ayıplı malda sözleşmeden dönebilir", "cite_ids": ["m-TKHK-11"],
+               "verified": False, "verify_score": 0.0, "verify_reason": ""}]
+    verified_claims = [{**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "Fuzzy"}]
+    state = {
+        **base_state, "domain": "tuketici",
+        "draft_response": "Ayıplı malda tüketici sözleşmeden dönebilir [src: m-TKHK-11].",
+        "claims": claims, "verified_claims": verified_claims, "debate_verdict": "pass",
+    }
+    out = await finalize_node(state)
+    resp = out["response"]
+    assert "💡" in resp
+    assert resp.index("💡") < resp.index("**Kaynaklar:**")  # teklif kaynaklardan önce
+    assert resp.rstrip().endswith(out["disclaimers"][0].rstrip()[-20:]) or "tavsiye değildir" in resp
+
+
+@pytest.mark.asyncio
+async def test_finalize_no_offer_on_smalltalk(base_state):
+    """Sohbet (smalltalk) yanıtında teklif YOK (yalnız legal-answer path)."""
+    state = {**base_state, "smalltalk_response": "Merhaba!", "response_intent": "smalltalk"}
+    out = await finalize_node(state)
+    assert "💡" not in out["response"]

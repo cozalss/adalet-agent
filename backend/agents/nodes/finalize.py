@@ -203,16 +203,21 @@ async def finalize_node(state: AgentState) -> dict:
     # Citation bloğu — GÖSTERİLEN (filtrelenmiş) hukuki gövdeden, partial-NOT EKLENMEDEN ÖNCE
     # (MEDIUM-3 + ECC-sweep: not metni hiçbir koşulda kaynak çıkarımına karışmaz — phantom-source yalıtımı).
     citations_md = _format_citations(state, filtered_draft)
+    # Dilekçe linki (6. ajan üretmişse) — sadece markdown atıfı, bytes API'den
+    # GET /dilekce/{conversation_id} ile servis edilir (bkz. api/routes/dilekce).
+    dilekce_md_block = _format_dilekce_link(state)
+    # Proaktif eylem teklifi (deterministik, hukuki iddia YOK): dilekçe linki yoksa +
+    # domain'e uygun anahtar gövdede geçiyorsa tek satır "...hazırlamamı ister misiniz?".
+    # Partial-note EKLENMEDEN ÖNCE hesapla → boilerplate not metni keyword tetiklemesin (adversarial MEDIUM).
+    offer_line = _next_step_offer(domain, filtered_draft, bool(dilekce_md_block))
     # Partial-answer ŞEFFAFLIĞI (opt-in): bazı iddialar kaynaklanamayıp DÜŞTÜYSE (çok-konulu
     # sorularda sık) sessiz-eksiltme yerine dürüstçe belirt. Grounding değişmez (ungrounded zaten yok).
     if n_dropped > 0 and is_partial_answer_note_enabled():
         filtered_draft = f"{filtered_draft}\n\n{_PARTIAL_ANSWER_NOTE}"
-    # Dilekçe linki (6. ajan üretmişse) — sadece markdown atıfı, bytes API'den
-    # GET /dilekce/{conversation_id} ile servis edilir (bkz. api/routes/dilekce).
-    dilekce_md_block = _format_dilekce_link(state)
     final = (
         f"{filtered_draft}"
         f"{dilekce_md_block}"
+        f"{offer_line}"
         f"\n\n---\n**Kaynaklar:**\n{citations_md}\n\n{DISCLAIMER_TR}"
     )
 
@@ -408,6 +413,96 @@ def _format_dilekce_link(state: AgentState) -> str:
         f"📂 **Hazır dilekçe:** [{filename}]({url})  \n"
         f"*Şablon:* `{template_id}`"
     )
+
+
+# Proaktif eylem teklifi tablosu — (anahtar-kelimeler, teklif) çiftleri, domain bazlı.
+# SIRA = öncelik (ilk TEMİZ eşleşen kazanır). Teklif metni bir SORU/UI önerisidir —
+# yasal referans/iddia/madde-no İÇERMEZ (kırmızı-çizgi güvenli). Türkçe sondan-eklemeli:
+# kök-anahtarlar ("trafik cezas", "maaş alacağ") çekim eklerini de yakalar (cezası/cezasına).
+# Anahtarlar OLABİLDİĞİNCE çok-kelimeli/spesifik (bare "ceza"/"zam"/"itiraz" → yanlış-pozitif).
+_OfferRule = tuple[tuple[str, ...], str]  # (anahtar-kelimeler, teklif metni)
+_NEXT_STEP_OFFERS: dict[str, tuple[_OfferRule, ...]] = {
+    "tuketici": (
+        (("ayıpl", "garanti", "onarım", "değişim"), "Ayıplı mal için şikayet/iade dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("cayma", "mesafeli", "online sipariş"), "Cayma hakkı bildirimi taslağı hazırlamamı ister misiniz?"),
+        (("hakem heyeti", "tüketici mahkemesi"), "Tüketici hakem heyeti başvuru dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("iade", "geri ödeme", "ücret iadesi"), "İade talebi için dilekçe taslağı hazırlamamı ister misiniz?"),
+    ),
+    # kıdem önce: salt tazminat sorusu işe-iade sorusundan yaygın.
+    "isHukuku": (
+        (("kıdem",), "Kıdem tazminatı talep dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("işe iade", "haksız fesih", "geçersiz fesih"), "İşe iade başvuru dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("ihbar tazminat", "ihbar süre"), "İhbar tazminatı talep dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("fazla mesai", "ödenmemiş ücret", "maaş alacağ"), "Ücret/fazla mesai alacağı için ihtarname taslağı hazırlamamı ister misiniz?"),
+    ),
+    "kira": (
+        (("depozito", "güvence bedeli"), "Depozito iadesi için ihtarname taslağı hazırlamamı ister misiniz?"),
+        (("tahliye",), "Tahliye süreci için dilekçe taslağı hazırlamamı ister misiniz?"),
+        (("kira artış", "artış oran", "kira zam"), "Kira artışına itiraz için ihtarname taslağı hazırlamamı ister misiniz?"),
+    ),
+    "icra": (
+        (("ödeme emri", "ödeme emrine"), "Ödeme emrine itiraz dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("haciz",), "Hacze itiraz dilekçesi taslağı hazırlamamı ister misiniz?"),
+    ),
+    "trafik": (
+        (("trafik cezas", "idari para cezas"), "Trafik cezasına itiraz dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("kaza", "hasar", "tazminat"), "Tazminat talep dilekçesi taslağı hazırlamamı ister misiniz?"),
+    ),
+    "vergi": (
+        (("uzlaşma", "vergi cezas"), "Vergi cezası uzlaşma/itiraz dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("kdv iade", "vergi iade"), "Vergi iadesi başvuru dilekçesi taslağı hazırlamamı ister misiniz?"),
+    ),
+    "tapu": (
+        (("ipotek", "şerh", "takyidat"), "İpotek/şerh kaldırma dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("tescil", "tapu devri"), "Tapu işlemi için başvuru dilekçesi taslağı hazırlamamı ister misiniz?"),
+    ),
+    "idari": (
+        (("iptal davası", "yürütmeyi durdurma"), "İdari iptal davası dilekçesi taslağı hazırlamamı ister misiniz?"),
+        (("idari itiraz", "itiraz dilekçesi", "itiraz süre", "idari başvuru"), "İdari itiraz/başvuru dilekçesi taslağı hazırlamamı ister misiniz?"),
+    ),
+}
+
+# Cevap bir HAKKI REDDEDİYORSA (anahtar yakınında olumsuzluk) teklif sunulmaz — çelişkili
+# "dilekçe hazırlayayım mı?" önerisini engeller (adversarial HIGH: tone-deaf offer).
+_NEG_TOKENS = (
+    "değil", "yok", "bulunmamakta", "bulunmuyor", "olamaz", "olmaz", "edilemez",
+    "edemez", "kalmamış", "kapan", "dolmuş", "düşmüş", "kazanamaz", "kazanmaz",
+    "yapılamaz", "hakkınız bulunma",
+)
+
+
+def _tr_lower(s: str) -> str:
+    """Türkçe-duyarlı küçük harf: İ→i, I→ı (Python .lower() İ'yi combining 'i̇' yapıp
+    'i' ile başlayan anahtar eşleşmelerini bozar — adversarial HIGH)."""
+    return s.replace("İ", "i").replace("I", "ı").lower()
+
+
+def _has_negation_near(low: str, pos: int, window: int = 75) -> bool:
+    """pos çevresinde (±window) olumsuzlama belirteci var mı (zaten _tr_lower'lı metin)."""
+    seg = low[max(0, pos - window):pos + window]
+    return any(neg in seg for neg in _NEG_TOKENS)
+
+
+def _next_step_offer(domain: str, body: str, dilekce_shown: bool) -> str:
+    """Tek-satır proaktif eylem teklifi — deterministik, LLM yok, hukuki iddia YOK.
+
+    Teklif YALNIZCA: dilekçe linki yokken + domain biliniyor + yanıt gövdesinde ilgili
+    anahtar geçiyor + o anahtarın YAKININDA olumsuzluk YOK (cevap hakkı reddetmiyorsa).
+    Aksi halde "" → alakasız/çelişkili teklif İLİŞTİRİLMEZ (gürültüsüz). Metin bir SORU'dur
+    (yasal referans/iddia içermez) → kırmızı-çizgi güvenli. Yalnız legal-answer path'inden çağrılır.
+    """
+    if dilekce_shown:
+        return ""
+    rules = _NEXT_STEP_OFFERS.get(domain)
+    if not rules:
+        return ""
+    low = _tr_lower(body)
+    for keywords, offer in rules:
+        for kw in keywords:
+            pos = low.find(kw)
+            if pos != -1 and not _has_negation_near(low, pos):
+                return f"\n\n💡 *{offer}*"   # ilk TEMİZ (olumsuzluksuz) eşleşme kazanır
+    return ""
 
 
 def _format_citations(state: AgentState, cited_text: str | None = None) -> str:
