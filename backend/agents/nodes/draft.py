@@ -20,6 +20,7 @@ import structlog
 
 from agents.config import (
     DRAFT_MAX_TOKENS,
+    DRAFT_MIN_TOKENS,
     LLM_CONTEXT_BUDGET,
     LLM_TEMPERATURE,
     is_guided_cite_enabled,
@@ -28,6 +29,23 @@ from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
 from agents.state import AgentState, Citation, Claim
 from core.observability import observe_node
+
+
+def _adaptive_max_tokens(question: str, facts: dict[str, object]) -> int:
+    """Cevap uzunluğu tavanını SORU KARMAŞIKLIĞINA göre seç (adaptif uzunluk, 2026-06-05).
+
+    Gerçek uzunluğu prompt sürer (basit soruda model erken durur); bu yalnız tavan:
+    - basit/tanımsal/kısa + olgu yok → DRAFT_MIN_TOKENS (gereksiz uzunluğu/RLHF-verbosity'i kıs)
+    - çok-konulu / olgu-zengin (≥2 olgu) / uzun soru → DRAFT_MAX_TOKENS (kesilmesin)
+    - aksi → ikisinin ortası (standart).
+    """
+    n_facts = sum(1 for v in (facts or {}).values() if str(v).strip())
+    q_len = len(question or "")
+    if n_facts >= 2 or q_len > 180:
+        return DRAFT_MAX_TOKENS
+    if n_facts == 0 and q_len < 90:
+        return DRAFT_MIN_TOKENS
+    return (DRAFT_MIN_TOKENS + DRAFT_MAX_TOKENS) // 2
 
 log = structlog.get_logger()
 
@@ -118,19 +136,21 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     # destekliyorsa token'ları üretildikçe yay (UI canlı gösterir). Aksi halde
     # normal bloklayan chat() — /ask, mock/server client, testler etkilenmez.
     sink = draft_token_sink.get()
+    # Adaptif uzunluk: tavanı soru-karmaşıklığına göre seç (basit→kısa, karmaşık→uzun).
+    max_out = _adaptive_max_tokens(question, state.get("case_facts") or {})
     try:
         if sink is not None and hasattr(llm, "chat_stream"):
             response = await llm.chat_stream(
                 messages=messages,
                 temperature=LLM_TEMPERATURE,
-                max_tokens=DRAFT_MAX_TOKENS,
+                max_tokens=max_out,
                 on_token=sink,
             )
         else:
             response = await llm.chat(
                 messages=messages,
                 temperature=LLM_TEMPERATURE,
-                max_tokens=DRAFT_MAX_TOKENS,  # zengin yapısal format için (320→768)
+                max_tokens=max_out,  # adaptif: DRAFT_MIN..DRAFT_MAX (karmaşıklığa göre)
                 json_mode=False,
             )
     except Exception as exc:

@@ -206,7 +206,12 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 # Yalnız draft_node kullanır; diğer LLM çağrıları (HyDE/MQ/clarifier) LLM_MAX_TOKENS'ta kalır.
 # Latans ↑ (daha uzun üretim) ama kullanıcıya tam, uygulanabilir cevap. LATANS-öncelikli
 # dağıtımda DRAFT_MAX_TOKENS=420 ile kısalt.
-DRAFT_MAX_TOKENS = int(os.getenv("DRAFT_MAX_TOKENS", "768"))
+# ADAPTİF UZUNLUK (2026-06-05): sabit cap yerine soru-karmaşıklığına göre token bütçesi
+# (draft._adaptive_max_tokens). DRAFT_MAX_TOKENS = karmaşık/olgu-zengin TAVAN (kesilmesin →
+# 768→960); DRAFT_MIN_TOKENS = basit/tanımsal soru tavanı (gereksiz uzunluğu/RLHF-verbosity'i kıs).
+# Gerçek uzunluğu prompt sürer (model basitte erken durur); bunlar yalnız tavan/taban.
+DRAFT_MAX_TOKENS = int(os.getenv("DRAFT_MAX_TOKENS", "896"))
+DRAFT_MIN_TOKENS = int(os.getenv("DRAFT_MIN_TOKENS", "384"))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.

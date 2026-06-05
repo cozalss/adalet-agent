@@ -59,7 +59,9 @@ export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
 export LLM_NO_THINK=1   # 3.5 default-off; /no_think + _strip_think backstop (defansif)
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
 # ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
-export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=512
+# DRAFT_MAX_TOKENS = ADAPTİF uzunluk TAVANI (karmaşık/olgu-zengin); basit soru draft._adaptive_max_tokens
+# ile DRAFT_MIN_TOKENS'a (384) iner → kısa+hızlı. Sabit 512 cap kaldırıldı (uniform-uzunluk sebebiydi).
+export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=896 DRAFT_MIN_TOKENS=384
 export SPARSE_EMBEDDER_MODEL=
 export RAPTOR_ENABLED=0 GRAPH_RAG_ENABLED=0 COLBERT_QUERY_ENABLED=0
 # 7B VRAM açtığı için embedder+reranker GPU'ya (retrieval darboğazı ~40s→~5s).
