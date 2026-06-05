@@ -400,3 +400,48 @@ def test_clean_draft_keeps_complete_section_when_truncated_flag():
     out = draft_mod._clean_draft_response(raw, truncated=True)
     assert "**Güven:**" in out
     assert out.rstrip().endswith("dayanır.")
+
+
+def test_clean_history_turn_strips_citation_and_sources():
+    """Asistan turundan [src:] etiketleri + Kaynaklar bloğu (ve sonrası disclaimer)
+    ayıklanır → geçmiş sade gövde olur, model citation/disclaimer formatını taklit etmez."""
+    import agents.nodes.draft as draft_mod
+
+    raw = (
+        "**Kısa cevap:** Depozito iade edilir. [src: m-TBK-342]\n\n"
+        "---\n**Kaynaklar:**\n- [TBK 342](https://x)\n\n"
+        "Bu yanıt hukuki tavsiye değildir, bilgilendirme amaçlıdır."
+    )
+    out = draft_mod._clean_history_turn(raw)
+    assert "[src:" not in out
+    assert "Kaynaklar" not in out
+    assert "hukuki tavsiye değildir" not in out
+    assert "Depozito iade edilir." in out
+
+
+def test_format_history_cleans_assistant_keeps_user_and_limits():
+    """Asistan turu temizlenir, kullanıcı turu ham kalır; kırpma TEMİZLİKTEN SONRA
+    (gerçek içerik sınır içine girer) + yeni 5-tur/800-char limitleri."""
+    import agents.nodes.draft as draft_mod
+
+    assert draft_mod._MAX_HISTORY_TURNS == 5
+    assert draft_mod._MAX_HISTORY_CHAR == 800
+
+    history = [
+        {"role": "user", "content": "kiramı ev sahibi artırdı"},
+        {
+            "role": "assistant",
+            "content": (
+                "**Kısa cevap:** Artış TÜFE ile sınırlıdır. [src: m-TBK-344]\n\n"
+                "---\n**Kaynaklar:**\n- TBK 344\n\nBu yanıt hukuki tavsiye değildir."
+            ),
+        },
+    ]
+    out = draft_mod._format_history_for_prompt(history)
+    assert "ÖNCEKİ KONUŞMA" in out
+    assert "Kullanıcı: kiramı ev sahibi artırdı" in out
+    # Asistan turu temizlenmiş: artık ne [src:] ne Kaynaklar ne disclaimer
+    assert "[src:" not in out
+    assert "Kaynaklar" not in out
+    assert "hukuki tavsiye değildir" not in out
+    assert "Artış TÜFE ile sınırlıdır." in out

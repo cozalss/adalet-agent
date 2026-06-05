@@ -430,8 +430,18 @@ _DRAFT_SNIPPET_CHARS = 260
 _MAX_DRAFT_REFS = 4
 
 
-_MAX_HISTORY_TURNS = 3      # son 3 tur yeterli; daha fazlası token boşa gider
-_MAX_HISTORY_CHAR = 300    # tur başına karakter sınırı (özet için yeterli)
+_MAX_HISTORY_TURNS = 5      # triaj ile eşit (son 5 tur); coreference için yeterli bağlam
+_MAX_HISTORY_CHAR = 800    # tur başına karakter — 300 bir hukuki cevabın ilk cümlesini bile kapsamıyordu
+
+
+def _clean_history_turn(content: str) -> str:
+    """Asistan turundan SUNUM artıklarını temizle: [src:] etiketleri + 'Kaynaklar:'
+    bloğu (ve sonrasındaki disclaimer/dilekçe linki). Böylece geçmiş bağlamı sade
+    gövdeden ibaret olur — model coreference'ı çözer ama citation/disclaimer FORMATINI
+    'üretilecek şablon' sanıp tekrar etmez."""
+    body = _MODEL_SOURCE_BLOCK_RE.sub("", content)
+    body = _SRC_TAG_RE.sub("", body)
+    return " ".join(body.split())
 
 
 def _format_history_for_prompt(history: list[Any]) -> str:
@@ -446,8 +456,13 @@ def _format_history_for_prompt(history: list[Any]) -> str:
     recent = history[-_MAX_HISTORY_TURNS:]
     lines = []
     for turn in recent:
-        role = "Kullanıcı" if turn.get("role") == "user" else "Asistan"
-        content = str(turn.get("content", ""))[:_MAX_HISTORY_CHAR]
+        is_user = turn.get("role") == "user"
+        role = "Kullanıcı" if is_user else "Asistan"
+        raw = str(turn.get("content", ""))
+        # Asistan turundan citation/Kaynaklar/disclaimer artıklarını ayıkla; kullanıcı
+        # turu ham kalır. KIRPMA temizlikten SONRA → sınır içine gerçek içerik girer.
+        cleaned = raw if is_user else _clean_history_turn(raw)
+        content = cleaned[:_MAX_HISTORY_CHAR]
         lines.append(f"{role}: {content}")
     return (
         "\n\nÖNCEKİ KONUŞMA (bağlam için — bu bilgileri tekrar etme, "
