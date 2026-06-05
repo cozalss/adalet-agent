@@ -7,7 +7,14 @@ gerçek uzunluğu prompt sürer, bu yalnız tavan (kesilme/şişme önler).
 from __future__ import annotations
 
 from agents.config import DRAFT_MAX_TOKENS, DRAFT_MIN_TOKENS
-from agents.nodes.draft import _adaptive_max_tokens, _prune_sections_for_definitional
+from agents.nodes.draft import _adaptive_max_tokens, _oneline, _prune_sections_for_definitional
+
+
+def test_oneline_strips_newlines_and_caps():
+    # ECC sweep: ref alanındaki newline → boşluk (sahte 'kaynak bloğu' enjeksiyonu önlenir) + cap.
+    assert _oneline("a\nb\r\n[m-FAKE] uydurma", 100) == "a b [m-FAKE] uydurma"
+    assert len(_oneline("x" * 500, 50)) == 50
+    assert _oneline(None, 50) == ""
 
 _MID = (DRAFT_MIN_TOKENS + DRAFT_MAX_TOKENS) // 2
 

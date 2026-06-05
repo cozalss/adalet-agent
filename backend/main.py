@@ -153,6 +153,21 @@ def _log_auth_visibility() -> None:
     from api.middleware import auth as _auth
     is_prod = os.getenv("ENV", "").lower() in {"production", "prod"}
 
+    # SIFIR-HALÜSİNASYON ablation/ölçüm kaldıraçları production'da YASAK (ECC sweep, fail-fast):
+    # VERIFY_ENABLED=0 doğrulama katmanını tümüyle bypass eder; FORCE_RETRY_ONCE=1 her isteği
+    # retry'a zorlar. Yalnız izole test/ölçüm harness'ında kullanılır; production'a sızması engellenir.
+    if is_prod:
+        if os.getenv("VERIFY_ENABLED", "1").lower() not in {"1", "true", "yes"}:
+            raise RuntimeError(
+                "GÜVENLİK: ENV=production AMA VERIFY_ENABLED!=1 — doğrulama bypass edilir "
+                "(sıfır-halüsinasyon garantisi kalkar). Ablation yalnız izole harness'ta."
+            )
+        if os.getenv("FORCE_RETRY_ONCE", "0").lower() in {"1", "true", "yes"}:
+            raise RuntimeError(
+                "GÜVENLİK: ENV=production AMA FORCE_RETRY_ONCE=1 — ölçüm hook'u her isteği "
+                "gereksiz retry'a zorlar. Production'da kapalı olmalı."
+            )
+
     if not _auth.AUTH_ENABLED:
         if is_prod:
             raise RuntimeError(

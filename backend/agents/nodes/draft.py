@@ -79,6 +79,12 @@ def _tr_low(s: str | None) -> str:
     return (s or "").replace("I", "ı").replace("İ", "i").lower()
 
 
+def _oneline(s: object, cap: int) -> str:
+    """Ref alanını (title/url/snippet) tek-satıra indir + cap (ECC sweep): EMSAL_LIVE dış-kaynak
+    metnindeki newline'lar prompt'ta sahte 'kaynak bloğu' yapısı kuramasın (prompt-injection)."""
+    return " ".join(str(s or "").split())[:cap]
+
+
 def _prune_sections_for_definitional(text: str, question: str, facts: dict[str, object]) -> str:
     """Tanımsal soruda uygulanamayan bölümleri kes → gerçek kısa cevap.
 
@@ -593,9 +599,9 @@ def _format_refs_for_prompt(refs: list[Citation], question: str = "") -> str:
     used = 0
     for r in _prioritize_refs_for_prompt(refs, question)[:_MAX_DRAFT_REFS]:
         chunk = (
-            f"[{r['source_id']}] {r['title']}\n"
-            f"  Kaynak: {r['url']}\n"
-            f"  Metin: {r['snippet'][:_DRAFT_SNIPPET_CHARS]}\n"
+            f"[{r['source_id']}] {_oneline(r.get('title'), 200)}\n"
+            f"  Kaynak: {_oneline(r.get('url'), 200)}\n"
+            f"  Metin: {_oneline(r.get('snippet'), _DRAFT_SNIPPET_CHARS)}\n"
         )
         if used + len(chunk) > budget:
             break
