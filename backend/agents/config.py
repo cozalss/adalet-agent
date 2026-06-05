@@ -220,7 +220,8 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 # 768→960); DRAFT_MIN_TOKENS = basit/tanımsal soru tavanı (gereksiz uzunluğu/RLHF-verbosity'i kıs).
 # Gerçek uzunluğu prompt sürer (model basitte erken durur); bunlar yalnız tavan/taban.
 DRAFT_MAX_TOKENS = int(os.getenv("DRAFT_MAX_TOKENS", "896"))
-DRAFT_MIN_TOKENS = int(os.getenv("DRAFT_MIN_TOKENS", "384"))
+# Guard (ECC review MEDIUM-1): yanlış env (MIN>MAX) tavanı tersine çevirmesin → MAX'e clamp.
+DRAFT_MIN_TOKENS = min(int(os.getenv("DRAFT_MIN_TOKENS", "384")), DRAFT_MAX_TOKENS)
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.

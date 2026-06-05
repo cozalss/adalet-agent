@@ -55,7 +55,10 @@ _DEFINITIONAL_MARKERS = (
     "nasıl hesaplan", "kaç yıl", "kaç gün", "şartları ne", "koşulları ne", "nelerdir",
 )
 _SEC_HEADER_RE = re.compile(r"\*\*([^*:]+):\*\*")
-_DEFINITIONAL_KEEP = ("kısa cevap", "dayanak", "güven")  # tr-lower, startswith
+# Tanımsal cevapta tutulacak bölümler (tr-lower, startswith). startswith = "Dayanak ve gerekçe"
+# gibi varyant başlıkları da tutar (kapsam-koruyan). "güven" ÇIKARILDI: yeni prompt Güven bölümü
+# üretmez (ECC review HIGH-2: prompt↔prune tutarlılığı).
+_DEFINITIONAL_KEEP = ("kısa cevap", "dayanak")
 # Kullanıcının KENDİ olayını anlattığı işaretler — varsa durumsal, prune ETME.
 _SITUATIONAL_MARKERS = (
     "alamıyorum", "alamadım", "vermiyor", "ödemiyor", "ödenmedi", "reddedildi",
