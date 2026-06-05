@@ -146,14 +146,13 @@ async def finalize_node(state: AgentState) -> dict:
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
     filtered_draft = _ensure_kisacevap_header(filtered_draft)
+    # Citation bloğu — GÖSTERİLEN (filtrelenmiş) hukuki gövdeden, partial-NOT EKLENMEDEN ÖNCE
+    # (MEDIUM-3 + ECC-sweep: not metni hiçbir koşulda kaynak çıkarımına karışmaz — phantom-source yalıtımı).
+    citations_md = _format_citations(state, filtered_draft)
     # Partial-answer ŞEFFAFLIĞI (opt-in): bazı iddialar kaynaklanamayıp DÜŞTÜYSE (çok-konulu
-    # sorularda sık) sessiz-eksiltme yerine dürüstçe belirt. Grounding değişmez (ungrounded
-    # zaten yok); yalnız "doğrulayamadıklarımı çıkardım, ayrıca sorun" çerçevesi eklenir.
+    # sorularda sık) sessiz-eksiltme yerine dürüstçe belirt. Grounding değişmez (ungrounded zaten yok).
     if n_dropped > 0 and is_partial_answer_note_enabled():
         filtered_draft = f"{filtered_draft}\n\n{_PARTIAL_ANSWER_NOTE}"
-
-    # Citation bloğu — GÖSTERİLEN (filtrelenmiş) metindeki kaynaklardan (MEDIUM-3).
-    citations_md = _format_citations(state, filtered_draft)
     # Dilekçe linki (6. ajan üretmişse) — sadece markdown atıfı, bytes API'den
     # GET /dilekce/{conversation_id} ile servis edilir (bkz. api/routes/dilekce).
     dilekce_md_block = _format_dilekce_link(state)

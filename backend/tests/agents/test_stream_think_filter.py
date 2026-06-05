@@ -41,6 +41,12 @@ def test_partial_open_held_then_resolved():
     assert _run(["abc<thi", "nk>x</think>son"]) == "abcson"
 
 
+def test_uppercase_think_suppressed():
+    # ECC sweep: model <THINK>/<Think> üretse de (case-insensitive) sızdırma.
+    assert _run(["<THINK>", "gizli", "</THINK>", "görünür"]) == "görünür"
+    assert _run(["Ön ", "<Think>r</Think>", "söz"]) == "Ön söz"
+
+
 def test_unclosed_think_in_strip():
     # _strip_think: kapanışsız <think> → o noktadan sonrası atılır (backstop).
     assert _strip_think("cevap<think>yarım reasoning") == "cevap"

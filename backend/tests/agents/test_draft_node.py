@@ -319,6 +319,22 @@ def test_remove_deadline_fabrication_even_with_eligibility():
     assert "geçtiği için" not in out
 
 
+def test_remove_deadline_fabrication_even_without_user_duration():
+    """ECC review HIGH-1 (kanıtlanmış red-line gap): kullanıcı süre VERMESE de (facts boş)
+    'süre geçti/geçtiği için hak yok' uydurması silinir — eski `if not facts.get('sure'): return`
+    erken-çıkış deliği kapandı. Model facts-siz soruda da bu yanlış-çıkarımı uydurabilir."""
+    import agents.nodes.draft as draft_mod
+
+    text = (
+        "**Kısa cevap:** Hakkınız olabilir. [src: m-X]\n\n"
+        "Başvuru süresi geçtiği için itiraz hakkınız kalmadı. [src: m-X]"
+    )
+    out = draft_mod._remove_unsafe_duration_inferences(text, {}, [])
+
+    assert "geçtiği için" not in out          # facts boş olsa da deadline-uydurma silindi
+    assert "Hakkınız olabilir" in out         # güvenli içerik korundu
+
+
 @pytest.mark.asyncio
 async def test_draft_llm_failure_degrades_to_empty(monkeypatch):
     """LLM çağrısı çökerse (context taşması/OOM) graph çökmesin — boş draft + hata."""

@@ -83,9 +83,11 @@ def _apply_no_think(messages: list[ChatMessage]) -> list[ChatMessage]:
 
 def _hold_partial(s: str, tag: str) -> tuple[str, str]:
     """(safe, tail): tail = s'in, tag'in BAŞLANGICI olabilecek en uzun son-eki → emit edilmez.
-    Örn. ('abc<thi', '<think>') → ('abc', '<thi'). Etiket token sınırına bölünürse korunur."""
+    Örn. ('abc<thi', '<think>') → ('abc', '<thi'). Etiket token sınırına bölünürse korunur.
+    Büyük/küçük harf duyarsız (tag lowercase; <THINK> de tutulur)."""
+    low = s.lower()
     for k in range(min(len(s), len(tag) - 1), 0, -1):
-        if s.endswith(tag[:k]):
+        if low.endswith(tag[:k]):
             return s[:-k], s[-k:]
     return s, ""
 
@@ -110,8 +112,9 @@ class _StreamThinkFilter:
         self._buf += delta
         send: list[str] = []
         while self._buf:
+            low = self._buf.lower()  # case-insensitive arama (<THINK>/<Think> de yakalanır)
             if not self._in_think:
-                i = self._buf.find(self._OPEN)
+                i = low.find(self._OPEN)
                 if i == -1:
                     safe, tail = _hold_partial(self._buf, self._OPEN)
                     if safe:
@@ -123,7 +126,7 @@ class _StreamThinkFilter:
                 self._buf = self._buf[i + len(self._OPEN):]
                 self._in_think = True
             else:
-                j = self._buf.find(self._CLOSE)
+                j = low.find(self._CLOSE)
                 if j == -1:
                     _, self._buf = _hold_partial(self._buf, self._CLOSE)  # think içeriği AT
                     break
