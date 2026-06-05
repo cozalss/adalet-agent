@@ -34,7 +34,11 @@ from retrieval.adaptive_router import route_query
 from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
-from retrieval.query_rewrite import search_with_step_back, should_rewrite
+from retrieval.query_rewrite import (
+    decontextualize_for_retrieval,
+    search_with_step_back,
+    should_rewrite,
+)
 from retrieval.reranker import get_reranker
 from retrieval.speculative_search import search_speculative
 
@@ -70,7 +74,13 @@ async def mevzuat_node(state: AgentState) -> dict:
     if domain == "unknown":
         return {"mevzuat_refs": []}
     try:
-        return await _mevzuat_retrieve(state["question"], domain)
+        # Multi-turn: takip sorusunu ("peki 1 yıldan az çalıştıysam") chat_history ile
+        # bağımsız hukuki sorguya çevir → retrieval çıpa kazanır. Opt-in + graceful
+        # (kapalı/başarısız → orijinal question, baseline). Orijinal soru draft'a gider.
+        retrieval_q = await decontextualize_for_retrieval(
+            state["question"], state.get("chat_history") or [], domain
+        )
+        return await _mevzuat_retrieve(retrieval_q, domain)
     except Exception as exc:
         log.error("mevzuat_node_degraded", error=str(exc) or type(exc).__name__)
         return {"mevzuat_refs": [], "errors": [f"mevzuat: {type(exc).__name__}"]}

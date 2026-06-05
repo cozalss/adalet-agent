@@ -138,6 +138,93 @@ async def step_back_query(question: str, domain: str | None = None) -> str:
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Konuşma decontextualization (multi-turn) — takip sorusu → bağımsız hukuki sorgu
+# ---------------------------------------------------------------------------
+# Ölçülmüş bug: "kıdem şartları" → iyi cevap; takip "peki 1 yıldan az çalıştıysam"
+# → REDDEDİLİYOR (ham takip metni hukuki çıpa içermez → zayıf chunk → grounding yok).
+# Çözüm: chat_history ile takip sorusunu bağımsız hale getir, retrieval'da onu kullan.
+# triaj._CONTINUATION_MARKERS ile aynı markerlar (kopya — retrieval→agents cycle riski yok).
+_FOLLOWUP_MARKERS = (
+    "peki", "o zaman", "bu durumda", "böyle", "şöyle", "öyleyse",
+    "ya da", "bunun için", "buna göre", "o halde",
+)
+
+# RED-LINE: nötr soru kipi — uygunluk SONUCU ("alır/alamaz") UYDURMAZ; yalnız adıl/eksilti
+# çözer + konuyu hukuki terimle ifade eder. "1 yıldan az" → "...hak kazanır mı?" (soru), ASLA
+# "...kazanamaz" (çıkarım). Madde/kanun/içtihat uydurmaz (step-back ile aynı kısıt).
+_DECONTEXT_SYSTEM = (
+    "Sen Türkçe hukuk sorularını BAĞIMSIZ hale getiren bir yardımcısın. Kullanıcının takip "
+    "sorusunu ve önceki konuşmayı alır; takip sorusunu, geçmiş bilinmeden de anlaşılır TARAFSIZ "
+    "bir hukuki SORUYA çevirirsin.\n\n"
+    "KURALLAR:\n"
+    "1. Yalnız adıl/eksiltiyi çöz (önceki konuyla birleştir). SONUÇ veya KISITLAMA UYDURMA.\n"
+    "   YANLIŞ: '1 yıldan az çalışan işçi kıdem tazminatı ALAMAZ, ne yapmalı?'\n"
+    "   DOĞRU:  '1 yıldan az çalışan işçi kıdem tazminatına hak kazanır mı?'\n"
+    "2. Madde numarası, kanun adı veya içtihat UYDURMA — yalnız konuyu hukuki terimlerle ifade et.\n"
+    "3. Orijinal sorunun çerçevesini koru; soru dışı bilgi ekleme.\n"
+    'Çıktı SADECE şu JSON, başka metin YOK:\n{"rewrite": "bağımsız hukuki soru"}'
+)
+
+_DECONTEXT_USER = "Önceki konuşma:\n{history}\n\nTakip sorusu: {question}\n\nSADECE JSON döndür."
+
+
+def is_conv_decontext_enabled() -> bool:
+    """Konuşma decontextualization açık mı (opt-in, default 0). Call-time → test toggle."""
+    return os.getenv("CONV_DECONTEXT_ENABLED", "0").lower() in {"1", "true", "yes"}
+
+
+def _is_followup(question: str) -> bool:
+    """Bağlam-bağımlı takip sorusu mu (triaj._is_continuation ile aynı markerlar)."""
+    q = question.replace("İ", "i").replace("I", "ı").lower().strip()
+    return any(q.startswith(m) or f" {m}" in q[:30] for m in _FOLLOWUP_MARKERS)
+
+
+async def decontextualize_for_retrieval(
+    question: str, chat_history: list, domain: str | None = None
+) -> str:
+    """Takip sorusunu bağımsız hukuki sorguya çevir; RETRIEVAL'da kullanılacak sorguyu döndür.
+
+    Etkin değilse / geçmiş yoksa / takip sorusu değilse / LLM başarısızsa → ORİJİNAL question
+    (baseline, güvenli hata). RED-LINE: _DECONTEXT_SYSTEM nötr soru kipini zorlar (uygunluk
+    sonucu uydurmaz). Orijinal soru draft'a state["question"] ile gider; bu yalnız retrieval içindir.
+    """
+    q = (question or "").strip()
+    if not q or not is_conv_decontext_enabled() or not chat_history or not _is_followup(q):
+        return q
+    recent = chat_history[-3:]
+    hist = "\n".join(
+        f"{'Kullanıcı' if (t.get('role') == 'user') else 'Asistan'}: {str(t.get('content', ''))[:300]}"
+        for t in recent
+    )
+    user_msg = _DECONTEXT_USER.format(history=hist, question=q)
+    llm = get_llm()
+    try:
+        resp = await asyncio.wait_for(
+            llm.chat(
+                messages=[
+                    ChatMessage(role="system", content=_DECONTEXT_SYSTEM),
+                    ChatMessage(role="user", content=user_msg),
+                ],
+                temperature=0.0,
+                max_tokens=_max_tokens(),
+                json_mode=True,
+            ),
+            timeout=_timeout_s(),
+        )
+    except Exception as exc:  # SÖZLEŞME: herhangi bir hata → orijinal sorgu (baseline).
+        # _LLM_FALLBACK_EXCEPTIONS'tan GENİŞ bilinçli: in-process llama.cpp RuntimeError/
+        # KeyError/CancelledError de fırlatabilir; dar catch bunları node'un except'ine
+        # kaçırıp retrieval'ı TAMAMEN boşaltıyordu (adversarial MEDIUM). Geniş catch → baseline.
+        log.warning("decontext_llm_failed", error=str(exc) or type(exc).__name__)
+        return q
+    rewrite = _parse_rewrite(resp.content)
+    if rewrite and rewrite.lower() != q.lower():
+        log.info("decontext_rewrite", domain=domain, original=q[:60], rewrite=rewrite[:120])
+        return rewrite
+    return q
+
+
 async def search_with_step_back(
     question: str,
     *,
@@ -184,6 +271,8 @@ async def search_with_step_back(
 
 
 __all__ = (
+    "decontextualize_for_retrieval",
+    "is_conv_decontext_enabled",
     "is_query_rewrite_enabled",
     "search_with_step_back",
     "should_rewrite",

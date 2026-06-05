@@ -81,6 +81,9 @@ export GUIDED_CITE_ENABLED=1
 export EMSAL_LIVE_FALLBACK_ENABLED=1
 # Partial-answer şeffaflığı: çok-konulu cevapta doğrulanamayan konu düştüyse dürüstçe belirt.
 export PARTIAL_ANSWER_NOTE=1
+# Multi-turn: takip sorusunu ("peki 1 yıldan az çalıştıysam") chat_history ile bağımsız hukuki
+# sorguya çevir → retrieval çıpa kazanır (yoksa reddediliyordu). Nötr soru kipi (kırmızı-çizgi).
+export CONV_DECONTEXT_ENABLED=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 

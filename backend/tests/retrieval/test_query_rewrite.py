@@ -159,3 +159,79 @@ def _async_ret(value):
     async def _coro(*_a, **_k):
         return value
     return _coro()
+
+
+# --------------------------------------------------------------------------
+# decontextualize_for_retrieval (multi-turn konuşma takip sorusu)
+# --------------------------------------------------------------------------
+
+_HISTORY = [
+    {"role": "user", "content": "kıdem tazminatı şartları nelerdir"},
+    {"role": "assistant", "content": "Kıdem için en az 1 yıl çalışma gerekir [src: m-EIK-14]."},
+]
+
+
+def test_is_followup_markers():
+    assert qr._is_followup("peki 1 yıldan az çalıştıysam ne olur") is True
+    assert qr._is_followup("O zaman ne yapmalıyım") is True
+    assert qr._is_followup("kıdem tazminatı şartları nelerdir") is False
+
+
+def test_conv_decontext_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("CONV_DECONTEXT_ENABLED", raising=False)
+    assert qr.is_conv_decontext_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_decontext_disabled_returns_original(monkeypatch):
+    monkeypatch.delenv("CONV_DECONTEXT_ENABLED", raising=False)
+    out = await qr.decontextualize_for_retrieval("peki 1 yıldan azsa", _HISTORY, "isHukuku")
+    assert out == "peki 1 yıldan azsa"  # kapalı → LLM çağrılmaz, orijinal
+
+
+@pytest.mark.asyncio
+async def test_decontext_no_history_returns_original(monkeypatch):
+    monkeypatch.setenv("CONV_DECONTEXT_ENABLED", "1")
+    out = await qr.decontextualize_for_retrieval("peki 1 yıldan azsa", [], "isHukuku")
+    assert out == "peki 1 yıldan azsa"  # geçmiş yok → orijinal
+
+
+@pytest.mark.asyncio
+async def test_decontext_non_followup_returns_original(monkeypatch):
+    monkeypatch.setenv("CONV_DECONTEXT_ENABLED", "1")
+    out = await qr.decontextualize_for_retrieval("kıdem tazminatı şartları", _HISTORY, "isHukuku")
+    assert out == "kıdem tazminatı şartları"  # marker yok → takip değil → orijinal (LLM çağrısı yok)
+
+
+@pytest.mark.asyncio
+async def test_decontext_rewrites_followup_with_history(monkeypatch):
+    monkeypatch.setenv("CONV_DECONTEXT_ENABLED", "1")
+    monkeypatch.setattr(
+        qr, "get_llm",
+        lambda: _RewriteLLM('{"rewrite": "1 yıldan az çalışan işçi kıdem tazminatına hak kazanır mı?"}'),
+    )
+    out = await qr.decontextualize_for_retrieval("peki 1 yıldan azsa", _HISTORY, "isHukuku")
+    assert out == "1 yıldan az çalışan işçi kıdem tazminatına hak kazanır mı?"
+
+
+@pytest.mark.asyncio
+async def test_decontext_llm_failure_returns_original(monkeypatch):
+    monkeypatch.setenv("CONV_DECONTEXT_ENABLED", "1")
+    monkeypatch.setattr(qr, "get_llm", lambda: _FailingLLM())
+    out = await qr.decontextualize_for_retrieval("peki 1 yıldan azsa", _HISTORY, "isHukuku")
+    assert out == "peki 1 yıldan azsa"  # graceful → baseline
+
+
+class _RuntimeFailLLM:
+    """llama.cpp iç hatasını taklit (RuntimeError — _LLM_FALLBACK_EXCEPTIONS DIŞI)."""
+    async def chat(self, **_kwargs):
+        raise RuntimeError("llama_decode failed -1")
+
+
+@pytest.mark.asyncio
+async def test_decontext_broad_exception_returns_original(monkeypatch):
+    """SÖZLEŞME: dar tuple dışı hata (RuntimeError) da → orijinal (retrieval boşaltılmaz)."""
+    monkeypatch.setenv("CONV_DECONTEXT_ENABLED", "1")
+    monkeypatch.setattr(qr, "get_llm", lambda: _RuntimeFailLLM())
+    out = await qr.decontextualize_for_retrieval("peki 1 yıldan azsa", _HISTORY, "isHukuku")
+    assert out == "peki 1 yıldan azsa"  # graceful → baseline (node retrieval'ı boşaltmaz)

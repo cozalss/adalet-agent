@@ -27,6 +27,7 @@ from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.hybrid_search import search, search_with_rerank
 from retrieval.live_emsal import fetch_and_rank_live
+from retrieval.query_rewrite import decontextualize_for_retrieval
 from retrieval.reranker import get_reranker
 
 log = structlog.get_logger()
@@ -54,7 +55,12 @@ async def emsal_node(state: AgentState) -> dict:
     if domain == "unknown":
         return {"emsal_refs": []}
     try:
-        return await _emsal_retrieve(state["question"], domain)
+        # Multi-turn: takip sorusunu chat_history ile bağımsız sorguya çevir (opt-in,
+        # graceful → orijinal). mevzuat ile aynı; orijinal soru draft'a gider.
+        retrieval_q = await decontextualize_for_retrieval(
+            state["question"], state.get("chat_history") or [], domain
+        )
+        return await _emsal_retrieve(retrieval_q, domain)
     except Exception as exc:
         log.error("emsal_node_degraded", error=str(exc) or type(exc).__name__)
         return {"emsal_refs": [], "errors": [f"emsal: {type(exc).__name__}"]}
