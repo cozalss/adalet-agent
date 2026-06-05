@@ -79,6 +79,8 @@ export GUIDED_CITE_ENABLED=1
 # Canlı emsal fallback (CRAG): lokal corpus zayıfsa internetten (yargı-mcp) dava çek + lokal rerank.
 # E2E doğrulandı (trafik→sigorta_tahkim alakalı dava). Yalnız corpus-zayıf sorularda tetiklenir.
 export EMSAL_LIVE_FALLBACK_ENABLED=1
+# Partial-answer şeffaflığı: çok-konulu cevapta doğrulanamayan konu düştüyse dürüstçe belirt.
+export PARTIAL_ANSWER_NOTE=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 

@@ -9,7 +9,7 @@ import re
 
 import structlog
 
-from agents.config import DISCLAIMER_TR
+from agents.config import DISCLAIMER_TR, is_partial_answer_note_enabled
 from agents.nodes.compose import redirect_to_scope_fallback
 from agents.state import AgentState
 from core.observability import observe_node
@@ -26,6 +26,12 @@ _NO_SPLIT_ABBREVIATIONS = {"m", "md", "no", "bkz", "vb", "vs", "dr", "av", "prof
 # kalın-başlıkla başlar; zorunlu özet başlığı eklenir (hukuki iddia DEĞİL).
 _KISACEVAP_RE = re.compile(r"^\s*\*\*\s*Kısa cevap", re.IGNORECASE)
 _BOLD_HEADER_RE = re.compile(r"^\s*\*\*[^*\n]{1,40}:\*\*")
+# Partial-answer dürüst notu — bazı iddialar kaynaklanamayıp düştüğünde eklenir (opt-in).
+_PARTIAL_ANSWER_NOTE = (
+    "*Not: Sorunuzdaki bazı noktaları güvenilir bir kaynakla doğrulayamadığım için yanıta "
+    "yalnızca doğrulayabildiğim kısımları aldım. Eksik kalan konuları ayrı ayrı sorarsanız "
+    "daha sağlıklı yardımcı olabilirim.*"
+)
 
 
 def _chat_needs_disclaimer(question: str, response: str) -> bool:
@@ -140,6 +146,11 @@ async def finalize_node(state: AgentState) -> dict:
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
     filtered_draft = _ensure_kisacevap_header(filtered_draft)
+    # Partial-answer ŞEFFAFLIĞI (opt-in): bazı iddialar kaynaklanamayıp DÜŞTÜYSE (çok-konulu
+    # sorularda sık) sessiz-eksiltme yerine dürüstçe belirt. Grounding değişmez (ungrounded
+    # zaten yok); yalnız "doğrulayamadıklarımı çıkardım, ayrıca sorun" çerçevesi eklenir.
+    if n_dropped > 0 and is_partial_answer_note_enabled():
+        filtered_draft = f"{filtered_draft}\n\n{_PARTIAL_ANSWER_NOTE}"
 
     # Citation bloğu
     citations_md = _format_citations(state)

@@ -89,6 +89,15 @@ def is_clatter_gate_enabled() -> bool:
     return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
+def is_partial_answer_note_enabled() -> bool:
+    """Partial-answer dürüst notu (opt-in) — çok-konulu/çok-iddialı cevapta verify bazı
+    iddiaları kaynaklayamayıp DÜŞÜRDÜYSE (finalize._filter_to_verified n_dropped>0), kullanıcıya
+    'bazı noktaları doğrulayamadım, ayrıca sorun' notu eklenir → sessiz-eksiltme yerine ŞEFFAF.
+    Grounding/sıfır-halüsinasyon DEĞİŞMEZ (ungrounded zaten gösterilmez); yalnız dürüst çerçeve.
+    Call-time okunur (test toggle). Default 0 (test stabil); production'da açık."""
+    return os.getenv("PARTIAL_ANSWER_NOTE", "0").lower() in {"1", "true", "yes"}
+
+
 def is_emsal_live_fallback_enabled() -> bool:
     """Canlı emsal fallback (CRAG, opt-in, default 0) — corpus zayıfsa internetten dava çek.
 

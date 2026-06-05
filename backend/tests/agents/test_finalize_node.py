@@ -356,3 +356,45 @@ def test_ensure_kisacevap_header_noop_when_present_or_plain():
     plain = "Hakkınız var, dava açabilirsiniz."
     assert _ensure_kisacevap_header(ok) == ok
     assert _ensure_kisacevap_header(plain) == plain
+
+
+# --- partial-answer dürüst notu (Hedef-2: çok-konulu sessiz-eksiltme → şeffaf) ---
+
+def _partial_state(base_state):
+    claims = [
+        {"text": "Destekli iddia cümlesi yeterince uzun olmalı burada", "cite_ids": ["m-TKHK-11"],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+        {"text": "Desteksiz uydurma iddia cümlesi de yeterince uzun olmalı", "cite_ids": [],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+    ]
+    verified_claims = [
+        {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
+        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "Yetersiz kanıt"},
+    ]
+    return {
+        **base_state,
+        "draft_response": (
+            "Destekli iddia cümlesi yeterince uzun olmalı burada. "
+            "Desteksiz uydurma iddia cümlesi de yeterince uzun olmalı."
+        ),
+        "claims": claims, "verified_claims": verified_claims, "debate_verdict": "pass",
+    }
+
+
+@pytest.mark.asyncio
+async def test_finalize_partial_note_when_dropped_and_enabled(base_state, monkeypatch):
+    """PARTIAL_ANSWER_NOTE=1 + iddia düştü → grounded korunur, düşen DÜRÜSTÇE belirtilir."""
+    monkeypatch.setenv("PARTIAL_ANSWER_NOTE", "1")
+    out = await finalize_node(_partial_state(base_state))
+    assert "Destekli iddia cümlesi" in out["response"]       # grounded korundu
+    assert "Desteksiz uydurma iddia" not in out["response"]   # ungrounded düştü (halüsinasyon yok)
+    assert "ayrı ayrı sorarsanız" in out["response"]          # dürüst partial-not eklendi
+
+
+@pytest.mark.asyncio
+async def test_finalize_no_partial_note_when_disabled(base_state, monkeypatch):
+    """Flag kapalı (default) → not EKLENMEZ (baseline davranış korunur)."""
+    monkeypatch.delenv("PARTIAL_ANSWER_NOTE", raising=False)
+    out = await finalize_node(_partial_state(base_state))
+    assert "Destekli iddia cümlesi" in out["response"]
+    assert "ayrı ayrı sorarsanız" not in out["response"]
