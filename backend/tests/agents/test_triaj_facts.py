@@ -244,3 +244,15 @@ def test_merge_case_facts_olay_cap_300():
     a, b = "x" * 200, "y" * 200
     out = triaj_mod._merge_case_facts({"olay": a}, {"olay": b})
     assert len(out["olay"]) == 300
+
+
+# --- _fast_domain: trafik keyword kapsamı (iter7 sweep'te 'kırmızı ışık' → unknown idi) ---
+
+def test_fast_domain_trafik_kirmizi_isik_and_no_cross_domain():
+    """Ölçülen gap: 'kırmızı ışık cezasına itiraz' artık trafik yakalanır; çakışma yok."""
+    assert triaj_mod._fast_domain("kırmızı ışık cezasına nasıl itiraz edebilirim") == "trafik"
+    assert triaj_mod._fast_domain("hız cezası radar") == "trafik"
+    assert triaj_mod._fast_domain("araç muayene cezası geldi") == "trafik"
+    # mtv vergi'de kalmalı (trafik'e eklenmedi — çakışma önlendi)
+    assert triaj_mod._fast_domain("mtv borcumu ödemedim") == "vergi"
+    assert triaj_mod._fast_domain("emlak vergisi gecikme cezası") == "vergi"

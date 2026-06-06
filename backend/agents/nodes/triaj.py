@@ -86,6 +86,10 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
         "trafik", "kaza", "sigorta", "kasko", "ehliyet", "plaka",
         "araç değer kaybı", "değer kaybı", "trafik cezası", "hız ihlali",
         "pert araç", "zorunlu trafik", "tespit tutanağı",
+        # Ölçüldü (iter7 sweep): "kırmızı ışık cezasına itiraz" → unknown'a düşüyordu
+        # (DistilBERT trafik@0.36 eşik-altı, LLM unknown dedi). Yüksek-kesinlikli terimler
+        # (mtv EKLENMEDİ — vergi domain'inde, çakışırdı):
+        "kırmızı ışık", "ışık ihlali", "hız cezası", "radar", "araç muayene", "ceza puanı",
     ),
     "vergi": (
         "vergi", "kdv", "ötv", "mtv", "gelir vergisi", "vergi cezası",
