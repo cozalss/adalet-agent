@@ -84,10 +84,23 @@ async def debate_node(state: AgentState) -> dict:
                 "pass",
                 "Verifier kısmi destek buldu; hızlı modda yalnız doğrulanmış kısım döndürülür.",
             )
+        # 0 doğrulanmış claim → reddetmeden ÖNCE bir kez deterministik retry (re-retrieve +
+        # re-draft). Draft GPU-non-determinism nedeniyle aynı soru bazen ground bazen 0/0
+        # veriyordu (ölçüldü iter13-14); 2. draft genelde ground'lar → SAHTE reject'ler
+        # grounded cevaba döner. Yalnız ilk geçişte (retry_count==0) → +1 pass yalnız
+        # would-be-reject'lerde (iyi/kısmi cevaplar üstte zaten döndü). 2. geçiş hâlâ 0 →
+        # gerçek reject (MAX_RETRY guard'ı da var). LLM debate KAPALI olsa da geçerli (re-draft).
+        if retry_count == 0:
+            return _final(
+                state,
+                "retry",
+                "0 doğrulanmış claim — bir kez yeniden üret (draft non-determinism telafisi).",
+                increment_retry=True,
+            )
         return _final(
             state,
             "reject",
-            "Verifier yeterli destek bulamadı; hızlı modda tekrar üretim yapılmadı.",
+            "Verifier yeterli destek bulamadı (yeniden üretim sonrası da doğrulanamadı).",
         )
 
     # LLM debate çağrısı

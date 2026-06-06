@@ -75,3 +75,21 @@ async def test_debate_handles_llm_failure_gracefully(base_state, monkeypatch):
     assert result["debate_verdict"] == "retry"
     assert result["retry_count"] == 1
     assert "LLM kritik hata" in result["debate_notes"]
+
+
+@pytest.mark.asyncio
+async def test_debate_retry_once_on_zero_verified_then_reject(base_state, monkeypatch):
+    """iter14: fast-mode'da 0-doğrulanmış-claim → ilk geçişte reddetmeden RETRY (draft
+    non-determinism telafisi); 2. geçişte hâlâ 0 → reject."""
+    monkeypatch.delenv("DEBATE_LLM_ON_RETRY", raising=False)  # fast mode
+    claims = [{"text": "x", "cite_ids": [], "verified": False, "verify_score": 0.0, "verify_reason": ""}]
+    # 1. geçiş (retry_count=0): retry
+    s = {**base_state, "debate_verdict": "retry", "retry_count": 0,
+         "verified_claims": claims, "claims": claims}
+    out = await debate_node(s)
+    assert out["debate_verdict"] == "retry" and out.get("retry_count") == 1
+    # 2. geçiş (retry_count=1): hâlâ 0 doğrulanmış → reject
+    s2 = {**base_state, "debate_verdict": "retry", "retry_count": 1,
+          "verified_claims": claims, "claims": claims}
+    out2 = await debate_node(s2)
+    assert out2["debate_verdict"] == "reject"
