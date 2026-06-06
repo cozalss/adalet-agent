@@ -425,7 +425,10 @@ MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true
 # yasal çekirdeği her zaman elde olsun. Yalnız MEVZUAT_DOMAIN_FILTER açıkken etkin.
 DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15)),
-    "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("EIK", 14)),
+    # IK 41 (fazla çalışma) eklendi: ölçüldü (iter13) "fazla mesai ödemiyor" → m.25 (fesih)
+    # cite ediliyordu (yanlış madde üste çıkıyor) → verify düşürüyordu. 32=ücret, 53=yıllık izin
+    # de tipik isHukuku çekirdeği. Garanti-yüzeye-çıkar (icra m.62 ile aynı kanıtlı pattern).
+    "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("IK", 32), ("IK", 41), ("IK", 53), ("EIK", 14)),
     "kira": (("TBK", 299), ("TBK", 315), ("TBK", 342), ("TBK", 344), ("TBK", 347), ("TBK", 350), ("TBK", 372)),
     # icra: m.62 = ödeme emrine 7 GÜNlük itiraz (vatandaş "borcum yok itiraz"ının doğru maddesi);
     # bu çapa eklenmeden m.62 aday havuzuna girmiyordu → yanlış süre/madde (2026-06-04 ölçüm).
