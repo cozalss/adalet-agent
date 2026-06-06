@@ -54,6 +54,7 @@ KANUN_KODU_TO_NUMARA: dict[str, str] = {
     # --- Usul kanunları ---
     "HMK": "6100",      # Hukuk Muhakemeleri Kanunu (dava usulü, dilekçe formatı)
     "IYUK": "2577",     # İdari Yargılama Usulü Kanunu (idari dava, iptal)
+    "KABAHAT": "5326",  # Kabahatler Kanunu (idari para cezası + sulh ceza hakimliğine itiraz)
     "IIK": "2004",      # İcra ve İflas Kanunu (haciz, takip — icra domain)
     # --- Sosyal güvenlik + iş hukuku tamamlayıcılar ---
     "SGK": "5510",      # Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu

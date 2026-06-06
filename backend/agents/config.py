@@ -353,6 +353,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
     ),
     "trafik":    (
         "KTK",      # 2918 — Karayolları Trafik
+        "KABAHAT",  # 5326 — Kabahatler (trafik idari para cezasına itiraz usulü)
         "SIGORTA",  # 5684 — Sigortacılık (ZMSS)
         "TBK",      # 6098 — Borçlar (haksız fiil)
         "SGK",      # 5510 — Kaza tazminat
@@ -382,6 +383,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
     ),
     "idari":     (
         "IYUK",     # 2577 — İdari Yargılama
+        "KABAHAT",  # 5326 — Kabahatler (idari para cezası + sulh ceza hakimliğine itiraz)
         "DMK",      # 657 — Devlet Memurları
         "MYK",      # 5018 — Mali Yönetim
         "IHK",      # 4734 — Kamu İhale

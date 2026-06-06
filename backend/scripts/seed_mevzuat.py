@@ -48,6 +48,7 @@ TARGET_LAWS: tuple[tuple[str, str], ...] = (
     # === Usul kanunları ===
     ("HMK", "Hukuk Muhakemeleri Kanunu"),
     ("IYUK", "İdari Yargılama Usulü Kanunu"),
+    ("KABAHAT", "Kabahatler Kanunu"),
     ("IIK", "İcra ve İflas Kanunu"),
     # === Sosyal güvenlik + iş hukuku tamamlayıcı ===
     ("SGK", "Sosyal Sigortalar ve Genel Sağlık Sigortası Kanunu"),
