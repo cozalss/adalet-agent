@@ -11,12 +11,14 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![Qdrant](https://img.shields.io/badge/Qdrant-159k%20vektör-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Tests](https://img.shields.io/badge/tests-1135%20backend%20%2B%20138%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
+[![Tests](https://img.shields.io/badge/tests-1313%20backend%20%2B%20151%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 1135 backend + 149 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
+**159k kaynak vektörü · 1313 backend + 151 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
+
+<sub>🎯 prod doğru-madde **%84.4** &nbsp;·&nbsp; ⚡ yanıt **~11 s** (algılanan ~1-2 s) &nbsp;·&nbsp; 🛡️ verify kaynaksız iddiaların **%58**'ini yakalıyor &nbsp;·&nbsp; 🔒 %100 lokal model</sub>
 
 </div>
 
@@ -97,7 +99,7 @@ flowchart LR
     FN --> U
 
     R <-.-> QD[(Qdrant<br/>159k vektör)]
-    DR <-.-> LLM[[llama-server<br/>Qwen 2.5 14B · lokal]]
+    DR <-.-> LLM[[llama-server<br/>Qwen3.5 9B · lokal]]
 ```
 
 | Aşama | Görev |
@@ -180,29 +182,37 @@ flowchart LR
 
 ## 📊 Ölçülmüş Sonuçlar
 
-Aşağıdaki sayıların hepsi **gerçek ölçümdür** (tahmin/iddia değil). Metodoloji:
-[docs/theses/measured-results.md](docs/theses/measured-results.md)
+Aşağıdaki sayıların hepsi **gerçek ölçümdür** (tahmin değil) — her biri eval harness'i
+veya canlı API ile alınmıştır. Metodoloji: [docs/theses/measured-results.md](docs/theses/measured-results.md)
 
-**Retrieval** (186 vaka benchmark):
+**Retrieval — doğru maddeyi bulma** (eval `benchmark_v2.jsonl`, 186 vaka, law-only):
 
-| Domain @1 | Domain @5 | MRR | Keyword recall | Gecikme (hybrid) |
+| Domain @1 | Domain @5 | Kanun @5 | madde_recall@5 | **prod madde-recall**² |
 |:---:|:---:|:---:|:---:|:---:|
-| **%81.2** | **%97.3** | 0.879 | %78.2 | ~260 ms |
+| ~%81 | ~%97 | **%82** | %37 → **%42.8**¹ | **%84.4** |
 
-**Doğrulama & Tahmin:**
+> ¹ **BGE-M3 ColBERT multi-vector rerank** (önceden hesaplanmış, Qdrant MAX_SIM) doğru-madde
+> seçimini cross-encoder'a göre **+5.8pp** artırır (%37 → %42.8) — token-level late-interaction,
+> "doğru kanunun doğru maddesi" ayrımını yapar. Stored vektörler sayesinde **latency'siz**.
+> ² Production yolu (DOMAIN_CORE çapa + niş-konu routing dahil, **canlı API** 32 vaka) eval-proxy'den
+> yüksek: gerçek kullanıcı-gören doğru-madde oranı **%84.4**.
 
-| Verify ayırt-etme gücü¹ | Tahmin f1_macro | Kalibrasyon (ECE) | Corpus | Test / coverage |
-|:---:|:---:|:---:|:---:|:---:|
-| **+58.1 puan** | 0.825 | 0.0825 → **0.0109** | 159.362 vektör | 1135 ✓ / ≥%80 (CI kapısı) |
+**Latency & Doğrulama:**
 
-> ¹ Verify açıkken cevap claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı
-> kaynaksız iddiaların **%58.1**'ini işaretliyor (gerçek Qwen 2.5 14B, 8 vatandaş sorusu).
+| Yanıt (ort) | Algılanan³ | Verify claim-desteği | Verify ayırt-etme⁴ | Tahmin f1_macro | Test |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1313** ✓ |
 
-> **🔬 Mühendislik bulgusu:** Cross-encoder rerank, bu corpus ve vatandaş-dili
-> sorgularında domain@1'i iyileştirmedi (%81.7 → %81.2) ama ~10× gecikme getirdi.
-> Üretim yolu bu yüzden **domain-öncelikli tier-sort + hibrit arama** kullanır.
-> Ayrıca corpus'taki dev chunk'lar nedeniyle reranker `max_length=512` ile
-> sınırlandı → uçtan-uca gecikme **~5× düştü**.
+> ³ Streaming (SSE `draft_token`) ile kullanıcı cevabın **ilk 1-2 saniyede** oluşmaya başladığını görür.
+> ⁴ Verify açıkken claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı kaynaksız iddiaların
+> **%58.1**'ini işaretliyor (gerçek Qwen3.5 9B, 8 vatandaş sorusu).
+
+> **🔬 Mühendislik bulguları (ölç-önce, kazananı tut—kaybedeni reddet):**
+> ① **Concise-nudge** — cevabı kısaltmak latency'yi **%42 düşürdü** (18.7→11 s) *ve* verify-ratio'yu
+> %33→%45'e çıkardı (terse cevap kaynağa daha sadık → daha çok doğrulanır).
+> ② **Speculative decoding** (2× hızlanma hedefi) bu llama-cpp sürümünde generation-crash → ölçülüp **reddedildi**.
+> ③ Stored-ColBERT'te **INT8 quant** accuracy'yi düşürdü (%42.8→%35) → **fp32**'ye geçildi.
+> ④ Cross-encoder rerank vatandaş-dilinde domain@1'i iyileştirmiyordu → **ColBERT + domain-tier-sort** kullanılır.
 
 ---
 
@@ -255,7 +265,7 @@ Swagger UI → `http://127.0.0.1:8000/docs` &nbsp;·&nbsp; Sağlık → `http://
 
 ```bash
 # 3) Testleri çalıştır
-uv run --extra dev pytest tests/ -q       # 1135 passed, 6 skipped
+uv run --extra dev pytest tests/ -q       # 1313 passed, 6 skipped
 uv run --extra dev ruff check .
 uv run --extra dev mypy .
 ```
@@ -319,8 +329,8 @@ Content-Type: application/json
 |---|---|
 | **API** | FastAPI · uvicorn · pydantic v2 · slowapi · structlog |
 | **Orkestrasyon** | LangGraph · langchain-core |
-| **Retrieval** | Qdrant · BGE-M3 (dense/sparse/ColBERT) · BM25 · RRF · rapidfuzz |
-| **LLM (lokal)** | llama-cpp-python · Qwen 2.5 14B Q4_K_M (GGUF) |
+| **Retrieval** | Qdrant · Mursit-TR dense + BGE-M3 sparse/ColBERT · stored-ColBERT MAX_SIM rerank · RRF/DBSF füzyon · rapidfuzz |
+| **LLM (lokal)** | llama-cpp-python (in-process) · Qwen3.5 9B Q4_K_XL (GGUF) |
 | **Doğrulama/ML** | PyTorch (CUDA 12.4) · transformers · mDeBERTa NLI · LettuceDetect · scikit-learn |
 | **Veri** | PostgreSQL (SQLModel + asyncpg + Alembic) · Redis |
 | **Multimodal** | Tesseract (OCR) · faster-whisper (STT) · Piper (TTS) |
@@ -336,7 +346,7 @@ Content-Type: application/json
 
 ```bash
 cd backend
-uv run --extra dev pytest tests/ -q                       # 1135 passed, 6 skipped
+uv run --extra dev pytest tests/ -q                       # 1313 passed, 6 skipped
 uv run --extra dev ruff check .                            # geniş strict kural seti
 uv run --extra dev mypy .                                  # strict
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii
@@ -382,8 +392,8 @@ adalet-agent/
 │   ├── multimodal/    OCR · STT · TTS
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
-│   └── tests/         pytest suite (1135+)
-├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (149 test)
+│   └── tests/         pytest suite (1313+)
+├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (151 test)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları
 ├── infra/             Caddy ve deploy altyapısı
