@@ -435,6 +435,15 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "icra": (("IIK", 62), ("IIK", 67), ("IIK", 89), ("IIK", 264)),
     # tapu: tescil talebi (TMK 705/706) + taşınmaz satış şekli (TBK 207/237) — satış/devir ana akım.
     "tapu": (("TMK", 705), ("TMK", 706), ("TBK", 207), ("TBK", 237)),
+    # idari/trafik/vergi: ÇAPASIZdı (0 anchor) → en-sık beklenen maddeler (gold v2 frekansı)
+    # eklendi; 2-3 çapa TOP_K_LAW=8'de crowding yapmaz, sorgu-özel maddeye yer kalır (over-anchor
+    # riski yok — 0'dan başlıyor). idari: IYUK 7=dava süresi(60g), 11=üst makama başvuru.
+    "idari": (("IYUK", 7), ("IYUK", 11)),
+    # trafik: KTK 85=işletenin sorumluluğu, 91=zorunlu mali sorumluluk sigortası, 98=sağlık giderleri.
+    "trafik": (("KTK", 85), ("KTK", 91), ("KTK", 98)),
+    # vergi: VUK 29=tarh, 344=vergi ziyaı cezası (en-sık "ceza/tarhiyat" çekirdeği; diğer slotlar
+    # KDV/emlak/MTV sorgu-özel maddelere kalır).
+    "vergi": (("VUK", 29), ("VUK", 344)),
 }
 
 # Domain → ÖNCELİKLİ emsal mahkemesi (court-priority tier-sort).
