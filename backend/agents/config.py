@@ -425,7 +425,8 @@ MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true
 # yasal çekirdeği her zaman elde olsun. Yalnız MEVZUAT_DOMAIN_FILTER açıkken etkin.
 DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     # TKHK 48 (taksitli/mesafeli satış — gold v2 freq 7, en-sık 2.) eklendi; 5 çapa/8 slot, yer var.
-    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15), ("TKHK", 48)),
+    # TKHK 68 (tüketici hakem heyeti parasal sınır/başvuru — yaygın, prod-recall miss) eklendi.
+    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15), ("TKHK", 48), ("TKHK", 68)),
     # IK 41 (fazla çalışma) eklendi: ölçüldü (iter13) "fazla mesai ödemiyor" → m.25 (fesih)
     # cite ediliyordu (yanlış madde üste çıkıyor) → verify düşürüyordu. 32=ücret, 53=yıllık izin
     # de tipik isHukuku çekirdeği. Garanti-yüzeye-çıkar (icra m.62 ile aynı kanıtlı pattern).
@@ -434,19 +435,24 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     # icra: m.62 = ödeme emrine 7 GÜNlük itiraz (vatandaş "borcum yok itiraz"ının doğru maddesi);
     # bu çapa eklenmeden m.62 aday havuzuna girmiyordu → yanlış süre/madde (2026-06-04 ölçüm).
     # IIK 82 (haczedilemezlik — "maaşıma/evime haciz" vatandaş sorusu, gold v2 freq 3) eklendi.
-    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 82), ("IIK", 89), ("IIK", 264)),
+    # IIK 72 (menfi tespit / istirdat davası — yaygın vatandaş konusu, prod-recall miss) eklendi.
+    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 72), ("IIK", 82), ("IIK", 89), ("IIK", 264)),
     # tapu: tescil talebi (TMK 705/706) + taşınmaz satış şekli (TBK 207/237) — satış/devir ana akım.
     # TMK 1023 (tapu siciline güven — iyiniyetli iktisap, tapu davalarının çekirdeği) eklendi.
-    "tapu": (("TMK", 705), ("TMK", 706), ("TMK", 1023), ("TBK", 207), ("TBK", 237)),
+    # TMK 575 (muris muvazaası/tenkis) + 698 (izale-i şuyu/ortaklığın giderilmesi) — çok yaygın
+    # tapu-miras davaları, prod-recall miss → eklendi (7 çapa/8, miras+satış+sicil+izale kapsar).
+    "tapu": (("TMK", 575), ("TMK", 698), ("TMK", 705), ("TMK", 706), ("TMK", 1023), ("TBK", 207), ("TBK", 237)),
     # idari/trafik/vergi: ÇAPASIZdı (0 anchor) → en-sık beklenen maddeler (gold v2 frekansı)
     # eklendi; 2-3 çapa TOP_K_LAW=8'de crowding yapmaz, sorgu-özel maddeye yer kalır (over-anchor
     # riski yok — 0'dan başlıyor). idari: IYUK 7=dava süresi(60g), 11=üst makama başvuru.
     "idari": (("IYUK", 7), ("IYUK", 11)),
     # trafik: KTK 85=işletenin sorumluluğu, 91=zorunlu mali sorumluluk sigortası, 98=sağlık giderleri.
-    "trafik": (("KTK", 85), ("KTK", 91), ("KTK", 98)),
+    # KTK 56 (manevi/maddi tazminat — trafik kazası tazminat çekirdeği, prod-recall miss) eklendi.
+    "trafik": (("KTK", 56), ("KTK", 85), ("KTK", 91), ("KTK", 98)),
     # vergi: VUK 29=tarh, 344=vergi ziyaı cezası (en-sık "ceza/tarhiyat" çekirdeği; diğer slotlar
     # KDV/emlak/MTV sorgu-özel maddelere kalır).
-    "vergi": (("VUK", 29), ("VUK", 344)),
+    # VUK 378 (ihtirazi kayıt / dava açma — yaygın vergi-itiraz konusu, prod-recall miss) eklendi.
+    "vergi": (("VUK", 29), ("VUK", 344), ("VUK", 378)),
 }
 
 # Domain → ÖNCELİKLİ emsal mahkemesi (court-priority tier-sort).

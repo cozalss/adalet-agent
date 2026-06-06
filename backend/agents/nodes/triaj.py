@@ -81,6 +81,8 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
         "itirazın kaldırılması", "itirazın iptali", "ilamsız", "kambiyo",
         "senet", "maaş haczi", "haczedilemeyen", "borca itiraz", "imzaya itiraz",
         "satış talebi",
+        # Niş ama yaygın icra konuları (prod-recall miss: "X nedir" → unknown'a düşüyordu):
+        "menfi tespit", "istirdat",
     ),
     "trafik": (
         "trafik", "kaza", "sigorta", "kasko", "ehliyet", "plaka",
@@ -95,12 +97,15 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
         "vergi", "kdv", "ötv", "mtv", "gelir vergisi", "vergi cezası",
         "gecikme faizi", "uzlaşma", "vergi ziyaı", "usulsüzlük",
         "tarhiyat", "tecil", "taksitlendirme", "pişmanlık", "ıslah",
+        "ihtirazi kayıt",  # niş ama yaygın vergi-itiraz konusu (prod-recall miss)
     ),
     "tapu": (
         "tapu", "mülkiyet", "kat mülkiyeti", "arsa", "imar",
         "site yönetimi", "apartman", "intifa", "ipotek", "muvazaalı",
         "geçit hakkı", "şufa", "ortaklığın giderilmesi", "tescil",
         "kat irtifakı",
+        # Niş ama yaygın tapu-miras davaları (prod-recall miss: "X nedir/davası" → unknown):
+        "muris muvazaası", "muvazaa", "izale-i şuyu", "izale", "tenkis", "tapu iptali",
     ),
     "idari": (
         "idari işlem", "idare mahkemesi", "kamulaştırma", "vatandaşlık",
