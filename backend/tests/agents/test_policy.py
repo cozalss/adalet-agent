@@ -6,6 +6,8 @@ her dalı + _facts_sufficient şema mantığını doğrudan (graph/LLM olmadan) 
 
 from __future__ import annotations
 
+import pytest
+
 from agents.policy import (
     CLARIFY_MARKER,
     MAX_CLARIFICATION_ROUNDS,
@@ -164,3 +166,27 @@ def test_all_valid_domains_have_schema_entries():
     domains = {"tuketici", "isHukuku", "kira", "icra", "trafik", "vergi", "tapu", "idari"}
     assert domains <= set(REQUIRED_FACTS)
     assert domains <= set(MIN_FACTS_FOR_ANSWER)
+
+
+# --- iter8: over-clarification fix — doğal "nasıl/ne olur/haklarım/edebilir mi" → answer ---
+
+@pytest.mark.parametrize("domain,question", [
+    ("isHukuku", "işten haksız yere çıkarıldım hangi haklarım var"),
+    ("trafik", "kırmızı ışık cezasına nasıl itiraz edebilirim"),
+    ("vergi", "emlak vergimi geç ödedim gecikme cezası ne olur"),
+    ("idari", "belediyenin verdiği para cezasına itiraz edebilir miyim"),
+])
+def test_natural_info_questions_answer_not_overclarify(domain, question):
+    """Ölçülen over-clarification: bilgi/nasıl sorusu olgu-eksik olsa da cevaplanır
+    (clarify değil) — situational+general dahil (line 120 _is_general_question)."""
+    state = {"response_intent": "legal_answer", "domain": domain,
+             "case_facts": {}, "question": question}
+    assert decide_path(state) == "answer"
+
+
+def test_bare_situational_complaint_still_clarifies():
+    """Yalın durum şikâyeti (bilgi/nasıl kalıbı YOK) hâlâ clarify (regresyon yok)."""
+    for q in ("depozitomu alamıyorum", "kira çok yüksek geldi"):
+        state = {"response_intent": "legal_answer", "domain": "kira",
+                 "case_facts": {}, "question": q}
+        assert decide_path(state) == "clarify"

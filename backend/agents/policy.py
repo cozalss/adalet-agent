@@ -70,6 +70,12 @@ _GENERAL_QUESTION_MARKERS: tuple[str, ...] = (
     "itiraz edilir", "talep edilir", "kaldırılır", "feshedilir", "ödenir",
     "alınır", "verilir", "başlatılır", "kapatılır", "açılır", "nereye itiraz",
     "ne talep edebilir", "oran ne", "sınırları",
+    # iter8 (ölçülen over-clarification): doğal "nasıl/ne olur/haklarım/edebilir miyim"
+    # kalıpları clarify'a düşüyordu (markerlar eksikti). Bunlar BİLGİ/nasıl sorusu → cevapla.
+    # Yalın durumsal şikâyetler ("depozitomu alamıyorum") bunları İÇERMEZ → hâlâ clarify.
+    "haklarım", "hangi hak", "ne yapabilir", "ne yapmal", "ne olur", "ne olacak",
+    "nasıl itiraz", "edebilir mi", "yapabilir mi", "açabilir mi", "dava aç",
+    "talep edebil", "başvurabilir", "gerekir mi", "zorunda mı",
 )
 
 
