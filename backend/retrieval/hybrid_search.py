@@ -275,31 +275,9 @@ async def search_with_rerank(
     # context7 SOTA lever: BGE-M3 multi-vector (dense+sparse+ColBERT) rerank — cross-encoder
     # doğru kanunu buluyor (kanun@5=82%) ama doğru MADDE'yi seçemiyor (madde@5=37%); ColBERT
     # token-level MAX_SIM ince madde-ayrımı için. Opt-in: RERANK_PROVIDER=bgem3 (default local).
-    if _colbert_rerank_enabled():
+    if colbert_rerank_enabled():
         try:
-            # NOT: reranker.py'deki RERANK_SCORE_MIN (cross-encoder sigmoid relevance floor) bu
-            # yola UYGULANMAZ — BGE-M3 colbert+sparse+dense skoru farklı dağılımlı, eşik
-            # karşılaştırılabilir değil (review HIGH). Sadece reorder; downstream verify aynen çalışır.
-            emb = _get_colbert_embedder()  # dedicated BGE-M3 (sparse-config'ten bağımsız)
-            pairs = [(c, c.text.strip()) for c in candidates]
-            scored: list[tuple[SearchResult, float]] = []
-            nonempty = [(c, t) for c, t in pairs if t]
-            if nonempty:
-                scores = await asyncio.to_thread(
-                    emb.rerank_scores, question, [t for _, t in nonempty], _colbert_weights(),
-                )
-                scored.extend((c, s) for (c, _), s in zip(nonempty, scores, strict=True))
-            # boş/whitespace metin → compute_score'a verme (near-zero distorsiyon); en sona at.
-            scored.extend((c, -1.0) for c, t in pairs if not t)
-            scored.sort(key=lambda cs: cs[1], reverse=True)
-            return [
-                RerankResult(
-                    chunk_id=c.chunk_id, score=float(s), text=c.text, source=c.source,
-                    source_url=c.source_url, domain=c.domain, metadata=c.metadata,
-                    original_score=c.score,
-                )
-                for c, s in scored[:top_k]
-            ]
+            return await colbert_rerank_candidates(question, candidates, top_k)
         except Exception as exc:  # BGE-M3 yük/skor hatası → graceful: cross-encoder'a düş
             log.warning("colbert_rerank_failed_fallback_ce", error=str(exc) or type(exc).__name__)
 
@@ -307,7 +285,39 @@ async def search_with_rerank(
     return await asyncio.to_thread(reranker.rerank, question, candidates, top_k)
 
 
-def _colbert_rerank_enabled() -> bool:
+async def colbert_rerank_candidates(
+    question: str, candidates: list, top_k: int,
+) -> list[RerankResult]:
+    """BGE-M3 multi-vector (dense+sparse+ColBERT) rerank — adayları token-level MAX_SIM ile
+    yeniden sırala (ince madde-ayrımı). search_with_rerank + mevzuat_node PAYLAŞIR → colbert
+    benefiti production madde-ranking'e de ulaşır (node yoksa eval-only kalırdı). Adaylar
+    SearchResult VEYA RerankResult olabilir (ikisi de .text/.chunk_id/... taşır).
+
+    NOT: RERANK_SCORE_MIN (cross-encoder sigmoid floor) UYGULANMAZ — colbert+sparse+dense skoru
+    farklı dağılımlı (review HIGH). Sadece reorder; downstream verify/grounding aynen çalışır.
+    Boş/whitespace metinli aday compute_score'a verilmez (near-zero distorsiyon) → en sona."""
+    emb = _get_colbert_embedder()  # dedicated BGE-M3 (sparse-config'ten bağımsız)
+    pairs = [(c, c.text.strip()) for c in candidates]
+    scored: list[tuple[object, float]] = []
+    nonempty = [(c, t) for c, t in pairs if t]
+    if nonempty:
+        scores = await asyncio.to_thread(
+            emb.rerank_scores, question, [t for _, t in nonempty], _colbert_weights(),
+        )
+        scored.extend((c, s) for (c, _), s in zip(nonempty, scores, strict=True))
+    scored.extend((c, -1.0) for c, t in pairs if not t)
+    scored.sort(key=lambda cs: cs[1], reverse=True)
+    return [
+        RerankResult(
+            chunk_id=c.chunk_id, score=float(s), text=c.text, source=c.source,
+            source_url=c.source_url, domain=c.domain, metadata=c.metadata,
+            original_score=getattr(c, "original_score", c.score),
+        )
+        for c, s in scored[:top_k]
+    ]
+
+
+def colbert_rerank_enabled() -> bool:
     """RERANK_PROVIDER=bgem3|colbert → BGE-M3 multi-vector rerank (opt-in, default local CE).
 
     Modül-sabiti DEĞİL bilinçli (call-time getenv): eval her config'i ayrı subprocess'te

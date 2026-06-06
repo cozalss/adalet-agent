@@ -31,7 +31,13 @@ from agents.config import (
 from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.adaptive_router import route_query
-from retrieval.hybrid_search import SearchResult, fetch_maddeler, search
+from retrieval.hybrid_search import (
+    SearchResult,
+    colbert_rerank_candidates,
+    colbert_rerank_enabled,
+    fetch_maddeler,
+    search,
+)
 from retrieval.hyde import search_with_hyde
 from retrieval.multi_query import search_multi_query
 from retrieval.query_rewrite import (
@@ -233,9 +239,15 @@ async def _rank_and_build_laws(
     reranked = False
     if MEVZUAT_RERANK_ENABLED and law_cands:
         try:
-            rr = await asyncio.to_thread(
-                get_reranker().rerank, rerank_query or question, law_cands, TOP_K_LAW * 3,
-            )
+            # RERANK_PROVIDER=bgem3 → BGE-M3 ColBERT multi-vector (ince madde-ayrımı, +5.2pp
+            # eval); aksi → cross-encoder. Bu dal colbert'i PRODUCTION madde-ranking'e taşır
+            # (eval search_with_rerank'i ölçüyordu; node ayrı path'tı). Default local (CE).
+            if colbert_rerank_enabled():
+                rr = await colbert_rerank_candidates(rerank_query or question, law_cands, TOP_K_LAW * 3)
+            else:
+                rr = await asyncio.to_thread(
+                    get_reranker().rerank, rerank_query or question, law_cands, TOP_K_LAW * 3,
+                )
             if rr:
                 law_cands = rr
                 reranked = True
