@@ -28,8 +28,9 @@ log = logging.getLogger("scripts.seed_law_colbert")
 COLBERT_COLLECTION = os.getenv("COLBERT_COLLECTION", "adalet_law_colbert")
 _COLBERT_DIM = 1024  # BGE-M3 colbert token-vektör boyutu
 _BATCH = 64          # encode batch (GPU-verimli)
-_MAX_TOK = 256       # colbert token cap — madde rerank'i için yeterli; payload+storage'ı yarıya indirir
-_UPSERT_SUB = 6      # upsert alt-batch (Qdrant REST 33MB/istek limiti; colbert payload büyük)
+_MAX_TOK = 512       # colbert token cap — compute-path ile EŞLE (cap-256 madde_recall'u 40.9→34.8
+                     # düşürmüştü, uzun maddeleri truncate ediyordu). 512 → pure-colbert ~40.9%.
+_UPSERT_SUB = 3      # upsert alt-batch (cap-512 → payload ~2x; Qdrant REST 33MB/istek limiti)
 
 
 async def main() -> int:
@@ -55,9 +56,8 @@ async def main() -> int:
                 hnsw_config=models.HnswConfigDiff(m=0),
             ),
         },
-        quantization_config=models.ScalarQuantization(
-            scalar=models.ScalarQuantizationConfig(type=models.ScalarType.INT8, always_ram=True),
-        ),
+        # INT8 quant KALDIRILDI: ColBERT MAX_SIM precision-hassas; INT8 madde_recall'u 42→35%
+        # düşürmüştü (baseline altı). fp32 (~4GB, feasible) → +5.2pp korunur, latency ~aynı.
         on_disk_payload=False,
     )
     await client.create_payload_index(
