@@ -424,7 +424,8 @@ MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true
 # aday havuzuna eklenir VE final çıktıda GARANTİ edilir — vatandaşın tipik sorularının
 # yasal çekirdeği her zaman elde olsun. Yalnız MEVZUAT_DOMAIN_FILTER açıkken etkin.
 DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
-    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15)),
+    # TKHK 48 (taksitli/mesafeli satış — gold v2 freq 7, en-sık 2.) eklendi; 5 çapa/8 slot, yer var.
+    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15), ("TKHK", 48)),
     # IK 41 (fazla çalışma) eklendi: ölçüldü (iter13) "fazla mesai ödemiyor" → m.25 (fesih)
     # cite ediliyordu (yanlış madde üste çıkıyor) → verify düşürüyordu. 32=ücret, 53=yıllık izin
     # de tipik isHukuku çekirdeği. Garanti-yüzeye-çıkar (icra m.62 ile aynı kanıtlı pattern).
@@ -432,9 +433,11 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "kira": (("TBK", 299), ("TBK", 315), ("TBK", 342), ("TBK", 344), ("TBK", 347), ("TBK", 350), ("TBK", 372)),
     # icra: m.62 = ödeme emrine 7 GÜNlük itiraz (vatandaş "borcum yok itiraz"ının doğru maddesi);
     # bu çapa eklenmeden m.62 aday havuzuna girmiyordu → yanlış süre/madde (2026-06-04 ölçüm).
-    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 89), ("IIK", 264)),
+    # IIK 82 (haczedilemezlik — "maaşıma/evime haciz" vatandaş sorusu, gold v2 freq 3) eklendi.
+    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 82), ("IIK", 89), ("IIK", 264)),
     # tapu: tescil talebi (TMK 705/706) + taşınmaz satış şekli (TBK 207/237) — satış/devir ana akım.
-    "tapu": (("TMK", 705), ("TMK", 706), ("TBK", 207), ("TBK", 237)),
+    # TMK 1023 (tapu siciline güven — iyiniyetli iktisap, tapu davalarının çekirdeği) eklendi.
+    "tapu": (("TMK", 705), ("TMK", 706), ("TMK", 1023), ("TBK", 207), ("TBK", 237)),
     # idari/trafik/vergi: ÇAPASIZdı (0 anchor) → en-sık beklenen maddeler (gold v2 frekansı)
     # eklendi; 2-3 çapa TOP_K_LAW=8'de crowding yapmaz, sorgu-özel maddeye yer kalır (over-anchor
     # riski yok — 0'dan başlıyor). idari: IYUK 7=dava süresi(60g), 11=üst makama başvuru.
