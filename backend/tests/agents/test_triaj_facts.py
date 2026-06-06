@@ -213,3 +213,34 @@ def test_chat_disclaimer_only_for_legal_hint():
     from agents.nodes.finalize import _chat_needs_disclaimer
     assert _chat_needs_disclaimer("kıdem tazminatı nedir", "Kıdem tazminatı işçinin hakkıdır.")
     assert not _chat_needs_disclaimer("selam", "İyiyim, teşekkürler. Sen nasılsın?")
+
+
+# --- _merge_case_facts: 'olay' birikir, sayısal olgular override ---
+
+def test_merge_case_facts_olay_accumulates_across_turns():
+    """Multi-turn: önceki turun 'olay'ı + yeni tur 'olay' → İKİSİ DE korunur (birikim)."""
+    out = triaj_mod._merge_case_facts(
+        {"olay": "4 aydır kiracıyım kira 8000"},
+        {"olay": "ev sahibi artış yaptı"},
+    )
+    assert out["olay"] == "4 aydır kiracıyım kira 8000; ev sahibi artış yaptı"
+
+
+def test_merge_case_facts_numeric_overrides():
+    """Sayısal olgular (süre/tutar) yeni değerle ÜZERİNE yazılır (birikmez)."""
+    out = triaj_mod._merge_case_facts({"sure": "2 yıl", "tutar": "8000"}, {"sure": "3 yıl"})
+    assert out["sure"] == "3 yıl"        # override
+    assert out["tutar"] == "8000"        # korunur
+
+
+def test_merge_case_facts_olay_dedup_no_double():
+    """Aynı 'olay' iki kez gelirse tekrar EKLENMEZ (çift yok)."""
+    out = triaj_mod._merge_case_facts({"olay": "depozito iadesi"}, {"olay": "depozito iadesi"})
+    assert out["olay"] == "depozito iadesi"
+
+
+def test_merge_case_facts_olay_cap_300():
+    """Biriken 'olay' geniş cap'te (300) kırpılır — sayısal 120 cap'ten farklı."""
+    a, b = "x" * 200, "y" * 200
+    out = triaj_mod._merge_case_facts({"olay": a}, {"olay": b})
+    assert len(out["olay"]) == 300

@@ -343,12 +343,21 @@ def _history_case_facts(history: list[ConversationTurn]) -> dict[str, str]:
 
 
 def _merge_case_facts(*parts: dict[str, str]) -> dict[str, str]:
-    """Soldan sağa merge: eski olgu korunur, yeni açık cevaplar üzerine yazar."""
+    """Soldan sağa merge: sayısal olgular (süre/tutar/işçi sayısı) yeni değerle ÜZERİNE
+    yazılır; anlatı olgusu 'olay' BİRİKİR — multi-turn'de önceki turun durumu kaybolmasın
+    ("4 aydır kiracıyım" + sonraki tur "ev sahibi artış yaptı" → ikisi de korunur)."""
     merged: dict[str, str] = {}
     for part in parts:
         for key, val in part.items():
             sval = str(val).strip()
-            if sval:
+            if not sval:
+                continue
+            if key in _ACCUMULATE_FACT_KEYS and merged.get(key):
+                prior = merged[key]
+                if sval.lower() not in prior.lower():  # yeni anlatı zaten yoksa birleştir
+                    sval = f"{prior}; {sval}"
+                merged[key] = sval[:_MAX_NARRATIVE_FACT_LEN]
+            else:
                 merged[key] = sval[:_MAX_FACT_VALUE_LEN]
     return merged
 
@@ -572,6 +581,10 @@ _ALLOWED_FACT_KEYS = {
     "odenmeyen_haklar",
 }
 _MAX_FACT_VALUE_LEN = 120
+# 'olay' (serbest-metin durum anlatısı) multi-turn'de BİRİKİR (override değil) → daha geniş
+# cap. Sayısal olgular (sure/tutar/isci_sayisi) yeni değerle override → 120'de kalır.
+_ACCUMULATE_FACT_KEYS = frozenset({"olay"})
+_MAX_NARRATIVE_FACT_LEN = 300
 
 
 def _parse_triage_json(raw: str) -> tuple[Domain, float, str, dict[str, str]]:
