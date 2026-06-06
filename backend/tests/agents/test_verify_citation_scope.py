@@ -56,6 +56,23 @@ def test_layer1_still_rejects_madde_without_number():
     assert ok is False
 
 
+def test_layer1_accepts_turkish_ordinal_madde():
+    """'14. maddesi' / '17 inci madde' (numara-ÖNCE Türkçe) → format-eksik diye REDDEDİLMEZ
+    (verify-ratio teşhisi: bu form claim'leri lettuce/NLI'ya ulaşmadan düşürüyordu)."""
+    assert vl.layer1_rules(_claim("İş Kanunu'nun 14. maddesi işçiyi korur burada"))[0] is True
+    assert vl.layer1_rules(_claim("Borçlar Kanunu 342. maddesine göre depozito iadesi"))[0] is True
+
+
+def test_layer1_vague_text_still_fails_even_with_cite_ids():
+    """Metin belirsiz ('ilgili maddeleri', spesifik numara yok) → cite_ids OLSA bile format-fail
+    (verify_gold t3: 'İlgili maddede...' + cite_id placeholder'dır; cite_ids-kabul calibration'ı
+    bozuyordu). Metin SPESİFİK olmalı."""
+    ok, _msg = vl.layer1_rules(
+        {"text": "Türk Borçlar Kanunu'nun ilgili maddeleri uyarınca", "cite_ids": ["m-TBK-342"]},
+    )
+    assert ok is False
+
+
 # --- _ref_madde_no ---
 
 def test_ref_madde_no_from_source_id():

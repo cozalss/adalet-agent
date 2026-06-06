@@ -47,7 +47,9 @@ class VerifierUnavailableError(RuntimeError):
 
 # Madde referansı formatı genel desen — sentaktik geçerlilik
 _MADDE_FORMAT_RE = re.compile(
-    r"\b(?:m\.?|madde)\s*\d{1,4}\b", re.IGNORECASE,
+    r"\b(?:m\.?|madde)\s*\d{1,4}\b"                              # "madde 14" / "m.14"
+    r"|\b\d{1,4}\s*['’.]?\s*(?:inci|ıncı|nci|üncü|uncu)?\s*madde",  # "14. maddesi" / "14 üncü madde"
+    re.IGNORECASE,
 )
 # Kaynak-id formatı: "m-IK-21", "m-EIK-14", "m-TKHK-11" — draft bazen [src: ...]
 # id'sini düz prose'a gömüyor ("m-IK-21 maddesine göre..."). Bu kanonik atıf
@@ -149,8 +151,10 @@ def layer1_rules(claim: Claim) -> tuple[bool, str]:
     has_src_id = bool(_SRC_ID_RE.search(text))
     has_esas_karar = bool(_ESAS_KARAR_RE.search(text))
 
-    # "madde" kökü var ama ne "madde 21" formatı, ne kaynak-id (m-IK-21), ne de
-    # esas/karar no → numara yok, şüpheli (yer-tutucu olabilir).
+    # "madde" kökü var ama ne "madde 21"/"21. maddesi" formatı, ne kaynak-id (m-IK-21), ne de
+    # esas/karar no → SPESİFİK numara yok, şüpheli (yer-tutucu). NOT: cite_ids varlığı YETMEZ —
+    # "İlgili maddede belirtildiği gibi" + cite_id placeholder'dır, metin spesifik OLMALI
+    # (verify_gold t3; cite_ids-kabul calibration'ı bozmuştu). Ordinal "14. maddesi" regex'i kapsar.
     if has_madde_root and not (has_madde_format or has_src_id or has_esas_karar):
         return False, "'madde' geçiyor ama numara format bulunamadı"
 
