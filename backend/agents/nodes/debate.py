@@ -90,6 +90,12 @@ async def debate_node(state: AgentState) -> dict:
         # grounded cevaba döner. Yalnız ilk geçişte (retry_count==0) → +1 pass yalnız
         # would-be-reject'lerde (iyi/kısmi cevaplar üstte zaten döndü). 2. geçiş hâlâ 0 →
         # gerçek reject (MAX_RETRY guard'ı da var). LLM debate KAPALI olsa da geçerli (re-draft).
+        # 0 doğrulanmış claim → bir kez deterministik retry (re-retrieve + re-draft). Draft
+        # GPU-FP non-determinism nedeniyle bazı sorularda 0/0 verir; 2. draft sıklıkla ground'lar.
+        # NOT: MAX_RETRY (3) bütçesine çıkarmak ÖLÇÜLDÜ ve REDDEDİLDİ (8-domain rating): kira/
+        # isHukuku gibi SİSTEMATİK 0-verified phrasing'lerde 3 retry de kurtarmıyor, yalnız latency
+        # ekliyor (34→52s). Sistematik fail = draft-faithfulness (verify doğru düşürüyor, red-line) →
+        # retry değil, daha iyi draft gerek. 1× retry random bad-draw'u yakalar, sistematiği değil.
         if retry_count == 0:
             return _final(
                 state,

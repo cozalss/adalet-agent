@@ -80,7 +80,8 @@ async def test_debate_handles_llm_failure_gracefully(base_state, monkeypatch):
 @pytest.mark.asyncio
 async def test_debate_retry_once_on_zero_verified_then_reject(base_state, monkeypatch):
     """iter14: fast-mode'da 0-doğrulanmış-claim → ilk geçişte reddetmeden RETRY (draft
-    non-determinism telafisi); 2. geçişte hâlâ 0 → reject."""
+    non-determinism telafisi); 2. geçişte hâlâ 0 → reject. (MAX_RETRY'a çıkarmak ölçüldü-reddedildi:
+    sistematik 0-verified phrasing'lerde retry kurtarmıyor, sadece latency ekliyor.)"""
     monkeypatch.delenv("DEBATE_LLM_ON_RETRY", raising=False)  # fast mode
     claims = [{"text": "x", "cite_ids": [], "verified": False, "verify_score": 0.0, "verify_reason": ""}]
     # 1. geçiş (retry_count=0): retry
