@@ -85,18 +85,21 @@ def _promote_first_verified_as_bluf(text: str) -> str:
     """Gövde 'Kısa cevap' DIŞINDA bir kalın-başlıkla başlıyorsa (verify orijinal BLUF'u
     düşürdü veya model atladı) ilk KAYNAĞA-BAĞLI cümleyi 'Kısa cevap' olarak öne çek.
 
-    Promote edilen cümle text'ten ([src:] etiketli, _filter_to_verified'dan geçmiş)
-    VERBATIM alınır → grounding korunur (yeni/uydurma iddia ÜRETİLMEZ). Eski boilerplate
-    placeholder'ın YERİNE geçer. No-op: BLUF zaten var / gövde düz metin / [src:]'li içerik
-    cümlesi yok / cümle gövdede birebir bulunamıyor (graceful — tekrar ÜRETME)."""
+    Bölüm-başlığıyla başlayan VEYA çok-cümleli düz-metin (model başlık atlamış) gövdelerde
+    çalışır. Promote edilen cümle text'ten ([src:] etiketli, _filter_to_verified'dan geçmiş)
+    VERBATIM alınır → grounding korunur (yeni/uydurma iddia ÜRETİLMEZ). No-op: BLUF zaten var /
+    [src:]'li içerik cümlesi yok / cümle gövdede bulunamıyor / tek-cümlelik düz metin (graceful)."""
     body = text.lstrip()
     if _KISACEVAP_RE.match(body):          # BLUF zaten var → dokunma (çift başlık olmaz)
         return text
-    if not _BOLD_HEADER_RE.match(body):    # düz metin başı → yapısal boşluk yok
-        return text
     first_sentence = _first_content_sentence(body)
     if not first_sentence or first_sentence not in body:
-        # içerik yok VEYA birleştirme whitespace farkı (paragraf-arası) → no-op (tekrar ÜRETME)
+        # [src:]'li içerik cümlesi yok VEYA birleştirme whitespace farkı → no-op (tekrar ÜRETME)
+        return text
+    # Promote koşulu: ya bölüm-başlığıyla başlıyor (orijinal BLUF düştü/atlandı), YA DA
+    # düz-metin ama ÇOK-CÜMLELİ uzun cevap (model "Kısa cevap" başlığını atlamış — answer-first
+    # ekle). Tek-cümlelik düz metne gereksiz "Kısa cevap" başlığı KOYMA.
+    if not _BOLD_HEADER_RE.match(body) and len(_sentence_spans(body)) < 2:
         return text
     # Çift gösterimi önle: cümleyi gövdeden çıkar; arta kalan SADECE-BAŞTAKİ boş başlığı sil
     # (gövde ilerisindeki gerçek başlıkları KORU — adversarial HIGH).

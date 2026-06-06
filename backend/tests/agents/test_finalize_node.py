@@ -634,3 +634,22 @@ def test_reject_help_body_retry_vs_needinfo_tone():
     from agents.nodes.finalize import _reject_help_body
     assert "tekrar deneyebilirim" in _reject_help_body("trafik", "retry")
     assert "biraz daha bilgiye ihtiyacım var" in _reject_help_body("trafik", "")
+
+
+def test_promote_bluf_from_multi_sentence_prose():
+    """Düz-metin ÇOK-CÜMLELİ cevapta (model 'Kısa cevap' başlığını atlamış) ilk [src:]'li
+    cümle BLUF olarak öne çekilir (tuketici sweep'inde başlık çıkmıyordu)."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = ("Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11]. "
+            "Ayrıca bedel indirimi isteyebilir [src: m-TKHK-8].")
+    out = _promote_first_verified_as_bluf(body)
+    assert out.startswith("**Kısa cevap:** Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11].")
+    assert "bedel indirimi isteyebilir" in out
+    assert out.count("Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11].") == 1  # dedup
+
+
+def test_promote_bluf_noop_single_sentence_prose():
+    """Tek-cümlelik düz metne gereksiz 'Kısa cevap' başlığı KOYMA."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = "Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11]."
+    assert _promote_first_verified_as_bluf(body) == body
