@@ -10,7 +10,6 @@
                   taranabilir stat-bloklar olarak gösterir (Güven · Kaynak · İddia). */
 import React, { useState, useEffect } from "react";
 import { Icon } from "./icons.jsx";
-import { stripAnswerTail } from "../lib/parseAnswer.js";
 
 /** %0→value ease-out-cubic sayaç (reduced-motion saygılı). */
 function useCountUp(value) {
@@ -202,28 +201,6 @@ export function PredictionCard({ prediction: p }) {
   );
 }
 
-/* ---------- Canlı taslak (yazılıyor → doğrulanıyor) ----------
-   DOĞRULANMAMIŞ akan taslak. [src:] etiketleri + ** kalın işaretleri canlı görünümde
-   sadeleştirilir. final gelince App bunu DOĞRULANMIŞ AnswerCard ile DEĞİŞTİRİR —
-   akan taslak asla nihai cevap gibi sunulmaz (sıfır-halüsinasyon çizgisi). */
-export function LiveDraft({ text, verifying }) {
-  // ÖNCE finalize kuyruğunu (⚠️ disclaimer + Kaynaklar) kes — model kendi kapanış
-  // disclaimer'ını token olarak yazsa bile akışta görünüp final'de kaybolmasın
-  // (içerik-flip önlenir; disclaimer tek otorite DisclaimerBar'da). Sonra [src:]/** sadeleştir.
-  const clean = stripAnswerTail(text)
-    .replace(/\[src:[^\]]*\]/gi, "")
-    .replace(/\*\*/g, "");
-  return (
-    <div className="card live-draft" aria-live="polite">
-      <div className={"ld-badge" + (verifying ? " verifying" : "")}>
-        <span className="ld-dot"></span>
-        {verifying ? "Doğrulanıyor — iddialar kaynaklarla eşleştiriliyor" : "Yazıyor…"}
-      </div>
-      <p className="ld-text">{clean}<span className="ld-caret"></span></p>
-    </div>
-  );
-}
-
 /* ---------- Anında "düşünüyor/yazıyor" (ChatGPT-feel hafif gösterge) ----------
    Token gelmeden önceki kısa boşluğu doldurur; ağır 4-adım stepper yerine ilk anlarda. */
 export function QuickTyping({ label = "Düşünüyor" }) {
@@ -233,18 +210,6 @@ export function QuickTyping({ label = "Düşünüyor" }) {
         <span className="qt-dot"></span><span className="qt-dot"></span><span className="qt-dot"></span>
       </span>
       <span className="qt-label">{label}…</span>
-    </div>
-  );
-}
-
-/* ---------- Düşünme/draft iskeleti (shimmer) ---------- */
-export function ThinkingSkeleton() {
-  return (
-    <div className="card answer thinking-skl" aria-hidden="true">
-      <div className="skl" style={{ height: 12, width: "38%", marginBottom: 13 }}></div>
-      <div className="skl" style={{ height: 11, width: "100%", marginBottom: 8 }}></div>
-      <div className="skl" style={{ height: 11, width: "93%", marginBottom: 8 }}></div>
-      <div className="skl" style={{ height: 11, width: "58%" }}></div>
     </div>
   );
 }

@@ -87,3 +87,9 @@ _eval*.json
 frontend/test-results/
 frontend/playwright-report/
 frontend/.last-run.json
+
+# Session scratch / probe çıktıları (kazara commit önle)
+.run/
+/stepper-*.png
+backend/eval/runs/*.txt
+backend/scripts/*_probe.py
