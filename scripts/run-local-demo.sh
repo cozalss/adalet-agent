@@ -54,7 +54,12 @@ set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection
 # kira+kıdem'de daha az uydurma/sahte-grounding; 8B kıdem'i reject ederken 3.5 doğru+emsal). Runtime
 # 0.3.25'te YÜKLENİYOR (upgrade yok), thinking DEFAULT KAPALI, VRAM ~8.5/12.3GB, ~23 tok/s. Apache-2.0,
 # 201 dil (TR), 262k ctx, benchmark 8B'den belirgin üstün (GPQA 81.7/MMLU-Pro 82.5).
-export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=512 LLM_SPECULATIVE=0
+# Latency (çok-ajan araştırma 2026-06-06): draft LLM decode latency'nin ~%90'ı (~215 token @ 23 tok/s).
+# SPECULATIVE=1 ÖLÇÜLDÜ+REDDEDİLDİ: 4-ref prompt'ta DA "could not broadcast (...) into (0,)" crash'liyor
+# → draft_llm_failed HER sorguda (suppress yalnız LOAD'ı sarıyor, GENERATION crash'i propagate).
+# Spec-decode bu llama-cpp-python sürümünde viable değil → 0 KALIR. N_BATCH 512→1024 (kod-default)
+# prefill hızlandırır (OOM olursa 768; flash_attn KV-cache küçülttüğü için sığmalı).
+export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=1024 LLM_SPECULATIVE=0
 export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
 export LLM_NO_THINK=1   # 3.5 default-off; /no_think + _strip_think backstop (defansif)
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
