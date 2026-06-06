@@ -101,3 +101,18 @@ async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
     # B(0.9) > C(0.5) > A(0.1) > boş(-1.0)
     assert [r.chunk_id for r in out] == ["c1", "c2", "c0", "c3"]
     assert out[-1].chunk_id == "c3"  # whitespace en sonda
+
+
+def test_minmax_normalize():
+    """_minmax: [lo..hi]→[0..1]; tüm-eşit → 0.5 (sıfıra-bölme guard)."""
+    assert hs._minmax([1.0, 3.0, 5.0]) == [0.0, 0.5, 1.0]
+    assert hs._minmax([2.0, 2.0]) == [0.5, 0.5]
+
+
+def test_colbert_fuse_weight_default_and_parse(monkeypatch):
+    monkeypatch.delenv("COLBERT_FUSE_WEIGHT", raising=False)
+    assert hs._colbert_fuse_weight() == 0.5
+    monkeypatch.setenv("COLBERT_FUSE_WEIGHT", "0.6")
+    assert hs._colbert_fuse_weight() == 0.6
+    monkeypatch.setenv("COLBERT_FUSE_WEIGHT", "bozuk")
+    assert hs._colbert_fuse_weight() == 0.5  # parse hatası → default

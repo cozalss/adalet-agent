@@ -342,20 +342,51 @@ async def _colbert_rerank_qdrant(question, candidates, top_k, client) -> list[Re
             key="chunk_id", match=models.MatchAny(any=list(by_chunk.keys())))]),
         limit=max(top_k, len(by_chunk)), with_payload=["chunk_id"],
     )
-    ranked: list[RerankResult] = []
+    hit_scores: list[tuple[object, float]] = []
     seen: set[str] = set()
     for h in hits.points:
         cid = (h.payload or {}).get("chunk_id")
         c = by_chunk.get(cid)
         if c is not None and cid not in seen:
             seen.add(cid)
-            ranked.append(_rr_from(c, h.score))
+            hit_scores.append((c, float(h.score)))
+    if _colbert_fuse_hybrid() and len(hit_scores) > 1:
+        # dense+sparse sinyalini geri kat (stored pure-colbert'in eksiği): candidate'ın hybrid
+        # (RRF) skoru + colbert MAX_SIM'i min-max normalize edip ağırlıklı topla → weighted'e
+        # yaklaş (40.9→~42 hedefi), HIZLI kalır (ekstra forward yok). Opt-in COLBERT_FUSE_HYBRID.
+        cb = [s for _, s in hit_scores]
+        hy = [float(getattr(c, "original_score", c.score)) for c, _ in hit_scores]
+        ncb, nhy = _minmax(cb), _minmax(hy)
+        w = _colbert_fuse_weight()
+        fused = [(hit_scores[i][0], w * ncb[i] + (1.0 - w) * nhy[i]) for i in range(len(hit_scores))]
+        fused.sort(key=lambda cs: cs[1], reverse=True)
+        ranked = [_rr_from(c, s) for c, s in fused]
+    else:
+        ranked = [_rr_from(c, s) for c, s in hit_scores]
     # Yan collection'da olmayan aday (ör. law-dışı/yeni) → orijinal sırada sona ekle (recall korunur).
     for c in candidates:
         if c.chunk_id not in seen:
             seen.add(c.chunk_id)
             ranked.append(_rr_from(c, getattr(c, "original_score", c.score)))
     return ranked[:top_k]
+
+
+def _minmax(xs: list[float]) -> list[float]:
+    lo, hi = min(xs), max(xs)
+    return [(x - lo) / (hi - lo) if hi > lo else 0.5 for x in xs]
+
+
+def _colbert_fuse_hybrid() -> bool:
+    """Stored colbert MAX_SIM'i candidate hybrid skoruyla füzyonla (dense+sparse geri-kat). Opt-in."""
+    return os.getenv("COLBERT_FUSE_HYBRID", "0").lower() in {"1", "true", "yes"}
+
+
+def _colbert_fuse_weight() -> float:
+    """Füzyonda colbert ağırlığı (kalan = hybrid). COLBERT_FUSE_WEIGHT, default 0.5."""
+    try:
+        return float(os.getenv("COLBERT_FUSE_WEIGHT", "0.5"))
+    except (ValueError, TypeError):
+        return 0.5
 
 
 async def _colbert_rerank_compute(question, candidates, top_k) -> list[RerankResult]:

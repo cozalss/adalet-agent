@@ -76,6 +76,10 @@ export RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 # rerank=sorgu-colbert(1 forward, CPU)+Qdrant MAX_SIM → passage-forward YOK → deployable (hızlı).
 # Önkoşul: `uv run python -m scripts.seed_law_colbert` (GPU). COLBERT_RERANK_DEVICE=cpu (query-encode).
 export RERANK_PROVIDER=bgem3 COLBERT_RERANK_DEVICE=cpu COLBERT_RERANK_WEIGHTS=0.4,0.2,0.4
+# Stored-colbert pure-colbert (40.9%) + candidate hybrid (RRF=dense+sparse) füzyonu → dense+sparse
+# sinyalini geri katar. ÖLÇÜLDÜ (eval v2 law): w=0.6 madde_recall@5=42.8% (compute-weighted 42.2'yi
+# bile GEÇTİ), HIZLI (stored, ekstra forward yok). recall@5 grounding-baskın metrik.
+export COLBERT_FUSE_HYBRID=1 COLBERT_FUSE_WEIGHT=0.6
 export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
 # Verify sertleştirme — E2E ölçülmüş-güvenli (2026-06-04, over-reject yok): yüksek-riskli
 # uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded
