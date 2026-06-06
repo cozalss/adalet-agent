@@ -76,6 +76,9 @@ _GENERAL_QUESTION_MARKERS: tuple[str, ...] = (
     "haklarım", "hangi hak", "ne yapabilir", "ne yapmal", "ne olur", "ne olacak",
     "nasıl itiraz", "edebilir mi", "yapabilir mi", "açabilir mi", "dava aç",
     "talep edebil", "başvurabilir", "gerekir mi", "zorunda mı",
+    # prod-recall miss (over-clarify): "kira artış TÜFE üstünde olabilir mi" gibi yes/no hukuk
+    # soruları clarify'a düşüyordu → açık soru marker'ları (yalın şikâyet bunları içermez).
+    "olabilir mi", "olur mu", "geçerli mi", "parasal sınır",
     # iter11 (ölçülen "uzlaşma nasıl olur" → clarify): bare soru-kelimeleri — whack-a-mole
     # marker'ı bitirir, soru-biçimli her şeyi yakalar. ("kim" YOK — "hakim" içinde geçer, FP).
     "nasıl", "hangi", "neden", "niçin", "niye", "ne zaman", "nereye", "nerede", "nereden",
