@@ -173,6 +173,39 @@ class Embedder:
         colbert = out.colbert[0] if out.colbert else None
         return out.dense[0], out.sparse[0], colbert
 
+    def rerank_scores(
+        self,
+        query: str,
+        passages: list[str],
+        weights: tuple[float, float, float] = (0.4, 0.2, 0.4),
+        max_passage_length: int = 512,
+    ) -> list[float]:
+        """BGE-M3 multi-vector (dense+sparse+ColBERT) ağırlıklı rerank skorları.
+
+        context7 SOTA (FlagEmbedding compute_score, weights_for_different_modes=
+        [dense, sparse, colbert]): token-level MAX_SIM (ColBERT late-interaction)
+        ile İNCE madde-ayrımı — cross-encoder'ın yapamadığı "aynı kanunun doğru
+        maddesi" disambiguation'ını hedefler (ölçüldü: kanun@5=82% ama madde@5=37%).
+
+        Yalnız BGE-M3 modelinde anlamlı (Mursit dense-only). Kilitle serialize
+        (compute_score tek-device forward, thread-safe değil)."""
+        if not passages:
+            return []
+        if len(weights) != 3:  # compute_score 3 mod bekler (lock'tan ÖNCE doğrula — review HIGH)
+            raise ValueError(f"weights uzunluğu 3 olmalı (dense,sparse,colbert); got {len(weights)}")
+        pairs = [[query, p] for p in passages]
+        with self._encode_lock:
+            out = self._model.compute_score(
+                pairs,
+                weights_for_different_modes=list(weights),
+                max_passage_length=max_passage_length,
+            )
+        # list-of-lists input → compute_score HER ZAMAN dict[str, list] döner (skaler yalnız tek
+        # raw-tuple/str input'ta; biz hep [[q,p],...] geçiyoruz → skaler dalı yok, review HIGH).
+        scores = out["colbert+sparse+dense"]  # ağırlıklı birleşik skor
+        assert isinstance(scores, list), f"compute_score beklenmeyen tip: {type(scores)}"
+        return [float(s) for s in scores]
+
     # ----------------------------------------------------------------------
     #  Async wrappers — encode CPU/GPU-bound; event loop'u bloke etmemeli.
     #  Sync encode() PyTorch forward'ı async path'te (her /ask request)

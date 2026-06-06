@@ -128,6 +128,24 @@ def _get_sparse_embedder() -> Embedder | MursitEmbedder:
     return _sparse_embedder_singleton
 
 
+_colbert_embedder_singleton: Embedder | None = None
+
+
+def _get_colbert_embedder() -> Embedder:
+    """ColBERT-rerank için DEDICATED BGE-M3 (compute_score multi-vector).
+
+    Sparse-retrieval'dan AYRI (SPARSE_EMBEDDER_MODEL'e bağlı değil) — demo BGE-M3 sparse'ı
+    GPU-OOM için kapatsa bile colbert-rerank çalışır. Default CPU (COLBERT_RERANK_DEVICE):
+    Qwen GPU'yu doldurur → BGE-M3 (~2GB) CPU'da, OOM yok; rerank ~30 aday → kabul edilebilir
+    latency. Singleton (bir kez yüklenir)."""
+    global _colbert_embedder_singleton
+    if _colbert_embedder_singleton is None:
+        model = os.getenv("COLBERT_RERANK_MODEL", "BAAI/bge-m3")
+        device = os.getenv("COLBERT_RERANK_DEVICE", "cpu").strip().lower()
+        _colbert_embedder_singleton = Embedder(model, device=device)
+    return _colbert_embedder_singleton
+
+
 async def _detect_colbert_support(client) -> bool:
     """Bir kez kontrol et + cache'le; her sorguda Qdrant'a sormak istemiyoruz."""
     global _colbert_supported_cache
@@ -254,8 +272,58 @@ async def search_with_rerank(
     if not candidates:
         return []
 
+    # context7 SOTA lever: BGE-M3 multi-vector (dense+sparse+ColBERT) rerank — cross-encoder
+    # doğru kanunu buluyor (kanun@5=82%) ama doğru MADDE'yi seçemiyor (madde@5=37%); ColBERT
+    # token-level MAX_SIM ince madde-ayrımı için. Opt-in: RERANK_PROVIDER=bgem3 (default local).
+    if _colbert_rerank_enabled():
+        try:
+            # NOT: reranker.py'deki RERANK_SCORE_MIN (cross-encoder sigmoid relevance floor) bu
+            # yola UYGULANMAZ — BGE-M3 colbert+sparse+dense skoru farklı dağılımlı, eşik
+            # karşılaştırılabilir değil (review HIGH). Sadece reorder; downstream verify aynen çalışır.
+            emb = _get_colbert_embedder()  # dedicated BGE-M3 (sparse-config'ten bağımsız)
+            pairs = [(c, c.text.strip()) for c in candidates]
+            scored: list[tuple[SearchResult, float]] = []
+            nonempty = [(c, t) for c, t in pairs if t]
+            if nonempty:
+                scores = await asyncio.to_thread(
+                    emb.rerank_scores, question, [t for _, t in nonempty], _colbert_weights(),
+                )
+                scored.extend((c, s) for (c, _), s in zip(nonempty, scores, strict=True))
+            # boş/whitespace metin → compute_score'a verme (near-zero distorsiyon); en sona at.
+            scored.extend((c, -1.0) for c, t in pairs if not t)
+            scored.sort(key=lambda cs: cs[1], reverse=True)
+            return [
+                RerankResult(
+                    chunk_id=c.chunk_id, score=float(s), text=c.text, source=c.source,
+                    source_url=c.source_url, domain=c.domain, metadata=c.metadata,
+                    original_score=c.score,
+                )
+                for c, s in scored[:top_k]
+            ]
+        except Exception as exc:  # BGE-M3 yük/skor hatası → graceful: cross-encoder'a düş
+            log.warning("colbert_rerank_failed_fallback_ce", error=str(exc) or type(exc).__name__)
+
     reranker = get_reranker()
     return await asyncio.to_thread(reranker.rerank, question, candidates, top_k)
+
+
+def _colbert_rerank_enabled() -> bool:
+    """RERANK_PROVIDER=bgem3|colbert → BGE-M3 multi-vector rerank (opt-in, default local CE).
+
+    Modül-sabiti DEĞİL bilinçli (call-time getenv): eval her config'i ayrı subprocess'te
+    farklı env ile koşuyor + testler monkeypatch ediyor → runtime-okuma gerekli (review LOW)."""
+    return os.getenv("RERANK_PROVIDER", "local").lower() in {"bgem3", "colbert", "bge-m3"}
+
+
+def _colbert_weights() -> tuple[float, float, float]:
+    """Dense/sparse/colbert ağırlıkları — COLBERT_RERANK_WEIGHTS='d,s,c' (default 0.4,0.2,0.4,
+    FlagEmbedding MLDR-önerisi colbert-ağırlıklı)."""
+    raw = os.getenv("COLBERT_RERANK_WEIGHTS", "0.4,0.2,0.4")
+    try:
+        d, s, c = (float(x) for x in raw.split(","))
+        return (d, s, c)
+    except (ValueError, TypeError):
+        return (0.4, 0.2, 0.4)
 
 
 async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:

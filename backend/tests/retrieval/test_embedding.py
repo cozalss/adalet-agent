@@ -103,3 +103,16 @@ async def test_aencode_batches_all_texts(monkeypatch):
     assert captured["texts"] == ["a", "b"]
     assert out.dense == [[1.0], [2.0]]
     assert out.sparse[1] == ([2], [0.2])
+
+
+# --- rerank_scores: weights validation + empty (model YÜKLEMEDEN — lock'tan önce) ---
+
+def test_rerank_scores_empty_passages_returns_empty():
+    """Boş passages → model'e dokunmadan [] (erken return)."""
+    assert Embedder("dummy-no-load").rerank_scores("soru", []) == []
+
+
+def test_rerank_scores_bad_weights_raises_before_model():
+    """weights uzunluğu ≠3 → lock/model'den ÖNCE ValueError (review HIGH/MEDIUM)."""
+    with pytest.raises(ValueError, match="uzunluğu 3"):
+        Embedder("dummy-no-load").rerank_scores("soru", ["pasaj"], weights=(0.5, 0.5))  # type: ignore[arg-type]

@@ -7,7 +7,11 @@ ile A/B ölçülür. Default rrf → davranış değişmez (geriye-uyumlu).
 
 from __future__ import annotations
 
+import pytest
+
 import retrieval.hybrid_search as hs
+from retrieval.embedding import Embedder
+from retrieval.hybrid_search import SearchResult
 
 
 def test_fusion_for_default_is_rrf(monkeypatch):
@@ -67,3 +71,32 @@ async def test_maybe_dual_sparse_no_model_is_noop(monkeypatch):
     monkeypatch.setattr(hs, "_SPARSE_MODEL", "")
     idx, val = await hs.maybe_dual_sparse("soru", [], [], "vergi")
     assert idx == [] and val == []
+
+
+# --- colbert-rerank (RERANK_PROVIDER=bgem3) branch: reorder + empty-guard ---
+
+
+@pytest.mark.asyncio
+async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
+    """RERANK_PROVIDER=bgem3 → BGE-M3 skoruna göre reorder; boş-metin aday en sona (review LOW)."""
+    cands = [
+        SearchResult(chunk_id=f"c{i}", score=0.5, text=t, source="s", source_url="",
+                     domain="kira", metadata={})
+        for i, t in enumerate(["Aaa", "Bbb", "Ccc", "   "])  # 4. whitespace
+    ]
+
+    async def _fake_search(**kwargs):
+        return cands
+
+    fake_emb = Embedder("dummy-no-load")
+    # rerank_scores'u override et (model yüklenmez); A=0.1, B=0.9, C=0.5 → boş hariç
+    fake_emb.rerank_scores = lambda _q, passages, _w=None: [0.1, 0.9, 0.5][: len(passages)]  # type: ignore[assignment]
+
+    monkeypatch.setenv("RERANK_PROVIDER", "bgem3")
+    monkeypatch.setattr(hs, "search", _fake_search)
+    monkeypatch.setattr(hs, "_get_colbert_embedder", lambda: fake_emb)
+
+    out = await hs.search_with_rerank("soru", top_k=4, candidates_n=10)
+    # B(0.9) > C(0.5) > A(0.1) > boş(-1.0)
+    assert [r.chunk_id for r in out] == ["c1", "c2", "c0", "c3"]
+    assert out[-1].chunk_id == "c3"  # whitespace en sonda
