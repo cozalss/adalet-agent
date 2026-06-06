@@ -581,10 +581,11 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
               ? <SmallTalkBubble text={d.draftText} />
               : <QuickTyping label="Yazıyor" />
           )}
-          {/* İlk an (triage) hukuki yolda → hafif "düşünüyor". */}
-          {streaming && !softPath && p === "triage" && <QuickTyping label="Düşünüyor" />}
-          {/* sources/verifying → 7-ajan şeffaflık stepper'ı (ADALET'in farkı) korunur. */}
-          {streaming && !softPath && p !== "triage" && (
+          {/* Hukuki yol: İLK fazdan (triage) itibaren 7-ajan şeffaflık stepper'ı — staged
+              streaming status (ADALET'in farkı). Önceden triage'da "Düşünüyor" spinner vardı;
+              artık baştan stepper (sınıflandırma→mevzuat→doğrulama aşamaları görünür → lokal
+              model daha hızlı HİSSEDİLİR + hangi aşamada olduğu şeffaf). */}
+          {streaming && !softPath && (
             <StreamStepper phase={p} customLabel={d.domain ? `Soru sınıflandırıldı — ${d.domain}` : null} />
           )}
           {/* HUKUK yolu "tek şey": ham DOĞRULANMAMIŞ taslak prose'u gösterilmez (kullanıcı

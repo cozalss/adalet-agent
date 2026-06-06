@@ -22,6 +22,16 @@ describe("StreamStepper", () => {
   it("customLabel yalnız triage (ilk adım) için kullanılır", () => {
     expect(html(<StreamStepper phase="triage" customLabel="Özel etiket" />)).toContain("Özel etiket");
   });
+  it("triage fazında 1. adım + sınıflandırma etiketi (artık baştan stepper)", () => {
+    const out = html(<StreamStepper phase="triage" />);
+    expect(out).toContain('aria-valuenow="1"');
+    expect(out).toContain("sınıflandırılıyor");
+  });
+  it("a11y: aşama değişimini duyuran aria-live bölgesi var", () => {
+    const out = html(<StreamStepper phase="sources" />);
+    expect(out).toContain('aria-live="polite"');
+    expect(out).toContain("Aşama:");
+  });
 });
 
 describe("Badge", () => {

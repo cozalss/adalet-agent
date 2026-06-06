@@ -42,6 +42,14 @@ export function StreamStepper({ phase, customLabel }) {
         <span className="pulse"></span>
         {label}
       </div>
+      {/* Ekran okuyucu: aşama değişimini sesli duyur (progressbar valuetext yalnız
+          odakta okunur; canlı bölge her faz değişiminde "Aşama: …" anons eder). */}
+      <span
+        aria-live="polite"
+        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}
+      >
+        {label ? "Aşama: " + label : ""}
+      </span>
     </div>
   );
 }
