@@ -190,3 +190,13 @@ def test_bare_situational_complaint_still_clarifies():
         state = {"response_intent": "legal_answer", "domain": "kira",
                  "case_facts": {}, "question": q}
         assert decide_path(state) == "clarify"
+
+
+def test_bare_question_words_answer_iter11():
+    """iter11: bare soru-kelimeleri (nasıl/hangi/...) over-clarification'ı keser
+    ('uzlaşma nasıl olur' clarify'a düşüyordu)."""
+    for dom, q in [("vergi", "vergi ziyaı cezasında uzlaşma nasıl olur"),
+                   ("kira", "kira davası için hangi mahkemeye başvurmalıyım"),
+                   ("idari", "bu karara neden itiraz edemiyorum")]:
+        assert decide_path({"response_intent": "legal_answer", "domain": dom,
+                            "case_facts": {}, "question": q}) == "answer"
