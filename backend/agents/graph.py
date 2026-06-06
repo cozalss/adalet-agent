@@ -152,9 +152,25 @@ def _route_after_debate(state: AgentState) -> list[str] | str:
     # `<` yapılırsa finalize "retry" verdict'iyle biter (çözülmemiş) — YANLIŞ.
     # test_graph_retry_limit_terminates bu invariant'ı doğrular.
     if verdict == "retry" and retry_count <= MAX_RETRY:
+        # fast_retry (latency): HyDE/MQ KAPALIYKEN retrieval DETERMİNİSTİK → re-retrieve
+        # birebir AYNI ref'i döndürür (israf: ~1-2s retrieval + re-prefill). Retry'nın amacı
+        # yalnız re-DRAFT (GPU-FP draft non-determinism telafisi), yeni kaynak değil → ref'ler
+        # state'de varken doğrudan draft'a git. HyDE/MQ AÇIKsa (stokastik retrieval yardımcı
+        # olabilir) eski re-retrieve yolu korunur. Verify/debate AYNEN çalışır (red-line nötr).
+        if _fast_retry_ok(state):
+            return "draft"
         return ["mevzuat", "emsal"]
     # pass veya reject veya retry-limit-doldu → finalize (veya tahmin → finalize)
     return _sink()
+
+
+def _fast_retry_ok(state: AgentState) -> bool:
+    """Retry'da retrieval atlanabilir mi? HyDE/MQ kapalı (deterministik retrieval) + ref'ler
+    zaten state'de → re-retrieve israf, doğrudan re-draft yeterli."""
+    hyde = os.environ.get("HYDE_ENABLED", "0").lower() in {"1", "true", "yes"}
+    mq = os.environ.get("MULTI_QUERY_ENABLED", "0").lower() in {"1", "true", "yes"}
+    has_refs = bool(state.get("mevzuat_refs") or state.get("emsal_refs"))
+    return has_refs and not hyde and not mq
 
 
 def _crag_enabled() -> bool:
@@ -278,7 +294,7 @@ def build_graph() -> Any:
     # Debate sonrası: (self_rag ek katmanı varsa) → router.
     # retry → mevzuat+emsal re-retrieve (sonra post_chain → draft → verify → debate);
     # MAX_RETRY guard döngüyü sınırlar. pass/reject → sink.
-    _retry_targets = ["mevzuat", "emsal", sink]
+    _retry_targets = ["mevzuat", "emsal", "draft", sink]  # "draft": fast_retry (re-retrieve atla)
     if self_rag_on:
         g.add_edge("debate", "self_rag")
         g.add_conditional_edges(
