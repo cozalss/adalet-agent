@@ -34,6 +34,12 @@ FUZZY_SUPPORT_THRESHOLD = 0.45   # fuzzy >= bu = pozitif destek (0.72→0.60→0
 #   th=0.55 → F1=0.53 Acc=0.61 (TP=13 FP=11 TN=23 FN=12)  ← eski değer
 # 0.45 ile 10 gerçek-pozitif kazanılır (+recall), 4 yanlış-pozitif artar;
 # ek FP'ler NLI contradiction veto (0.70) + Lettuce veto (0.15) tarafından yakalanır.
+# Cited iddialarda (CITE_GROUNDING_CHECK) fuzzy TEK BAŞINA yetmez (misgrounding'i kapatmak için
+# lettuce/NLI şart). AMA cite hedefine NEAR-VERBATIM (≥ bu yüksek bar) fuzzy = claim metni
+# cited-source'ta birebir geçiyor demektir → grounded (yanlış-cite bu kadar yüksek fuzzy VEREMEZ).
+# TR-NLI/lettuce zayıflığının false-drop'unu kurtarır. 0.92 = çok-yüksek bar (genel 0.45'in
+# çok üstünde) → yalnız near-verbatim kabul; calibration-harness ile doğrulandı (FP artmaz).
+CITE_FUZZY_HIGH_BAR = float(os.getenv("CITE_FUZZY_HIGH_BAR", "0.92"))
 LETTUCE_SUPPORT_THRESHOLD = 0.45 # LettuceDetect token-grounding (0.55→0.45)
 LETTUCE_VETO_THRESHOLD = 0.15    # LettuceDetect < bu = veto (0.20→0.15)
 MIN_VERIFIED_CLAIMS_RATIO = 0.20 # taslakta kanıtlanan claim oranı (0.50→0.30→0.20)

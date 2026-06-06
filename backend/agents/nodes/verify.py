@@ -29,6 +29,7 @@ from collections.abc import Iterable
 import structlog
 
 from agents.config import (
+    CITE_FUZZY_HIGH_BAR,
     FUZZY_SUPPORT_THRESHOLD,
     LETTUCE_SUPPORT_THRESHOLD,
     LETTUCE_VETO_THRESHOLD,
@@ -186,6 +187,15 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
         # cite hedefi gerçekten temellendirmeli (lettuce/NLI). 'correct ≠ faithful'.
         if l2_score >= FUZZY_SUPPORT_THRESHOLD and not _cited:
             verified.append(_mark(claim, True, l2_score, f"Fuzzy {l2_score:.2f}: {l2_msg}"))
+            n_supported += 1
+            continue
+
+        # Cited iddia + cite hedefine NEAR-VERBATIM (≥ CITE_FUZZY_HIGH_BAR) → kabul: claim metni
+        # cited-source'ta birebir geçiyor = grounded (misgrounding DEĞİL; yanlış-cite bu kadar yüksek
+        # fuzzy veremez). pick_evidence kanıtı zaten cite hedefine daraltıyor. TR-NLI/lettuce
+        # zayıflığının yüksek-fuzzy-cited false-drop'unu kurtarır (verify-ratio↑, red-line nötr).
+        if _cited and l2_score >= CITE_FUZZY_HIGH_BAR:
+            verified.append(_mark(claim, True, l2_score, f"Fuzzy-cite {l2_score:.2f} (near-verbatim)"))
             n_supported += 1
             continue
 
