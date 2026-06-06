@@ -347,6 +347,49 @@ def _remove_orphan_source_tags(text: str) -> str:
     return text.strip()
 
 
+# Reject mesajı domain-aware yardımcı hint'leri — dead-end yerine "şunu paylaşın".
+# Hukuki iddia YOK (sadece hangi olgu retrieval/grounding'i mümkün kılar) → kırmızı-çizgi güvenli.
+_DOMAIN_READABLE: dict[str, str] = {
+    "tuketici": "tüketici", "isHukuku": "iş", "kira": "kira", "icra": "icra",
+    "trafik": "trafik", "vergi": "vergi", "tapu": "tapu", "idari": "idari",
+}
+_REJECT_HELP_HINTS: dict[str, str] = {
+    "tuketici": "ürün/hizmeti, sorunu (ayıplı mal/iade/cayma) ve satın alma tarihini",
+    "isHukuku": "çalışma sürenizi, işten ayrılma şeklini (istifa/fesih) ve tarihleri",
+    "kira": "kiracı mı ev sahibi mi olduğunuzu, konuyu (depozito/tahliye/kira artışı) ve tutarı",
+    "icra": "takibin türünü (ödeme emri/haciz), tarihini ve itiraz edip etmediğinizi",
+    "trafik": "olayı (kaza/trafik cezası), tarihini ve tarafları",
+    "vergi": "vergi/ceza türünü, tebliğ tarihini ve uzlaşma/itiraz durumunuzu",
+    "tapu": "işlem türünü (devir/tescil/ipotek) ve taşınmaza dair bilgileri",
+    "idari": "hangi idari işleme/karara karşı olduğunuzu ve tebliğ tarihini",
+}
+
+
+def _reject_help_body(domain: str, verdict: str) -> str:
+    """Domain biliniyorsa actionable, ne-paylaşılmalı reject mesajı (dead-end değil).
+
+    Hukuki iddia içermez — yalnız retrieval/grounding'i mümkün kılacak OLGULARI ister.
+    Hint yoksa (beklenmez; 8 domain de tanımlı) jenerik mesaja düşer."""
+    hint = _REJECT_HELP_HINTS.get(domain)
+    readable = _DOMAIN_READABLE.get(domain, "")
+    if not hint:
+        return (
+            "Bu soruya şu an net bir yanıt veremiyorum. Konuyu biraz daha ayrıntılı "
+            "anlatırsanız yeniden deneyebilirim; karmaşık bir durumsa bir avukata danışmanızı öneririm."
+        )
+    alan = f"{readable} hukukunda " if readable else ""
+    if verdict == "retry":
+        return (
+            f"Bu soruyu güvenilir kaynaklarla yanıtlayamadım. {alan}size daha sağlıklı yardımcı "
+            f"olabilmem için {hint} yazarsanız tekrar deneyebilirim; karmaşık bir durumsa bir "
+            f"avukata danışmanızı öneririm."
+        )
+    return (
+        f"Bu soruya net bir yanıt verebilmem için biraz daha bilgiye ihtiyacım var. {alan}"
+        f"{hint} paylaşırsanız size daha iyi yardımcı olabilirim."
+    )
+
+
 def _reject_response(state: AgentState, reason: str | None = None) -> dict:
     # Teknik iç nedeni kullanıcıya gösterme — yalnız logla (güven kırıcı jargon).
     internal_reason = reason or state.get("debate_notes") or state.get("triage_reasoning") or ""
@@ -370,19 +413,9 @@ def _reject_response(state: AgentState, reason: str | None = None) -> dict:
             "debate_verdict": "reject",
             "response_intent": "redirect",
         }
-    if verdict == "retry":
-        # retry-limit doldu, debate "reject"e çevirdi
-        body = (
-            "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim "
-            "ancak kaynaklarla destekleyemedim. "
-            "Soruyu farklı bir şekilde sormayı ya da bir avukattan destek almayı deneyin."
-        )
-    else:
-        body = (
-            "Bu soruya şu an net bir yanıt veremiyorum. "
-            "Konuyu daha ayrıntılı anlatan ek bilgi paylaşırsanız yeniden deneyebilirim; "
-            "durumunuz karmaşıksa bir avukata danışmanızı öneririm."
-        )
+    # Domain biliniyor (unknown yukarıda döndü) → dead-end yerine actionable, domain-aware
+    # "şunu paylaşın" mesajı (graceful refusal that still helps). Hukuki iddia yok.
+    body = _reject_help_body(domain, verdict)
 
     return {
         "response": f"{body}\n\n{DISCLAIMER_TR}",

@@ -111,7 +111,9 @@ async def test_finalize_rejects_when_all_claims_unverified(base_state):
 
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
-    assert "Bu soruya şu an net bir yanıt veremiyorum" in out["response"]
+    # Domain-aware (tuketici) actionable reject — "biraz daha bilgiye ihtiyacım var" + tüketici hint
+    assert "biraz daha bilgiye ihtiyacım var" in out["response"]
+    assert "tüketici hukukunda" in out["response"] and "ürün/hizmeti" in out["response"]
 
 
 @pytest.mark.asyncio
@@ -328,7 +330,9 @@ async def test_finalize_rejects_retry_verdict(base_state):
 
     assert out["debate_verdict"] == "reject"
     assert out["confidence"] == 0.0
-    assert "Bu konuda güvenilir bir yanıt oluşturmayı birkaç kez denedim" in out["response"]
+    # Domain-aware actionable reject (base_state domain=tuketici, verdict=retry) — dead-end değil
+    assert "tekrar deneyebilirim" in out["response"]
+    assert "tüketici hukukunda" in out["response"] and "ürün/hizmeti" in out["response"]
 
 
 def test_format_citations_keeps_only_cited_unique_sources(base_state):
@@ -601,3 +605,32 @@ async def test_finalize_no_offer_on_smalltalk(base_state):
     state = {**base_state, "smalltalk_response": "Merhaba!", "response_intent": "smalltalk"}
     out = await finalize_node(state)
     assert "💡" not in out["response"]
+
+
+# --- domain-aware yardımcı reject mesajı (dead-end yerine "şunu paylaşın") ---
+
+def test_reject_help_body_domain_aware_actionable():
+    """Bilinen domain → o domaine özgü olgu-isteği; hukuki iddia/madde-no İÇERMEZ."""
+    from agents.nodes.finalize import _reject_help_body
+    kira = _reject_help_body("kira", "retry")
+    assert "kiracı mı ev sahibi mi" in kira and "kira hukukunda" in kira
+    assert "[src:" not in kira and "madde" not in kira.lower()
+    isk = _reject_help_body("isHukuku", "")
+    assert "çalışma sürenizi" in isk and "iş hukukunda" in isk
+
+
+def test_reject_help_body_all_8_domains_have_hint():
+    """8 sivil domain de yardımcı hint döndürür (jenerik dead-end'e düşmez)."""
+    from agents.nodes.finalize import _REJECT_HELP_HINTS, _reject_help_body
+    for d in ("tuketici", "isHukuku", "kira", "icra", "trafik", "vergi", "tapu", "idari"):
+        assert d in _REJECT_HELP_HINTS
+        body = _reject_help_body(d, "retry")
+        assert _REJECT_HELP_HINTS[d] in body
+        assert "[src:" not in body
+
+
+def test_reject_help_body_retry_vs_needinfo_tone():
+    """retry → 'yanıtlayamadım...tekrar deneyebilirim'; else → 'biraz daha bilgiye ihtiyacım var'."""
+    from agents.nodes.finalize import _reject_help_body
+    assert "tekrar deneyebilirim" in _reject_help_body("trafik", "retry")
+    assert "biraz daha bilgiye ihtiyacım var" in _reject_help_body("trafik", "")
