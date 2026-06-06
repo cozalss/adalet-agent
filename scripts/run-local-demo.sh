@@ -69,12 +69,13 @@ export EMBEDDING_DEVICE=cuda EMBEDDING_FP16=1 RERANKER_DEVICE=cuda RERANKER_FP16
 # Reranker: BASE bge-reranker-v2-m3 — A/B ÖLÇÜLDÜ optimal (madde_recall@5 +6pp); .env'deki
 # tr-legal fine-tune A/B'de DAHA KÖTÜ (commit 9ee919d) → BASE'i .env üstüne override et.
 export RERANKER_MODEL=BAAI/bge-reranker-v2-m3
-# BGE-M3 ColBERT multi-vector rerank (OPT-IN, demo'da KAPALI) — ÖLÇÜLDÜ (eval v2 law, 165
-# vaka): madde_recall@5 37.0%→42.2% (+5.2pp), mrr 0.327→0.365. Cross-encoder doğru kanunu
-# buluyor (kanun@5=82%) ama doğru MADDE'yi seçemiyor; ColBERT token-level MAX_SIM çözüyor.
-# DEMO'DA KAPALI: cross-encoder GPU'da (cuda, hızlı); BGE-M3 (~2GB) Qwen ile GPU'ya sığmaz →
-# CPU compute_score → warm ~27s (cross-encoder ~12s). GPU headroom olan dağıtımda aç:
-#   export RERANK_PROVIDER=bgem3 COLBERT_RERANK_DEVICE=cuda COLBERT_RERANK_WEIGHTS=0.4,0.2,0.4
+# BGE-M3 ColBERT multi-vector rerank — ÖLÇÜLDÜ (eval v2 law, 165 vaka): madde_recall@5
+# 37.0%→42.2% (+5.2pp), mrr 0.327→0.365. Cross-encoder doğru kanunu buluyor (kanun@5=82%)
+# ama doğru MADDE'yi seçemiyor; ColBERT token-level MAX_SIM çözer. STORED mode (default):
+# law-chunk colbert'leri yan collection'da (adalet_law_colbert, seed_law_colbert ile) saklı →
+# rerank=sorgu-colbert(1 forward, CPU)+Qdrant MAX_SIM → passage-forward YOK → deployable (hızlı).
+# Önkoşul: `uv run python -m scripts.seed_law_colbert` (GPU). COLBERT_RERANK_DEVICE=cpu (query-encode).
+export RERANK_PROVIDER=bgem3 COLBERT_RERANK_DEVICE=cpu COLBERT_RERANK_WEIGHTS=0.4,0.2,0.4
 export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
 # Verify sertleştirme — E2E ölçülmüş-güvenli (2026-06-04, over-reject yok): yüksek-riskli
 # uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded

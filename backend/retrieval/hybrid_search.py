@@ -285,18 +285,83 @@ async def search_with_rerank(
     return await asyncio.to_thread(reranker.rerank, question, candidates, top_k)
 
 
+_COLBERT_COLLECTION = os.getenv("COLBERT_COLLECTION", "adalet_law_colbert")
+_colbert_stored_cache: bool | None = None
+
+
+async def _stored_colbert_available(client) -> bool:
+    """Yan colbert collection (seed_law_colbert) var mı? Bir kez kontrol + cache."""
+    global _colbert_stored_cache
+    if _colbert_stored_cache is None:
+        try:
+            _colbert_stored_cache = await client.collection_exists(_COLBERT_COLLECTION)
+        except Exception:
+            _colbert_stored_cache = False
+    return _colbert_stored_cache
+
+
+def _rr_from(c: object, score: float) -> RerankResult:
+    """SearchResult|RerankResult + skor → RerankResult (ikisi de aynı alanları taşır)."""
+    return RerankResult(
+        chunk_id=c.chunk_id, score=float(score), text=c.text, source=c.source,  # type: ignore[attr-defined]
+        source_url=c.source_url, domain=c.domain, metadata=c.metadata,  # type: ignore[attr-defined]
+        original_score=getattr(c, "original_score", c.score),  # type: ignore[attr-defined]
+    )
+
+
 async def colbert_rerank_candidates(
     question: str, candidates: list, top_k: int,
 ) -> list[RerankResult]:
-    """BGE-M3 multi-vector (dense+sparse+ColBERT) rerank — adayları token-level MAX_SIM ile
-    yeniden sırala (ince madde-ayrımı). search_with_rerank + mevzuat_node PAYLAŞIR → colbert
-    benefiti production madde-ranking'e de ulaşır (node yoksa eval-only kalırdı). Adaylar
-    SearchResult VEYA RerankResult olabilir (ikisi de .text/.chunk_id/... taşır).
+    """BGE-M3 ColBERT multi-vector rerank (ince madde-ayrımı, +5.2pp eval). İKİ yol:
+    - STORED (HIZLI, default): yan colbert collection'da Qdrant MAX_SIM — passage-forward YOK,
+      yalnız sorgu-colbert encode (1 forward) → deployable (~27s→~13s). seed_law_colbert kurar.
+    - COMPUTE (fallback): BGE-M3 compute_score (passage'ları her sorguda encode → CPU'da yavaş).
+    search_with_rerank + mevzuat_node PAYLAŞIR. RERANK_SCORE_MIN uygulanmaz (farklı dağılım);
+    sadece reorder (downstream verify aynen). Adaylar SearchResult|RerankResult olabilir."""
+    if os.getenv("COLBERT_RERANK_MODE", "stored").lower() != "compute":
+        client = get_shared_client()
+        if await _stored_colbert_available(client):
+            try:
+                return await _colbert_rerank_qdrant(question, candidates, top_k, client)
+            except Exception as exc:  # Qdrant/colbert hatası → compute fallback
+                log.warning("colbert_qdrant_failed_fallback_compute", error=str(exc) or type(exc).__name__)
+    return await _colbert_rerank_compute(question, candidates, top_k)
 
-    NOT: RERANK_SCORE_MIN (cross-encoder sigmoid floor) UYGULANMAZ — colbert+sparse+dense skoru
-    farklı dağılımlı (review HIGH). Sadece reorder; downstream verify/grounding aynen çalışır.
-    Boş/whitespace metinli aday compute_score'a verilmez (near-zero distorsiyon) → en sona."""
-    emb = _get_colbert_embedder()  # dedicated BGE-M3 (sparse-config'ten bağımsız)
+
+async def _colbert_rerank_qdrant(question, candidates, top_k, client) -> list[RerankResult]:
+    """Stored colbert (yan collection) → Qdrant MAX_SIM rerank. Yalnız SORGU-colbert encode
+    (1 forward); passage colbert'leri önceden saklı → hızlı. candidate chunk_id'lerine filtreli."""
+    emb = _get_colbert_embedder()
+    _, _, q_colbert = await asyncio.to_thread(emb.encode_query, question, True)  # return_colbert
+    if not q_colbert:
+        raise ValueError("sorgu colbert vektörü boş")
+    by_chunk = {c.chunk_id: c for c in candidates}
+    hits = await client.query_points(
+        collection_name=_COLBERT_COLLECTION, query=q_colbert, using="colbert",
+        query_filter=models.Filter(must=[models.FieldCondition(
+            key="chunk_id", match=models.MatchAny(any=list(by_chunk.keys())))]),
+        limit=max(top_k, len(by_chunk)), with_payload=["chunk_id"],
+    )
+    ranked: list[RerankResult] = []
+    seen: set[str] = set()
+    for h in hits.points:
+        cid = (h.payload or {}).get("chunk_id")
+        c = by_chunk.get(cid)
+        if c is not None and cid not in seen:
+            seen.add(cid)
+            ranked.append(_rr_from(c, h.score))
+    # Yan collection'da olmayan aday (ör. law-dışı/yeni) → orijinal sırada sona ekle (recall korunur).
+    for c in candidates:
+        if c.chunk_id not in seen:
+            seen.add(c.chunk_id)
+            ranked.append(_rr_from(c, getattr(c, "original_score", c.score)))
+    return ranked[:top_k]
+
+
+async def _colbert_rerank_compute(question, candidates, top_k) -> list[RerankResult]:
+    """compute_score fallback — passage'ları HER sorguda encode (CPU'da yavaş; stored yoksa).
+    Boş/whitespace metin compute_score'a verilmez (near-zero distorsiyon) → en sona."""
+    emb = _get_colbert_embedder()
     pairs = [(c, c.text.strip()) for c in candidates]
     scored: list[tuple[object, float]] = []
     nonempty = [(c, t) for c, t in pairs if t]
@@ -307,14 +372,7 @@ async def colbert_rerank_candidates(
         scored.extend((c, s) for (c, _), s in zip(nonempty, scores, strict=True))
     scored.extend((c, -1.0) for c, t in pairs if not t)
     scored.sort(key=lambda cs: cs[1], reverse=True)
-    return [
-        RerankResult(
-            chunk_id=c.chunk_id, score=float(s), text=c.text, source=c.source,
-            source_url=c.source_url, domain=c.domain, metadata=c.metadata,
-            original_score=getattr(c, "original_score", c.score),
-        )
-        for c, s in scored[:top_k]
-    ]
+    return [_rr_from(c, s) for c, s in scored[:top_k]]
 
 
 def colbert_rerank_enabled() -> bool:

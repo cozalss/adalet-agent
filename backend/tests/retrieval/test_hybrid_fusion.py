@@ -93,6 +93,7 @@ async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
     fake_emb.rerank_scores = lambda _q, passages, _w=None: [0.1, 0.9, 0.5][: len(passages)]  # type: ignore[assignment]
 
     monkeypatch.setenv("RERANK_PROVIDER", "bgem3")
+    monkeypatch.setenv("COLBERT_RERANK_MODE", "compute")  # stored-Qdrant yolunu atla → compute (mock)
     monkeypatch.setattr(hs, "search", _fake_search)
     monkeypatch.setattr(hs, "_get_colbert_embedder", lambda: fake_emb)
 
