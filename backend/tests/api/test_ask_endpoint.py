@@ -253,14 +253,18 @@ def test_ask_stream_success_contract(monkeypatch):
     verifying = events[2][1]
     timing = events[3][1]
     final = events[4][1]
-    assert verifying["v"] == 1
+    assert verifying["v"] == 2
     assert "t_ms" in verifying
-    assert node["v"] == 1
+    assert node["v"] == 2
     assert node["domain"] == "kira"
-    assert triage["v"] == 1
+    # v2: node event'i Ajan Akış Şeması için curated active_node taşır (whitelist; key sızmaz)
+    assert node["active_node"] in {
+        "triaj", "retrieval", "draft", "verify", "debate", "finalize", "chat", "clarifier",
+    }
+    assert triage["v"] == 2
     assert triage["intent"] == "legal_answer"
     # timing event sözleşmesi: 4 stage alanı + schema version
-    assert timing["v"] == 1
+    assert timing["v"] == 2
     assert "first_event_ms" in timing
     assert "retrieval_done_ms" in timing
     assert "first_token_ms" in timing

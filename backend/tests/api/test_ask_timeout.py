@@ -52,7 +52,7 @@ def test_ask_stream_times_out_emits_timeout_event(slow_client):
     assert resp.status_code == 200  # SSE bağlantısı açılır, hata event ile gelir
     assert "event: error" in resp.text
     payload = _first_event_payload(resp.text, "error")
-    assert payload["v"] == 1
+    assert payload["v"] == 2
     assert payload["code"] == "stream_timeout"
     assert "zaman aşımı" in payload["detail"].lower()
 

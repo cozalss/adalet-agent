@@ -56,7 +56,7 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/ask", tags=["ask"])
 
 _graph_singleton: Any = None
-SSE_SCHEMA_VERSION = 1
+SSE_SCHEMA_VERSION = 2  # v2: node event'ine active_node + sources event'ine mevzuat/emsal split
 
 
 def _get_graph() -> Any:
@@ -83,9 +83,37 @@ def _merge_history_facts(history: list[ConversationTurn]) -> dict[str, Any]:
 
 
 def _sse_event(event: str, payload: dict[str, Any]) -> str:
-    """Tek SSE serializer. `final` dışındaki payload'lar v=1 sözleşmesini taşır."""
+    """Tek SSE serializer. `final` dışındaki payload'lar v=SSE_SCHEMA_VERSION sözleşmesini taşır."""
     data = {"v": SSE_SCHEMA_VERSION, **payload}
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+# Frontend "Ajan Akış Şeması" için CURATED düğüm etiketi. KRİTİK (red-line, ask.py:431-432
+# politikası): list(state.keys())/TypedDict-key ASLA yayılmaz — yalnız state-ALAN-VARLIĞINDAN
+# türetilen SABİT UI etiketi (iç şema sızmaz). En-spesifik (en-ileri tamamlanan) düğüm önce
+# kontrol edilir; stream_mode="values" kümülatif state verir → en-ileri düğüm "active" sayılır.
+_ACTIVE_NODE_LABELS = frozenset(
+    {"triaj", "retrieval", "draft", "verify", "debate", "finalize", "chat", "clarifier"},
+)
+
+
+def _infer_active_node(state: dict[str, Any]) -> str:
+    """State-alan varlığından curated düğüm etiketi türet (whitelist; iç anahtar sızmaz)."""
+    if state.get("chat_response"):
+        return "chat"
+    if state.get("clarify_response"):
+        return "clarifier"
+    if state.get("response") or state.get("confidence_label"):
+        return "finalize"
+    if state.get("debate_verdict"):
+        return "debate"
+    if state.get("verified_claims"):
+        return "verify"
+    if state.get("draft_response"):
+        return "draft"
+    if state.get("mevzuat_refs") or state.get("emsal_refs"):
+        return "retrieval"
+    return "triaj"
 
 
 async def _merge_tokens(
@@ -433,6 +461,7 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                     payload = {
                         "domain": state.get("domain"),
                         "retry_count": state.get("retry_count", 0),
+                        "active_node": _infer_active_node(state),  # curated etiket (Ajan Akış Şeması)
                     }
                     yield _sse_event("node", payload)
 
@@ -467,6 +496,7 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                         _sent_sources = True
                         _t_retrieval_done = _ms()
                         sources_evt = {"count": len(mevz) + len(emsal),
+                                       "mevzuat_count": len(mevz), "emsal_count": len(emsal),
                                        "t_ms": _t_retrieval_done}
                         yield _sse_event("sources", sources_evt)
 

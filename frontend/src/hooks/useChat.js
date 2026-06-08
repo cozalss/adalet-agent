@@ -45,7 +45,8 @@ export function useChat() {
       key,
       question: text,
       phase: "triage",
-      data: { kind: "answer", domain: "", domainConfidence: null, sources: [], sourceCount: 0 },
+      data: { kind: "answer", domain: "", domainConfidence: null, sources: [], sourceCount: 0,
+        activeNode: null, retryCount: 0, graphSources: { mevzuat: 0, emsal: 0 }, graphVerify: null },
     }]);
 
     const payload = {
@@ -79,9 +80,14 @@ export function useChat() {
         onClarify: () => { sawClarify = true; },
         onSources: (d) => {
           _patch(key, { phase: "sources" });
-          _patchData(key, { sourceCount: d.count || 0 });
+          _patchData(key, { sourceCount: d.count || 0,
+            graphSources: { mevzuat: d.mevzuat_count || 0, emsal: d.emsal_count || 0 } });
         },
-        onNode: () => {}, // node event'i UI'da işlenmez — sessiz yutulurdu, şimdi açık no-op
+        onNode: (d) => {
+          // Ajan Akış Şeması: aktif düğüm + retry sayacı (v2 SSE active_node). Eski backend
+          // (v1) active_node göndermez → AgentFlowGraph faz-event'lerinden infer eder (fallback).
+          _patchData(key, { activeNode: d.active_node || null, retryCount: d.retry_count || 0 });
+        },
         // Canlı yazım: draft token'ları üretildikçe biriktir + "drafting" fazına geç.
         // DOĞRULANMAMIŞ taslak — UI "yazıyor/doğrulanıyor" rozetiyle gösterir; final
         // gelince mapResponse data'yı doğrulanmış cevapla DEĞİŞTİRİR (draftText düşer).
@@ -119,9 +125,16 @@ export function useChat() {
             return;
           }
           const mapped = mapResponse(resp, text);
+          // Ajan Akış Şeması final durumu: tüm düğümler done + doğrulama rozeti
+          // (backend kararı — n_verified/n_total/confidence_label; frontend üretmez).
+          const graphVerify = resp.n_total_claims != null
+            ? { nVerified: resp.n_verified_claims, nTotal: resp.n_total_claims,
+                confidenceLabel: resp.confidence_label || null }
+            : null;
           _patch(key, {
             phase: mapped.kind === "reject" ? "reject" : "final",
-            data: { ...mapped, sourceCount: (mapped.sources || []).length },
+            data: { ...mapped, sourceCount: (mapped.sources || []).length,
+              activeNode: "finalize", graphVerify },
           });
         },
         onError: (d) => {
