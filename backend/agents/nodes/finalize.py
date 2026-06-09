@@ -568,7 +568,15 @@ def _format_citations(state: AgentState, cited_text: str | None = None) -> str:
 
 
 def _compute_confidence(state: AgentState, verified: list) -> float:
-    """Basit harman: domain güveni + doğrulanmış claim oranı + retrieval kalitesi."""
+    """Basit harman: domain güveni + doğrulanmış claim oranı + retrieval kalitesi.
+
+    DÜRÜSTLÜK NOTU (kullanıcı-inceleme #3): bu SEZGİSEL bir güvenilirlik göstergesidir,
+    KALİBRE edilmiş doğruluk olasılığı DEĞİL. Doğrulama sinyali `claim_ratio` üzerinden
+    girer (NLI+fuzzy+lettuce çıktısı olan binary `verified` oranı) — ham NLI entailment
+    skoru bilinçli kullanılmaz (eşik-kalibrasyonu [[verify-calibration-harness]] ile ayrı
+    yönetilir; formülü değiştirmek kalibrasyon-riski taşır). UI bunu 'kalibre değil' diye
+    etiketler (EvidenceStats tooltip). Gerçek kalibrasyon yalnız tahmin modelinde (ECE/Brier).
+    """
     dom_conf = state.get("domain_confidence", 0.0)
     n_claims = len(state.get("claims", []) or [])
     # Fail-closed: "verified" anahtarı yoksa (doğrulama atlanmış/eksik) iddiayı

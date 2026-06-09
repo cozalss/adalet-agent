@@ -41,8 +41,14 @@ export function EvidenceStats({ confidence, sourceCount, claims }) {
   const mid = confidence < 70;
   return (
     <div className="ev-stats" role="group" aria-label="Kanıt özeti">
-      <div className={"ev-stat" + (mid ? " mid" : "")}>
-        <div className="ev-val">%{conf}</div>
+      {/* Dürüstlük (kullanıcı-inceleme #3): "%X" kalibre bir doğruluk OLASILIĞI DEĞİL —
+          alan eşleşmesi + doğrulanan-iddia oranı + kaynak kalitesi sezgisel harmanı. Kullanıcı
+          "%88 = %88 doğru" sanmasın diye tooltip + aria ile açıkça işaretlenir. */}
+      <div
+        className={"ev-stat" + (mid ? " mid" : "")}
+        title="Güven göstergesi — alan eşleşmesi + doğrulanan iddia oranı + kaynak kalitesinin sezgisel harmanı; kalibre edilmiş doğruluk olasılığı DEĞİLDİR."
+      >
+        <div className="ev-val" aria-label={`Güven göstergesi yüzde ${conf} (sezgisel, kalibre olasılık değil)`}>%{conf}</div>
         <div className="ev-label">Güven</div>
         <div className="ev-bar" aria-hidden="true"><span style={{ width: confidence + "%" }}></span></div>
       </div>

@@ -84,4 +84,11 @@ describe("EvidenceStats", () => {
     const out = html(<EvidenceStats confidence={50} sourceCount={2} claims={[]} />);
     expect(out).not.toContain("Doğrulanan iddia");
   });
+
+  it("güven göstergesi 'kalibre olasılık değil' diye dürüstçe etiketlenir (#3)", () => {
+    const out = html(<EvidenceStats confidence={88} sourceCount={5} claims={[]} />);
+    // tooltip + aria: kullanıcı %88'i kalibre doğruluk olasılığı sanmasın
+    expect(out).toContain("kalibre edilmiş doğruluk olasılığı DEĞİLDİR");
+    expect(out).toContain("sezgisel, kalibre olasılık değil");
+  });
 });
