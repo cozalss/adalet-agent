@@ -188,3 +188,15 @@ jobs:
           docker rm -f adalet-ci >/dev/null 2>&1 || true
           if [ "$ok" != "1" ]; then echo "BOOT SMOKE BAŞARISIZ: /health 60s içinde 200 dönmedi"; exit 1; fi
           echo "BOOT SMOKE OK"
+      - name: Trivy imaj güvenlik taraması (#38)
+        # Üretim imajındaki bilinen CVE'leri tara. ignore-unfixed → yalnız DÜZELTİLEBİLİR
+        # HIGH/CRITICAL'da kır (actionable; base-image'ın düzeltilemez CVE'leri CI'ı bloklamaz).
+        # NOT: base image digest-pin ayrı iş (gerçek digest gerekir).
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: adalet-backend:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          vuln-type: os,library
+          exit-code: "1"
