@@ -14,6 +14,7 @@ import { Modal } from "./components/Modal.jsx";
 import { SearchPanel, LibraryPanel, FilesPanel } from "./components/historyPanels.jsx";
 import { postFeedback, synthesizeTTS } from "./lib/api.js";
 import { useChat } from "./hooks/useChat.js";
+import { useVoiceRecorder } from "./hooks/useVoiceRecorder.js";
 import { usePrefs } from "./hooks/usePrefs.js";
 import { useConversations } from "./hooks/useConversations.js";
 import { DEMO_TURN } from "./lib/demoTurn.js";
@@ -48,6 +49,8 @@ import "./styles/history.css";
 /* ---------- ChatGPT-style input pill ---------- */
 function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachCount, wantDilekce, onToggleDilekce, onStop }) {
   const ref = useRef(null);
+  // Sesli giriş (#7): mic-kayıt → Whisper STT → transkripti input'a yaz. Buton input boşken görünür.
+  const voice = useVoiceRecorder({ onTranscript: (t) => onChange(t) });
   useEffect(() => {
     const el = ref.current; if (!el) return;
     el.style.height = "auto";
@@ -82,9 +85,28 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
         ) : hasText ? (
           <button className="cg-send go" onClick={submit} aria-label="Gönder"><Icon.send /></button>
         ) : (
-          <button className="cg-send voice" aria-label="Sesli mod (yakında)" title="Sesli mod — yakında" disabled><Icon.wave /></button>
+          <button
+            className={"cg-send voice" + (voice.state !== "idle" ? " on" : "")}
+            onClick={voice.toggle}
+            disabled={!voice.supported || voice.state === "transcribing"}
+            aria-label={voice.state === "recording" ? "Kaydı durdur" : "Sesli sor (mikrofon)"}
+            aria-pressed={voice.state === "recording"}
+            title={
+              !voice.supported ? "Tarayıcı ses kaydını desteklemiyor"
+                : voice.state === "recording" ? "Kaydı durdur"
+                : voice.state === "transcribing" ? "Metne çevriliyor…"
+                : "Sesli sor"
+            }
+          >
+            {voice.state === "recording" ? <Icon.stop />
+              : voice.state === "transcribing" ? <Icon.wave />
+              : <Icon.mic />}
+          </button>
         )}
       </div>
+      {voice.error && (
+        <span className="cg-voice-err" role="status" aria-live="polite">{voice.error}</span>
+      )}
     </div>
   );
 }

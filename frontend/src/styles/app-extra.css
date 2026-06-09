@@ -789,3 +789,9 @@ a.btn:not(:disabled):active {
 }
 .error-boundary h2 { margin: 0 0 .5rem; font-size: 1.25rem; }
 .error-boundary p { margin: 0 0 1.25rem; color: var(--muted, #555); line-height: 1.55; }
+
+/* Sesli giriş (#7): kayıt sırasında mic butonu nabız gibi vurgulanır + hata satırı. */
+.cg-send.voice.on { color: var(--danger, #C73E3E); animation: cg-mic-pulse 1.3s ease-in-out infinite; }
+@keyframes cg-mic-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+.cg-voice-err { display: block; margin: 4px 12px 0; font-size: 12px; color: var(--danger, #C73E3E); }
+@media (prefers-reduced-motion: reduce) { .cg-send.voice.on { animation: none; } }
