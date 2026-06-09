@@ -31,6 +31,7 @@ from agents.smalltalk import detect_smalltalk, smalltalk_reply
 from agents.state import AgentState, ConversationTurn, Domain, ImageAttachment
 from agents.triage_classifier import classify_domain
 from core.observability import observe_node
+from core.text import tr_lower as _tr_lower
 
 log = structlog.get_logger()
 
@@ -132,9 +133,7 @@ def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def _tr_lower(text: str) -> str:
-    """Türkçe-güvenli küçült (İ→i, I→ı) — keyword eşleşmeleri için."""
-    return text.replace("I", "ı").replace("İ", "i").lower()
+# _tr_lower core/text.tr_lower'dan import edilir (tek kanonik, denetim #40).
 
 
 def _is_out_of_scope(question: str) -> bool:

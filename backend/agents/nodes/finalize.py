@@ -13,6 +13,7 @@ from agents.config import DISCLAIMER_TR, is_partial_answer_note_enabled
 from agents.nodes.compose import redirect_to_scope_fallback
 from agents.state import AgentState
 from core.observability import observe_node
+from core.text import tr_lower as _tr_lower
 
 log = structlog.get_logger()
 
@@ -507,10 +508,7 @@ _NEG_TOKENS = (
 )
 
 
-def _tr_lower(s: str) -> str:
-    """Türkçe-duyarlı küçük harf: İ→i, I→ı (Python .lower() İ'yi combining 'i̇' yapıp
-    'i' ile başlayan anahtar eşleşmelerini bozar — adversarial HIGH)."""
-    return s.replace("İ", "i").replace("I", "ı").lower()
+# _tr_lower core/text.tr_lower'dan import edilir (tek kanonik, denetim #40).
 
 
 def _has_negation_near(low: str, pos: int, window: int = 75) -> bool:

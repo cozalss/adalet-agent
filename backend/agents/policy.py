@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Literal
 
 from agents.state import AgentState
+from core.text import tr_lower as _tr_lower
 
 PolicyDecision = Literal["answer", "clarify", "chat", "redirect", "reject_sensitive", "smalltalk"]
 
@@ -85,9 +86,7 @@ _GENERAL_QUESTION_MARKERS: tuple[str, ...] = (
 )
 
 
-def _tr_lower(text: str) -> str:
-    """Türkçe-güvenli küçült (İ→i, I→ı) — substring eşleşmesi için."""
-    return text.replace("I", "ı").replace("İ", "i").lower()
+# _tr_lower core/text.tr_lower'dan import edilir (tek kanonik, denetim #40).
 
 
 def _is_general_question(question: str) -> bool:

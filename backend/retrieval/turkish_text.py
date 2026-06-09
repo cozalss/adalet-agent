@@ -27,6 +27,8 @@ from functools import lru_cache
 
 import structlog
 
+from core.text import tr_lower  # tek kanonik (denetim #40); aşağıda re-export
+
 log = structlog.get_logger()
 
 # Hukuki bağlamda anlam taşımayan ama yüksek-frekanslı Türkçe kelimeler.
@@ -44,17 +46,9 @@ _TURKISH_STOPWORDS: frozenset[str] = frozenset({
 _WORD_SPLIT_RE = re.compile(r"[^\w]+", re.UNICODE)
 
 
-def tr_lower(s: str) -> str:
-    """Türkçe-doğru küçük harfe çevirme.
-
-    Python `str.lower()` Türkçe İ/I'yı YANLIŞ çevirir:
-      "İ".lower() → "i̇" (i + U+0307 combining dot above) — "i" ile eşleşmez
-      "I".lower() → "i"  (Türkçe'de "ı" olmalı)
-    Hukuk metni İ/I dolu (İş, İcra, İdari, İhtarname, IK/İK). Yanlış casefold
-    "İş Kanunu" ↔ "iş kanunu" token'larını ayırıp recall'u sessizce düşürür.
-    Önce İ→i, I→ı eşle, sonra kalan harfleri standart lower() ile indir.
-    """
-    return s.replace("İ", "i").replace("I", "ı").lower()
+# tr_lower core/text.py'de tanımlı (yukarıda import edildi) — tek kanonik; bu modülde
+# (stem_word/tokenize/keyword_overlap…) ve `from retrieval.turkish_text import tr_lower`
+# kullanıcılarında (eval/answer_risk) geriye-uyumlu çalışır.
 
 
 def _get_stemmer():

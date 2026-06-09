@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import re
 
+from core.text import tr_lower as _tr_lower
+
 # Sohbet kategorileri — finalize bunlara göre değil, hazır metni doğrudan basar.
 SmalltalkCategory = str  # "greeting" | "thanks" | "farewell" | "capability" | "identity"
 
@@ -94,8 +96,7 @@ _LEGAL_HINT_TOKENS: tuple[str, ...] = (
 )
 
 # Türkçe noktalı/noktasız I sorununu çöz (str.lower "İ"→"i̇" combining dot üretir).
-def _tr_lower(text: str) -> str:
-    return text.replace("I", "ı").replace("İ", "i").lower()
+# _tr_lower core/text.tr_lower'dan import edilir (tek kanonik, denetim #40).
 
 
 # Harf (Türkçe dahil), rakam ve boşluk dışını boşluğa çevir → emoji/noktalama temiz.
