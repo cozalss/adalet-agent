@@ -12,6 +12,7 @@ import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
 import { SearchPanel, LibraryPanel, FilesPanel } from "./components/historyPanels.jsx";
+import { postFeedback } from "./lib/api.js";
 import { useChat } from "./hooks/useChat.js";
 import { usePrefs } from "./hooks/usePrefs.js";
 import { useConversations } from "./hooks/useConversations.js";
@@ -638,6 +639,7 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
               )}
               <MsgActions
                 text={d.answer.text}
+                conversationId={d.conversationId}
                 onReask={() => onReask(turn.question)}
                 onToast={onToast}
               />
@@ -662,7 +664,7 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
 }
 
 /* ---------- mesaj eylem çubuğu (hover'da belirir): kopyala / yeniden sor / geri bildirim ---------- */
-function MsgActions({ text, onReask, onToast }) {
+function MsgActions({ text, conversationId, onReask, onToast }) {
   const [copied, setCopied] = useState(false);
   const [vote, setVote] = useState(null); // "up" | "down" | null
 
@@ -675,11 +677,12 @@ function MsgActions({ text, onReask, onToast }) {
       onToast?.("Kopyalanamadı — tarayıcı izni gerekebilir.");
     }
   };
-  // KVKK: geri bildirim ANONİM — kişisel veri yok. Şimdilik yerel sinyal +
-  // teşekkür toast'u; eval döngüsüne (Langfuse) bağlama sonraki iterasyonda.
+  // Geri bildirim backend'e kaydedilir (anonimleştirilmiş: principal_sub_hash, ham veri yok).
+  // Best-effort: optimistik UX (toast hemen), ağ çağrısı arka planda — hata kullanıcıyı durdurmaz.
   const sendVote = (v) => {
     setVote(v);
     onToast?.(v === "up" ? "Teşekkürler — geri bildiriminiz alındı." : "Teşekkürler — bunu iyileştireceğiz.");
+    postFeedback({ conversationId, rating: v }).catch(() => { /* sessiz: feedback kritik değil */ });
   };
 
   return (

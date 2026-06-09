@@ -29,6 +29,7 @@ export default defineConfig({
       // /me: tercih + sohbet geçmişi + dosya senkronu (auth'lu kullanıcı).
       "/me": { target: BACKEND, changeOrigin: true },
       "/multimodal": { target: BACKEND, changeOrigin: true },
+      "/feedback": { target: BACKEND, changeOrigin: true },
       "/auth": { target: BACKEND, changeOrigin: true },
       "/health": { target: BACKEND, changeOrigin: true },
       "/metrics": { target: BACKEND, changeOrigin: true },

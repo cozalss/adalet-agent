@@ -10,6 +10,7 @@ import {
   clearSession,
   downloadDilekce,
   ocrUpload,
+  postFeedback,
 } from "./api.js";
 
 /** SSE Response sahtesi: her frame `event:`/`data:` satırları, ayraç çift-newline. */
@@ -112,6 +113,35 @@ describe("clearSession (fire-and-forget)", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("net down"));
     await expect(clearSession("validid12345")).resolves.toBeUndefined();
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("postFeedback (denetim #24)", () => {
+  it("conversationId yoksa ağ çağrısı YAPMAZ (skip)", async () => {
+    global.fetch = vi.fn();
+    const r = await postFeedback({ conversationId: "", rating: "up" });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(r.skipped).toBe(true);
+  });
+
+  it("conversationId varsa /feedback'e doğru gövdeyle POST eder", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ ok: true, feedback_id: "fb_1" }),
+    });
+    const r = await postFeedback({ conversationId: "c1", rating: "down", comment: "eksik", turnIndex: 2 });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe("/feedback");
+    expect(opts.method).toBe("POST");
+    expect(opts.headers["Content-Type"]).toBe("application/json");
+    const body = JSON.parse(opts.body);
+    expect(body).toMatchObject({ conversation_id: "c1", rating: "down", comment: "eksik", turn_index: 2 });
+    expect(r.feedback_id).toBe("fb_1");
+  });
+
+  it("backend hatası → throw (çağıran .catch ile yutar, UX bozulmaz)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    await expect(postFeedback({ conversationId: "c1", rating: "up" })).rejects.toThrow();
   });
 });
 

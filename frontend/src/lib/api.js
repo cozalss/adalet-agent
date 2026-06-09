@@ -133,6 +133,26 @@ export async function clearSession(conversationId) {
   } catch { /* yoksay — temizlik en iyi çaba */ }
 }
 
+/**
+ * POST /feedback — verilen cevap için 👍/👎 (+ opsiyonel serbest yorum).
+ * Best-effort: çağıran .catch ile yutmalı (feedback kritik değil, UX'i bloklamaz).
+ * conversationId yoksa (backend henüz id atamadıysa) ağ çağrısı yapılmaz → 422 önle.
+ * @param {{conversationId:string, rating:"up"|"down", comment?:string|null, turnIndex?:number|null}} p
+ */
+export async function postFeedback({ conversationId, rating, comment = null, turnIndex = null }) {
+  if (!conversationId) return { ok: false, skipped: true };
+  const body = { conversation_id: conversationId, rating };
+  if (comment) body.comment = comment;
+  if (turnIndex != null) body.turn_index = turnIndex;
+  const res = await fetch("/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`feedback ${res.status}`);
+  return res.json();
+}
+
 /** Backend ayakta mı? (mock fallback kararı için). */
 export async function backendHealthy() {
   try {
