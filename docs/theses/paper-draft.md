@@ -22,11 +22,15 @@ contradiction veto + **RARR-lite evidence augmentation** olmak üzere dört
 aşamalı doğrulamadan geçer. Constitutional self-critique ile çelişkili
 veya destek bulamayan iddialar reddedilir; sistem cevabı yeniden üretir.
 
-200 vakalı dengelenmiş Türkçe hukuk benchmark'ında elde edilen sonuçlar:
-**D@1 X.XX, kanun@5 X.XX, Ragas faithfulness X.XX, average judge score X.XX**.
-(W10 final eval sonuçları buraya doldurulacak.) Mevcut baseline'a göre
-+%X iyileşme. Sistem MIT lisanslı, tamamen lokal (Qwen 2.5 14B Q4 + RTX
-4070), gizlilik odaklı (PII mask + audit log) bir mimaridir.
+186 vakalı Türkçe hukuk benchmark'ında (8 sivil alan, BGE-M3 hibrit) ölçülen
+retrieval sonuçları: **domain@1 %81.7, keyword-recall@5 %79.6, P95 retrieval
+gecikmesi 69 ms**. Doğrulama katmanının ayırt etme gücü (8 soru, gerçek Qwen):
+LLM iddialarının ortalama **%58.1'i** kaynakla token-düzeyinde doğrulanamıyor
+(claim-support: verify AÇIK %41.9 vs KAPALI %100). Ragas faithfulness ve
+LLM-judge skorları henüz ölçülmedi (gerçek-LLM toplu koşum bekliyor — Üye 4).
+Sistem MIT lisanslı, tamamen lokal (üretim Qwen3.5-9B; rapor edilen ablation
+ölçümleri Qwen 2.5 14B Q5_K_M / RTX 4070), gizlilik odaklı (PII mask + audit
+log) bir mimaridir.
 
 ## 1. Giriş
 
@@ -59,11 +63,11 @@ karar referansı yanlış / hayali) pratik kullanımı tehlikeli kılmaktadır.
 - 7-ajanlı LangGraph topology, opt-in Self-RAG + CRAG katmanları
 - BGE-M3 dense + sparse + ColBERT hibrit retrieval, HyDE + Multi-Query +
   RRF fusion + RAPTOR hiyerarşik özet ağacı + GraphRAG cross-citation
-- **200 vakalı dengelenmiş Türkçe hukuk benchmark'ı** (kamuya açık,
+- **186 vakalı dengelenmiş Türkçe hukuk benchmark'ı** (kamuya açık,
   programmatic generation + manuel review)
 - PII mask + audit log + JWT auth + read-only container deploy
-- Tamamı **lokal**, **açık-ağırlık** modeller (Qwen 2.5 14B Q4, mDeBERTa,
-  BGE-M3), **MIT lisans**
+- Tamamı **lokal**, **açık-ağırlık** modeller (üretim Qwen3.5-9B; ablation
+  Qwen 2.5 14B, mDeBERTa, BGE-M3 / Mursit-Base-TR), **MIT lisans**
 
 ## 2. İlgili Çalışmalar
 
@@ -99,7 +103,7 @@ karar referansı yanlış / hayali) pratik kullanımı tehlikeli kılmaktadır.
 - **Triaj** → 8 domain + unknown classification (JSON-mode)
 - **Mevzuat** → kanun maddeleri (BGE-M3 hibrit + HyDE)
 - **Emsal** → Yargıtay/Danıştay kararları (+ GraphRAG neighbor expand)
-- **Draft** → Qwen 14B Q4 ile cevap üretimi (cite-grounded prompt)
+- **Draft** → lokal Qwen (üretim Qwen3.5-9B) ile cevap üretimi (cite-grounded prompt)
 - **Verify** → 4-katman claim verification
 - **Debate** → constitutional critique, max 3 retry
 - **Finalize** → cevap + kaynak + confidence + disclaimer
@@ -156,23 +160,49 @@ ekle, sonraki iterasyon daha doğru ölçer.
 
 ### 4.1 Retrieval Modes Karşılaştırma
 
-| Mode | D@1 | kanun@5 | p95 latency |
-|---|---|---|---|
-| hybrid | X.XX | X.XX | X.X s |
-| + rerank | X.XX | X.XX | X.X s |
-| + hyde | X.XX | X.XX | X.X s |
-| + multi_query | X.XX | X.XX | X.X s |
-| + raptor + graph | X.XX | X.XX | X.X s |
+v2 benchmark, 186 vaka, 8 sivil domain, BGE-M3 dense+sparse + RRF füzyon
+(`eval_run --version v2 [--rerank]`). "kw-recall@5" = ground-truth anahtar
+(madde/kanun) top-5'te ∈.
 
-[W10 final eval verisiyle doldurulacak]
+| Mode | domain@1 | kw-recall@5 | retrieval P95 |
+|---|---:|---:|---:|
+| hybrid (BM25+dense+RRF) | %81.7 | %79.6 | 69 ms |
+| + rerank (BGE-reranker-v2-m3) | %81.2 | %78.2 | 12.18 s |
+| + hyde | ölçülmedi¹ | — | — |
+| + multi_query | ölçülmedi¹ | — | — |
+| + raptor + graph | ölçülmedi² | — | — |
+
+¹ HyDE/multi_query gerçek LLM gerektirir (stokastik sorgu genişletme) — gerçek-LLM GPU
+koşumu bekliyor (Üye 4). ² RAPTOR/GraphRAG offline-build gerektiren opt-in modüllerdir;
+üretim default'unda kapalı, henüz ölçülmedi.
+
+**Bulgu:** Cross-encoder rerank domain@1'de kazanç sağlamıyor (%81.7→%81.2) ve
+kw-recall'ı iyileştirmiyor; buna karşın ~10× gecikme getiriyor (ort. 260 ms→2.78 s,
+P95 69 ms→12.18 s). Bu, "cross-encoder Türkçe konuşma-diline zayıf → domain-öncelikli
+tier-sort" tasarım kararını sayısal doğrular. NOT: üretim embedder'ı Mursit-Base-TR'ye
+geçti (kanun@5 +7pp, P95 −42% — ayrı ölçüm); bu tablo BGE-M3 ablation referansıdır.
 
 ### 4.2 Verify Etkisi
 
-[Verify ON vs OFF — halüsinasyon tespit oranı, false-positive oranı]
+8 vatandaş sorusu, doğrulama katmanı AÇIK vs KAPALI, gerçek Qwen 2.5 14B
+(`eval/verify_ablation.py`):
+
+| Metrik | verify AÇIK | verify KAPALI |
+|---|---:|---:|
+| Ort. claim-support | %41.9 | %100 |
+| Verdict-flip (block-rate) | %0 (8/8 pass) | — |
+
+Fark = **+58.1 puan**: LLM iddialarının ortalama %58'i kaynakla token-düzeyinde
+doğrulanmıyor (KAPALI iken hepsi sorgusuz "supported"). "İddia-doğrulamalı = uydurmaz"
+iddiasının doğrudan sayısal kanıtı. **Dürüst nüans:** bu temiz/kapsam-içi sorularda
+verify cevabı REDDETMİYOR, claim-düzeyinde ~%58 iddiayı "kaynaksız" işaretliyor; RED
+gücü çelişki/adversarial girdide (§4.3) devreye girer.
 
 ### 4.3 Edge Cases
 
-[24 OWASP LLM Top-10 vaka — pass/reject doğruluğu]
+24 OWASP LLM Top-10 vakası (PI/jailbreak/PII/excessive-agency/overreliance) — runner +
+CLI hazır (`eval/edge_cases.py`), gerçek-LLM GPU koşumu bekliyor (Üye 4). Verify'ın RED
+gücü burada ölçülecek (adversarial/çelişki girdi). [Ölçüm bekliyor.]
 
 ### 4.4 Real-LLM Smoke
 
@@ -196,8 +226,8 @@ avg 32.5s, 3/3 pass, disclaimer + citation tüm cevaplarda mevcut.
 ### 5.2 Sınırlamalar
 - NLI Türkçe paraphrase'lerde hâlâ false-pos (0.70 threshold trade-off)
 - RAPTOR build maliyeti (Qwen 14B, ~30dk 800 chunk)
-- Benchmark 200 vaka — Sprint-5+ ile 500 hedef
-- Latency 32s avg — RTX 4070 + 14B partial offload sınırı
+- Benchmark 186 vaka — Sprint-5+ ile 500 hedef
+- Latency 32s avg (real-LLM smoke, Qwen 2.5 14B partial offload, §4.4) — üretim Qwen3.5-9B'ye geçti, yeniden ölçüm kuyrukta
 
 ### 5.3 Etik / Yasal
 - Avukatlık Kanunu kapsamı: bilgilendirme amaçlı, **hukuki tavsiye değil**
@@ -207,8 +237,9 @@ avg 32.5s, 3/3 pass, disclaimer + citation tüm cevaplarda mevcut.
 
 ## 6. Sonuç ve Gelecek Çalışmalar
 
-[Sprint-5+ planı: 200→500 vaka, BGE-M3 LoRA fine-tune, mobil deploy
-beta, ML kazanma olasılığı tahmin modeli]
+[Sprint-5+ planı: 186→500 vaka, HyDE/multi_query/RAPTOR modlarının gerçek-LLM
+ölçümü, Ragas faithfulness toplu koşum, edge-case (OWASP) GPU koşumu, gold eval-set
+(insan-etiketli, Cohen's κ), mobil deploy beta, dava-sonucu tahmin modeli (BERT-TR f1 0.825)]
 
 ## Teşekkür
 
