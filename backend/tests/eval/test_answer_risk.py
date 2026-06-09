@@ -96,6 +96,17 @@ def test_varied_claims_sourced_not_flagged():
         assert unsourced_legal_claims(txt) == [], f"kaynaklı iddia bayraklandı: {txt}"
 
 
+def test_uppercase_turkish_claim_flagged():
+    """Denetim #15: str.casefold() Türkçe İ/I'yı bozar (İ→i̇ combining-dot, I→i değil ı) →
+    BÜYÜK harf İ/I taşıyan marker'lı kaynaksız iddia SESSİZCE kaçıyordu (halüsinasyon riski).
+    Tek marker'ı İ/I-içeren cümleler bayraklanmalı (tr_lower ile)."""
+    for txt in (
+        "Bu durumda HAKKINIZI mahkemede arayabilirsiniz.",   # tek marker: hakkınız (I→ı)
+        "Sözleşme İPTAL EDİLEBİLİR niteliktedir.",            # tek marker: iptal ed (İ→i)
+    ):
+        assert len(unsourced_legal_claims(txt)) >= 1, f"İ/I marker kaçtı: {txt}"
+
+
 # --- measure_risk orkestratör ---
 
 def test_measure_risk_aggregates_all():

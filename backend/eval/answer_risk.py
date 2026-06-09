@@ -42,6 +42,7 @@ from agents.risk_guard import (
     fabricated_law_names,
     implausible_article_numbers,
 )
+from retrieval.turkish_text import tr_lower
 
 # --- 3. Kaynaksız hukuki iddia ---
 # Kesin hukuki iddia içeren ama [src:] etiketi taşımayan cümle.
@@ -73,7 +74,9 @@ def unsourced_legal_claims(text: str) -> list[str]:
     """[src:] etiketi olmayan kesin hukuki iddia cümlelerini döndür."""
     flags = []
     for sent in _SENT_SPLIT_RE.split(text):
-        low = sent.casefold()
+        # tr_lower: str.casefold() Türkçe İ/I'yı bozar (İ→i̇ combining-dot, I→i) →
+        # BÜYÜK harf İ/I taşıyan iddia marker'ları sessizce kaçardı (denetim #15).
+        low = tr_lower(sent)
         if any(b in low for b in _BOILERPLATE):
             continue
         if len(sent.strip()) < 30:
