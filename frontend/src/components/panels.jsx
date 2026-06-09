@@ -8,7 +8,7 @@
    - ThinkingSkeleton: vercel shimmer — draft hazırlanırken cevabın yerini tutar.
    - EvidenceStats: daisyUI `stat` deseni (elle-CSS) → cevabın kanıt özetini
                   taranabilir stat-bloklar olarak gösterir (Güven · Kaynak · İddia). */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { Icon } from "./icons.jsx";
 
 /** %0→value ease-out-cubic sayaç (reduced-motion saygılı). */
@@ -67,6 +67,7 @@ export function EvidenceStats({ confidence, sourceCount, claims }) {
 /* ---------- Ajan-izi / doğrulama şeffaflık paneli (açılır) ---------- */
 export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domain }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();  // a11y (#37): toggle ↔ açılan bölge ilişkilendirmesi (aria-controls)
   const list = claims || [];
   const total = list.length;
   const okCount = list.filter((c) => c.verified).length;
@@ -93,6 +94,7 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domai
         className="at-head"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-controls={panelId}
         aria-label="Ajan ekibi doğrulama dökümü"
       >
         <span className="at-ic"><Icon.scale /></span>
@@ -104,7 +106,7 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domai
       </button>
 
       {open && (
-        <div className="at-body">
+        <div className="at-body" id={panelId}>
           {/* Pipeline timeline — hangi ajanların çalıştığı (daisyUI timeline) */}
           <ol className="at-timeline" aria-label="Ajan hattı">
             {stages.map((s, i) => {

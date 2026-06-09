@@ -1,10 +1,26 @@
 /* panels.jsx — PredictionCard / AgentTrace özet / EvidenceStats render testleri. */
 import React from "react";
 import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PredictionCard, AgentTrace, EvidenceStats, QuickTyping } from "./panels.jsx";
 
 const html = (n) => renderToStaticMarkup(n);
+
+describe("AgentTrace a11y (#37)", () => {
+  it("toggle aria-controls açılan bölgenin id'siyle eşleşir (aria-expanded tek başına yetmez)", () => {
+    render(<AgentTrace claims={[{ verified: true }]} sourceCount={2} domain="kira" />);
+    const btn = screen.getByRole("button", { name: /doğrulama dökümü/i });
+    const controls = btn.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(btn);  // bölgeyi aç
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
+    const body = document.getElementById(controls);
+    expect(body).not.toBeNull();
+    expect(body.className).toContain("at-body");
+  });
+});
 
 describe("QuickTyping", () => {
   it("role=status + 3 nokta + etiket", () => {

@@ -31,6 +31,12 @@ export function applyLegalTooltips(text, keyBase) {
         className="legal-term"
         data-def={def}
         title={def}
+        /* a11y (#37): tabIndex=0 → <abbr> klavye/dokunmatikte odaklanabilir; CSS :focus::after
+           tooltip'i tetikler (eskiden yalnız fare-hover → touch/klavye kullanıcısı tanımı göremiyordu).
+           aria-label tanımı ekran-okuyucuya da açıkça duyurur (görsel ::after a11y ağacında değil). */
+        tabIndex={0}
+        role="note"
+        aria-label={`${original}: ${def}`}
         /* Edge koruması: ekranın sağına yakınsa tooltip sola yaslanır */
       >
         {original}
