@@ -40,6 +40,11 @@ YARGI_MCP_URL = os.getenv("YARGI_MCP_URL", "https://yargimcp.surucu.dev/mcp")
 YARGI_MCP_TIMEOUT_MS = int(os.getenv("YARGI_MCP_TIMEOUT_MS", "30000"))
 YARGI_MCP_TOKEN = os.getenv("YARGI_MCP_TOKEN")
 
+# Dış MCP sunucusunun döndürdüğü rate-limit `retry_after` GÜVENİLMEZ veridir; üst
+# sınır olmadan doğrudan asyncio.sleep'e beslemek DoS yüzeyidir (kötü/hatalı sunucu
+# devasa değer döndürüp isteği süresiz askıya alabilir). Bu tavanla sıkıştırılır.
+_MAX_RETRY_AFTER_S = 60.0
+
 CourtType = Literal[
     "YARGITAYKARARI",
     "DANISTAYKARAR",
@@ -303,7 +308,13 @@ class YargiClient:
         # Sprint-5 W13 fix: yargi-mcp 0.2.0 rate_limit_exceeded → 429 status,
         # retry_after saniye field. Bekleme + 1 retry yap.
         if data.get("error") == "rate_limit_exceeded":
-            retry_after_s = float(data.get("retry_after", "5") or 5)
+            # Dış-servis verisi: sayı değilse güvenli varsayılan (float() çökmesini önle),
+            # sonra [0, _MAX_RETRY_AFTER_S] aralığına sıkıştır (sınırsız sleep = DoS).
+            try:
+                retry_after_s = float(data.get("retry_after", "5") or 5)
+            except (TypeError, ValueError):
+                retry_after_s = 5.0
+            retry_after_s = max(0.0, min(retry_after_s, _MAX_RETRY_AFTER_S))
             logger.info(
                 "yargi_rate_limited_retry",
                 extra={"retry_after": retry_after_s, "phrase": phrase},

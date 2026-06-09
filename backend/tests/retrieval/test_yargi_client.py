@@ -440,6 +440,55 @@ async def test_rate_limit_retry():
     assert results[0].document_id == "DOC-001"
 
 
+@pytest.mark.asyncio
+async def test_rate_limit_retry_after_capped():
+    """Kötü/hatalı MCP sunucusu devasa retry_after dönerse sleep ÜST SINIRLA sıkışır
+    (sınırsız asyncio.sleep = DoS; denetim bulgusu #4, 2026-06-09 worldclass-audit)."""
+    from retrieval.yargi_client import _MAX_RETRY_AFTER_S
+
+    rate_limit_resp = {"error": "rate_limit_exceeded", "retry_after": "100000"}
+    success_resp = {"decisions": [_YARGITAY_ITEM]}
+    client = _ready_client()
+    call_count = 0
+
+    async def _side_effect(tool_name, arguments):
+        nonlocal call_count
+        call_count += 1
+        return rate_limit_resp if call_count == 1 else success_resp
+
+    with (
+        patch.object(YargiClient, "_call_tool", side_effect=_side_effect),
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
+        results = await client.search_yargitay("mulkiyet")
+
+    mock_sleep.assert_called_once_with(_MAX_RETRY_AFTER_S + 1)
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_retry_after_nonnumeric_safe():
+    """retry_after sayı değilse (kötü veri) float() çökmesi yerine güvenli varsayılan."""
+    rate_limit_resp = {"error": "rate_limit_exceeded", "retry_after": "abc"}
+    success_resp = {"decisions": [_YARGITAY_ITEM]}
+    client = _ready_client()
+    call_count = 0
+
+    async def _side_effect(tool_name, arguments):
+        nonlocal call_count
+        call_count += 1
+        return rate_limit_resp if call_count == 1 else success_resp
+
+    with (
+        patch.object(YargiClient, "_call_tool", side_effect=_side_effect),
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
+        results = await client.search_yargitay("mulkiyet")
+
+    mock_sleep.assert_called_once_with(6.0)  # varsayılan 5 + 1
+    assert len(results) == 1
+
+
 # ---------------------------------------------------------------------------
 # 14. MCP error yaniti -> RuntimeError
 # ---------------------------------------------------------------------------
