@@ -160,6 +160,47 @@ async def collection_has_colbert(client: AsyncQdrantClient) -> bool:
     return False
 
 
+# Filtrelenen TÜM payload alanları indexlenmeli; yoksa filtreli arama O(N) brute-force
+# olur (159K noktada her doc_type/kanun_kodu/madde_no/chunk_id filtreli sorgu tüm
+# koleksiyonu tarar → "lokal/hızlı" tez direğini çürüten darboğaz). Denetim #2 (2026-06-09).
+# Tip ÖNEMLİ: madde_no payload'da int (chunker `int(...)`) → INTEGER; geri kalan str → KEYWORD.
+_PAYLOAD_INDEXES: tuple[tuple[str, models.PayloadSchemaType], ...] = (
+    ("domain", models.PayloadSchemaType.KEYWORD),
+    ("source", models.PayloadSchemaType.KEYWORD),
+    ("doc_type", models.PayloadSchemaType.KEYWORD),
+    ("kanun_kodu", models.PayloadSchemaType.KEYWORD),
+    ("chunk_id", models.PayloadSchemaType.KEYWORD),
+    ("madde_no", models.PayloadSchemaType.INTEGER),
+)
+
+
+async def create_payload_indexes(
+    client: AsyncQdrantClient,
+    collection_name: str = COLLECTION_NAME,
+    *,
+    skip_existing: bool = False,
+) -> None:
+    """Filtrelenen payload alanlarına index oluştur.
+
+    Yeni koleksiyonda ensure_collection bunu çağırır. ÖNCEDEN seed edilmiş koleksiyonlar
+    (ör. production `adalet_mursit_hybrid`) için migration olarak da kullanılır.
+
+    Args:
+        skip_existing: True → zaten-var hatası yutulur (idempotent migration); False → propagate.
+    """
+    for field_name, schema in _PAYLOAD_INDEXES:
+        try:
+            await client.create_payload_index(
+                collection_name=collection_name,
+                field_name=field_name,
+                field_schema=schema,
+            )
+        except Exception as exc:  # migration idempotency: zaten-var hatasını yut
+            if not skip_existing:
+                raise
+            log.info("payload_index_skip", field=field_name, err=str(exc))
+
+
 async def ensure_collection(
     client: AsyncQdrantClient,
     enable_colbert: bool | None = None,
@@ -206,16 +247,7 @@ async def ensure_collection(
         hnsw_config=models.HnswConfigDiff(m=16, ef_construct=128),
     )
 
-    await client.create_payload_index(
-        collection_name=COLLECTION_NAME,
-        field_name="domain",
-        field_schema=models.PayloadSchemaType.KEYWORD,
-    )
-    await client.create_payload_index(
-        collection_name=COLLECTION_NAME,
-        field_name="source",
-        field_schema=models.PayloadSchemaType.KEYWORD,
-    )
+    await create_payload_indexes(client, COLLECTION_NAME)
 
     log.info(
         "collection_created",

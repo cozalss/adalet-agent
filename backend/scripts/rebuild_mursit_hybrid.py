@@ -65,6 +65,11 @@ async def main(args: argparse.Namespace) -> None:
             sparse_vectors_config={"sparse": SparseVectorParams(index=None, modifier=Modifier.IDF)},
         )
         logger.info("%s oluşturuldu (dense=768 + sparse=IDF)", TARGET)
+        # Filtrelenen payload alanlarına index (denetim #2): yoksa doc_type/kanun_kodu/
+        # madde_no/chunk_id filtreli arama 159K noktada O(N) brute-force olur.
+        from retrieval.vector_store import create_payload_indexes
+        await create_payload_indexes(q, TARGET)
+        logger.info("%s payload index'leri kuruldu (domain/source/doc_type/kanun_kodu/chunk_id/madde_no)", TARGET)
 
     # --- 1. adalet_mursit'ten tüm ID+dense, adalet'ten aynı ID+sparse al ---
     total = n_written = 0
