@@ -14,7 +14,6 @@ from fastapi import HTTPException
 from api.routes.ask import _detect_minor
 from api.routes.dilekce import _check_ownership
 
-
 # ---------------------------------------------------------------------------
 # Fix 1 — dilekce._check_ownership: boş owner_sub fail-closed
 # ---------------------------------------------------------------------------
@@ -58,9 +57,10 @@ def test_auth_disabled_skips_ownership(monkeypatch):
 @pytest.mark.asyncio
 async def test_bind_owner_fail_closed_on_store_error(monkeypatch):
     """store.set_owner_if_absent exception atarsa → HTTPException 503 (suppress DEĞİL)."""
+    from fastapi import HTTPException
+
     import api.routes.ask as ask_mod
     from api.middleware.auth import Principal
-    from fastapi import HTTPException
 
     class _FakeStore:
         async def get_owner(self, conv_id: str):
@@ -80,10 +80,11 @@ async def test_bind_owner_fail_closed_on_store_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_bind_owner_idor_blocks_second_user(monkeypatch):
     """Farklı sahibin conv_id'sine erişim → 403."""
+    from fastapi import HTTPException
+
     import api.routes.ask as ask_mod
     from api.middleware.auth import Principal
     from api.pii import fingerprint
-    from fastapi import HTTPException
 
     owner_fp = fingerprint("owner-user")
 
@@ -113,7 +114,7 @@ async def test_bind_owner_anonymous_is_noop(monkeypatch):
     class _FakeStore:
         async def get_owner(self, conv_id: str):
             called.append("get_owner")
-            return None
+            return
 
         async def set_owner_if_absent(self, conv_id: str, owner: str):
             called.append("set_owner")
