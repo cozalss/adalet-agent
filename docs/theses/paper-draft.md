@@ -253,12 +253,18 @@ TÜBİTAK 2209-A burs (~12.000 TL, Kasım 2026 başvuru).
 ## Ek-A: Reproducibility
 
 ```bash
-git clone https://github.com/<org>/adalet-agent
+git clone https://github.com/<org>/adalet-agent   # repo URL henüz TBD (açık-kaynak launch'ta)
 cd adalet-agent/backend
 uv sync
 docker compose --env-file .env.example up -d qdrant redis
-uv run python -m scripts.seed_mevzuat && uv run python -m scripts.seed_emsal
-uv run python -m eval.freeze_baseline --benchmark v2 --modes all
+# Seed — mevzuat (kanun maddeleri) + emsal (Yargıtay/Danıştay, scripts.seed orkestratörü):
+uv run python -m scripts.seed_mevzuat
+uv run python -m scripts.seed --court all --domain all --limit-per-domain 1000
+# Retrieval baseline — LLM'siz modlar (hyde/multi_query gerçek LLM gerektirir → ayrı koşum):
+uv run python -m eval.freeze_baseline --benchmark v2 --modes hybrid,rerank
 ```
 
-Tüm Sprint-4 sonu run'lar `eval/runs/manifest.json`'da listeli.
+> Komut doğruluğu (repro-kritik): `eval.freeze_baseline` geçerli mode'ları
+> `hybrid,rerank,hyde,multi_query`'dir ("all" KABUL EDİLMEZ). Emsal seed ayrı bir
+> `seed_emsal` script'i değil, `scripts.seed` orkestratörüdür (`--court/--domain/--limit-per-domain`).
+> Sprint-4 sonu run'lar `eval/runs/` altında JSON olarak kayıtlı.
