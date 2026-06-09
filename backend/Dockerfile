@@ -69,6 +69,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mkdir -p /models \
     && chown -R app:app /models
 
+# Güvenlik (#38 Trivy): base image'ın SİSTEM Python paketleme araçlarını yamalıya yükselt.
+# Uygulama /app/.venv'den koşar (venv'de setuptools 81 → jaraco.context 6.1.0 + wheel 0.46.3
+# ZATEN yamalı). Ama python:3.11-slim sistem site-packages'ında ESKİ setuptools (vendored
+# jaraco.context 5.3.0) + wheel 0.45.1 var → Trivy bunları fixable-HIGH sayıp CI'ı kırıyor.
+#   CVE-2026-23949 (jaraco.context: malicious tar path traversal) → fix 6.1.0
+#   CVE-2026-24049 (wheel: malicious wheel ile kod yürütme/yetki yükseltme) → fix 0.46.2
+RUN pip install --no-cache-dir --upgrade \
+        "pip" "setuptools>=81.0.0" "wheel>=0.46.2" "jaraco.context>=6.1.0"
+
 WORKDIR /app
 
 # Build stage'den .venv + uygulama kodunu kopyala (owner: app)
