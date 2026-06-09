@@ -775,3 +775,17 @@ a.btn:not(:disabled):active {
   .smalltalk-bubble { animation: none; }
   .quick-typing .qt-dot { animation: none; opacity: .6; }
 }
+
+/* Üst-düzey hata sınırı kurtarma ekranı (denetim #8) — sakin, ortalanmış, marka-içi. */
+.error-boundary {
+  max-width: 32rem;
+  margin: 12vh auto;
+  padding: 2rem 2.25rem;
+  text-align: center;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,.08));
+  box-shadow: 0 8px 30px rgba(0,0,0,.06);
+}
+.error-boundary h2 { margin: 0 0 .5rem; font-size: 1.25rem; }
+.error-boundary p { margin: 0 0 1.25rem; color: var(--muted, #555); line-height: 1.55; }
