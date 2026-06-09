@@ -30,6 +30,8 @@ mobile/ios/Pods/
 .vscode/
 .idea/
 .claude/
+# vendored agent-skills içeriği — skills-lock.json'dan yeniden üretilir
+.agents/
 .DS_Store
 Thumbs.db
 
