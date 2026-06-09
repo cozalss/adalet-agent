@@ -11,10 +11,10 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![Qdrant](https://img.shields.io/badge/Qdrant-159k%20vektör-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Tests](https://img.shields.io/badge/tests-1313%20backend%20%2B%20151%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
+[![Tests](https://img.shields.io/badge/tests-1334%20backend%20%2B%20200%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 1313 backend + 151 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
+**159k kaynak vektörü · 1334 backend + 200 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
@@ -201,7 +201,7 @@ veya canlı API ile alınmıştır. Metodoloji: [docs/theses/measured-results.md
 
 | Yanıt (ort) | Algılanan³ | Verify claim-desteği | Verify ayırt-etme⁴ | Tahmin f1_macro | Test |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1313** ✓ |
+| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1334** ✓ |
 
 > ³ Streaming (SSE `draft_token`) ile kullanıcı cevabın **ilk 1-2 saniyede** oluşmaya başladığını görür.
 > ⁴ Verify açıkken claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı kaynaksız iddiaların
@@ -265,7 +265,7 @@ Swagger UI → `http://127.0.0.1:8000/docs` &nbsp;·&nbsp; Sağlık → `http://
 
 ```bash
 # 3) Testleri çalıştır
-uv run --extra dev pytest tests/ -q       # 1313 passed, 6 skipped
+uv run --extra dev pytest tests/ -q       # 1334 passed, 6 skipped
 uv run --extra dev ruff check .
 uv run --extra dev mypy .
 ```
@@ -346,7 +346,7 @@ Content-Type: application/json
 
 ```bash
 cd backend
-uv run --extra dev pytest tests/ -q                       # 1313 passed, 6 skipped
+uv run --extra dev pytest tests/ -q                       # 1334 passed, 6 skipped
 uv run --extra dev ruff check .                            # geniş strict kural seti
 uv run --extra dev mypy .                                  # strict
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii
@@ -392,8 +392,8 @@ adalet-agent/
 │   ├── multimodal/    OCR · STT · TTS
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
-│   └── tests/         pytest suite (1313+)
-├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (151 test)
+│   └── tests/         pytest suite (1334)
+├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (200 test)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları
 ├── infra/             Caddy ve deploy altyapısı
