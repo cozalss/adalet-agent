@@ -43,8 +43,10 @@ alter table public.profiles add constraint profiles_displayname_len
   check (char_length(display_name) <= 200);
 
 -- updated_at otomatik tazeleme (client clock'a güvenme) — paylaşılan trigger fn.
+-- search_path='' pinli (linter: function_search_path_mutable). now() pg_catalog'dadır,
+-- '' ile sorunsuz çözülür.
 create or replace function public.set_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = '' as $$
 begin
   new.updated_at = now();
   return new;
@@ -58,12 +60,12 @@ drop policy if exists "profiles_select_own" on public.profiles;
 drop policy if exists "profiles_insert_own" on public.profiles;
 drop policy if exists "profiles_update_own" on public.profiles;
 drop policy if exists "profiles_delete_own" on public.profiles;
-create policy "profiles_select_own" on public.profiles for select using ((select auth.uid()) = id);
-create policy "profiles_insert_own" on public.profiles for insert with check ((select auth.uid()) = id);
-create policy "profiles_update_own" on public.profiles for update
+create policy "profiles_select_own" on public.profiles for select to authenticated using ((select auth.uid()) = id);
+create policy "profiles_insert_own" on public.profiles for insert to authenticated with check ((select auth.uid()) = id);
+create policy "profiles_update_own" on public.profiles for update to authenticated
   using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 -- "hesabımı sil" akışı için (Edge Function ileride — bkz. docs/DB_OPERATIONS.md).
-create policy "profiles_delete_own" on public.profiles for delete using ((select auth.uid()) = id);
+create policy "profiles_delete_own" on public.profiles for delete to authenticated using ((select auth.uid()) = id);
 
 -- Yeni kayıtta otomatik profil satırı. search_path='' + EXCEPTION (fail-closed + loglu).
 create or replace function public.handle_new_user()
@@ -82,6 +84,12 @@ end; $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users for each row execute function public.handle_new_user();
+-- handle_new_user YALNIZ trigger ile çağrılır; /rest/v1/rpc olarak ifşa etme
+-- (linter: anon/authenticated SECURITY DEFINER executable). Trigger owner olarak
+-- çalıştığından bu REVOKE trigger'ı etkilemez.
+revoke execute on function public.handle_new_user() from public;
+revoke execute on function public.handle_new_user() from anon;
+revoke execute on function public.handle_new_user() from authenticated;
 
 -- ============================ MIGRATION GUARD ============================
 -- Yıkıcı DROP'lardan önce: tablolarda VERİ varsa DUR (kazara prod re-run = veri kaybı önle).
@@ -117,11 +125,11 @@ drop trigger if exists set_conversations_updated_at on public.conversations;
 create trigger set_conversations_updated_at
   before update on public.conversations for each row execute function public.set_updated_at();
 alter table public.conversations enable row level security;
-create policy "conv_select_own" on public.conversations for select using ((select auth.uid()) = user_id);
-create policy "conv_insert_own" on public.conversations for insert with check ((select auth.uid()) = user_id);
-create policy "conv_update_own" on public.conversations for update
+create policy "conv_select_own" on public.conversations for select to authenticated using ((select auth.uid()) = user_id);
+create policy "conv_insert_own" on public.conversations for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "conv_update_own" on public.conversations for update to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-create policy "conv_delete_own" on public.conversations for delete using ((select auth.uid()) = user_id);
+create policy "conv_delete_own" on public.conversations for delete to authenticated using ((select auth.uid()) = user_id);
 
 -- ============================ messages ============================
 -- id = uuid (Supabase üretir). KASITLI immutable: save_conversation delete+insert ile
@@ -142,16 +150,17 @@ create table public.messages (
   constraint messages_citations_len check (jsonb_array_length(citations) <= 100),
   constraint messages_conv_turn_unique unique (conversation_id, turn_index)
 );
-create index messages_conv on public.messages (conversation_id, turn_index);
+-- NOT: (conversation_id, turn_index) sorguları UNIQUE constraint messages_conv_turn_unique
+--      tarafından zaten karşılanır → ayrı 'messages_conv' indeksi gereksiz (kopya). Eklenmez.
 alter table public.messages enable row level security;
-create policy "msg_select_own" on public.messages for select
+create policy "msg_select_own" on public.messages for select to authenticated
   using (exists (select 1 from public.conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
-create policy "msg_insert_own" on public.messages for insert
+create policy "msg_insert_own" on public.messages for insert to authenticated
   with check (exists (select 1 from public.conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
-create policy "msg_delete_own" on public.messages for delete
+create policy "msg_delete_own" on public.messages for delete to authenticated
   using (exists (select 1 from public.conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
 -- EXPLICIT deny: messages immutable (UPDATE hiçbir satırı kapsamaz → tüm UPDATE reddedilir).
-create policy "msg_update_deny" on public.messages for update using (false);
+create policy "msg_update_deny" on public.messages for update to authenticated using (false);
 
 -- ============================ uploaded_files (Dosyalarım) ============================
 create table public.uploaded_files (
@@ -169,11 +178,11 @@ create table public.uploaded_files (
 create index files_user on public.uploaded_files (user_id, uploaded_at desc);
 create index files_conv on public.uploaded_files (conversation_id);
 alter table public.uploaded_files enable row level security;
-create policy "files_select_own" on public.uploaded_files for select using ((select auth.uid()) = user_id);
-create policy "files_insert_own" on public.uploaded_files for insert with check ((select auth.uid()) = user_id);
-create policy "files_delete_own" on public.uploaded_files for delete using ((select auth.uid()) = user_id);
+create policy "files_select_own" on public.uploaded_files for select to authenticated using ((select auth.uid()) = user_id);
+create policy "files_insert_own" on public.uploaded_files for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "files_delete_own" on public.uploaded_files for delete to authenticated using ((select auth.uid()) = user_id);
 -- EXPLICIT deny: uploaded_files metadata immutable (yalnız insert/delete).
-create policy "files_update_deny" on public.uploaded_files for update using (false);
+create policy "files_update_deny" on public.uploaded_files for update to authenticated using (false);
 
 -- ============================ save_conversation() RPC ============================
 -- Conversation upsert + mesaj replace TEK TRANSACTION (atomik): mesaj kaybı yok.
