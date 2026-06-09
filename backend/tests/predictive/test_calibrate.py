@@ -6,10 +6,32 @@ import numpy as np
 import pytest
 
 from predictive.calibrate import (
+    brier_score,
     expected_calibration_error,
     fit_temperature,
     softmax,
 )
+
+
+def test_brier_perfect_is_zero():
+    probs = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    assert brier_score(probs, np.array([0, 1])) == 0.0
+
+
+def test_brier_confident_wrong_is_worst():
+    # kesin-yanlış tek örnek → (0-1)²+(0)²+(1-0)² = 2 (çok-sınıf üst sınır)
+    assert brier_score(np.array([[0.0, 0.0, 1.0]]), np.array([0])) == 2.0
+
+
+def test_brier_rewards_calibrated_uncertainty():
+    # belirsiz (uniform) doğru-sınıfta, kesin-yanlış'tan DAHA İYİ (düşük) olmalı
+    uniform = np.array([[1 / 3, 1 / 3, 1 / 3]])
+    confident_wrong = np.array([[0.0, 0.0, 1.0]])
+    assert brier_score(uniform, np.array([0])) < brier_score(confident_wrong, np.array([0]))
+
+
+def test_brier_empty_is_zero():
+    assert brier_score(np.zeros((0, 3)), np.array([], dtype=int)) == 0.0
 
 
 def test_softmax_sums_to_one():

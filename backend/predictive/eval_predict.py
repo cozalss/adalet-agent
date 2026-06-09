@@ -104,11 +104,12 @@ def run_model(records: list[dict], model_dir: str, max_length: int = 512,
 
 def evaluate(records: list[dict], model_dir: str, max_length: int, label: str) -> dict:
     """Tam rapor: classification_metrics + ECE (kalibre güven)."""
-    from predictive.calibrate import expected_calibration_error
+    from predictive.calibrate import brier_score, expected_calibration_error
 
     y_true, y_pred, probs = run_model(records, model_dir, max_length)
     report = classification_metrics(y_true, y_pred)
     report["ece"] = expected_calibration_error(probs, y_true)
+    report["brier"] = brier_score(probs, y_true)  # #25: olasılık-kalitesi (ECE'yi tamamlar)
     report["label_kind"] = label
     return report
 
@@ -126,7 +127,7 @@ def print_scorecard(s: dict) -> None:
                 "(silver↔gerçek arası köprü ölçüm).")
     print(warn)
     print(f"  accuracy = {s['accuracy']:.4f}   f1_macro = {s['f1_macro']:.4f}   "
-          f"ECE = {s['ece']:.4f} (hedef ≤0.05)")
+          f"ECE = {s['ece']:.4f} (hedef ≤0.05)   Brier = {s.get('brier', float('nan')):.4f}")
     print(f"  {'-' * 64}")
     print(f"  {'sınıf':<12}{'precision':>11}{'recall':>9}{'f1':>8}{'support':>9}")
     for lab, m in s["per_class"].items():

@@ -99,6 +99,26 @@ def expected_calibration_error(
     return round(float(ece), 4)
 
 
+def brier_score(
+    probs: NDArray[np.float64],
+    labels: NDArray[np.int_],
+) -> float:
+    """Çok-sınıf Brier skoru — olasılık tahmininin kalitesi (kalibrasyon + keskinlik).
+
+    mean_i Σ_c (p_ic − 1{y_i=c})². Düşük = iyi (mükemmel 0, en kötü 2). ECE'yi tamamlar
+    (denetim #25): ECE yalnız max-güveni kovalar; Brier TÜM sınıf-olasılık dağılımını
+    cezalandırır → kalibre+keskin olasılık ödüllenir. accuracy'den bağımsız proper scoring rule.
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.int_)
+    n = len(labels)
+    if n == 0:
+        return 0.0
+    onehot = np.zeros_like(probs)
+    onehot[np.arange(n), labels] = 1.0
+    return round(float(np.mean(np.sum((probs - onehot) ** 2, axis=1))), 4)
+
+
 __all__ = (
     "expected_calibration_error",
     "fit_temperature",
