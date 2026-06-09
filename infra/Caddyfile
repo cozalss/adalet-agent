@@ -37,8 +37,9 @@ staging.adalet.app {
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# Browser feature lockdown
 		Permissions-Policy "camera=(), microphone=(self), geolocation=(), payment=()"
-		# CSP — frontend'le birlikte ayarla; backend-only için minimal
-		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none';"
+		# CSP — tek-origin (Caddy hem SPA hem API sunar). Vite inline script/style + Supabase
+		# bağlantısı + font/img izinleri. (vercel.json CSP ile hizalı; denetim #21.)
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
 		# Server banner kaldır
 		-Server
 	}
@@ -49,8 +50,10 @@ staging.adalet.app {
 		reverse_proxy backend:8000
 	}
 
-	# API endpoint'leri — backend container
-	@api path /ask* /multimodal/* /auth/* /feedback*
+	# API endpoint'leri — backend container. Frontend relative-path çağırır → TÜM backend
+	# yolları burada olmalı (denetim #21: /me=geçmiş/tercih/dosya, /api, /metrics eksikti →
+	# kayıtlı kullanıcı prod'da 404 alıyordu).
+	@api path /ask* /api/* /me/* /multimodal/* /auth/* /feedback* /metrics*
 	handle @api {
 		reverse_proxy backend:8000 {
 			# Backend rate-limit X-Forwarded-For ile gerçek IP görsün
@@ -77,9 +80,13 @@ staging.adalet.app {
 		reverse_proxy backend:8000
 	}
 
-	# Default — 404
+	# Frontend SPA (Vite build) — tek-origin: Caddy statik SPA'yı sunar, geri kalan tüm
+	# yollar API matcher'a düştü. compose `./frontend/dist`'i /srv/frontend'e mount eder
+	# (deploy ÖNCESİ `cd frontend && npm run build`). try_files → SPA client-side routing fallback.
 	handle {
-		respond "Not found" 404
+		root * /srv/frontend
+		try_files {path} /index.html
+		file_server
 	}
 
 	# Access log (JSON)
