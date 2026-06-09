@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -86,6 +87,31 @@ def _sse_event(event: str, payload: dict[str, Any]) -> str:
     """Tek SSE serializer. `final` dışındaki payload'lar v=SSE_SCHEMA_VERSION sözleşmesini taşır."""
     data = {"v": SSE_SCHEMA_VERSION, **payload}
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+# CLAUDE.md kırmızı çizgi: <18 yaş filtresi
+# Kalıplar: "15 yaşındayım", "yaşım 14", "17 yaşım var", "16 yaşında bir çocuğum"
+_MINOR_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b([1-9]|1[0-7])\s*yaş(?:ında)?(?:yım|yim|yum|yüm|ım|im|um|üm|sin|sın)?\b", re.I | re.U),
+    re.compile(r"\byaş[ıi]m\s+([1-9]|1[0-7])\b", re.I | re.U),
+    re.compile(r"\b([1-9]|1[0-7])\s*yaşında\s+(?:bir\s+)?çocuğ?um\b", re.I | re.U),
+    re.compile(r"\b([1-9]|1[0-7])\s*yaşım\b", re.I | re.U),
+)
+
+_MINOR_ADVISORY = (
+    "Bu sistemi kullanabilmek için **18 yaşında veya üzerinde** olmanız gerekmektedir.\n\n"
+    "Hukuki bir sorunuz varsa, bir ebeveyn veya vasi eşliğinde avukattan ya da "
+    "barolar bünyesindeki **ücretsiz hukuki danışmanlık** birimlerinden destek alabilirsiniz:\n"
+    "- Türkiye Barolar Birliği: [barobirlik.org.tr](https://barobirlik.org.tr)\n"
+    "- ÇÖZÜM MERKEZİ (Adalet Bakanlığı): 182\n\n"
+    "---\n*Bu yanıt hukuki tavsiye niteliği taşımaz; bilgilendirme amaçlıdır. "
+    "Karmaşık hukuki durumlarda mutlaka bir avukata danışınız.*"
+)
+
+
+def _detect_minor(text: str) -> bool:
+    """Metinde 18 yaş altı beyanı var mı kontrol et."""
+    return any(p.search(text) for p in _MINOR_PATTERNS)
 
 
 # Frontend "Ajan Akış Şeması" için CURATED düğüm etiketi. KRİTİK (red-line, ask.py:431-432
@@ -238,8 +264,17 @@ async def _bind_or_verify_owner(conv_id: str, principal: Principal) -> None:
             detail="Oturum doğrulaması geçici olarak yapılamıyor, tekrar deneyin.",
         ) from exc
     if existing is None:
-        with contextlib.suppress(Exception):
+        try:
             await store.set_owner_if_absent(conv_id, owner)
+        except Exception as exc:
+            # Fail-CLOSED: read-path ile tutarlı — write de başarısız olursa 503.
+            # suppress ile bırakırsak conv_id sahipsiz kalır → sonraki çağrı
+            # da "existing is None" görür → başkası sahip olur (fail-open IDOR).
+            log.warning("owner_bind_failed", conv_id=conv_id, error=str(exc))
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Oturum doğrulaması geçici olarak yapılamıyor, tekrar deneyin.",
+            ) from exc
         return
     if existing != owner:
         emit_audit(AuditEvent(
@@ -285,6 +320,24 @@ async def ask(
             status_code=400, detail=f"prompt-injection: {s_result.reason}",
         )
     cleaned_question = s_result.cleaned_text
+
+    # CLAUDE.md kırmızı çizgi: <18 yaş beyanı → kapat, özel advisory dön
+    if _detect_minor(cleaned_question):
+        emit_audit(AuditEvent(
+            event="ask_blocked_minor", principal=principal,
+            question="<MINOR DETECTED - redacted>",
+            conversation_id=req.conversation_id or "",
+        ))
+        return AskResponse(
+            answer=_MINOR_ADVISORY,
+            domain="unknown", domain_confidence=1.0,
+            confidence=1.0, confidence_label=None,
+            n_verified_claims=0, n_total_claims=0,
+            verdict="reject",
+            response_intent="out_of_scope_sensitive",
+            disclaimers=["Bu yanıt yaş doğrulaması nedeniyle kısıtlanmıştır."],
+            latency_ms=0, conversation_id=None,
+        )
 
     # W6.4 — PII mask (persist+audit için)
     pii_result = mask_pii(cleaned_question)
@@ -406,6 +459,33 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
         raise HTTPException(status_code=400, detail=f"prompt-injection: {s_result.reason}")
 
     cleaned_question = s_result.cleaned_text
+
+    # CLAUDE.md kırmızı çizgi: <18 yaş beyanı → SSE final event olarak advisory dön
+    if _detect_minor(cleaned_question):
+        emit_audit(AuditEvent(
+            event="ask_stream_blocked_minor", principal=principal,
+            question="<MINOR DETECTED - redacted>",
+            conversation_id=req.conversation_id or "",
+        ))
+        advisory = AskResponse(
+            answer=_MINOR_ADVISORY,
+            domain="unknown", domain_confidence=1.0,
+            confidence=1.0, confidence_label=None,
+            n_verified_claims=0, n_total_claims=0,
+            verdict="reject",
+            response_intent="out_of_scope_sensitive",
+            disclaimers=["Bu yanıt yaş doğrulaması nedeniyle kısıtlanmıştır."],
+            latency_ms=0, conversation_id=None,
+        )
+
+        async def _minor_stream() -> AsyncIterator[str]:
+            yield f"event: final\ndata: {advisory.model_dump_json()}\n\n"
+
+        return StreamingResponse(
+            _minor_stream(), media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     safe_for_log = mask_pii(cleaned_question).masked_text  # PII-masked persist için
     sanitized_req = req.model_copy(update={"question": cleaned_question})
     graph = _get_graph()

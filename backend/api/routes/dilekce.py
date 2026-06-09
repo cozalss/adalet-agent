@@ -42,15 +42,14 @@ _UUID_RE = re.compile(
 def _check_ownership(entry_owner_sub: str, principal_sub: str) -> None:
     """Sahiplik kontrolü — AUTH_ENABLED=0 dev ortamında atlanır.
 
-    `entry.owner_sub == ""` durumu legacy (auth devre dışıyken üretilmiş
-    eski kayıt) için tolere edilir; production'da bu durum oluşmamalı.
+    Fail-closed: empty owner_sub da 403 yükseltir. Dev'den production'a
+    sızmış sahipsiz kayıtlar erişilemez olur (saldırgan "sahipsiz" kayıt
+    oluşturup başkasının PDF'ine erişemez).
     """
     # Fail-secure default "1" (auth.py ile tutarlı — güvenlik C1). Lokal dev EXPLICIT "0".
     if os.getenv("AUTH_ENABLED", "1") not in {"1", "true", "yes"}:
         return
-    if not entry_owner_sub:
-        return  # legacy entry — auth devre dışıyken üretilmiş, sahiplik yok
-    if entry_owner_sub != principal_sub:
+    if not entry_owner_sub or entry_owner_sub != principal_sub:
         raise HTTPException(
             status_code=403, detail="Bu dilekçeye erişim yetkiniz yok.",
         )
