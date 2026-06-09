@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 from dataclasses import dataclass
 from functools import cached_property
@@ -213,13 +214,45 @@ async def synthesize_speech(
 #  Helpers
 # --------------------------------------------------------------------------
 
+# TTS okunuş normalizasyonu (#39): Piper/Coqui kısaltmaları harf-harf okur ("Md." → "em-de",
+# "TKHK" → "te-ke-ha-ka", "5000 TL" → "...te-le"). Yalnız SESLİ çıktıya uygulanır — görünen
+# cevabı/citation'ı/doğrulamayı ETKİLEMEZ (kırmızı çizgi güvenli; salt okuma yardımı).
+# Kanun adları standart/doğrulanmış (uydurma değil); tam adın seslendirilmesi içeriği değiştirmez.
+_TR_WC = r"A-Za-zÇĞIİÖŞÜçğıiöşü0-9"
+_TTS_LAW_ABBREV = {
+    "TKHK": "Tüketicinin Korunması Hakkında Kanun",
+    "TBK": "Türk Borçlar Kanunu",
+    "TMK": "Türk Medeni Kanunu",
+    "TTK": "Türk Ticaret Kanunu",
+    "İİK": "İcra ve İflas Kanunu",
+    "VUK": "Vergi Usul Kanunu",
+    "HMK": "Hukuk Muhakemeleri Kanunu",
+    "İYUK": "İdari Yargılama Usulü Kanunu",
+}
+_MADDE_RE = re.compile(rf"(?<![{_TR_WC}])[Mm][Dd]\.\s*(?=\d)")
+_TL_RE = re.compile(rf"(\d)\s*TL(?![{_TR_WC}])")
+# Akronimleri uzunluk-azalan sırala (kısa olan uzunun prefiksiyse önce uzunu eşle).
+_LAW_ABBREV_RE = re.compile(
+    rf"(?<![{_TR_WC}])({'|'.join(sorted(map(re.escape, _TTS_LAW_ABBREV), key=len, reverse=True))})(?![{_TR_WC}])"
+)
+
+
+def _normalize_for_speech(text: str) -> str:
+    """Kısaltmaları seslendirme için aç (yalnız TTS metni; kelime-sınırı korumalı)."""
+    s = _MADDE_RE.sub("madde ", text)
+    s = _TL_RE.sub(r"\1 lira", s)
+    s = _LAW_ABBREV_RE.sub(lambda m: _TTS_LAW_ABBREV[m.group(1)], s)
+    s = s.replace("₺", " lira ")
+    return re.sub(r"[ \t]{2,}", " ", s).strip()
+
+
 def _prepare_text(
     text: str,
     *,
     strip_disclaimer: bool,
     max_chars: int,
 ) -> str:
-    """Disclaimer'ı kes + char limiti uygula (cümle sınırında)."""
+    """Disclaimer'ı kes + char limiti uygula (cümle sınırında) + okunuş normalize (#39)."""
     cleaned = text.strip()
     if strip_disclaimer:
         for marker in _DISCLAIMER_MARKERS:
@@ -229,14 +262,14 @@ def _prepare_text(
                 break
 
     if len(cleaned) <= max_chars:
-        return cleaned
+        return _normalize_for_speech(cleaned)
 
     # Cümle sınırında kes — son . ! ? işaretine kadar
     truncated = cleaned[:max_chars]
     last_period = max(truncated.rfind("."), truncated.rfind("!"), truncated.rfind("?"))
     if last_period > max_chars * 0.6:
         truncated = truncated[: last_period + 1]
-    return truncated.strip()
+    return _normalize_for_speech(truncated.strip())
 
 
 def _wav_duration_s(audio_bytes: bytes, sample_rate: int) -> float:

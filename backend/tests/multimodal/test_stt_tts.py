@@ -90,6 +90,32 @@ def test_prepare_text_keeps_disclaimer_when_false():
     assert "hukuki tavsiye" in cleaned
 
 
+def test_prepare_text_normalizes_legal_abbreviations_for_speech():
+    """Denetim #39: TTS kısaltmaları harf-harf okumasın diye açılır (Md.→madde, kanun
+    akronimi→tam ad, sayı+TL→lira). Yalnız sesli çıktı; içerik/citation değişmez."""
+    out = _prepare_text(
+        "TKHK md. 11 uyarınca 5000 TL iade ve TTK m. yok.",
+        strip_disclaimer=False, max_chars=2000,
+    )
+    assert "Tüketicinin Korunması Hakkında Kanun" in out
+    assert "Türk Ticaret Kanunu" in out
+    assert "madde 11" in out
+    assert "5000 lira" in out
+    assert "TKHK" not in out
+    assert "md. 11" not in out
+
+
+def test_prepare_text_abbrev_word_boundary_safe():
+    """Kelime-sınırı: 'TL' yalnız sayıdan sonra, akronim yalnız standalone → kelime içi bozulmaz."""
+    out = _prepare_text(
+        "5000 TL ama TLS protokolü ve metalik yüzey.",
+        strip_disclaimer=False, max_chars=2000,
+    )
+    assert "5000 lira" in out   # sayı sonrası TL açıldı
+    assert "TLS" in out         # TL'den sonra harf → bozulmadı
+    assert "metalik" in out     # kelime içi dokunulmadı
+
+
 def test_prepare_text_truncates_at_sentence_boundary():
     sentences = " ".join(f"Cümle {i}." for i in range(1, 50))
     cleaned = _prepare_text(sentences, strip_disclaimer=False, max_chars=120)
