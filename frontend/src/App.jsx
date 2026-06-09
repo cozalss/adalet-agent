@@ -564,7 +564,7 @@ function AttachRow({ attachments, onClear }) {
 }
 
 /* ---------- one conversation turn ---------- */
-function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce }) {
+export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce }) {
   const d = turn.data;
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
@@ -645,7 +645,16 @@ function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToa
             </React.Fragment>
           )}
 
-          {p === "reject" && <RejectCard data={d.reject} onRetry={onRetry} />}
+          {p === "reject" && (
+            <React.Fragment>
+              <RejectCard data={d.reject} onRetry={onRetry} />
+              {/* CLAUDE.md §2 kırmızı çizgi: reddedilen hukuki yanıt da disclaimer taşır.
+                  Smalltalk yolundaki koşullu desenle aynı → transport-hata/"Durduruldu"
+                  gibi disclaimers'sız pseudo-reject'lere gereksiz hukuki disclaimer basılmaz;
+                  gerçek verify-reject (backend [DISCLAIMER_TR] gönderir) ise daima gösterir. */}
+              {d.disclaimers?.length ? <DisclaimerBar items={d.disclaimers} /> : null}
+            </React.Fragment>
+          )}
         </div>
       </div>
     </React.Fragment>

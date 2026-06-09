@@ -109,6 +109,19 @@ describe("mapResponse — reject", () => {
     const out = mapResponse({ verdict: "reject", answer: "", citations: [] });
     expect(out.reject.body).toContain("avukat");
   });
+
+  it("reject yolu backend disclaimer'larını taşır (KIRMIZI ÇİZGİ §2: her yanıtta disclaimer)", () => {
+    const out = mapResponse({
+      domain: "isHukuku", verdict: "reject", answer: "Doğrulayamadım.",
+      disclaimers: ["Hukuki tavsiye değildir."], citations: [],
+    });
+    expect(out.disclaimers).toEqual(["Hukuki tavsiye değildir."]);
+  });
+
+  it("reject'te disclaimers yoksa [] (transport-hata vb. bar fallback'e düşer)", () => {
+    const out = mapResponse({ verdict: "reject", answer: "", citations: [] });
+    expect(out.disclaimers).toEqual([]);
+  });
 });
 
 describe("mapClarify", () => {

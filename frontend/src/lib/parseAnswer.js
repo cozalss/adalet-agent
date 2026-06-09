@@ -136,6 +136,10 @@ export function mapResponse(resp, question) {
           "Sorunuzu güvenilir kaynaklarla doğrulanmış şekilde yanıtlayamadım. " +
             "Yanlış bilgi vermektense bir avukata danışmanızı öneririm.",
       },
+      // CLAUDE.md §2: reddedilen yanıt da hukuki disclaimer taşımalı. stripAnswerTail
+      // gövdedeki ⚠️ kuyruğunu sildiğinden, backend disclaimers'ı AYRI taşıyıp UI'da
+      // DisclaimerBar'a veririz (gerçek verify-reject'te backend [DISCLAIMER_TR] gönderir).
+      disclaimers: Array.isArray(resp.disclaimers) ? resp.disclaimers : [],
       lookedAt: citations.map((c) => c.title || c.source_id).slice(0, 5),
       conversationId: resp.conversation_id,
     };
