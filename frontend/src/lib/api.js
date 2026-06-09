@@ -121,6 +121,30 @@ export async function ocrUpload(file) {
   return res.json(); // {text, engine, n_chars, ...}
 }
 
+/** POST /multimodal/stt — ses dosyası/blob → Türkçe metin (sesli giriş, #7).
+ *  Whisper backend; döner {text, language, duration_s, ...}. */
+export async function sttUpload(audio) {
+  const form = new FormData();
+  form.append("audio", audio);
+  const res = await fetch("/multimodal/stt", {
+    method: "POST", headers: authHeaders(), body: form,
+  });
+  if (!res.ok) throw new Error(`STT başarısız (HTTP ${res.status})`);
+  return res.json();
+}
+
+/** POST /multimodal/tts — metin → audio/wav Blob (sesli okuma, #7). Piper backend.
+ *  Disclaimer varsayılan kesilir (TTS okunuş normalizasyonu backend'de #39). */
+export async function synthesizeTTS(text, { stripDisclaimer = true } = {}) {
+  const res = await fetch("/multimodal/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ text, strip_disclaimer: stripDisclaimer }),
+  });
+  if (!res.ok) throw new Error(`TTS başarısız (HTTP ${res.status})`);
+  return res.blob();
+}
+
 /** DELETE /ask/session/{id} — sunucu tarafı geçmişi + dilekçe PDF'i sil (KVKK).
  *  "Yeni sohbet"te çağrılır; fire-and-forget (hata kullanıcıyı durdurmaz). */
 export async function clearSession(conversationId) {

@@ -11,6 +11,8 @@ import {
   downloadDilekce,
   ocrUpload,
   postFeedback,
+  sttUpload,
+  synthesizeTTS,
 } from "./api.js";
 
 /** SSE Response sahtesi: her frame `event:`/`data:` satırları, ayraç çift-newline. */
@@ -142,6 +144,44 @@ describe("postFeedback (denetim #24)", () => {
   it("backend hatası → throw (çağıran .catch ile yutar, UX bozulmaz)", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
     await expect(postFeedback({ conversationId: "c1", rating: "up" })).rejects.toThrow();
+  });
+});
+
+describe("sttUpload / synthesizeTTS (sesli mod #7)", () => {
+  it("sttUpload: /multimodal/stt'e audio multipart POST eder, {text} döner", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ text: "kıdem tazminatı nedir", language: "tr" }),
+    });
+    const blob = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" });
+    const r = await sttUpload(blob);
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe("/multimodal/stt");
+    expect(opts.method).toBe("POST");
+    expect(opts.body).toBeInstanceOf(FormData);
+    expect(opts.body.get("audio")).toBeTruthy();
+    expect(r.text).toBe("kıdem tazminatı nedir");
+  });
+
+  it("sttUpload: backend hatası → throw", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 422 });
+    await expect(sttUpload(new Blob(["x"]))).rejects.toThrow();
+  });
+
+  it("synthesizeTTS: /multimodal/tts'e JSON POST eder, audio Blob döner", async () => {
+    const wav = new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], { type: "audio/wav" });
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, blob: async () => wav });
+    const out = await synthesizeTTS("Merhaba", { stripDisclaimer: true });
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe("/multimodal/tts");
+    expect(opts.headers["Content-Type"]).toBe("application/json");
+    const body = JSON.parse(opts.body);
+    expect(body).toMatchObject({ text: "Merhaba", strip_disclaimer: true });
+    expect(out).toBeInstanceOf(Blob);
+  });
+
+  it("synthesizeTTS: backend hatası → throw", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+    await expect(synthesizeTTS("x")).rejects.toThrow();
   });
 });
 
