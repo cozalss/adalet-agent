@@ -109,6 +109,57 @@ async def test_qwen_vl_uses_chat_template_and_trims_output(monkeypatch):
     assert calls["decoded_ids"] == [[9, 9]]
 
 
+@pytest.mark.asyncio
+async def test_ocr_confidence_from_tesseract(monkeypatch):
+    """Denetim #20: Tesseract word-confidence ortalaması (−1 non-text filtrelenir) →
+    OCRResult.confidence; düşük güven istemciyi/ajanı uyarmak için propagate edilir."""
+    import io as _io
+
+    pytest.importorskip("PIL")
+    pyt = pytest.importorskip("pytesseract")
+
+    from PIL import Image
+
+    import multimodal.ocr as ocr
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (8, 8), (255, 255, 255)).save(buf, format="PNG")
+    png = buf.getvalue()
+    monkeypatch.setattr(pyt, "image_to_string", lambda *_a, **_k: "Madde 11 metni")
+    monkeypatch.setattr(pyt, "image_to_data", lambda *_a, **_k: {"conf": ["95", "-1", "85", "90"]})
+
+    r = await ocr.extract_text(png, engine="tesseract")
+    assert r.confidence == 0.9  # mean(95,85,90)/100, -1 atıldı
+    assert "Madde 11" in r.text
+
+
+@pytest.mark.asyncio
+async def test_ocr_confidence_none_when_data_unavailable(monkeypatch):
+    """image_to_data başarısızsa güven None döner ama METİN yine gelir (best-effort)."""
+    import io as _io
+
+    pytest.importorskip("PIL")
+    pyt = pytest.importorskip("pytesseract")
+
+    from PIL import Image
+
+    import multimodal.ocr as ocr
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (8, 8), (255, 255, 255)).save(buf, format="PNG")
+    png = buf.getvalue()
+    monkeypatch.setattr(pyt, "image_to_string", lambda *_a, **_k: "metin var")
+
+    def _raise(*_a, **_k):
+        raise RuntimeError("conf data yok")
+
+    monkeypatch.setattr(pyt, "image_to_data", _raise)
+
+    r = await ocr.extract_text(png, engine="tesseract")
+    assert r.confidence is None
+    assert "metin var" in r.text
+
+
 def test_get_qwen_vl_holds_lock_during_load(monkeypatch):
     """Denetim #18: model yükleme kilit altında olmalı (paralel ilk-istek çift 5GB OOM önle)."""
     import multimodal.ocr as ocr

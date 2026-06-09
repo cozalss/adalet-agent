@@ -13,6 +13,7 @@ bloğunda silinir.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Annotated
 
@@ -35,6 +36,9 @@ router = APIRouter(prefix="/multimodal", tags=["multimodal"])
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 MAX_TTS_CHARS = 8000
+# OCR güven eşiği (#20): bunun altındaki ortalama word-confidence "düşük" sayılır →
+# low_confidence=True (istemci "metni kontrol edin" uyarısı). Tesseract conf 0..1.
+OCR_LOW_CONFIDENCE = float(os.getenv("OCR_LOW_CONFIDENCE", "0.6"))
 
 _ALLOWED_IMAGE_MIMES = {
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/tiff",
@@ -156,6 +160,11 @@ async def ocr_upload(
         engine=result.engine, n_chars=result.n_chars,
         pii_detected=bool(pii and pii.has_pii),
     )
+    low_conf = (
+        result.confidence is not None
+        and result.n_chars > 0
+        and result.confidence < OCR_LOW_CONFIDENCE
+    )
     return OCRUploadResponse(
         text=result.text,
         engine=result.engine,
@@ -164,6 +173,8 @@ async def ocr_upload(
         error=result.error,
         pii_detected=bool(pii and pii.has_pii),
         pii_counts=dict(pii.counts) if pii and pii.has_pii else {},
+        confidence=result.confidence,
+        low_confidence=low_conf,
     )
 
 

@@ -243,6 +243,11 @@ class OCRUploadResponse(BaseModel):
     error: str | None = None
     pii_detected: bool = False
     pii_counts: dict[str, int] = Field(default_factory=dict)
+    # OCR kalite sinyali (#20): ortalama word-confidence 0..1 (Tesseract; Qwen-VL'de None).
+    # low_confidence True → istemci "metni kontrol edin" uyarısı gösterebilir; bozuk taramada
+    # ajanların kesin hukuki çıkarım yapması riskini azaltır.
+    confidence: float | None = None
+    low_confidence: bool = False
 
 
 class STTUploadResponse(BaseModel):

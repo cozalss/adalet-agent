@@ -104,6 +104,9 @@ class OCRResult:
     n_chars: int
     elapsed_ms: int
     error: str | None = None
+    # Ortalama word-confidence 0..1 (Tesseract image_to_data). Düşük = bozuk tarama/
+    # el yazısı → istemci/ajan uyarılabilir (#20). Qwen-VL'de yok → None.
+    confidence: float | None = None
 
 
 # --------------------------------------------------------------------------
@@ -153,6 +156,7 @@ async def extract_text(
         n_chars=len(result.text),
         elapsed_ms=elapsed_ms,
         error=result.error,
+        confidence=result.confidence,
     )
 
 
@@ -177,19 +181,34 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
     if _TESSERACT_CMD is not None:
         pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
 
-    def _do() -> tuple[str, str | None]:
+    def _do() -> tuple[str, str | None, float | None]:
         try:
             img = Image.open(io.BytesIO(image_bytes))
             img = _preprocess(img, ImageOps)
             text = pytesseract.image_to_string(img, lang=lang, config="--oem 3 --psm 6")
-            return sanitize_text(text), None
+            # Güven sinyali (#20): word-düzey conf (0-100; -1=non-text) ortalaması → 0..1.
+            # Best-effort: başarısızsa metin yine döner (conf=None). Ayrı çağrı; OCR
+            # latency-kritik değil (tek-seferlik upload, async, 30s timeout).
+            conf: float | None = None
+            try:
+                from pytesseract import Output
+                data = pytesseract.image_to_data(
+                    img, lang=lang, config="--oem 3 --psm 6", output_type=Output.DICT,
+                )
+                vals = [int(c) for c in data.get("conf", [])
+                        if str(c).lstrip("-").isdigit() and int(c) >= 0]
+                if vals:
+                    conf = round(sum(vals) / len(vals) / 100.0, 3)
+            except Exception as exc:
+                log.info("ocr_confidence_unavailable", error=str(exc))
+            return sanitize_text(text), None, conf
         except Exception as exc:
             # exc dosya yolu/iç detay sızdırabilir → log'a, kullanıcıya generic.
             log.warning("ocr_tesseract_failed", error=str(exc))
-            return "", "OCR işlenemedi"
+            return "", "OCR işlenemedi", None
 
     try:
-        text, err = await asyncio.wait_for(asyncio.to_thread(_do), timeout=OCR_TIMEOUT_S)
+        text, err, conf = await asyncio.wait_for(asyncio.to_thread(_do), timeout=OCR_TIMEOUT_S)
     except TimeoutError:
         return OCRResult(
             text="", engine="tesseract", lang=lang, n_chars=0,
@@ -197,10 +216,10 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             error=f"tesseract timeout ({OCR_TIMEOUT_S}s)",
         )
 
-    log.info("ocr_tesseract_done", lang=lang, n_chars=len(text), error=err)
+    log.info("ocr_tesseract_done", lang=lang, n_chars=len(text), error=err, confidence=conf)
     return OCRResult(
         text=text, engine="tesseract", lang=lang, n_chars=len(text),
-        elapsed_ms=0, error=err,
+        elapsed_ms=0, error=err, confidence=conf,
     )
 
 
