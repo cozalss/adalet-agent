@@ -12,7 +12,7 @@ import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
 import { SearchPanel, LibraryPanel, FilesPanel } from "./components/historyPanels.jsx";
-import { postFeedback } from "./lib/api.js";
+import { postFeedback, synthesizeTTS } from "./lib/api.js";
 import { useChat } from "./hooks/useChat.js";
 import { usePrefs } from "./hooks/usePrefs.js";
 import { useConversations } from "./hooks/useConversations.js";
@@ -664,9 +664,40 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
 }
 
 /* ---------- mesaj eylem çubuğu (hover'da belirir): kopyala / yeniden sor / geri bildirim ---------- */
-function MsgActions({ text, conversationId, onReask, onToast }) {
+export function MsgActions({ text, conversationId, onReask, onToast }) {
   const [copied, setCopied] = useState(false);
   const [vote, setVote] = useState(null); // "up" | "down" | null
+  // Sesli okuma (#7): cevabı yerel Piper TTS ile seslendir → görme/okuma engelli erişimi
+  // (Teknofest İnsanlık-Yararına). State: idle → loading → playing. Tekrar tıklayınca durdurur.
+  const [speaking, setSpeaking] = useState(false);
+  const audioRef = useRef(null);
+
+  useEffect(() => () => {
+    // Bileşen kalkarken çalan sesi durdur + URL'i serbest bırak (sızıntı önle).
+    const a = audioRef.current;
+    if (a) { a.pause(); if (a.src) URL.revokeObjectURL(a.src); }
+  }, []);
+
+  const speak = async () => {
+    if (speaking) {
+      audioRef.current?.pause();
+      setSpeaking(false);
+      return;
+    }
+    try {
+      setSpeaking(true);
+      const blob = await synthesizeTTS(text);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      await audio.play();
+    } catch {
+      setSpeaking(false);
+      onToast?.("Sesli okuma şu an kullanılamıyor.");
+    }
+  };
 
   const copy = async () => {
     try {
@@ -692,6 +723,15 @@ function MsgActions({ text, conversationId, onReask, onToast }) {
       </button>
       <button className="msg-action" onClick={onReask} title="Aynı soruyu yeniden sor" aria-label="Yeniden sor">
         <Icon.refresh /><span>Yeniden sor</span>
+      </button>
+      <button
+        className={"msg-action" + (speaking ? " on" : "")}
+        onClick={speak}
+        title={speaking ? "Sesli okumayı durdur" : "Cevabı sesli dinle"}
+        aria-label={speaking ? "Sesli okumayı durdur" : "Cevabı sesli dinle"}
+        aria-pressed={speaking}
+      >
+        {speaking ? <Icon.stop /> : <Icon.volume />}<span>{speaking ? "Durdur" : "Dinle"}</span>
       </button>
       <span className="msg-sep" aria-hidden="true"></span>
       <button

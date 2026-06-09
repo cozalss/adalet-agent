@@ -98,6 +98,11 @@ export const Icon = {
       <path d="M5 10v4M9 7v10M13 9v6M17 6v12M21 10v4" />
     </svg>
   ),
+  volume: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M11 5 6 9H2v6h4l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" />
+    </svg>
+  ),
   pin: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6zM12 15v5" />
