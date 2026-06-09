@@ -24,6 +24,11 @@ Veto SADECE contradiction için kullanılır; entailment ratio aggregation
 kararı için kullanılır (`_verdict_from_ratio` içinde MIN_VERIFIED_CLAIMS_RATIO
 = 0.20). Çapraz koruma: fuzzy 0.55 + LettuceDetect 0.45 + RARR-lite.
 
+> **Güncelleme (2026-06):** fuzzy destek eşiği sonradan **0.45**'e indirildi
+> (`config.py` `FUZZY_SUPPORT_THRESHOLD`; evrim 0.72→0.60→0.55→0.45). Bu ADR'nin
+> çekirdek kararı (NLI contradiction 0.70) geçerli; yalnız buradaki çapraz-koruma
+> fuzzy değeri güncel kodda 0.45'tir (tarihsel kayıt korunur).
+
 ## Sonuç
 - E2E success 5/8 → 7/8 (ilgili sprint ölçümleri)
 - Hatalı reject oranı düştü

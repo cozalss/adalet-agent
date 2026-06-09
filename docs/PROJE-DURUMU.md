@@ -148,7 +148,7 @@ Ek olarak `implausible_article_numbers` (madde no > 1100) **ölçüm-amaçlı** 
 
 ### 2.4 NLI eşik kalibrasyonu — measure-first disiplini
 
-Verify eşikleri körlemesine değil ölçülerek ayarlanır. `backend/eval/verify_calibration.py` harness'i, `data/eval_benchmark/verify_gold.jsonl` (31 etiketli vaka) üzerinden eşikleri ölçer (commit `fa3c48e`):
+Verify eşikleri körlemesine değil ölçülerek ayarlanır. `backend/eval/verify_calibration.py` harness'i, `data/eval_benchmark/verify_gold.jsonl` (59 etiketli vaka) üzerinden eşikleri ölçer (commit `fa3c48e`):
 
 - **Tam pipeline F1 = 0.93**; yalnız-fuzzy F1 = 0.64 → NLI, yükü taşıyan katmandır.
 - **`NLI_CONTRADICTION_THRESHOLD = 0.70` bu kümede optimal:** contradiction recall 0.80 + **SIFIR yanlış-veto**. 0.50/0.60 yanlış-veto üretir; 0.90 recall'u 0.60'a düşürür.

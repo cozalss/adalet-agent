@@ -98,7 +98,7 @@ karar referansı yanlış / hayali) pratik kullanımı tehlikeli kılmaktadır.
 
 [Şekil 1 — `docs/architecture.md` Mermaid diagram'ı]
 
-7 ajan + 4 verifier layer + retrieval stack + middleware:
+8 ajan (Tahmin dahil, opt-in) + V2 policy katmanı + 4 verifier layer + retrieval stack + middleware:
 
 - **Triaj** → 8 domain + unknown classification (JSON-mode)
 - **Mevzuat** → kanun maddeleri (BGE-M3 hibrit + HyDE)

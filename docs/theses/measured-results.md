@@ -188,6 +188,6 @@ canlı: checkpoint varsa BERT (T=1.56 kalibre), yoksa heuristic fallback.
 ```bash
 # Corpus istatistikleri
 uv run python -m scripts.eval_run --version v2 --rerank --out results.json
-# Verify kalibrasyon (corpus-bağımsız; gold: verify_gold.jsonl 24.5k)
+# Verify kalibrasyon (corpus-bağımsız; gold: verify_gold.jsonl 59 vaka)
 uv run python -m eval.verify_calibration
 ```

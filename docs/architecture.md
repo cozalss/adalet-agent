@@ -23,7 +23,7 @@ flowchart TB
         Audit["Audit Log"]
     end
 
-    subgraph Graph["LangGraph 7-Agent Pipeline"]
+    subgraph Graph["LangGraph 8-Agent Pipeline (+V2 policy)"]
         Triaj["Triaj<br/>(domain classify)"]
         Mevzuat["Mevzuat<br/>(law retrieval)"]
         Emsal["Emsal<br/>(case retrieval + GraphRAG)"]
