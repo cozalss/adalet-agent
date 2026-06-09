@@ -172,3 +172,19 @@
      animasyondan bağımsız geçerli) → motion kapalıyken de net. */
   .agw-node-active .agw-card { stroke-width: 3; }
 }
+
+/* ---------- Mobil: 8-düğüm yatay şema dar ekranda kırpılmasın/yoğunlaşmasın ----------
+   (kullanıcı-inceleme #5) width:100% düğümleri okunmaz hale küçültüyordu + overflow:visible
+   etiketleri figure kenarında kırpıyordu. Çözüm: dar ekranda min-genişlik + yatay kaydırma →
+   düğüm/etiketler okunur kalır, kullanıcı parmakla kaydırır. */
+@media (max-width: 560px) {
+  .agw-figure {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+  .agw-svg {
+    min-width: 460px;        /* düğümler okunur eşik; altında kaydırma devreye girer */
+    overflow: hidden;        /* etiket taşması figure'a değil, SVG kutusuna sınırlı */
+  }
+}
