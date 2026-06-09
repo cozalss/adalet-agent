@@ -22,8 +22,8 @@ bash scripts/run-local-demo.sh stop     # durdur
 |---------|-----------|----------|
 | Qdrant + Redis | `docker ps` | `adalet-qdrant` + `adalet-redis` **Up** |
 | Koleksiyon | `curl -s http://localhost:6333/collections/adalet_mursit_hybrid` | `points_count` ~159.769 (>0), 768-dim |
-| GPU | `nvidia-smi` | **≥11 GB boş** (Qwen 14B Q5 ~10.7 GB ister) |
-| Model | `ls backend/models/*.gguf` | `Qwen2.5-14B-Instruct-Q5_K_M.gguf` (~9.8 GB) |
+| GPU | `nvidia-smi` | **≥8 GB boş** (üretim Qwen3.5-9B Q4_K_XL ~6 GB ister) |
+| Model | `ls backend/models/*.gguf` | `Qwen3.5-9B-UD-Q4_K_XL.gguf` (~6 GB) |
 | Bağımlılık | `backend/.venv` + `frontend/node_modules` | ikisi de mevcut |
 
 > `adalet-qdrant-dev` container'ı "unhealthy" görünebilir — o eski/ikinci kopya;
@@ -31,8 +31,12 @@ bash scripts/run-local-demo.sh stop     # durdur
 
 ## GPU yerleşim stratejisi (12 GB'a sığdırma)
 
-12 GB'a Qwen 14B **+** tüm yardımcı modeller (embedding/reranker/NLI/BERT ~4 GB)
-**aynı anda sığmaz**. Plan A (güvenli, bu runbook): **GPU'da yalnız Qwen**, gerisi CPU.
+> **Not:** Aşağıdaki yerleşim 14B (~10.7 GB) dönemine göre boyutlandırıldı; üretim
+> Qwen3.5-9B'ye (~6 GB) geçtiğinden artık daha fazla VRAM başlığı var (yardımcı
+> modeller GPU'da kalabilir). Bu Plan A tablosu güvenli **alt sınır** olarak korunur.
+
+12 GB'a 14B **+** tüm yardımcı modeller (embedding/reranker/NLI/BERT ~4 GB)
+**aynı anda sığmaz**dı. Plan A (güvenli, bu runbook): **GPU'da yalnız LLM**, gerisi CPU.
 
 | Model | Karar | Env |
 |-------|-------|-----|

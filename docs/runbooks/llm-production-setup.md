@@ -1,5 +1,10 @@
 # Production LLM Setup — Qwen 14B-Q5_K_M on RTX 4070 12GB
 
+> ⚠️ **KÖKEN NOTU (2026-06 güncelleme):** Üretim modeli **Qwen3.5-9B UD-Q4_K_XL**'e
+> geçti (head-to-head 2-1, daha az uydurma; bkz. `backend/.env.example` `LLM_MODEL_PATH`
+> + README). Bu doküman 2026-05'teki **14B-vs-32B kararını** belgeler — VRAM/indirme/
+> ngl rakamları o 14B kurulumuna aittir, güncel üretim 9B için tarihsel referanstır.
+>
 > Tarih: 2026-05-26
 > Hedef: Mock LLM → Gerçek model geçişi (ADALET-AGENT prod).
 > Donanım: RTX 4070 12GB VRAM.

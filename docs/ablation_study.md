@@ -4,7 +4,7 @@
 **Tarih:** 2026-05-30  
 **Veri Seti:** `data/eval_benchmark/verify_gold.jsonl` (59 vaka) + `benchmark_v2.jsonl` (186 vaka)  
 **Kaynak Kod:** `eval/verify_calibration.py`, `agents/nodes/verify.py`, `agents/config.py`, `scripts/eval_run.py`  
-**LLM:** Qwen 2.5 14B Q5_K_M (yerel, llama-server)  
+**LLM:** Qwen 2.5 14B Q5_K_M (yerel, llama-server) — *bu ablation ölçümlerinin modeli; üretim 2026-06'da Qwen3.5-9B UD-Q4_K_XL'e geçti (güncel kaynak `.env.example`/README). LLM-bağımlı sayılar (latans, draft uzunluğu) bu 14B koşusuna aittir.*  
 **Retrieval:** BGE-M3 hibrit (BM25 + yoğun), Qdrant `adalet` koleksiyonu (159.362 nokta)
 
 ---

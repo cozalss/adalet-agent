@@ -92,7 +92,7 @@ Tüm modeller **lokal** çalışır — bu bir teknik fark / tez direği (yerel,
 
 | Katman | Teknoloji |
 |--------|-----------|
-| **Ana LLM** | Qwen 2.5 **14B** Instruct Q5_K_M (GGUF) — `llama-cpp-python` (cu124), GPU offload ~28 tok/s (RTX 4070). Doğrulanmış E2E: triaj→retrieval→Qwen draft→NLI verify→debate→finalize ~50s. |
+| **Ana LLM** | **Qwen3.5-9B** UD-Q4_K_XL (GGUF) — `llama-cpp-python` (cu124), GPU offload ~23 tok/s (RTX 4070 12GB), Gated DeltaNet, 262k ctx, Apache-2.0. *Erken E2E/ablation ölçümleri (~50s, 2026-05) Qwen 2.5 14B Q5_K_M üzerindeydi; üretim 2026-06'da head-to-head (2-1) sonrası 9B'ye geçti — güncel kaynak `.env.example`/README.* |
 | **Backend / Orkestrasyon** | FastAPI (Python 3.11) + LangGraph |
 | **Vector DB** | Qdrant — production koleksiyonu `adalet_mursit_hybrid` (Mursit 768-dim dense + BGE-M3 sparse, 159.638 nokta) |
 | **Embedding** | `newmindai/Mursit-Base-TR-Retrieval` (768-dim) + `BAAI/bge-m3` sparse (vergi/trafik/icra için) |

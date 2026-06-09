@@ -51,7 +51,7 @@ nano .env
 # - ALLOWED_ORIGINS frontend URL'leriyle eşleşiyor
 # - LLM_MODE=llamacpp_server
 # - LLM_SERVER_URL=http://llama-server:8080
-# - LLAMA_MODEL_FILE=Qwen2.5-14B-Instruct-Q5_K_M.gguf
+# - LLAMA_MODEL_FILE=Qwen3.5-9B-UD-Q4_K_XL.gguf   (üretim modeli; bkz. backend/.env.example LLM_MODEL_PATH)
 ```
 
 ### 3. Model dosyaları
@@ -59,9 +59,11 @@ nano .env
 # llama-server için GGUF modeli
 mkdir -p /opt/adalet-agent/backend/models
 cd /opt/adalet-agent/backend/models
-# compose default LLAMA_MODEL_FILE ile aynı isimde kaydet
-wget -O Qwen2.5-14B-Instruct-Q5_K_M.gguf \
-  https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q5_k_m.gguf
+# Üretim modeli: Qwen3.5-9B-UD-Q4_K_XL.gguf (compose default LLAMA_MODEL_FILE ile aynı isimde kaydet).
+# GGUF kaynağı backend/.env.example'da belgelenmiştir (Unsloth Dynamic Q4_K_XL).
+# [DOĞRULA: kesin HF indirme URL'sini .env.example'daki model kartından al — eski 14B URL'si
+#  uygulanamaz; üretim 9B'ye geçti].
+wget -O Qwen3.5-9B-UD-Q4_K_XL.gguf "<HF_GGUF_URL — .env.example model kartı>"
 
 # BGE-M3 + reranker + NLI — backend ilk run'da indirir (HF cache volume'a)
 ```

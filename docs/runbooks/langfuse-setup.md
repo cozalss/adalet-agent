@@ -118,7 +118,7 @@ Beklenen trace yapısı:
        └─ embedding_call
        └─ graph_traverse  (GRAPH_RAG_ENABLED=1 ise)
   └─ draft
-       └─ llm_call (Qwen 14B-Q5)
+       └─ llm_call (Qwen3.5-9B)
   └─ verify
        └─ nli_batch
        └─ lettuce_call

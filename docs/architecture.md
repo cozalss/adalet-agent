@@ -55,7 +55,7 @@ flowchart TB
     end
 
     subgraph External["External / Local"]
-        LLM["llama-server<br/>(Qwen 2.5 14B Q4)"]
+        LLM["llama-server<br/>(Qwen3.5-9B Q4_K_XL)"]
         Redis["Redis<br/>(session + limiter)"]
         Langfuse["Langfuse (observability)"]
     end
