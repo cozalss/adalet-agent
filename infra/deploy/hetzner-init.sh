@@ -136,6 +136,20 @@ EOF
 	log ".env oluşturuldu — secret rotation runbook'a göre 90 günde bir rotate et"
 fi
 
+# --- 8. Otomatik yedekleme cron'u (denetim #10 — "veri kaybı kabul edilemez") ---
+# DB_OPERATIONS.md: Postgres'te otomatik yedek YOK'tu → init artık günlük pg_dump kurar.
+# Postgres = KRİTİK veri (hesap/sohbet/audit); Qdrant corpus'u kamuya-açık kaynaktan
+# yeniden seed edilebilir (best-effort snapshot). Cron DEPLOY_USER (docker grubunda) ile.
+log "yedekleme cron'u kuruluyor (günlük pg_dump + Qdrant snapshot, 7-gün retention)"
+mkdir -p /var/backups/adalet/postgres /var/backups/adalet/qdrant
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" /var/backups/adalet
+_CRON_PG='0 3 * * * docker exec adalet-postgres pg_dump -U ${POSTGRES_USER:-adalet} ${POSTGRES_DB:-adalet} 2>/var/backups/adalet/postgres/last_err.log | gzip > /var/backups/adalet/postgres/adalet_$(date +\%F).sql.gz && find /var/backups/adalet/postgres -name "*.sql.gz" -mtime +7 -delete'
+_CRON_QD='30 3 * * * docker exec adalet-backend python -m scripts.backup_qdrant --retention 7 > /var/backups/adalet/qdrant/last.log 2>&1'
+# Idempotent: mevcut crontab'tan eski ADALET satırlarını çıkar, yenilerini ekle.
+{ sudo -u "$DEPLOY_USER" crontab -l 2>/dev/null | grep -vE 'adalet-postgres pg_dump|scripts.backup_qdrant' || true; \
+  echo "$_CRON_PG"; echo "$_CRON_QD"; } | sudo -u "$DEPLOY_USER" crontab -
+log "yedek cron kuruldu — restore'u EN AZ BİR KEZ test et (DB_OPERATIONS.md §1)"
+
 log ""
 log "==============================================="
 log "init başarılı. Sonraki adımlar:"

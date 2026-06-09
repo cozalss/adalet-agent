@@ -6,7 +6,11 @@
 
 ## 1. Yedekleme & felaket kurtarma (KRİTİK — lansman öncesi şart)
 Supabase **Free tier'da otomatik yedek YOK**. Hukuki veri için "veri kaybı = kabul edilemez".
-- **Kısa vade (ucuz):** GitHub Actions schedule veya Hetzner VPS cron ile günlük `pg_dump`
+- **Self-host (Hetzner compose) — ARTIK OTOMATİK:** `infra/deploy/hetzner-init.sh` (denetim #10)
+  günlük pg_dump cron'u kurar (`adalet-postgres` → `/var/backups/adalet/postgres/`, gzip, 7-gün
+  retention) + Qdrant snapshot (best-effort, corpus re-seed edilebilir). **Off-host kopya** (R2/S3)
+  ve **restore testi** hâlâ elle yapılmalı (aşağıdaki uyarı).
+- **Supabase (managed) için kısa vade:** GitHub Actions schedule veya VPS cron ile günlük `pg_dump`
   → şifreli olarak ayrı kovaya (R2/S3). Connection string secret'tan; DB şifresini komuta gömme.
 - **Orta vade (lansman):** Supabase **Pro** + **PITR add-on** (7 gün geri-sarma).
 - **Restore'u TEST ET:** yedek alıp en az bir kez geri-yükleme denemesi yapılmadıysa "yedek yok"
