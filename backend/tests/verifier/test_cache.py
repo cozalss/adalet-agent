@@ -43,6 +43,27 @@ def test_key_namespaced_by_model(monkeypatch):
     assert k1 != k2  # model değişimi cache namespace'i değiştirir
 
 
+def test_namespace_reflects_actual_model_without_env(monkeypatch):
+    """Denetim #12: NLI_MODEL env'i HİÇ set edilmiyordu (nli.py modeli sabitten seçer) →
+    namespace daima hash('default') kalıyordu → model değişince stale veto cache'i servis
+    edilirdi. Env yokken namespace GERÇEK yüklenen modeli (nli.NLI_MODEL) yansıtmalı."""
+    import hashlib
+
+    import verifier.cache as cache
+    import verifier.nli as nli
+
+    monkeypatch.delenv("NLI_MODEL", raising=False)
+    monkeypatch.setattr(nli, "NLI_MODEL", "real-model-A")
+    key_a = nli_cache_key("c", "e")
+    monkeypatch.setattr(nli, "NLI_MODEL", "real-model-B")
+    key_b = nli_cache_key("c", "e")
+    assert key_a != key_b  # gerçek model değişince namespace değişir
+    # ve artık literal 'default' hash'ine düşmemeli
+    default_tag = hashlib.sha1(b"default", usedforsecurity=False).hexdigest()[:8]
+    assert f":{default_tag}:" not in key_a
+    assert cache  # import kullanıldı (lint)
+
+
 # --- get/set (bellek fallback) ---
 
 def test_set_then_get():

@@ -35,8 +35,19 @@ _MEM_MAX = 5000  # bellek fallback üst sınırı (sabit RAM)
 
 
 def _model_tag() -> str:
-    """NLI model adının kısa hash'i — model değişince cache namespace değişir."""
-    model = os.getenv("NLI_MODEL", "default")
+    """Aktif NLI modelinin kısa hash'i — model DEĞİŞİNCE cache namespace değişir (stale veto önle).
+
+    Denetim #12: eskiden yalnız `os.getenv("NLI_MODEL", "default")` okunuyordu; ama nli.py
+    modeli env'den DEĞİL sabitten seçtiği ve env hiç set edilmediği için namespace daima
+    hash("default") kalıyordu → model sabiti değişince eski modelin verdict'leri servis
+    edilirdi. Artık: env varsa onu (override), yoksa verifier'ın GERÇEKTEN yüklediği
+    `nli.NLI_MODEL`'i kullan → namespace daima aktif modeli yansıtır.
+    """
+    model = os.getenv("NLI_MODEL")
+    if not model:
+        from verifier.nli import NLI_MODEL  # lazy: nli↔cache döngüsünü önle
+
+        model = NLI_MODEL
     return hashlib.sha1(model.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
 
 

@@ -31,7 +31,10 @@ import structlog
 
 log = structlog.get_logger()
 
-NLI_MODEL = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+# Env override (NLI_MODEL) — verifier ile cache namespace TEK kaynaktan beslensin
+# (denetim #12: eskiden env yalnız cache'te okunuyordu, model burada sabitten seçilince
+# namespace gerçek modeli yansıtmıyordu). Set edilmezse varsayılan mDeBERTa XNLI.
+NLI_MODEL = os.getenv("NLI_MODEL", "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7")
 
 NLILabel = Literal["entailment", "neutral", "contradiction"]
 # Modelin id2label sırası (mDeBERTa XNLI standartı)
