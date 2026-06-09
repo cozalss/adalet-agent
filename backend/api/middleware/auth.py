@@ -54,6 +54,13 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 # LEGACY HS256 fallback — yalnız eski (simetrik) JWT projeleri için. Modern ES256'da
 # GEREKMEZ (SUPABASE_URL yeter). Dashboard → JWT Keys → Legacy JWT Secret.
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+# Supabase token issuer (iss) doğrulaması (#35): GoTrue token'ı iss={SUPABASE_URL}/auth/v1
+# taşır. Eskiden verify_iss KAPALIYDI → başka bir Supabase projesinin (veya forge iss'li,
+# imzası geçen) token'ı reddedilmiyordu. SUPABASE_URL'den türetilir; custom-domain için override.
+SUPABASE_JWT_ISSUER = os.getenv(
+    "SUPABASE_JWT_ISSUER",
+    f"{SUPABASE_URL.rstrip('/')}/auth/v1" if SUPABASE_URL else "",
+)
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 # alg-confusion koruması: yalnız simetrik HMAC algoritmaları kabul (asla "none"
 # veya asimetrik). Geçersiz konfig → güvenli default'a düş + hata logla (fail-closed).
@@ -216,18 +223,20 @@ def _get_jwks_client() -> Any:
 
 def _decode_supabase(token: str) -> dict[str, Any]:
     """Supabase GoTrue token doğrula. MODERN ES256/RS256 (JWKS public key) tercih;
-    LEGACY HS256 (paylaşımlı secret) fallback. aud='authenticated'; iss proje-ref'e
-    bağlı olduğundan atlanır."""
+    LEGACY HS256 (paylaşımlı secret) fallback. aud='authenticated'; iss artık
+    {SUPABASE_URL}/auth/v1'e karşı DOĞRULANIR (#35) — türetilemezse (legacy, URL yok) atlanır."""
+    # issuer=None ise PyJWT iss doğrulamasını atlar (legacy, URL yok); set ise doğrular.
+    iss = SUPABASE_JWT_ISSUER or None
     if SUPABASE_URL:
         key = _get_jwks_client().get_signing_key_from_jwt(token).key
         return jwt.decode(
             token, key, algorithms=["ES256", "RS256"],
-            audience="authenticated", options={"verify_iss": False},
+            audience="authenticated", issuer=iss,
         )
     if SUPABASE_JWT_SECRET:  # legacy simetrik proje
         return jwt.decode(
             token, SUPABASE_JWT_SECRET, algorithms=["HS256"],
-            audience="authenticated", options={"verify_iss": False},
+            audience="authenticated", issuer=iss,
         )
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

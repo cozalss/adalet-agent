@@ -60,6 +60,35 @@ def test_jwt_issue_and_decode_roundtrip(_auth_env):
     assert claims["extra"] == "x"
 
 
+def test_decode_supabase_verifies_issuer(monkeypatch):
+    """Denetim #35: Supabase JWKS yolu artık iss'i {SUPABASE_URL}/auth/v1'e karşı doğrular
+    (eskiden verify_iss=False ile atlanıyordu → başka proje/forge iss token kabul riski)."""
+    captured: dict = {}
+
+    monkeypatch.setattr(auth_mod, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(auth_mod, "SUPABASE_JWT_ISSUER", "https://proj.supabase.co/auth/v1")
+
+    class _FakeKey:
+        key = "fake-key"
+
+    class _FakeJWKS:
+        def get_signing_key_from_jwt(self, token):
+            return _FakeKey()
+
+    monkeypatch.setattr(auth_mod, "_get_jwks_client", lambda: _FakeJWKS())
+
+    def _fake_decode(token, key, **kwargs):
+        captured.update(kwargs)
+        return {"sub": "u1"}
+
+    monkeypatch.setattr(auth_mod.jwt, "decode", _fake_decode)
+
+    out = auth_mod._decode_supabase("tok")
+    assert out["sub"] == "u1"
+    assert captured.get("issuer") == "https://proj.supabase.co/auth/v1"  # iss artık geçiliyor
+    assert captured.get("options", {}).get("verify_iss") is not False     # doğrulama kapalı DEĞİL
+
+
 def test_jwt_expired_token_rejected(monkeypatch, _auth_env):
     monkeypatch.setattr(auth_mod, "JWT_TTL_SECONDS", -10)  # expired
     tok = issue_token("user-2")
