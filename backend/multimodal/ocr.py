@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import io
 import os
+import threading
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -39,6 +40,11 @@ from retrieval.chunker import sanitize_text
 
 log = structlog.get_logger()
 
+# Qwen-VL model yükleme kilidi (#18): _load_qwen_vl `to_thread` içinde çağrılır;
+# lru_cache thread-güvenli DEĞİL (eş zamanlı ilk-istek iki kez from_pretrained →
+# çift ~5GB → OOM, LlamaCpp load-race ile aynı sınıf). _get_qwen_vl lock ile sarar.
+_vl_load_lock = threading.Lock()
+
 
 @lru_cache(maxsize=1)
 def _load_qwen_vl(model_name: str) -> tuple[Any, Any]:
@@ -47,12 +53,20 @@ def _load_qwen_vl(model_name: str) -> tuple[Any, Any]:
     Önceki kod HER OCR isteğinde from_pretrained çağırıyordu → her çağrıda 5GB
     VRAM/RAM + deserialization → paralel isteklerde OOM. lru_cache(1) ile
     process ömrü boyunca tek yükleme (STT/TTS cached_property'sinin OCR karşılığı).
+    Eş zamanlılık kilidi için _get_qwen_vl üzerinden çağır.
     """
     from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
     processor = AutoProcessor.from_pretrained(model_name)
     model = Qwen2VLForConditionalGeneration.from_pretrained(model_name)
     log.info("qwen_vl_loaded", model=model_name)
     return processor, model
+
+
+def _get_qwen_vl(model_name: str) -> tuple[Any, Any]:
+    """Kilit-korumalı Qwen-VL erişimi (#18): paralel ilk-istekte tek yükleme garantisi.
+    Yüklendikten sonra lru_cache hit → kilit ucuz; yükleme sırasında 2. istek bekler."""
+    with _vl_load_lock:
+        return _load_qwen_vl(model_name)
 
 OCREngine = Literal["tesseract", "qwen-vl", "auto"]
 
@@ -241,17 +255,30 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
             Image.MAX_IMAGE_PIXELS = 50_000_000  # güvenlik: decompression-bomb guard
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             model_name = os.getenv("OCR_QWEN_VL_MODEL", "Qwen/Qwen2-VL-2B-Instruct")
-            # Cache'li yükleme — process başına bir kez (OOM fix).
-            processor, model = _load_qwen_vl(model_name)
+            # Cache'li + kilit-korumalı yükleme — process başına bir kez (OOM/race fix #18).
+            processor, model = _get_qwen_vl(model_name)
 
             prompt = (
                 "Aşağıdaki Türkçe hukuk belgesinin metnini AYNEN yaz. "
                 "Hiçbir şey ekleme, çıkarma, yorumlama. Sadece görsel "
                 "metin çıktısı:"
             )
-            inputs = processor(text=[prompt], images=[img], return_tensors="pt")
-            outputs = model.generate(**inputs, max_new_tokens=2048)
-            text = processor.batch_decode(outputs, skip_special_tokens=True)[0]
+            # Qwen2-VL ZORUNLU sözleşme (#16): görsel placeholder'lı chat template olmadan
+            # vision token'ları enjekte edilmez → boş/çöp çıktı. Üretimden sonra input
+            # token'larını DİLİMLE (yoksa batch_decode prompt'u da yankılar). (Context7/HF doc.)
+            conversation = [{"role": "user", "content": [
+                {"type": "image"}, {"type": "text", "text": prompt}]}]
+            text_prompt = processor.apply_chat_template(
+                conversation, tokenize=False, add_generation_prompt=True,
+            )
+            inputs = processor(text=[text_prompt], images=[img], return_tensors="pt")
+            output_ids = model.generate(**inputs, max_new_tokens=2048)
+            trimmed = [
+                out[len(inp):] for inp, out in zip(inputs.input_ids, output_ids)
+            ]
+            text = processor.batch_decode(
+                trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=True,
+            )[0]
             return sanitize_text(text), None
         except Exception as exc:
             log.warning("ocr_qwen_failed", error=str(exc))

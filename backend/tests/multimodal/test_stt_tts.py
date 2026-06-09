@@ -40,6 +40,36 @@ async def test_transcribe_returns_stt_result_shape():
         assert "faster-whisper" in r.error.lower() or "stt" in r.error.lower()
 
 
+def test_transcribe_file_drops_hallucinated_segment(monkeypatch):
+    """Denetim #17: yüksek no_speech_prob + düşük avg_logprob segment = Whisper halüsinasyonu
+    → atılır; konuşma segmenti korunur (VAD'ı geçen uydurma altyazılar elenir)."""
+    from types import SimpleNamespace
+
+    import multimodal.stt as stt
+
+    class FakeModel:
+        def transcribe(self, path, language=None, vad_filter=True, beam_size=5,
+                       condition_on_previous_text=False):
+            segs = [
+                SimpleNamespace(start=0.0, end=1.0, text="Kıdem tazminatı nedir",
+                                no_speech_prob=0.05, avg_logprob=-0.3),
+                SimpleNamespace(start=1.0, end=2.0, text=" Altyazı M.K.",
+                                no_speech_prob=0.95, avg_logprob=-2.5),  # halüsinasyon
+            ]
+            return iter(segs), SimpleNamespace(duration=2.0, language="tr")
+
+    eng = stt.STTEngine()
+    # cached_property '_model'ı düz property ile değiştir (gerçek model yüklenmesin)
+    monkeypatch.setattr(type(eng), "_model", property(lambda _self: FakeModel()))
+
+    text, segments, _dur, lang = eng.transcribe_file("dummy.wav")
+
+    assert "Kıdem tazminatı" in text
+    assert "Altyazı" not in text       # halüsinasyon segment düştü
+    assert len(segments) == 1
+    assert lang == "tr"
+
+
 # --------------------------------------------------------------------------
 #  TTS — _prepare_text helper'ları (model-bağımsız)
 # --------------------------------------------------------------------------

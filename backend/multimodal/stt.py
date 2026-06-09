@@ -60,6 +60,12 @@ STT_COMPUTE_TYPE = os.getenv(
 )
 STT_LANG = os.getenv("STT_LANG", "tr")
 STT_TIMEOUT_S = float(os.getenv("STT_TIMEOUT_S", "120"))
+# Halüsinasyon filtresi (#17): Whisper sessiz/gürültülü segmentte uydurma metin üretir.
+# vad_filter bunların çoğunu eler ama VAD'ı geçen segment de yüksek no_speech_prob +
+# düşük avg_logprob taşıyabilir → konvansiyonel ikili koşulla at (İKİSİ birden olmalı,
+# meşru kısa sözü atmamak için). Eşikler env ile ayarlanabilir.
+STT_NO_SPEECH_PROB_MAX = float(os.getenv("STT_NO_SPEECH_PROB_MAX", "0.6"))
+STT_AVG_LOGPROB_MIN = float(os.getenv("STT_AVG_LOGPROB_MIN", "-1.0"))
 
 _ALLOWED_EXTS = {"wav", "mp3", "m4a", "ogg", "flac", "webm"}
 
@@ -132,6 +138,14 @@ class STTEngine:
         segments: list[STTSegment] = []
         text_parts: list[str] = []
         for seg in segments_iter:
+            # Halüsinasyon filtresi (#17): yüksek no_speech_prob VE düşük avg_logprob =
+            # büyük olasılıkla uydurma → at. getattr ile defansif (fallback/mock model
+            # bu alanları taşımayabilir → 0.0 ⇒ koşul tetiklenmez, atılmaz).
+            nsp = getattr(seg, "no_speech_prob", 0.0) or 0.0
+            alp = getattr(seg, "avg_logprob", 0.0) or 0.0
+            if nsp > STT_NO_SPEECH_PROB_MAX and alp < STT_AVG_LOGPROB_MIN:
+                log.info("stt_segment_dropped", no_speech_prob=nsp, avg_logprob=alp)
+                continue
             segments.append(STTSegment(start_s=seg.start, end_s=seg.end, text=seg.text))
             text_parts.append(seg.text)
         text = " ".join(t.strip() for t in text_parts).strip()
