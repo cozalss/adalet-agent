@@ -13,6 +13,11 @@ Metrikler:
 
 Çalıştırma:
     uv run python -m scripts.eval_run [--rerank]
+    uv run python -m scripts.eval_run --version v2 --mode node   # PRODUCTION-yolu (resmî)
+
+`--mode node`: mevzuat node'unun gerçek ranking zinciri (domain-takviye + çapa +
+rerank + tier-sort) ölçülür — çıplak search_with_rerank'in bypass ettiği yol.
+Knob/ablation kararları bu modda verilmelidir (öncelik #1, 2026-06-10).
 """
 
 from __future__ import annotations
@@ -65,7 +70,7 @@ def _effective_domain(result: Any, expected_domain: str) -> str:
     return ""
 
 # Retrieval modları — eval_one ve freeze_baseline ortak vocab
-SearchMode = str  # "hybrid" | "rerank" | "hyde" | "multi_query"
+SearchMode = str  # "hybrid" | "rerank" | "node" | "hyde" | "multi_query"
 
 
 def _load_benchmark(version: str = "v1") -> list[dict[str, Any]]:
@@ -173,6 +178,19 @@ async def _eval_one(
         _cand = int(os.getenv("EVAL_RERANK_CANDIDATES", "20"))
         results = await search_with_rerank(question=soru, top_k=5, candidates_n=_cand,
                                            doc_type=os.getenv("EVAL_DOC_TYPE") or None)
+    elif mode == "node":
+        # PRODUCTION-YOLU eval (öncelik #1, 2026-06-10): mevzuat node'unun gerçek ranking
+        # zinciri — domain-takviye + boost + çapa + rerank + tier-sort + çapa-garantili
+        # top-K (TOP_K_LAW=8). Çıplak search_with_rerank bu zinciri BYPASS eder; knob
+        # kararları bundan böyle bu modda verilir. Production'dan bilinçli sapmalar:
+        #   - triaj bypass: expected_domain → domain (triaj hatası ayrı eksende ölçülür)
+        #   - başlangıç havuzu düz hybrid (HyDE/MQ adaptive-routing LLM ister; demo'da kapalı)
+        #   - decontextualize/step-back: chat_history yok + default OFF → no-op (parite)
+        from agents.config import TOP_K_LAW
+        from agents.nodes.mevzuat import rank_law_candidates
+        pool = await search(question=soru, top_k=TOP_K_LAW * 4,
+                            sparse_domain=expected_domain, doc_type="law")
+        results = await rank_law_candidates(soru, expected_domain, pool, "hybrid")
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
         # sparse_domain: HyDE'nin dual-sparse (BM25) fix'ini ölç (denetim 2026-06-04).
@@ -230,6 +248,11 @@ async def _eval_one(
 
     # Madde-düzeyi (en sıkı): 'doğru maddeyi getirdik mi' — domain proxy'sini tamamlar.
     madde_metrics = madde_level_metrics(results, expected_kanun, expected_madde_no)
+    if mode == "node" and madde_metrics:
+        # Production verify/draft TOP_K_LAW=8 görür → @8 asıl kullanıcı-etkisi metriği;
+        # @5 tarihsel karşılaştırılabilirlik için korunur.
+        m8 = madde_level_metrics(results, expected_kanun, expected_madde_no, k=8)
+        madde_metrics["madde_recall@8"] = m8.get("madde_recall@8", 0.0)
 
     return {
         "id": case["id"],
@@ -275,6 +298,9 @@ def _print_summary(results: list[dict[str, Any]], mode: str) -> None:
         mr5 = sum(r.get("madde_recall@5", 0.0) for r in madde_cases) / m
         mmrr = sum(r.get("madde_mrr", 0.0) for r in madde_cases) / m
         print(f"  Madde Recall @5 (DOĞRU madde):      {mr5*100:5.1f}%   ({m} vaka)")
+        if any("madde_recall@8" in r for r in madde_cases):
+            mr8 = sum(r.get("madde_recall@8", 0.0) for r in madde_cases) / m
+            print(f"  Madde Recall @8 (prod TOP_K_LAW):   {mr8*100:5.1f}%   ({m} vaka)")
         print(f"  Madde MRR (madde-düzeyi, SIKI):     {mmrr:.3f}")
     print(f"  Keyword Recall (gt kw in top-5):    {kwr*100:5.1f}%")
     print(f"  Avg latency:  {avg_ms:6.0f} ms   |   P95: {p95_ms:6.0f} ms")
@@ -294,6 +320,9 @@ def _print_summary(results: list[dict[str, Any]], mode: str) -> None:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rerank", action="store_true", help="Hybrid + cross-encoder rerank kullan")
+    parser.add_argument("--mode", choices=["hybrid", "rerank", "node"], default=None,
+                        help="Retrieval yolu: node = PRODUCTION zinciri "
+                             "(takviye+çapa+rerank+tier-sort, resmî metrik)")
     parser.add_argument("--version", choices=["v1", "v2"], default="v1",
                         help="Benchmark sürümü: v1 (50 vaka) | v2 (186 vaka, 8 domain)")
     parser.add_argument("--out", type=Path, default=None, help="Sonuçları JSON'a yaz")
@@ -301,25 +330,29 @@ async def main() -> int:
 
     logging.basicConfig(level=logging.WARNING)
 
+    mode = args.mode or ("rerank" if args.rerank else "hybrid")
+    mode_label = {"hybrid": "HYBRID", "rerank": "HYBRID + RERANK",
+                  "node": "PRODUCTION-YOLU (node)"}[mode]
+
     path = BENCHMARK_V2_PATH if args.version == "v2" else BENCHMARK_PATH
     print(f"Benchmark yükleniyor: {path}")
     cases = _load_benchmark(args.version)
     print(f"Toplam {len(cases)} soru\n")
-    print(f"Mode: {'HYBRID + RERANK' if args.rerank else 'HYBRID (no rerank)'}")
+    print(f"Mode: {mode_label}")
     print()
 
     results: list[dict[str, Any]] = []
     for i, case in enumerate(cases, 1):
         print(f"[{i:2d}/{len(cases)}] {case['id']}  {case['soru'][:50]}", end=" ... ", flush=True)
         try:
-            r = await _eval_one(case, use_rerank=args.rerank)
+            r = await _eval_one(case, mode=mode)
             results.append(r)
             mark = "OK" if r["domain@1"] else ("@5" if r["domain@5"] else "MISS")
             print(f"{mark}  ({r['elapsed_ms']:.0f}ms)")
         except Exception as exc:
             print(f"ERROR: {exc}")
 
-    _print_summary(results, "HYBRID + RERANK" if args.rerank else "HYBRID")
+    _print_summary(results, mode_label)
 
     if args.out:
         args.out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")

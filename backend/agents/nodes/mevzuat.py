@@ -183,15 +183,38 @@ async def _rank_and_build_laws(
     question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
     rerank_query: str | None = None,
 ) -> list[Citation]:
-    """Retrieve sonrası law adaylarını sırala + çapa garantisi + Citation üret.
+    """Retrieve sonrası law adaylarını sırala + çapa garantisi + Citation üret."""
+    final_cands = await rank_law_candidates(
+        question, domain, results, retrieval_mode, rerank_query=rerank_query,
+    )
+    return [
+        Citation(
+            source_id=r.chunk_id,
+            doc_type="law",
+            title=_format_law_title(r),
+            snippet=r.text[:500],
+            url=r.source_url,
+            score=r.score,
+        )
+        for r in final_cands
+    ]
 
-    mevzuat_node'dan ayrıldı (C901 — node 17>15 dal). Sıra:
+
+async def rank_law_candidates(
+    question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
+    rerank_query: str | None = None,
+) -> list[SearchResult]:
+    """Production madde-ranking zinciri — SearchResult döndürür (Citation'sız).
+
+    mevzuat_node'dan ayrıldı (C901 — node 17>15 dal); eval_run `--mode node` da
+    bu zinciri ÇIPLAK search_with_rerank yerine doğrudan ölçer (eval %42.8 vs
+    production %84.4 uçurumunun kapanması, öncelik #1 2026-06-10). Sıra:
       1. domain-scoped takviye arama (vatandaş-dili köprüsü)
       2. domain boost
       3. law adayları ayıkla + çapa maddeleri ekle
       4. cross-encoder rerank (+ çapaları geri-merge)
       5. domain-öncelikli tier sort
-      6. çapa-garantili final top-K → Citation
+      6. çapa-garantili final top-K
     """
     # 1. Domain-scoped takviye retrieval. Vatandaş dili ("buzdolabı bozuldu")
     # genel aramada doğru kanunu (TKHK m.11 "ayıplı mal") top-K'ya getiremiyor —
@@ -267,25 +290,14 @@ async def _rank_and_build_laws(
 
     # 6. Final top-K: çapa maddeleri GARANTİ et, kalanı sıralı doldur.
     final_cands = _ensure_core_in_topk(law_cands, anchor_ids, TOP_K_LAW)
-    laws = [
-        Citation(
-            source_id=r.chunk_id,
-            doc_type="law",
-            title=_format_law_title(r),
-            snippet=r.text[:500],
-            url=r.source_url,
-            score=r.score,
-        )
-        for r in final_cands
-    ]
 
     log.info(
         "mevzuat_done",
-        domain=domain, n=len(laws), mode=retrieval_mode,
+        domain=domain, n=len(final_cands), mode=retrieval_mode,
         boosted=n_boosted, reranked=reranked, primary=n_primary,
         anchors=len(anchor_ids),
     )
-    return laws
+    return final_cands
 
 
 def _merge_dedup(
