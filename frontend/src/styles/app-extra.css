@@ -795,3 +795,7 @@ a.btn:not(:disabled):active {
 @keyframes cg-mic-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 .cg-voice-err { display: block; margin: 4px 12px 0; font-size: 12px; color: var(--danger, #C73E3E); }
 @media (prefers-reduced-motion: reduce) { .cg-send.voice.on { animation: none; } }
+
+/* OCR düşük-güven uyarısı (#20) — PII çipi deseniyle aynı; bozuk taramada metni kontrol et. */
+.attach-chip.low-conf { border-color: var(--warning, #D4A574); }
+.lowconf-flag { margin-left: 6px; font-size: 11px; color: var(--warning, #D4A574); white-space: nowrap; }

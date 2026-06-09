@@ -5,7 +5,7 @@ import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TurnView, MsgActions } from "./App.jsx";
+import { TurnView, MsgActions, AttachRow } from "./App.jsx";
 import * as api from "./lib/api.js";
 
 const html = (turn) => renderToStaticMarkup(<TurnView turn={turn} />);
@@ -70,5 +70,24 @@ describe("MsgActions — sesli 'Dinle' (TTS #7)", () => {
     render(<MsgActions text="x" onReask={() => {}} onToast={onToast} />);
     fireEvent.click(screen.getByRole("button", { name: /dinle/i }));
     await waitFor(() => expect(onToast).toHaveBeenCalled());
+  });
+});
+
+describe("AttachRow — OCR düşük-güven uyarı çipi (#20)", () => {
+  it("low_confidence ekli belgede 'düşük OCR güveni' uyarısı gösterir", () => {
+    const out = renderToStaticMarkup(
+      <AttachRow attachments={[{ filename: "belge.png", lowConf: true }]} onClear={() => {}} />,
+    );
+    expect(out).toContain("belge.png");
+    expect(out).toContain("düşük OCR güveni");
+    expect(out).toContain("low-conf");
+  });
+
+  it("temiz (yüksek-güven, PII'siz) belgede uyarı yok", () => {
+    const out = renderToStaticMarkup(
+      <AttachRow attachments={[{ filename: "temiz.png" }]} onClear={() => {}} />,
+    );
+    expect(out).not.toContain("düşük OCR güveni");
+    expect(out).not.toContain("kişisel veri");
   });
 });

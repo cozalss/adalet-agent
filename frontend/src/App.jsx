@@ -315,6 +315,7 @@ export default function App({ auth }) {
         filename: file.name, ocr_engine: res.engine || "tesseract",
         text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
+        lowConf: !!res.low_confidence,  // #20: düşük OCR güveni → kullanıcıyı metni kontrol etmeye uyar
       }]);
       // "Dosyalarım" metadata → Supabase (best-effort; oturumsuzda no-op, metin saklanmaz).
       addFileSb({
@@ -323,9 +324,12 @@ export default function App({ auth }) {
         pii_flag: !!piiText,
       });
       // Şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
-      showToast(piiText
+      const lowNote = res.low_confidence
+        ? " · OCR güveni düşük olabilir — eklenen metni kontrol edin."
+        : "";
+      showToast((piiText
         ? `Belge eklendi · Dikkat: belgenizde ${piiText} tespit edildi (sorunuzla birlikte işlenecek).`
-        : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`);
+        : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`) + lowNote);
     } catch (err) {
       showToast("OCR başarısız — backend çalışıyor mu?");
     }
@@ -572,13 +576,23 @@ export default function App({ auth }) {
 }
 
 /* ---------- attachment chips ---------- */
-function AttachRow({ attachments, onClear }) {
+export function AttachRow({ attachments, onClear }) {
   return (
     <div className="attach-row">
       {attachments.map((a, i) => (
-        <span className={"attach-chip" + (a.pii ? " has-pii" : "")} key={i} title={a.pii ? `Belgenizde ${a.pii} tespit edildi` : a.filename}>
+        <span
+          className={"attach-chip" + (a.pii ? " has-pii" : "") + (a.lowConf ? " low-conf" : "")}
+          key={i}
+          title={
+            a.pii ? `Belgenizde ${a.pii} tespit edildi`
+              : a.lowConf ? "OCR güveni düşük — eklenen metni kontrol edin"
+              : a.filename
+          }
+        >
           <Icon.image style={{ width: 13, height: 13 }} />{a.filename}
           {a.pii && <span className="pii-flag" aria-label={`Kişisel veri: ${a.pii}`}>● kişisel veri</span>}
+          {/* #20: düşük OCR güveni uyarısı — bozuk taramada vatandaş metni gözden geçirsin */}
+          {a.lowConf && <span className="lowconf-flag" aria-label="OCR güveni düşük">⚠ düşük OCR güveni</span>}
         </span>
       ))}
       <button className="attach-clear" onClick={onClear}>temizle</button>
