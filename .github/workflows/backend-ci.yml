@@ -162,6 +162,8 @@ jobs:
         with:
           context: ./backend
           push: false
+          # load: imajı yerel docker daemon'a yükle → ardından `docker run` boot-smoke.
+          load: true
           tags: adalet-backend:ci
           # Yalnız linux/amd64 — multi-arch manifest export 2-3 dk fazla sürüyor,
           # smoke test için tek platform yeterli.
@@ -169,3 +171,20 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Boot smoke (#19 — konteyner ayağa kalkıyor + /health 200)
+        # Build başarısı startup'ı garanti ETMEZ (import-time/lifespan hatası, bozuk entrypoint
+        # build'i geçer ama boot'ta çöker). Mock LLM + model preload kapalı + auth kapalı (ENV=ci,
+        # production fail-fast tetiklenmez); lifespan Qdrant/Redis'i fail-soft lazy ele alır.
+        run: |
+          docker run -d --name adalet-ci -p 8000:8000 \
+            -e LLM_MODE=mock -e PRELOAD_MODELS=0 -e AUTH_ENABLED=0 -e ENV=ci \
+            adalet-backend:ci
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then ok=1; break; fi
+            sleep 2
+          done
+          echo "---- konteyner logları (son 50) ----"; docker logs --tail 50 adalet-ci || true
+          docker rm -f adalet-ci >/dev/null 2>&1 || true
+          if [ "$ok" != "1" ]; then echo "BOOT SMOKE BAŞARISIZ: /health 60s içinde 200 dönmedi"; exit 1; fi
+          echo "BOOT SMOKE OK"
