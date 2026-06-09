@@ -97,10 +97,48 @@ async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
     monkeypatch.setattr(hs, "search", _fake_search)
     monkeypatch.setattr(hs, "_get_colbert_embedder", lambda: fake_emb)
 
-    out = await hs.search_with_rerank("soru", top_k=4, candidates_n=10)
+    out = await hs.search_with_rerank("soru", top_k=4, candidates_n=10, doc_type="law")
     # B(0.9) > C(0.5) > A(0.1) > boş(-1.0)
     assert [r.chunk_id for r in out] == ["c1", "c2", "c0", "c3"]
     assert out[-1].chunk_id == "c3"  # whitespace en sonda
+
+
+@pytest.mark.asyncio
+async def test_colbert_skipped_for_non_law_pool(monkeypatch):
+    """doc_type != 'law' → bgem3 açıkken bile cross-encoder kullanılır (sessiz-bypass fix'i).
+
+    ColBERT yan koleksiyonu law-only seed'li; law-dışı havuzda (emsal doc_type=None)
+    stored MAX_SIM 0 hit → tüm adaylar rerank'sız geçerdi. Guard: colbert dispatch'i
+    yalnız doc_type='law'; aksi halde CE reranker çağrılmalı.
+    """
+    cands = [
+        SearchResult(chunk_id=f"c{i}", score=0.5, text=f"karar {i}", source="yargitay",
+                     source_url="", domain="kira", metadata={"doc_type": "case"})
+        for i in range(3)
+    ]
+
+    async def _fake_search(**kwargs):
+        return cands
+
+    colbert_called = False
+
+    async def _fake_colbert(question, candidates, top_k):
+        nonlocal colbert_called
+        colbert_called = True
+        return candidates[:top_k]
+
+    class _FakeCE:
+        def rerank(self, _q, candidates, top_k):
+            return list(reversed(candidates))[:top_k]  # ayırt edici sıra: CE çağrıldı kanıtı
+
+    monkeypatch.setenv("RERANK_PROVIDER", "bgem3")
+    monkeypatch.setattr(hs, "search", _fake_search)
+    monkeypatch.setattr(hs, "colbert_rerank_candidates", _fake_colbert)
+    monkeypatch.setattr(hs, "get_reranker", lambda: _FakeCE())
+
+    out = await hs.search_with_rerank("soru", top_k=3, candidates_n=10)  # doc_type=None (emsal)
+    assert not colbert_called, "law-dışı havuzda colbert dispatch edilmemeli"
+    assert [r.chunk_id for r in out] == ["c2", "c1", "c0"]  # CE sırası uygulanmış
 
 
 def test_minmax_normalize():

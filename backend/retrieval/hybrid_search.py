@@ -275,7 +275,12 @@ async def search_with_rerank(
     # context7 SOTA lever: BGE-M3 multi-vector (dense+sparse+ColBERT) rerank — cross-encoder
     # doğru kanunu buluyor (kanun@5=82%) ama doğru MADDE'yi seçemiyor (madde@5=37%); ColBERT
     # token-level MAX_SIM ince madde-ayrımı için. Opt-in: RERANK_PROVIDER=bgem3 (default local).
-    if colbert_rerank_enabled():
+    # YALNIZ doc_type='law': ColBERT yan koleksiyonu law-only seed'li (seed_law_colbert) →
+    # law-dışı havuzda (emsal doc_type=None) stored MAX_SIM 0 hit verir ve "bulunamadı →
+    # orijinal sırada geçir" fallback'i TÜM havuzu rerank'sız geçirirdi (sessiz bypass,
+    # öncelik #2 2026-06-10). Law-dışı havuzlar cross-encoder'a düşer (gerçek rerank +
+    # EMSAL_LIVE_TRIGGER_SCORE eşiği CE skor ölçeğinde kalibre).
+    if doc_type == "law" and colbert_rerank_enabled():
         try:
             return await colbert_rerank_candidates(question, candidates, top_k)
         except Exception as exc:  # BGE-M3 yük/skor hatası → graceful: cross-encoder'a düş
