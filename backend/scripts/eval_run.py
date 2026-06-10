@@ -44,6 +44,24 @@ BENCHMARK_V2_PATH = BENCHMARK_DIR / "benchmark_v2.jsonl"  # v2 (186 vaka, Sprint
 # Yönetmelik görünürlüğü (P4 2026-06-10): madde-gold YOK (corpus yönetmelik madde_no'su
 # 'chunk-N' — bilinen kısıt), ölçüm kanun@5 (YON_* kodu top-5'te mi) + keyword recall.
 BENCHMARK_YON_PATH = BENCHMARK_DIR / "benchmark_yonetmelik.jsonl"  # 13 vaka
+# v3 (P6 2026-06-10) = v2 + kuyruk-domain genişletmesi (trafik/vergi/tapu/idari 25'er
+# vakaya; +58, tamamı scripts.validate_benchmark_gold ile corpus-doğrulanmış).
+BENCHMARK_V3_EXT_PATH = BENCHMARK_DIR / "benchmark_v3_ext.jsonl"
+
+# Holdout oranı (yüzde) — aile-bazlı deterministik split (md5(family) % 100 < 30).
+# Aile = variant_of | topic_phrase | id → konuşma-dili varyantları AYNI tarafa düşer
+# (dev'de tune edilen sorunun parafrazı holdout'a sızmaz). Knob/ablation kararları
+# --split dev'de verilir; holdout YALNIZ final doğrulamada koşulur (double-dip
+# overfit dersi: tahmin-kalibrasyonu commit 4b06ca6).
+HOLDOUT_PCT = 30
+
+
+def _split_of(case: dict[str, Any]) -> str:
+    """Vakanın deterministik split'i: 'dev' | 'holdout' (aile-bazlı, runs-arası sabit)."""
+    import hashlib
+    family = str(case.get("variant_of") or case.get("topic_phrase") or case["id"])
+    h = int(hashlib.md5(family.encode("utf-8")).hexdigest(), 16) % 100
+    return "holdout" if h < HOLDOUT_PCT else "dev"
 
 # kanun_kodu → bu kodu içeren domain'ler (reverse map). Kanun (mevzuat) chunk'ında
 # `domain` payload alanı YOK → domain@1 metriği onları haksızca "miss" sayardı.
@@ -82,19 +100,21 @@ def _load_benchmark(version: str = "v1") -> list[dict[str, Any]]:
     Args:
         version: "v1" (default, eski 50 vaka) | "v2" (W2 expansion, 186 vaka)
     """
+    multi = {"v3": [BENCHMARK_V2_PATH, BENCHMARK_V3_EXT_PATH]}
     paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
-    path = paths.get(version, BENCHMARK_PATH)
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Benchmark dosyası bulunamadı: {path}. "
-            f"v2 için önce `python -m scripts.merge_benchmark_v2` çalıştır.",
-        )
+    file_list = multi.get(version) or [paths.get(version, BENCHMARK_PATH)]
     cases: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                cases.append(json.loads(line))
+    for path in file_list:
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Benchmark dosyası bulunamadı: {path}. "
+                f"v2 için önce `python -m scripts.merge_benchmark_v2` çalıştır.",
+            )
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    cases.append(json.loads(line))
     return cases
 
 
@@ -336,8 +356,12 @@ async def main() -> int:
     parser.add_argument("--mode", choices=["hybrid", "rerank", "node"], default=None,
                         help="Retrieval yolu: node = PRODUCTION zinciri "
                              "(takviye+çapa+rerank+tier-sort, resmî metrik)")
-    parser.add_argument("--version", choices=["v1", "v2", "yonetmelik"], default="v1",
-                        help="Benchmark sürümü: v1 (50 vaka) | v2 (186 vaka, 8 domain)")
+    parser.add_argument("--version", choices=["v1", "v2", "v3", "yonetmelik"], default="v1",
+                        help="Benchmark sürümü: v1 (50) | v2 (186) | v3 (244, kuyruk-domain"
+                             " genişletmeli) | yonetmelik (13)")
+    parser.add_argument("--split", choices=["dev", "holdout", "all"], default="all",
+                        help="Aile-bazlı 70/30 split: knob-tuning 'dev'de; 'holdout'"
+                             " YALNIZ final doğrulamada (double-dip overfit koruması)")
     parser.add_argument("--out", type=Path, default=None, help="Sonuçları JSON'a yaz")
     args = parser.parse_args()
 
@@ -347,11 +371,11 @@ async def main() -> int:
     mode_label = {"hybrid": "HYBRID", "rerank": "HYBRID + RERANK",
                   "node": "PRODUCTION-YOLU (node)"}[mode]
 
-    _paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
-    path = _paths[args.version]
-    print(f"Benchmark yükleniyor: {path}")
     cases = _load_benchmark(args.version)
-    print(f"Toplam {len(cases)} soru\n")
+    n_total = len(cases)
+    if args.split != "all":
+        cases = [c for c in cases if _split_of(c) == args.split]
+    print(f"Benchmark: {args.version} — toplam {n_total}, split={args.split} → {len(cases)} soru\n")
     print(f"Mode: {mode_label}")
     print()
 
