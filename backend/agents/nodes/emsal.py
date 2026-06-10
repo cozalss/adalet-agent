@@ -70,7 +70,14 @@ async def emsal_node(state: AgentState) -> dict:
         return {"emsal_refs": [], "errors": [f"emsal: {type(exc).__name__}"]}
 
 
-async def _emsal_retrieve(question: str, domain: str) -> dict:
+async def rank_case_candidates(question: str, domain: str) -> tuple[list, int, int]:
+    """Production emsal-ranking zinciri — (case_results, n_preferred, n_scoped) döndürür.
+
+    _emsal_retrieve'den ayrıldı (P5 2026-06-10): scripts/eval_emsal.py bu zinciri
+    Citation/live-fallback/graph olmadan doğrudan ölçer (mevzuat'taki
+    rank_law_candidates parite deseni). Sıra: ana hybrid+rerank → preferred-court
+    scoped takviye → case filtresi → mahkeme-öncelikli tier-sort.
+    """
     # Ana yol: mevcut search_with_rerank (hibrit + rerank). Anayasa hacmi (~9:1)
     # dense'i boğduğunda preferred (DOMAIN_PREFERRED_COURTS) mahkemelerin
     # adaylarını ayrı source-scoped search ile garanti et → tier-sort'a
@@ -114,6 +121,11 @@ async def _emsal_retrieve(question: str, domain: str) -> dict:
     # emsal Yargıtay/Danıştay'dır. Tercih edilen mahkeme öne alınır (stable →
     # cross-encoder sırası tier içinde korunur), sonra TOP_K_CASE'e kesilir.
     case_results, n_preferred = _court_priority_sort(case_results, domain)
+    return case_results, n_preferred, n_scoped
+
+
+async def _emsal_retrieve(question: str, domain: str) -> dict:
+    case_results, n_preferred, n_scoped = await rank_case_candidates(question, domain)
 
     cases: list[Citation] = [
         Citation(
