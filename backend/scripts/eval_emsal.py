@@ -58,6 +58,7 @@ def _overlap(text: str, keywords: list[str]) -> float:
 
 def case_metrics(
     results: list[Any], expected_sources: list[str], keywords: list[str],
+    question: str = "",
 ) -> dict[str, Any]:
     """Tek vaka metrikleri — saf fonksiyon (Qdrant'sız test edilebilir).
 
@@ -77,6 +78,16 @@ def case_metrics(
         return any(o >= TOPICAL_THRESHOLD for o in overlaps[:k])
 
     best_score = max((float(r.score) for r in top), default=0.0)
+
+    # Tetikleyici A/B (CRAG-redesign 2026-06-10): eski skor-eşiği vs yeni
+    # coverage sinyali — production'da hangisi aktifse ondan bağımsız İKİSİ DE
+    # raporlanır (kalibrasyon + regresyon takibi).
+    try:
+        from retrieval.turkish_text import query_coverage
+        q_cov = query_coverage(question, [r.text or "" for r in top]) if question else 0.0
+    except ImportError:
+        q_cov = 0.0
+    from agents.config import EMSAL_LIVE_COVERAGE_MIN
     return {
         "n_results": len(top),
         "court@3": _court_at(3),
@@ -85,7 +96,9 @@ def case_metrics(
         "topical@8": _topical_at(8),
         "best_overlap": round(best_overlap, 3),
         "best_score": round(best_score, 4),
-        "live_trigger": best_score < EMSAL_LIVE_TRIGGER_SCORE,
+        "live_trigger": best_score < EMSAL_LIVE_TRIGGER_SCORE,  # eski skor-sinyali
+        "query_coverage": round(q_cov, 3),
+        "live_trigger_cov": (not top) or q_cov < EMSAL_LIVE_COVERAGE_MIN,  # yeni sinyal
     }
 
 
@@ -118,8 +131,12 @@ def _print_summary(rows: list[dict[str, Any]]) -> None:
     print(f"  Topical @3 (keyword ≥{TOPICAL_THRESHOLD:.0%}):         {avg('topical@3')*100:5.1f}%")
     print(f"  Topical @8 (prod penceresi):        {avg('topical@8')*100:5.1f}%")
     print(f"  Best keyword overlap (ort):         {avg('best_overlap')*100:5.1f}%")
-    print(f"  Live-fallback tetiklenme oranı:     {avg('live_trigger')*100:5.1f}%"
-          f"   (skor < {EMSAL_LIVE_TRIGGER_SCORE})")
+    print(f"  Live-trigger ESKİ (skor<{EMSAL_LIVE_TRIGGER_SCORE}):     {avg('live_trigger')*100:5.1f}%")
+    if any("live_trigger_cov" in r for r in rows):
+        from agents.config import EMSAL_LIVE_COVERAGE_MIN
+        cov_rate = sum(bool(r.get("live_trigger_cov")) for r in rows) / n
+        print(f"  Live-trigger YENİ (coverage<{EMSAL_LIVE_COVERAGE_MIN}): {cov_rate*100:5.1f}%")
+        print(f"  Query coverage (ort):               {avg('query_coverage')*100:5.1f}%")
     print(f"  Avg latency:  {avg('elapsed_ms'):6.0f} ms")
     print()
     per_domain: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -154,7 +171,8 @@ async def main() -> int:
             print(f"ERROR: {exc}")
             continue
         elapsed_ms = (time.perf_counter() - t0) * 1000
-        m = case_metrics(results, case["expected_sources"], case["ground_truth_keywords"])
+        m = case_metrics(results, case["expected_sources"], case["ground_truth_keywords"],
+                         question=case["soru"])
         rows.append({
             "id": case["id"],
             "soru": case["soru"],

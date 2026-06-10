@@ -176,10 +176,16 @@ async def test_live_fallback_triggers_on_weak_corpus(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_live_fallback_skips_on_strong_corpus(monkeypatch):
-    """Flag acik AMA corpus GUCLU (skor > esik) → canli fallback gereksiz, cagrilmaz."""
+    """Flag acik AMA corpus GUCLU → canli fallback gereksiz, cagrilmaz.
+
+    CRAG-redesign (2026-06-10): 'guclu' artik yuksek CE skoru DEGIL, sorgu
+    kelimelerinin donen kararlarca KAPSANMASI (coverage modu, olculmus karar —
+    skor-esigi 24/24 yanlis-alarm vermisti). Soru kelimeleri chunk metninde
+    geciyor → coverage 1.0 → tetikleme yok (skor dusuk olsa bile).
+    """
     monkeypatch.setenv("EMSAL_LIVE_FALLBACK_ENABLED", "1")
     async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
-        return [_rr("c1", 0.80, "yargitay")]  # guclu
+        return [_rr("c1", 0.10, "yargitay")]  # text: "karar metni c1" — soruyu kapsar
     monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
     await _no_scoped(monkeypatch)
     called = {"live": False}
@@ -187,6 +193,6 @@ async def test_live_fallback_skips_on_strong_corpus(monkeypatch):
         called["live"] = True
         return []
     monkeypatch.setattr(emsal_mod, "fetch_and_rank_live", fake_live)
-    out = await emsal_mod.emsal_node({"question": "x", "domain": "trafik"})
+    out = await emsal_mod.emsal_node({"question": "karar metni", "domain": "trafik"})
     assert called["live"] is False
     assert out["emsal_refs"][0]["source_id"] == "c1"

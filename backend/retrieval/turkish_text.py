@@ -150,6 +150,22 @@ def keyword_overlap(
     return n_hit / len(expected_keywords)
 
 
+def query_coverage(question: str, texts: list[str]) -> float:
+    """Sorgu içerik-kelimelerinin (stopword'süz) metinlerce EN İYİ kapsanma oranı [0-1].
+
+    CRAG canlı-fallback tetikleyicisi için (2026-06-10 emsal-bench bulgusu):
+    cross-encoder skoru 'corpus'ta yok' sinyali DEĞİL — 24/24 yanlış alarm + tek
+    gerçek boşlukta 0.802 skor. Bu sinyal sorgunun kelimeleri dönen kararlarda hiç
+    geçmiyorsa (kapsama düşük) 'alakasız sonuç' der; skor kalibrasyonundan bağımsız,
+    stem-aware. Sınırı bilinir: yanlış ALT-KONU kapsama yüksekken yakalanamaz
+    (o boşluğun çözümü corpus kürasyonu, sinyal değil).
+    """
+    q_words = tokenize(question)
+    if not q_words or not texts:
+        return 0.0
+    return max(keyword_overlap(t, q_words) for t in texts)
+
+
 def morphological_variants(question: str, max_variants: int = 3) -> list[str]:
     """Soru için Türkçe morfolojik varyasyon üret (LLM-siz).
 

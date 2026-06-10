@@ -122,9 +122,26 @@ def is_emsal_live_fallback_enabled() -> bool:
 
 # Lokal emsal en-iyi rerank skoru bu değerin ALTINDAysa corpus 'zayıf' sayılır →
 # canlı fallback tetiklenir. Cross-encoder sigmoid (0-1); 0.35 = zayıf-alaka eşiği.
+# ÖLÇÜLDÜ BOZUK (2026-06-10 emsal-bench 64 vaka): 24 tetiklemenin 24'ü YANLIŞ ALARM
+# (corpus alakalıydı — CE konuşma-dili TR'de noise-floor skor verir) ve tek gerçek
+# topikal boşluk 0.802 skorla TETİKLENMEDİ → default mod 'coverage' (aşağıda); bu
+# eşik yalnız EMSAL_LIVE_TRIGGER_MODE=score geri-uyumluluğunda kullanılır.
 EMSAL_LIVE_TRIGGER_SCORE = float(os.getenv("EMSAL_LIVE_TRIGGER_SCORE", "0.35"))
 # Canlı aday bir emsal olarak kabul edilmek için gereken min LOKAL-rerank skoru.
 EMSAL_LIVE_MIN_SCORE = float(os.getenv("EMSAL_LIVE_MIN_SCORE", "0.30"))
+
+# Canlı-fallback tetikleyici modu: 'coverage' (default, ölçülmüş) | 'score' (eski).
+# coverage = sorgu içerik-kelimelerinin dönen kararlarca stem-aware kapsanması
+# (retrieval.turkish_text.query_coverage) — skor kalibrasyonundan bağımsız sinyal.
+EMSAL_LIVE_TRIGGER_MODE = os.getenv("EMSAL_LIVE_TRIGGER_MODE", "coverage").strip().lower()
+# Kapsama bu değerin ALTINDAysa 'dönen kararlar sorguyla alakasız' sayılır → canlı
+# fallback. KALİBRE EDİLDİ (2026-06-10, eval/runs/emsal_trigger_calib.json +
+# off-corpus probe): 0.30 → kapsanan 64 vakada tetikleme 4/64 (%6.2; eski skor-eşiği
+# 24/64=%37.5 idi) ve 6/6 off-corpus niş sorguda ateşlenir. Sınır-vakalar
+# (abonelik/kargo/spor-salonu) önceki alaka-yargısında zaten zayıf ölçülen konular —
+# orada tetiklenmek istenen davranış. Bilinen kör nokta: yanlış ALT-KONU (kapsama
+# yüksek, konu yanlış) bu sinyalle görünmez — çözümü corpus kürasyonu.
+EMSAL_LIVE_COVERAGE_MIN = float(os.getenv("EMSAL_LIVE_COVERAGE_MIN", "0.30"))
 
 
 def is_guided_cite_enabled() -> bool:

@@ -27,6 +27,35 @@ from retrieval.reranker import get_reranker
 
 log = structlog.get_logger()
 
+
+def should_trigger_live(question: str, case_results: list) -> tuple[bool, str, float]:
+    """Canlı fallback tetiklensin mi? → (tetikle, sinyal_adı, sinyal_değeri).
+
+    Eski sinyal (best CE skoru < EMSAL_LIVE_TRIGGER_SCORE) emsal-bench'te (64 vaka,
+    2026-06-10) İKİ yönde bozuk ölçüldü: 24/24 tetikleme yanlış-alarm (CE konuşma-dili
+    TR'de noise-floor skor verir) + tek gerçek topikal boşluk 0.802 skorla kaçtı.
+    Default mod 'coverage': sorgu içerik-kelimelerinin dönen kararlarca stem-aware
+    kapsanması — sorgu kelimeleri kararlarda hiç geçmiyorsa corpus alakasız demektir.
+    Bilinen sınır: yanlış ALT-KONU (kapsama yüksek, konu yanlış) bu sinyalle de
+    görülemez; o boşluğun çözümü corpus kürasyonu. EMSAL_LIVE_TRIGGER_MODE=score
+    eski davranışı geri verir (A/B + geri-uyumluluk).
+    """
+    from agents.config import (
+        EMSAL_LIVE_COVERAGE_MIN,
+        EMSAL_LIVE_TRIGGER_MODE,
+        EMSAL_LIVE_TRIGGER_SCORE,
+    )
+
+    if not case_results:
+        return True, "empty", 0.0
+    if EMSAL_LIVE_TRIGGER_MODE == "score":
+        best = max(float(getattr(r, "score", 0.0)) for r in case_results)
+        return best < EMSAL_LIVE_TRIGGER_SCORE, "score", best
+    from retrieval.turkish_text import query_coverage
+    cov = query_coverage(question, [getattr(r, "text", "") or "" for r in case_results])
+    return cov < EMSAL_LIVE_COVERAGE_MIN, "coverage", cov
+
+
 # Domain → canlı kaynak sırası. Inline-text dönen özel kaynaklar (sigorta_tahkim,
 # gib_ozelge, sayistay, kvkk) rerank için ideal; Bedesten (yargitay/danistay) doc-id
 # döndürür → top adayların tam metni çekilir (latans için sınırlı).
