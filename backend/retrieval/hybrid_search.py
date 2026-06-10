@@ -119,12 +119,22 @@ def _get_sparse_embedder() -> Embedder | MursitEmbedder:
 
     SPARSE_EMBEDDER_MODEL=BAAI/bge-m3 ile BGE-M3 sparse kullanılır.
     Boşsa ana embedder kullanılır.
+
+    PAYLAŞIM (2026-06-10, icra teşhisi): model colbert-rerank modeliyle AYNI ise
+    (ikisi de BAAI/bge-m3) colbert'in CPU instance'ı yeniden kullanılır — ekstra
+    VRAM/RAM yok. Demo sparse'ı GPU-sığdırma için kapatmıştı (vergi/trafik/icra'da
+    ölçülmüş +27-45pp BM25 kazancı kayıptı); paylaşımla sparse yalnız sorgu-encode
+    maliyetiyle (CPU ~50ms) geri açılabilir — corpus sparse vektörleri zaten seed'li.
     """
     global _sparse_embedder_singleton
     if not _SPARSE_MODEL:
         return _get_embedder()
     if _sparse_embedder_singleton is None:
-        _sparse_embedder_singleton = Embedder(_SPARSE_MODEL)
+        colbert_model = os.getenv("COLBERT_RERANK_MODEL", "BAAI/bge-m3")
+        if colbert_model == _SPARSE_MODEL:
+            _sparse_embedder_singleton = _get_colbert_embedder()
+        else:
+            _sparse_embedder_singleton = Embedder(_SPARSE_MODEL)
     return _sparse_embedder_singleton
 
 

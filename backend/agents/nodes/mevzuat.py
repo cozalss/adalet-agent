@@ -11,6 +11,7 @@ Strateji:
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
 import httpx
@@ -162,15 +163,34 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
         retrieval_mode = "hybrid"
 
-    # Step-back query rewrite (opt-in, 1.1): konuşma-dili sorguyu resmî hukuki terimlere
-    # çevirip AYRI arar + RRF ile havuza katar VE rewrite'ı rerank sorgusu yapar →
-    # cross-encoder ranking-reversal'ı (konuşma-dili → yanlış madde) hedefler. rewrite ""
-    # ise (LLM yok/başarısız/no-op) baseline birebir korunur. Default OFF (should_rewrite False).
+    results, rerank_query, retrieval_mode = await apply_step_back(
+        question, domain, results, retrieval_mode,
+    )
+
+    laws = await _rank_and_build_laws(
+        question, domain, results, retrieval_mode, rerank_query=rerank_query,
+    )
+    return {"mevzuat_refs": laws}
+
+
+async def apply_step_back(
+    question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
+) -> tuple[list[SearchResult], str, str]:
+    """Step-back query rewrite (opt-in, 1.1) — (results, rerank_query, mode) döndürür.
+
+    Konuşma-dili sorguyu resmî hukuki terimlere çevirip AYRI arar + RRF ile havuza
+    katar VE rewrite'ı rerank sorgusu yapar → cross-encoder ranking-reversal'ı
+    (konuşma-dili → yanlış madde) hedefler. rewrite "" ise (LLM yok/başarısız/no-op)
+    baseline birebir korunur. Default OFF (should_rewrite False; QUERY_REWRITE_ENABLED=1).
+    _mevzuat_retrieve'den ayrıldı (P7 2026-06-10): eval_run --mode node da bu adımı
+    production-pariteli koşar (önceden eval node-yolu step-back'i hiç içermiyordu →
+    flag'in etkisi ölçülemiyordu).
+    """
     rerank_query = question
     if should_rewrite(question, domain):
         try:
             sb_results, rewrite = await search_with_step_back(
-                question, top_k=target_k, per_query_k=target_k,
+                question, top_k=TOP_K_LAW * 4, per_query_k=TOP_K_LAW * 4,
                 sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES,
             )
             if rewrite:
@@ -179,11 +199,7 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
                 retrieval_mode = f"{retrieval_mode}+stepback"
         except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
             log.warning("step_back_failed", error=str(exc) or type(exc).__name__)
-
-    laws = await _rank_and_build_laws(
-        question, domain, results, retrieval_mode, rerank_query=rerank_query,
-    )
-    return {"mevzuat_refs": laws}
+    return results, rerank_query, retrieval_mode
 
 
 async def _rank_and_build_laws(
@@ -304,16 +320,8 @@ async def rank_law_candidates(
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         law_cands, n_primary = _domain_priority_rerank(law_cands, domain)
 
-    # 5.5 Yönetmelik slot-garantisi (P4 2026-06-10): tier-0 birincil kanun (TKHK 88 chunk)
-    # top-K'yı tek başına doldurur → yönetmelik final çıktıya HİÇ giremiyordu (ölçüldü:
-    # yonetmelik-bench kanun@5 %46.2, YON_* görünürlüğü ~0). Sıradaki EN İYİ yönetmelik
-    # adayı (rerank/boost sırasına göre ilk regulation) çapa gibi top-K'ya garanti edilir
-    # (1 slot). Law-gold regresyonu node-v2 eval ile kontrol ediliyor.
-    best_reg = next(
-        (r for r in law_cands if r.metadata.get("doc_type") == "regulation"), None,
-    )
-    if best_reg is not None:
-        anchor_ids = anchor_ids | {best_reg.chunk_id}
+    # 5.4-5.5 Garanti seti: (tavanlı) çapalar + 1 yönetmelik slotu — detay helper'da.
+    anchor_ids = _final_guaranteed_ids(law_cands, anchor_ids)
 
     # 6. Final top-K: çapa maddeleri GARANTİ et, kalanı sıralı doldur.
     final_cands = _ensure_core_in_topk(law_cands, anchor_ids, TOP_K_LAW)
@@ -325,6 +333,45 @@ async def rank_law_candidates(
         anchors=len(anchor_ids),
     )
     return final_cands
+
+
+def _anchor_slot_cap() -> int:
+    """Final top-K'da GARANTİLİ çapa sayısı tavanı (0 = sınırsız).
+
+    DEFAULT 5 — ÖLÇÜLDÜ (2026-06-10, v3 dev sweep 4/5/6 + tek-atış holdout doğrulama):
+    dev madde@8 65.9→69.2 (+3.3pp, @5 -0.6 kabul), holdout 51.0→54.1 (+3.1pp, @5 düz,
+    hiçbir domain gerilemedi; icra 33→42, tapu 30→40). Kök neden: icra'da 6 çapa
+    top-8'in 6 slotunu her sorguda işgal ediyordu → havuz #1'deki sorgu-spesifik
+    madde bile final'e giremiyordu. cap=4 tapu'yu üzüyordu (-10 dev), cap=6 etkisiz.
+    """
+    try:
+        return int(os.getenv("MEVZUAT_ANCHOR_SLOT_CAP", "5"))
+    except ValueError:
+        return 5
+
+
+def _final_guaranteed_ids(law_cands: list, anchor_ids: set[str]) -> set[str]:
+    """Final top-K'da garanti edilecek chunk_id seti.
+
+    (a) Çapa-tavanı (2026-06-10 icra teşhisi): icra'da 6 çapa top-8'in 6 slotunu HER
+    sorguda işgal ediyordu → sorgu-spesifik madde (IIK 32 havuz #4'te!) final'e
+    giremiyordu. Tavan: tier-sort sonrası EN İYİ sıradaki N çapa garantili kalır,
+    gerisi normal aday gibi yarışır (havuzdan düşmez, yalnız garanti kaybeder).
+    Default 0 = sınırsız; MEVZUAT_ANCHOR_SLOT_CAP ile aç.
+    (b) Yönetmelik slot-garantisi (P4): tier-0 birincil kanun top-K'yı tek başına
+    doldurur → en iyi sıradaki yönetmelik adayı 1 slot garanti alır (yonetmelik-bench
+    kanun@8 %46→%100, v2 law-gold nötr ölçüldü).
+    """
+    cap = _anchor_slot_cap()
+    if cap > 0 and len(anchor_ids) > cap:
+        ranked_anchor_ids = [r.chunk_id for r in law_cands if r.chunk_id in anchor_ids]
+        anchor_ids = set(ranked_anchor_ids[:cap])
+    best_reg = next(
+        (r for r in law_cands if r.metadata.get("doc_type") == "regulation"), None,
+    )
+    if best_reg is not None:
+        anchor_ids = anchor_ids | {best_reg.chunk_id}
+    return anchor_ids
 
 
 def _merge_dedup(

@@ -211,10 +211,18 @@ async def _eval_one(
         #   - başlangıç havuzu düz hybrid (HyDE/MQ adaptive-routing LLM ister; demo'da kapalı)
         #   - decontextualize/step-back: chat_history yok + default OFF → no-op (parite)
         from agents.config import TOP_K_LAW
-        from agents.nodes.mevzuat import MEVZUAT_DOC_TYPES, rank_law_candidates
+        from agents.nodes.mevzuat import (
+            MEVZUAT_DOC_TYPES,
+            apply_step_back,
+            rank_law_candidates,
+        )
         pool = await search(question=soru, top_k=TOP_K_LAW * 4,
                             sparse_domain=expected_domain, doc_type=MEVZUAT_DOC_TYPES)
-        results = await rank_law_candidates(soru, expected_domain, pool, "hybrid")
+        # Step-back paritesi (P7): default OFF (no-op); QUERY_REWRITE_ENABLED=1 + LLM
+        # ile A/B ölçülür — production'da da aynı blok koşuyor.
+        pool, rerank_q, _rm = await apply_step_back(soru, expected_domain, pool, "hybrid")
+        results = await rank_law_candidates(soru, expected_domain, pool, _rm,
+                                            rerank_query=rerank_q)
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
         # sparse_domain: HyDE'nin dual-sparse (BM25) fix'ini ölç (denetim 2026-06-04).

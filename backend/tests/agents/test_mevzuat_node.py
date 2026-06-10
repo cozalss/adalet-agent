@@ -394,6 +394,47 @@ def test_ensure_core_anchor_already_in_topk_no_dup():
 
 
 # --------------------------------------------------------------------------
+#  _final_guaranteed_ids — çapa-tavanı (icra teşhisi 2026-06-10) + yönetmelik slotu
+# --------------------------------------------------------------------------
+
+def test_anchor_cap_default_five(monkeypatch):
+    """Default tavan 5 (holdout-doğrulanmış): ≤5 çapa hepsi garantili; 6.+ yarışır."""
+    monkeypatch.delenv("MEVZUAT_ANCHOR_SLOT_CAP", raising=False)
+    cands = [_sr(c, 0.0) for c in ("a1", "a2", "a3", "x")]
+    out = mevzuat_mod._final_guaranteed_ids(cands, {"a1", "a2", "a3"})
+    assert out == {"a1", "a2", "a3"}  # 3 ≤ 5 → hepsi garantili
+    six = [_sr(c, 0.0) for c in ("a1", "a2", "a3", "a4", "a5", "a6")]
+    out6 = mevzuat_mod._final_guaranteed_ids(six, {c.chunk_id for c in six})
+    assert out6 == {"a1", "a2", "a3", "a4", "a5"}  # 6. çapa garanti kaybetti
+
+
+def test_anchor_cap_zero_means_unlimited(monkeypatch):
+    """MEVZUAT_ANCHOR_SLOT_CAP=0 → sınırsız (eski davranış geri-uyumlu)."""
+    monkeypatch.setenv("MEVZUAT_ANCHOR_SLOT_CAP", "0")
+    six = [_sr(c, 0.0) for c in ("a1", "a2", "a3", "a4", "a5", "a6")]
+    out = mevzuat_mod._final_guaranteed_ids(six, {c.chunk_id for c in six})
+    assert len(out) == 6
+
+
+def test_anchor_cap_keeps_best_ranked(monkeypatch):
+    """Tavan=2 → ranked sırada EN İYİ 2 çapa garantili kalır, gerisi yarışır."""
+    monkeypatch.setenv("MEVZUAT_ANCHOR_SLOT_CAP", "2")
+    cands = [_sr(c, 0.0) for c in ("x", "a1", "y", "a2", "a3")]
+    out = mevzuat_mod._final_guaranteed_ids(cands, {"a1", "a2", "a3"})
+    assert out == {"a1", "a2"}  # a3 garanti kaybetti ama havuzda
+
+
+def test_anchor_cap_regulation_slot_independent(monkeypatch):
+    """Yönetmelik slotu tavandan BAĞIMSIZ — tavan dolu olsa da en iyi regulation girer."""
+    monkeypatch.setenv("MEVZUAT_ANCHOR_SLOT_CAP", "1")
+    reg = _sr("reg1", 0.0)
+    reg.metadata["doc_type"] = "regulation"
+    cands = [_sr("a1", 0.0), _sr("a2", 0.0), reg]
+    out = mevzuat_mod._final_guaranteed_ids(cands, {"a1", "a2"})
+    assert out == {"a1", "reg1"}
+
+
+# --------------------------------------------------------------------------
 #  Çapa entegrasyonu — fetch_maddeler ile kilit maddeler havuza GARANTİ girer
 # --------------------------------------------------------------------------
 
