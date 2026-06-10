@@ -1,4 +1,4 @@
-"""Mevzuat ajanı — kanun maddelerini retrieve eder.
+﻿"""Mevzuat ajanı — kanun maddelerini retrieve eder.
 
 Strateji:
   - HYDE_ENABLED → hipotetik kanun maddesi üretip onu embed (top score +)
@@ -59,6 +59,13 @@ log = structlog.get_logger()
 # CancelledError ASLA yutulmaz (asyncio cooperative cancel propagate olmalı).
 _RETRIEVAL_FALLBACK_EXCEPTIONS = (asyncio.TimeoutError, httpx.HTTPError, ConnectionError)
 
+# Mevzuat aramasının doc_type kapsamı (P4, 2026-06-10): law + regulation. 128 yönetmelik
+# chunk'ı (Mesafeli/Garanti/THH/SSH — vatandaş sorularının tam hedefi: "cayma 14 gün")
+# salt-law filtrede HİÇBİR retrieval yoluna girmiyordu (ölü ağırlık). Regulation chunk'ları
+# source='mevzuat' olduğundan ranking zincirinin law-aday filtresinden zaten geçer;
+# tek engel query-time filtreydi. eval_run --mode node da bu sabiti kullanır (parite).
+MEVZUAT_DOC_TYPES: list[str] = ["law", "regulation"]
+
 
 @observe_node(name="mevzuat")
 async def mevzuat_node(state: AgentState) -> dict:
@@ -108,8 +115,8 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
     # Kullanıcı max SPECULATIVE_DEADLINE_S ek bekler (~2s), sonra hybrid fallback.
     # SPECULATIVE_ENABLED=0 ise eski gather davranışına dön (test/debug için).
     results: list[SearchResult]
-    # doc_type="law" (denetim 2026-06-04, ÖLÇÜLDÜ +15.8pp madde_recall@5): query-time law
-    # filtresi → case-law (anayasa, corpus %64) gürültüsü top-K'yı kirletip mevzuat maddelerini
+    # doc_type=MEVZUAT_DOC_TYPES (denetim 2026-06-04, ÖLÇÜLDÜ +15.8pp madde_recall@5): query-time
+    # filtre → case-law (anayasa, corpus %64) gürültüsü top-K'yı kirletip mevzuat maddelerini
     # dışarı itmez. Eski post-filter havuzdan çıkmış maddeyi kurtaramıyordu. (emsal_node ayrı kol.)
     if SPECULATIVE_ENABLED and (routing.use_hyde or routing.use_mq):
         results, retrieval_mode = await search_speculative(
@@ -120,7 +127,7 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
             multi_query_n=MULTI_QUERY_N,
             hyde_timeout_s=HYDE_TIMEOUT_S,
             deadline_s=SPECULATIVE_DEADLINE_S,
-            doc_type="law",
+            doc_type=MEVZUAT_DOC_TYPES,
         )
     elif routing.use_hyde or routing.use_mq:
         # Eski davranış: gather ile tam HyDE/MQ bekleme
@@ -130,10 +137,10 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         _tasks: dict[str, Any] = {}
         if routing.use_hyde:
             _tasks["hyde"] = search_with_hyde(question, top_k=target_k, domain=domain,
-                                              qdrant_domain=None, sparse_domain=domain, doc_type="law")
+                                              qdrant_domain=None, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
         if routing.use_mq:
             _tasks["mq"] = search_multi_query(question, top_k=target_k, n_queries=MULTI_QUERY_N,
-                                              domain=None, sparse_domain=domain, doc_type="law")
+                                              domain=None, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
         _keys = list(_tasks.keys())
         _coros = [asyncio.wait_for(c, timeout=timeout_total) for c in _tasks.values()]
         _done = await asyncio.gather(*_coros, return_exceptions=True)
@@ -148,11 +155,11 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
                 results = _merge_dedup(_result, results)  # type: ignore[arg-type]
                 retrieval_modes.append(_key)
         if not results:
-            results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type="law")
+            results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
             retrieval_modes.append("hybrid")
         retrieval_mode = "+".join(retrieval_modes)
     else:
-        results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type="law")
+        results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
         retrieval_mode = "hybrid"
 
     # Step-back query rewrite (opt-in, 1.1): konuşma-dili sorguyu resmî hukuki terimlere
@@ -164,7 +171,7 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         try:
             sb_results, rewrite = await search_with_step_back(
                 question, top_k=target_k, per_query_k=target_k,
-                sparse_domain=domain, doc_type="law",
+                sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES,
             )
             if rewrite:
                 results = _merge_dedup(sb_results, results)
@@ -190,7 +197,7 @@ async def _rank_and_build_laws(
     return [
         Citation(
             source_id=r.chunk_id,
-            doc_type="law",
+            doc_type=MEVZUAT_DOC_TYPES,
             title=_format_law_title(r),
             snippet=r.text[:500],
             url=r.source_url,
@@ -237,10 +244,10 @@ async def rank_law_candidates(
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         results, n_boosted = _boost_by_domain(results, domain)
 
-    # 3. law adaylarını ayıkla (doc_type=='law' VEYA source=='mevzuat')
+    # 3. mevzuat adaylarını ayıkla (doc_type ∈ {law, regulation} VEYA source=='mevzuat')
     law_cands = [
         r for r in results
-        if r.metadata.get("doc_type") == "law" or r.source == "mevzuat"
+        if r.metadata.get("doc_type") in MEVZUAT_DOC_TYPES or r.source == "mevzuat"
     ]
 
     # Çapa-maddeler — domain'in kilit maddelerini (örn. İş Hukuku ihbar İK m.17,
@@ -255,6 +262,9 @@ async def rank_law_candidates(
     anchor_ids = {a.chunk_id for a in anchors}
     if anchors:
         law_cands = _merge_dedup(law_cands, anchors)
+
+    # rerank-öncesi yönetmelik adaylarını yakala (aşağıdaki geri-merge için).
+    reg_cands = [r for r in law_cands if r.metadata.get("doc_type") == "regulation"]
 
     # 4. Cross-encoder rerank — RRF+boost heuristic'i kalabalık kanunları (TTK 405
     # chunk) öne koyabiliyor; cross-encoder gerçek soru-belge alakasıyla TKHK m.11
@@ -281,12 +291,29 @@ async def rank_law_candidates(
     if anchors:
         law_cands = _merge_dedup(law_cands, anchors)
 
+    # Yönetmelik adayları stored-ColBERT yan koleksiyonunda YOK (law-only seed) →
+    # bgem3 rerank'te kuyruğa düşüp top-K*3 kesiminde elenebilirler; çapa deseniyle
+    # geri-merge et — gerçek sıralama kararını tier-sort + final top-K versin (P4).
+    if reg_cands:
+        law_cands = _merge_dedup(law_cands, reg_cands)
+
     # 5. Domain-öncelikli tier sort — cross-encoder alakayı verir AMA hukuki bağlamı
     # (tüketici vs deniz ticareti) ayırt edemez. Triaj domain'inin BİRİNCİL kanunu
     # (tuketici→TKHK) tier-0'a alınır; cross-encoder sırası tier İÇİNDE korunur.
     n_primary = 0
     if MEVZUAT_DOMAIN_FILTER_ENABLED and domain in DOMAIN_TO_KANUN_KODU:
         law_cands, n_primary = _domain_priority_rerank(law_cands, domain)
+
+    # 5.5 Yönetmelik slot-garantisi (P4 2026-06-10): tier-0 birincil kanun (TKHK 88 chunk)
+    # top-K'yı tek başına doldurur → yönetmelik final çıktıya HİÇ giremiyordu (ölçüldü:
+    # yonetmelik-bench kanun@5 %46.2, YON_* görünürlüğü ~0). Sıradaki EN İYİ yönetmelik
+    # adayı (rerank/boost sırasına göre ilk regulation) çapa gibi top-K'ya garanti edilir
+    # (1 slot). Law-gold regresyonu node-v2 eval ile kontrol ediliyor.
+    best_reg = next(
+        (r for r in law_cands if r.metadata.get("doc_type") == "regulation"), None,
+    )
+    if best_reg is not None:
+        anchor_ids = anchor_ids | {best_reg.chunk_id}
 
     # 6. Final top-K: çapa maddeleri GARANTİ et, kalanı sıralı doldur.
     final_cands = _ensure_core_in_topk(law_cands, anchor_ids, TOP_K_LAW)
@@ -431,9 +458,17 @@ def _format_law_title(r) -> str:
     kısaltma; yoksa kompakt 'IIK Madde 62'. Açık ad LLM'in 'IIK'yı 'İş Kanunu' diye yanlış
     açmasını önler (2026-06-04 icra ölçümü); kanun_adi payload'da zaten mevcut."""
     kod = r.metadata.get("kanun_kodu", "")
-    madde = r.metadata.get("madde_no", "")
+    madde = str(r.metadata.get("madde_no", "") or "")
     kanun_adi = (r.metadata.get("kanun_adi") or "").strip()
     if kod and madde:
+        if not madde.isdigit():
+            # Yönetmelik chunk'ları (seed_yonetmelik_direct): madde_no ya 'Madde 9 …'
+            # metni ya 'chunk-N' placeholder — 'YON_X Madde Madde 9' üretme. Yönetmelik
+            # adı payload 'title' alanında (kanun_adi yok).
+            base = kanun_adi or (r.metadata.get("title") or "").strip() or kod
+            if madde.lower().startswith("madde"):
+                return f"{base} {madde}"
+            return base
         if kanun_adi:
             return f"{kanun_adi} ({kod}) Madde {madde}"
         return f"{kod} Madde {madde}"

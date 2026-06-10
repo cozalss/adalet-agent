@@ -1,4 +1,4 @@
-"""Spekülatif retrieval — sınırlı latans maliyetiyle kalite iyileştirmesi.
+﻿"""Spekülatif retrieval — sınırlı latans maliyetiyle kalite iyileştirmesi.
 
 Strateji:
   1. Hybrid search HEMEN başlar (baseline — her zaman döndürülecek sonuç)
@@ -43,7 +43,7 @@ async def search_speculative(  # noqa: C901
     multi_query_n: int = 5,
     hyde_timeout_s: float = 15.0,
     deadline_s: float = 2.0,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> tuple[list[Any], str]:
     """Spekülatif arama — latans garantili.
 

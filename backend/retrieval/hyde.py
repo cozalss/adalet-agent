@@ -1,4 +1,4 @@
-"""HyDE (Hypothetical Document Embeddings) — query expansion.
+﻿"""HyDE (Hypothetical Document Embeddings) — query expansion.
 
 Klasik dense retrieval problemi: kullanıcı sorusu kısa ve soru formatında,
 ama dokümanlar uzun ve cevap formatında. Embedding uzayı arasında boşluk var.
@@ -79,7 +79,7 @@ async def search_with_hyde(
     domain: str | None = None,
     qdrant_domain: str | None = None,
     sparse_domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> list[SearchResult]:
     """Hybrid search ama dense kolu HyDE hipotetik metnine göre embed edilir.
 

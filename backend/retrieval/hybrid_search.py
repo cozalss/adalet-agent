@@ -1,4 +1,4 @@
-"""Hybrid search — BGE-M3 dense + sparse (+ opsiyonel ColBERT), Qdrant RRF fusion.
+﻿"""Hybrid search — BGE-M3 dense + sparse (+ opsiyonel ColBERT), Qdrant RRF fusion.
 
 Sprint-4 ile 3-kol prefetch desteği eklendi:
   1. dense        (BGE-M3 1024-d cosine)
@@ -168,7 +168,7 @@ async def search(
     kanun_kodu: list[str] | None = None,
     source: list[str] | None = None,
     sparse_domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> list[SearchResult]:
     """Hybrid search — dense + sparse (+ ColBERT) prefetch, RRF fusion, top_k.
 
@@ -249,7 +249,7 @@ async def search_with_rerank(
     top_k: int = 5,
     candidates_n: int = 50,
     domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> list[RerankResult]:
     """İki aşamalı pipeline: hybrid → cross-encoder rerank → top_k.
 
@@ -475,7 +475,7 @@ def _build_filter(
     domain: str | None,
     kanun_kodu: list[str] | None = None,
     source: list[str] | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> models.Filter | None:
     conditions: list[models.FieldCondition] = []
     if domain:
@@ -503,12 +503,14 @@ def _build_filter(
         # Query-time doc_type filtresi (denetim 2026-06-04): mevzuat retrieval'ı law-only'e
         # daraltır → case-law (anayasa) gürültüsü top-K'yı kirletip maddeleri dışarı itmez.
         # Ölçüldü: law-only filtre madde_recall@5 +3.3pp (icra +7.7pp).
-        conditions.append(
-            models.FieldCondition(
-                key="doc_type",
-                match=models.MatchValue(value=doc_type),
-            )
+        # list → MatchAny (P4 2026-06-10): mevzuat node {law, regulation} arar — 128
+        # yönetmelik chunk'ı (Mesafeli/Garanti/THH/SSH) salt-law filtrede görünmezdi.
+        match = (
+            models.MatchAny(any=list(doc_type))
+            if isinstance(doc_type, (list, tuple))
+            else models.MatchValue(value=doc_type)
         )
+        conditions.append(models.FieldCondition(key="doc_type", match=match))
     if not conditions:
         return None
     return models.Filter(must=conditions)

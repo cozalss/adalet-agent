@@ -1,4 +1,4 @@
-"""Eval benchmark runner — 50 vakalık Türkçe hukuk RAG değerlendirmesi.
+﻿"""Eval benchmark runner — 50 vakalık Türkçe hukuk RAG değerlendirmesi.
 
 Her soru için:
 - Hybrid search top-10
@@ -41,6 +41,9 @@ logger = logging.getLogger("eval")
 BENCHMARK_DIR = Path(__file__).parent.parent / "data" / "eval_benchmark"
 BENCHMARK_PATH = BENCHMARK_DIR / "benchmark.jsonl"      # v1 (50 vaka, legacy)
 BENCHMARK_V2_PATH = BENCHMARK_DIR / "benchmark_v2.jsonl"  # v2 (186 vaka, Sprint-4 W2)
+# Yönetmelik görünürlüğü (P4 2026-06-10): madde-gold YOK (corpus yönetmelik madde_no'su
+# 'chunk-N' — bilinen kısıt), ölçüm kanun@5 (YON_* kodu top-5'te mi) + keyword recall.
+BENCHMARK_YON_PATH = BENCHMARK_DIR / "benchmark_yonetmelik.jsonl"  # 13 vaka
 
 # kanun_kodu → bu kodu içeren domain'ler (reverse map). Kanun (mevzuat) chunk'ında
 # `domain` payload alanı YOK → domain@1 metriği onları haksızca "miss" sayardı.
@@ -79,7 +82,8 @@ def _load_benchmark(version: str = "v1") -> list[dict[str, Any]]:
     Args:
         version: "v1" (default, eski 50 vaka) | "v2" (W2 expansion, 186 vaka)
     """
-    path = BENCHMARK_V2_PATH if version == "v2" else BENCHMARK_PATH
+    paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
+    path = paths.get(version, BENCHMARK_PATH)
     if not path.exists():
         raise FileNotFoundError(
             f"Benchmark dosyası bulunamadı: {path}. "
@@ -187,9 +191,9 @@ async def _eval_one(
         #   - başlangıç havuzu düz hybrid (HyDE/MQ adaptive-routing LLM ister; demo'da kapalı)
         #   - decontextualize/step-back: chat_history yok + default OFF → no-op (parite)
         from agents.config import TOP_K_LAW
-        from agents.nodes.mevzuat import rank_law_candidates
+        from agents.nodes.mevzuat import MEVZUAT_DOC_TYPES, rank_law_candidates
         pool = await search(question=soru, top_k=TOP_K_LAW * 4,
-                            sparse_domain=expected_domain, doc_type="law")
+                            sparse_domain=expected_domain, doc_type=MEVZUAT_DOC_TYPES)
         results = await rank_law_candidates(soru, expected_domain, pool, "hybrid")
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
@@ -220,12 +224,17 @@ async def _eval_one(
     domain_at_5 = expected_domain in domains[:5]
 
     # Kanun match (mevzuat sonuçları için kanun_kodu field var)
-    kanun_at_5 = False
-    for r in results[:5]:
-        kanun_kodu = r.metadata.get("kanun_kodu") if hasattr(r, "metadata") else None
-        if kanun_kodu and kanun_kodu in expected_kanun:
-            kanun_at_5 = True
-            break
+    def _kanun_at(k: int) -> bool:
+        for r in results[:k]:
+            kanun_kodu = r.metadata.get("kanun_kodu") if hasattr(r, "metadata") else None
+            if kanun_kodu and kanun_kodu in expected_kanun:
+                return True
+        return False
+
+    kanun_at_5 = _kanun_at(5)
+    # node modunda production penceresi TOP_K_LAW=8 — verify/draft'ın gördüğü havuz
+    # (yönetmelik slot-garantisi 8. sıraya yerleşir; @5 bunu görmez).
+    kanun_at_8 = _kanun_at(8) if mode == "node" else None
 
     # MRR — ilk doğru domain'in pozisyonu
     mrr = 0.0
@@ -262,6 +271,7 @@ async def _eval_one(
         "domain@1": domain_at_1,
         "domain@5": domain_at_5,
         "kanun@5": kanun_at_5,
+        **({"kanun@8": kanun_at_8} if kanun_at_8 is not None else {}),
         "mrr": mrr,
         **madde_metrics,
         "keyword_recall": kw_recall,
@@ -290,6 +300,9 @@ def _print_summary(results: list[dict[str, Any]], mode: str) -> None:
     print(f"  Domain Accuracy @1 (top-1 doğru):   {d1*100:5.1f}%")
     print(f"  Domain Accuracy @5 (top-5'te var):  {d5*100:5.1f}%")
     print(f"  Kanun Match @5 (mevzuat döndü):     {k5*100:5.1f}%")
+    if any("kanun@8" in r for r in results):
+        k8 = sum(r.get("kanun@8", False) for r in results) / n
+        print(f"  Kanun Match @8 (prod TOP_K_LAW):    {k8*100:5.1f}%")
     print(f"  MRR (domain-düzeyi, proxy):         {mrr:.3f}")
     # Madde-düzeyi (en sıkı) — yalnız expected_madde_no taşıyan vakalar üzerinden.
     madde_cases = [r for r in results if r.get("n_expected_madde")]
@@ -323,7 +336,7 @@ async def main() -> int:
     parser.add_argument("--mode", choices=["hybrid", "rerank", "node"], default=None,
                         help="Retrieval yolu: node = PRODUCTION zinciri "
                              "(takviye+çapa+rerank+tier-sort, resmî metrik)")
-    parser.add_argument("--version", choices=["v1", "v2"], default="v1",
+    parser.add_argument("--version", choices=["v1", "v2", "yonetmelik"], default="v1",
                         help="Benchmark sürümü: v1 (50 vaka) | v2 (186 vaka, 8 domain)")
     parser.add_argument("--out", type=Path, default=None, help="Sonuçları JSON'a yaz")
     args = parser.parse_args()
@@ -334,7 +347,8 @@ async def main() -> int:
     mode_label = {"hybrid": "HYBRID", "rerank": "HYBRID + RERANK",
                   "node": "PRODUCTION-YOLU (node)"}[mode]
 
-    path = BENCHMARK_V2_PATH if args.version == "v2" else BENCHMARK_PATH
+    _paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
+    path = _paths[args.version]
     print(f"Benchmark yükleniyor: {path}")
     cases = _load_benchmark(args.version)
     print(f"Toplam {len(cases)} soru\n")

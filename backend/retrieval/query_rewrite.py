@@ -1,4 +1,4 @@
-"""Step-back query rewrite (1.1) — konuşma-dili sorgu → resmî hukuki kavram köprüsü.
+﻿"""Step-back query rewrite (1.1) — konuşma-dili sorgu → resmî hukuki kavram köprüsü.
 
 Kök sorun (ölçülmüş): doğru kanun havuza geliyor (kanun@5=0.83) ama doğru MADDE üst
 sıraya çıkamıyor (madde_recall@5=0.35). Cross-encoder reranker'a giren sorgu KONUŞMA-DİLİ
@@ -232,7 +232,7 @@ async def search_with_step_back(
     per_query_k: int = 30,
     domain: str | None = None,
     sparse_domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> tuple[list[SearchResult], str]:
     """Orijinal + step-back rewrite'ı ayrı arayıp RRF ile birleştir.
 

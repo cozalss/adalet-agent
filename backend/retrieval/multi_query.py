@@ -1,4 +1,4 @@
-"""Multi-Query Expansion — N adet paraphrase üret, paralel ara, RRF merge.
+﻿"""Multi-Query Expansion — N adet paraphrase üret, paralel ara, RRF merge.
 
 Vatandaş hukuk dilini sürekli farklı şekillerde sorar:
   "depozitomu vermiyor"
@@ -248,7 +248,7 @@ async def fan_out_search(
     per_query_k: int = 30,
     domain: str | None = None,
     sparse_domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> list[SearchResult]:
     """Her sorgu için paralel hybrid search → RRF merge → top_k.
 
@@ -291,7 +291,7 @@ async def search_multi_query(
     per_query_k: int = 30,
     domain: str | None = None,
     sparse_domain: str | None = None,
-    doc_type: str | None = None,
+    doc_type: str | list[str] | None = None,
 ) -> list[SearchResult]:
     """Convenience: expand + fan-out tek seferde.
 
