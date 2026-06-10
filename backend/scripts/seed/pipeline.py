@@ -124,6 +124,10 @@ def _build_pending_chunks(
         "source": court_id,
         "source_url": enriched.ref.source_url,
         "domain": enriched.domain,
+        # doc_type eksikti → 55.462 chunk emsal'in doc_type='case' filtresinden
+        # dışlanıyordu (2026-06-10 backfill ile düzeltildi). Gelecek seed'ler
+        # için kalıcı: bu pipeline yalnız mahkeme kararı işler → 'case'.
+        "doc_type": "case",
     }
 
     for seq, chunk in enumerate(chunks):

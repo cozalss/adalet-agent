@@ -40,6 +40,10 @@ GRAPH_NEIGHBORS_TOP_K = int(os.getenv("GRAPH_NEIGHBORS_TOP_K", "3"))
 # yazılmıyor → source-fallback). Corpus'taki TÜM karar kaynaklarını içermeli;
 # eksikse o kaynak SESSİZCE filtrelenir (sayistay 231 chunk böyle düşüyordu —
 # doc_type=None + sette yok → hiç yüzeye çıkmıyordu, 2026-06-04 denetim).
+# NOT (2026-06-10): doc_type backfill (55.462 chunk → 'case') + seed pipeline
+# base_payload fix'i sonrası bu fallback corpus'ta artık tetiklenmiyor —
+# canlı/yeni kaynaklar (live_emsal snippet'leri, doc_type'sız harici seed)
+# için güvenlik ağı olarak BİLİNÇLİ tutuluyor.
 _CASE_SOURCES = frozenset(
     {"anayasa", "yargitay", "danistay", "bedesten", "uyap", "gib_ozelge", "sayistay"}
 )
