@@ -123,7 +123,12 @@ class MevzuatRef:
 
 @dataclass(slots=True)
 class Madde:
-    """Tek bir kanun maddesi — chunk + citation verification için."""
+    """Tek bir kanun maddesi — chunk + citation verification için.
+
+    madde_tur (P8, 2026-06-11): 'madde' (normal) | 'ek' | 'gecici'. madde_no INT
+    KALIR (Qdrant INTEGER index + fetch_maddeler + DOMAIN_CORE kırılmaz); tur ayrı
+    yan-alan. id: normal 'm-VUK-11', ek 'm-VUK-ek-11', geçici 'm-IIK-gecici-2'.
+    """
 
     kanun_kodu: str
     kanun_numarasi: str
@@ -132,9 +137,12 @@ class Madde:
     baslik: str | None
     metin: str
     source_url: str
+    madde_tur: str = "madde"
 
     @property
     def id(self) -> str:
+        if self.madde_tur in ("ek", "gecici"):
+            return f"m-{self.kanun_kodu}-{self.madde_tur}-{self.madde_no}"
         return f"m-{self.kanun_kodu}-{self.madde_no}"
 
     def to_payload(self) -> dict[str, Any]:
@@ -145,6 +153,7 @@ class Madde:
             "kanun_numarasi": self.kanun_numarasi,
             "kanun_adi": self.kanun_adi,
             "madde_no": self.madde_no,
+            "madde_tur": self.madde_tur,
             "baslik": self.baslik,
             "source": "mevzuat",
             "source_url": self.source_url,

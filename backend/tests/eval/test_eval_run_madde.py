@@ -12,8 +12,11 @@ from types import SimpleNamespace
 from scripts.eval_run import madde_level_metrics
 
 
-def _chunk(kanun, madde):
-    return SimpleNamespace(metadata={"kanun_kodu": kanun, "madde_no": madde}, text="...")
+def _chunk(kanun, madde, tur=None):
+    meta = {"kanun_kodu": kanun, "madde_no": madde}
+    if tur:
+        meta["madde_tur"] = tur
+    return SimpleNamespace(metadata=meta, text="...")
 
 
 def test_perfect_madde_at_rank1():
@@ -41,6 +44,24 @@ def test_partial_recall_half():
     res = [_chunk("IK", 14), _chunk("IK", 5)]  # beklenen 14 ve 32; sadece 14 geldi
     m = madde_level_metrics(res, ["IK"], [14, 32])
     assert m["madde_recall@5"] == 0.5
+
+
+def test_ek_gold_now_measurable_and_tur_scoped():
+    """P8: gold 'ek-11' artık ÖLÇÜLÜR (önceden isdigit filtresi sessizce atıyordu)
+    ve yalnız madde_tur=ek chunk'la eşleşir — normal m.11 isabet SAYILMAZ."""
+    normal_11 = _chunk("VUK", 11)            # madde_tur yok → 'madde'
+    ek_11 = _chunk("VUK", 11, tur="ek")
+    m_wrong = madde_level_metrics([normal_11], ["VUK"], ["ek-11"])
+    assert m_wrong != {} and m_wrong["madde_recall@5"] == 0.0
+    m_right = madde_level_metrics([ek_11], ["VUK"], ["ek-11"])
+    assert m_right["madde_recall@5"] == 1.0 and m_right["madde_mrr"] == 1.0
+
+
+def test_mixed_gold_numeric_and_gecici():
+    res = [_chunk("IIK", 2, tur="gecici"), _chunk("IIK", 62)]
+    m = madde_level_metrics(res, ["IIK"], [62, "gecici-2"])
+    assert m["madde_recall@5"] == 1.0
+    assert m["n_expected_madde"] == 2.0
 
 
 def test_empty_expected_madde_excluded():

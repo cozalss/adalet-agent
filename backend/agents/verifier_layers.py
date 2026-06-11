@@ -51,39 +51,68 @@ _MADDE_FORMAT_RE = re.compile(
     r"|\b\d{1,4}\s*['’.]?\s*(?:inci|ıncı|nci|üncü|uncu)?\s*madde",  # "14. maddesi" / "14 üncü madde"
     re.IGNORECASE,
 )
-# Kaynak-id formatı: "m-IK-21", "m-EIK-14", "m-TKHK-11" — draft bazen [src: ...]
+# Kaynak-id formatı: "m-IK-21", "m-EIK-14", "m-VUK-ek-11" — draft bazen [src: ...]
 # id'sini düz prose'a gömüyor ("m-IK-21 maddesine göre..."). Bu kanonik atıf
 # da geçerli madde referansıdır; layer1 bunu format-eksik diye REDDETMEMELİ.
-_SRC_ID_RE = re.compile(r"\bm-[A-Za-zçğıöşüÇĞİÖŞÜ]+-(\d{1,4})\b", re.IGNORECASE)
+# P8 (2026-06-11): ek/geçici id'leri ('m-VUK-ek-11') tur-bilinçli parse edilir —
+# eski regex 'ek-11'i düz '11' sayıp normal m.11 ile karıştırıyordu.
+_SRC_ID_RE = re.compile(
+    r"\bm-[A-Za-zçğıöşüÇĞİÖŞÜ]+-(?:(ek|gecici)-)?(\d{1,4})\b", re.IGNORECASE,
+)
 # Esas/Karar formatı (Yargıtay/Danıştay)
 _ESAS_KARAR_RE = re.compile(r"\b\d{4}\s*/\s*\d{1,6}\b")
 
 # Claim metninde geçen madde numaralarını yakala (kanıt-daraltma için).
-# Hem "madde 21" / "m. 21" hem de kaynak-id "m-IK-21" formundaki numarayı alır.
-_CLAIM_MADDE_NO_RE = re.compile(r"\b(?:m\.?|madde)\s*(\d{1,4})\b", re.IGNORECASE)
-# Citation.source_id ("m-IK-31") veya title ("IK Madde 31") sondaki madde no.
-_REF_SID_MADDE_RE = re.compile(r"-(\d{1,4})$")
-_REF_TITLE_MADDE_RE = re.compile(r"\bmadde\s*(\d{1,4})\b", re.IGNORECASE)
+# "ek madde 11" / "geçici madde 2" öneki tur olarak alınır (Türkçe 'İ' IGNORECASE
+# tuzağı → açık alternation). Madde anahtarı = (tur, no); tur ∈ {madde, ek, gecici}.
+_CLAIM_MADDE_NO_RE = re.compile(
+    r"\b(?:(?P<ek>EK|Ek|ek)\s+|(?P<gecici>GEÇİCİ|Geçici|geçici)\s+)?"
+    r"(?:m\.?|madde)\s*(?P<no>\d{1,4})\b",
+    re.IGNORECASE,
+)
+# Citation.source_id ("m-IK-31" / "m-VUK-ek-11") sondaki (tur, no).
+_REF_SID_MADDE_RE = re.compile(r"-(?:(ek|gecici)-)?(\d{1,4})$")
+_REF_TITLE_MADDE_RE = re.compile(
+    r"\b(?:(?P<ek>EK|Ek|ek)\s+|(?P<gecici>GEÇİCİ|Geçici|geçici)\s+)?madde\s*(?P<no>\d{1,4})\b",
+    re.IGNORECASE,
+)
+
+MaddeKey = tuple[str, int]  # (tur, no) — tur ∈ {"madde", "ek", "gecici"}
 
 
-def _stated_madde_numbers(text: str) -> set[int]:
-    """Claim metninde AÇIKÇA belirtilen madde numaraları.
+def _norm_tur(ek: str | None, gecici: str | None) -> str:
+    if ek:
+        return "ek"
+    if gecici:
+        return "gecici"
+    return "madde"
 
-    "madde 21" / "m. 21" yanında kaynak-id "m-IK-21" formundaki numarayı da alır.
+
+def _stated_madde_numbers(text: str) -> set[MaddeKey]:
+    """Claim metninde AÇIKÇA belirtilen madde anahtarları (tur, no).
+
+    "madde 21" / "m. 21" / "ek madde 11" yanında kaynak-id "m-IK-21" /
+    "m-VUK-ek-11" formundakileri de alır.
     """
-    nums = {int(n) for n in _CLAIM_MADDE_NO_RE.findall(text)}
-    nums |= {int(n) for n in _SRC_ID_RE.findall(text)}
-    return nums
+    keys: set[MaddeKey] = set()
+    for m in _CLAIM_MADDE_NO_RE.finditer(text):
+        keys.add((_norm_tur(m.group("ek"), m.group("gecici")), int(m.group("no"))))
+    for tur, no in _SRC_ID_RE.findall(text):
+        keys.add(((tur.lower() or "madde") if tur else "madde", int(no)))
+    return keys
 
 
-def _ref_madde_no(ref: Citation) -> int | None:
-    """Citation'ın madde numarası — source_id ('m-IK-31') ya da title ('IK Madde 31')."""
+def _ref_madde_no(ref: Citation) -> MaddeKey | None:
+    """Citation'ın madde anahtarı — source_id ('m-IK-31'/'m-VUK-ek-11') ya da title."""
     sid = ref.get("source_id", "") or ""
     m = _REF_SID_MADDE_RE.search(sid)
     if m:
-        return int(m.group(1))
-    m = _REF_TITLE_MADDE_RE.search(ref.get("title", "") or "")
-    return int(m.group(1)) if m else None
+        tur = (m.group(1) or "madde").lower()
+        return (tur, int(m.group(2)))
+    t = _REF_TITLE_MADDE_RE.search(ref.get("title", "") or "")
+    if t:
+        return (_norm_tur(t.group("ek"), t.group("gecici")), int(t.group("no")))
+    return None
 
 
 def _scope_refs_to_claim_madde(
@@ -188,7 +217,8 @@ def layer2_fuzzy(
     scoped_refs, stated_but_missing = _scope_refs_to_claim_madde(claim_text, refs)
     if stated_but_missing:
         stated = sorted(_stated_madde_numbers(claim_text))
-        return 0.0, f"atıf yapılan madde {stated} kaynakta yok", -1
+        pretty = [f"{t} {n}" if t != "madde" else str(n) for t, n in stated]
+        return 0.0, f"atıf yapılan madde {pretty} kaynakta yok", -1
 
     cite_ids = claim.get("cite_ids", []) or []
     candidates: list[tuple[int, Citation]] = []

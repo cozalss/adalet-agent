@@ -168,6 +168,9 @@ def _build_maddeler(
                 baslik=baslik,
                 metin=c.text,
                 source_url=source_url,
+                # P8: chunker artık Ek/Geçici madde başlıklarını ayırıyor; tur
+                # payload'a yazılır → id m-VUK-ek-11, fetch/verify tur-bilinçli.
+                madde_tur=c.metadata.get("madde_tur", "madde"),
             )
         )
     return maddeler

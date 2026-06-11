@@ -148,10 +148,20 @@ def madde_level_metrics(
     madde_no) metadata'sı beklenen kanun+madde gold'uyla eşleşmeli. Saf fonksiyon (Qdrant'sız
     test edilebilir). expected_madde_no boşsa {} döner → vaka madde-düzeyi ortalamadan hariç.
     """
-    exp = {int(m) for m in (expected_madde_no or []) if str(m).strip().lstrip("-").isdigit()}
+    # Madde anahtarı (tur, no) — gold 'ek-1'/'gecici-2' formunu da tanır (P8 2026-06-11;
+    # önceden isdigit filtresi ek/geçici gold'u sessizce atıyordu → ölçülemezdi).
+    exp: set[tuple[str, int]] = set()
+    for m in expected_madde_no or []:
+        s = str(m).strip().lower()
+        if s.lstrip("-").isdigit():
+            exp.add(("madde", int(s)))
+        elif "-" in s:
+            tur, _, no = s.partition("-")
+            if tur in ("ek", "gecici") and no.isdigit():
+                exp.add((tur, int(no)))
     if not exp:
         return {}
-    got: set[int] = set()
+    got: set[tuple[str, int]] = set()
     mrr = 0.0
     for i, r in enumerate(results[:k], 1):
         md = getattr(r, "metadata", None) or {}
@@ -161,8 +171,9 @@ def madde_level_metrics(
             mn = int(md.get("madde_no"))
         except (TypeError, ValueError):
             continue
-        if mn in exp:
-            got.add(mn)
+        key = (str(md.get("madde_tur") or "madde"), mn)
+        if key in exp:
+            got.add(key)
             if mrr == 0.0:
                 mrr = 1.0 / i
     return {

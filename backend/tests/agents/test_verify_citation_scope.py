@@ -29,7 +29,7 @@ def _claim(text: str, cite_ids: list[str] | None = None) -> Claim:
 # --- _stated_madde_numbers ---
 
 def test_stated_madde_numbers_extracts():
-    assert vl._stated_madde_numbers("İş Kanunu Madde 17 ve m.18 uyarınca") == {17, 18}
+    assert vl._stated_madde_numbers("İş Kanunu Madde 17 ve m.18 uyarınca") == {("madde", 17), ("madde", 18)}
 
 
 def test_stated_madde_numbers_empty_when_none():
@@ -38,8 +38,8 @@ def test_stated_madde_numbers_empty_when_none():
 
 def test_stated_madde_numbers_extracts_from_source_id():
     """Draft kaynak-id'yi prose'a gömerse ('m-IK-21') numara yine çıkar."""
-    assert vl._stated_madde_numbers("m-IK-21 maddesine göre işe iade") == {21}
-    assert vl._stated_madde_numbers("m-EIK-14 ve m-IK-17 maddeleri") == {14, 17}
+    assert vl._stated_madde_numbers("m-IK-21 maddesine göre işe iade") == {("madde", 21)}
+    assert vl._stated_madde_numbers("m-EIK-14 ve m-IK-17 maddeleri") == {("madde", 14), ("madde", 17)}
 
 
 # --- layer1_rules: kaynak-id formatı geçerli madde referansı sayılır ---
@@ -73,14 +73,45 @@ def test_layer1_vague_text_still_fails_even_with_cite_ids():
     assert ok is False
 
 
+# --- ek/geçici madde anahtarları (P8, 2026-06-11) ---
+
+def test_stated_ek_madde_distinct_from_plain():
+    """'VUK ek madde 11' ≠ 'VUK madde 11' — eski regex ikisini karıştırıyordu."""
+    assert vl._stated_madde_numbers("VUK ek madde 11 uyarınca uzlaşma") == {("ek", 11)}
+    assert vl._stated_madde_numbers("Geçici Madde 2 kapsamında") == {("gecici", 2)}
+    assert vl._stated_madde_numbers("m-VUK-ek-11 maddesine göre") == {("ek", 11)}
+
+
+def test_scope_ek_claim_does_not_match_plain_madde_ref():
+    """Claim 'ek madde 11' diyorsa normal m.11 kaynağı kanıt SAYILMAZ (kontaminasyon koruması)."""
+    refs = [_ref("m-VUK-11", "VUK Madde 11", "vergi kesintisi")]
+    _scoped, missing = vl._scope_refs_to_claim_madde("VUK ek madde 11 uzlaşma", refs)
+    assert missing is True  # ek-11 kaynaklarda yok → grounded olamaz
+
+
+def test_scope_ek_claim_matches_ek_ref():
+    refs = [
+        _ref("m-VUK-11", "VUK Madde 11", "vergi kesintisi"),
+        _ref("m-VUK-ek-11", "VUK Ek Madde 11", "uzlaşma komisyonu"),
+    ]
+    scoped, missing = vl._scope_refs_to_claim_madde("VUK ek madde 11 uzlaşma", refs)
+    assert missing is False
+    assert [r["source_id"] for r in scoped] == ["m-VUK-ek-11"]
+
+
 # --- _ref_madde_no ---
 
 def test_ref_madde_no_from_source_id():
-    assert vl._ref_madde_no(_ref("m-IK-31", "IK Madde 31", "x")) == 31
+    assert vl._ref_madde_no(_ref("m-IK-31", "IK Madde 31", "x")) == ("madde", 31)
+
+
+def test_ref_madde_no_ek_source_id_and_title():
+    assert vl._ref_madde_no(_ref("m-VUK-ek-11", "VUK Ek Madde 11", "x")) == ("ek", 11)
+    assert vl._ref_madde_no(_ref("uuid-x", "IIK Geçici Madde 2", "x")) == ("gecici", 2)
 
 
 def test_ref_madde_no_from_title_when_sid_opaque():
-    assert vl._ref_madde_no(_ref("uuid-abc", "EIK Madde 14", "x")) == 14
+    assert vl._ref_madde_no(_ref("uuid-abc", "EIK Madde 14", "x")) == ("madde", 14)
 
 
 # --- _scope_refs_to_claim_madde ---

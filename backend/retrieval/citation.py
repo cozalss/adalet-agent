@@ -36,11 +36,25 @@ class VerifyStatus(StrEnum):
 
 @dataclass(slots=True)
 class CitationClaim:
-    """Ajanın ürettiği iddia — verifier'a girer."""
+    """Ajanın ürettiği iddia — verifier'a girer.
+
+    madde_tur (P8): 'madde' | 'ek' | 'gecici'. Ek/Geçici iddialar canlı-fetch
+    yoluyla DOĞRULANAMAZ (MCP madde-parser yalnız numaralı madde tanır) →
+    verify_claim fail-closed döner; yanlış (normal) maddeyle eşleştirme riski yok.
+    """
 
     claim_text: str
     kanun_kodu: str | None = None
     madde_no: int | None = None
+    madde_tur: str = "madde"
+
+
+# Ek/Geçici madde iddiası tespiti (Türkçe 'İ' IGNORECASE tuzağı → açık alternation).
+_EK_GECICI_CLAIM_RE = re.compile(
+    r"\b(?:EK|Ek|ek|GEÇİCİ|Geçici|geçici)\s+(?:m\.?|madde)\b"
+    r"|\bm-[A-Za-zÇĞİÖŞÜçğıöşü]+-(?:ek|gecici)-\d{1,4}\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -93,6 +107,17 @@ def parse_citation(claim_text: str) -> tuple[str, int] | None:
 
 async def verify_claim(claim: CitationClaim) -> VerifyResult:
     """Tek bir iddiayı doğrula."""
+    # P8 fail-closed: ek/geçici madde iddiası canlı-fetch ile doğrulanamaz —
+    # fetch_madde 'Madde N' parser'ı EK Madde N'in metnini DEĞİL normal m.N'i
+    # getirir → yanlış kaynakla verify riski (sıfır-halüsinasyon ihlali).
+    if claim.madde_tur in ("ek", "gecici") or _EK_GECICI_CLAIM_RE.search(claim.claim_text):
+        return VerifyResult(
+            status=VerifyStatus.NOT_FOUND,
+            score=0.0,
+            source_text=None,
+            source_url=None,
+            reason="Ek/Geçici madde canlı doğrulaması desteklenmiyor (fail-closed; P8)",
+        )
     if claim.kanun_kodu and claim.madde_no:
         kanun_kodu, madde_no = claim.kanun_kodu, claim.madde_no
     else:

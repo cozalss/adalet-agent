@@ -455,10 +455,21 @@ async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:
     # (OR) ile birleşir. Önceki N-round-trip (pair başına scroll) yük altında
     # ciddi latency veriyordu; tek sorgu + Python-tarafı dedup ile aynı sonuç.
     should = [
-        models.Filter(must=[
-            models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kod)),
-            models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
-        ])
+        models.Filter(
+            must=[
+                models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kod)),
+                models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
+            ],
+            # P8 (2026-06-11): çapalar NORMAL maddelerdir — ek/geçici chunk'lar
+            # (madde_tur ∈ {ek, gecici}, aynı madde_no'yu taşır: m-VUK-ek-11 ↔ no=11)
+            # çapa isteğini karşılamamalı. Eski corpus'ta madde_tur alanı yok →
+            # must_not eksik-alanda geçer (geriye-uyumlu, davranış birebir).
+            must_not=[
+                models.FieldCondition(
+                    key="madde_tur", match=models.MatchAny(any=["ek", "gecici"]),
+                ),
+            ],
+        )
         for kod, madde in pairs
     ]
     points, _ = await client.scroll(
@@ -478,6 +489,14 @@ async def fetch_maddeler(pairs: list[tuple[str, int]]) -> list[SearchResult]:
             continue
         seen.add(key)
         out.append(_to_result(p))
+    # Sessiz-kırılma sigortası (2026-06-10 keşif #A): payload tip/şema kayması
+    # çapaları SESSİZCE düşürür, log'da iz kalmaz, madde-recall fark edilmeden
+    # çöker. Bulunamayan çapa artık WARNING bırakır (davranış aynı: atlanır).
+    if len(out) < len(pairs):
+        found = {(payload_kod, payload_no) for payload_kod, payload_no in seen}
+        missing = [f"{kod}-{madde}" for kod, madde in pairs if (kod, madde) not in found]
+        if missing:
+            log.warning("anchor_madde_not_found", missing=missing)
     return out
 
 

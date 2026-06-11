@@ -14,9 +14,24 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
+# Ek/Geçici madde desteği (P8, 2026-06-11): 'EK MADDE 11' / 'Geçici Madde 2' başlıkları
+# split'i tetiklemiyordu → metinleri önceki numaralı maddenin chunk'ına yapışıyordu
+# (ölçüldü: 283 chunk YANLIŞ madde_no altında ek/geçici metni taşıyor = kontaminasyon,
+# sıfır-halüsinasyon riski). DİKKAT: Türkçe 'İ' re.IGNORECASE ile eşleşMEZ ('İ'.lower()
+# = 'i̇' iki karakter) → 'GEÇİCİ' için açık alternation şart.
+_EK_PREFIX = r"(?:EK|Ek|ek)"
+_GECICI_PREFIX = r"(?:GEÇİCİ|Geçici|geçici)"
+_MADDE_TUR_PREFIX = rf"(?:{_EK_PREFIX}\s+|{_GECICI_PREFIX}\s+)?"
+
 MADDE_PATTERN = re.compile(
-    r"(?=(?:^|\n)\s*Madde\s+\d+[\.\-—\s])",
+    rf"(?=(?:^|\n)\s*{_MADDE_TUR_PREFIX}Madde\s+\d+[\.\-—\s])",
     re.IGNORECASE | re.MULTILINE,
+)
+
+# Chunk başındaki madde başlığı: (madde_tur, madde_no) çıkarımı.
+_MADDE_HEADER_RE = re.compile(
+    rf"(?:(?P<ek>{_EK_PREFIX})\s+|(?P<gecici>{_GECICI_PREFIX})\s+)?Madde\s+(?P<no>\d+)",
+    re.IGNORECASE,
 )
 
 # Latin-1-in-UTF-8 Mojibake: PDF/Word kaynaklı kararlarda sık görülür.
@@ -121,8 +136,13 @@ def chunk_mevzuat(text: str) -> list[Chunk]:
     chunks: list[Chunk] = []
     seq = 0
     for part in parts:
-        madde_match = re.match(r"Madde\s+(\d+)", part, re.IGNORECASE)
-        metadata = {"madde_no": int(madde_match.group(1))} if madde_match else {}
+        madde_match = _MADDE_HEADER_RE.match(part)
+        if madde_match:
+            tur = ("ek" if madde_match.group("ek")
+                   else "gecici" if madde_match.group("gecici") else "madde")
+            metadata = {"madde_no": int(madde_match.group("no")), "madde_tur": tur}
+        else:
+            metadata = {}
         if len(part) > _MEVZUAT_SUBCHUNK_THRESHOLD:
             # Uzun madde → paragraf/fıkra-aware alt-böl (overlap ile bağlam korunur).
             for sub in chunk_text(part, chunk_chars=1000, overlap_chars=150) or [part]:

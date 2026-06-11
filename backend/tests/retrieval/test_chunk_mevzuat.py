@@ -15,6 +15,37 @@ def test_short_article_single_chunk_unchanged():
     chunks = chunk_mevzuat("Madde 11 — Tüketici cayma hakkını 14 gün içinde kullanabilir.")
     assert len(chunks) == 1
     assert chunks[0].metadata["madde_no"] == 11
+    assert chunks[0].metadata["madde_tur"] == "madde"
+
+
+def test_ek_madde_split_and_tagged():
+    """P8 (2026-06-11): 'Ek Madde 11' önceki maddenin chunk'ına YAPIŞMAMALI —
+    283-chunk kontaminasyonunun kök nedeni buydu; artık ayrı chunk + madde_tur=ek."""
+    text = (
+        "Madde 376 — Vergi ziyaına sebebiyet verilmesi halinde ceza indirimi uygulanır.\n"
+        "Ek Madde 11 — Uzlaşma komisyonlarının teşkili ve görevleri bu maddede düzenlenir.\n"
+        "Madde 377 — Vergi mahkemesinde dava açmaya yetkili olanlar belirtilir."
+    )
+    chunks = chunk_mevzuat(text)
+    assert len(chunks) == 3
+    keys = [(c.metadata.get("madde_tur"), c.metadata.get("madde_no")) for c in chunks]
+    assert keys == [("madde", 376), ("ek", 11), ("madde", 377)]
+    assert "Uzlaşma" in chunks[1].text
+    assert "Uzlaşma" not in chunks[0].text  # kontaminasyon yok
+
+
+def test_gecici_madde_uppercase_turkish_i():
+    """'GEÇİCİ MADDE 2' (büyük İ) — re.IGNORECASE Türkçe İ'yi eşleyemez,
+    açık alternation yakalamalı."""
+    text = (
+        "Madde 5 — Asıl hüküm burada yer alır ve uygulanır.\n"
+        "GEÇİCİ MADDE 2 — Bu Kanunun yürürlüğünden önce açılmış davalara eski hükümler uygulanır."
+    )
+    chunks = chunk_mevzuat(text)
+    assert len(chunks) == 2
+    assert chunks[1].metadata["madde_tur"] == "gecici"
+    assert chunks[1].metadata["madde_no"] == 2
+    assert "eski hükümler" not in chunks[0].text
 
 
 def test_multiple_short_articles_one_chunk_each():

@@ -213,7 +213,7 @@ async def _rank_and_build_laws(
     return [
         Citation(
             source_id=r.chunk_id,
-            doc_type=MEVZUAT_DOC_TYPES,
+            doc_type="law",
             title=_format_law_title(r),
             snippet=r.text[:500],
             url=r.source_url,
@@ -507,6 +507,10 @@ def _format_law_title(r) -> str:
     kod = r.metadata.get("kanun_kodu", "")
     madde = str(r.metadata.get("madde_no", "") or "")
     kanun_adi = (r.metadata.get("kanun_adi") or "").strip()
+    # P8: ek/geçici maddeler 'VUK Ek Madde 11' diye etiketlenir — LLM'in normal
+    # m.11 ile karıştırmaması + verifier'ın (tur, no) scope'u için kritik.
+    tur = str(r.metadata.get("madde_tur") or "madde")
+    tur_on_ek = {"ek": "Ek ", "gecici": "Geçici "}.get(tur, "")
     if kod and madde:
         if not madde.isdigit():
             # Yönetmelik chunk'ları (seed_yonetmelik_direct): madde_no ya 'Madde 9 …'
@@ -517,6 +521,6 @@ def _format_law_title(r) -> str:
                 return f"{base} {madde}"
             return base
         if kanun_adi:
-            return f"{kanun_adi} ({kod}) Madde {madde}"
-        return f"{kod} Madde {madde}"
+            return f"{kanun_adi} ({kod}) {tur_on_ek}Madde {madde}"
+        return f"{kod} {tur_on_ek}Madde {madde}"
     return r.metadata.get("title") or r.source or r.chunk_id
