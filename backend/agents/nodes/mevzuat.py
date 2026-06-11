@@ -100,8 +100,22 @@ async def mevzuat_node(state: AgentState) -> dict:
         return {"mevzuat_refs": [], "errors": [f"mevzuat: {type(exc).__name__}"]}
 
 
+def mevzuat_pool_k() -> int:
+    """Başlangıç retrieval havuzu boyutu — TOP_K_LAW × MEVZUAT_POOL_MULT (default 4 = 32).
+
+    icra teşhisi (2026-06-11): IIK-148/177 gibi niş alt-konu maddeleri top-32'ye
+    giremiyor (chunk'lar gerçek/konu-doğru, doğrulandı) → havuz-tavanı denemesi
+    için knob. eval_run --mode node aynı helper'ı kullanır (parite).
+    """
+    try:
+        mult = int(os.getenv("MEVZUAT_POOL_MULT", "4"))
+    except ValueError:
+        mult = 4
+    return TOP_K_LAW * max(mult, 1)
+
+
 async def _mevzuat_retrieve(question: str, domain: str) -> dict:
-    target_k = TOP_K_LAW * 4
+    target_k = mevzuat_pool_k()
 
     # Adaptive routing: domain + karmaşıklık bazlı HyDE/MQ kararı.
     routing = route_query(question, domain)
@@ -190,7 +204,7 @@ async def apply_step_back(
     if should_rewrite(question, domain):
         try:
             sb_results, rewrite = await search_with_step_back(
-                question, top_k=TOP_K_LAW * 4, per_query_k=TOP_K_LAW * 4,
+                question, top_k=mevzuat_pool_k(), per_query_k=mevzuat_pool_k(),
                 sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES,
             )
             if rewrite:

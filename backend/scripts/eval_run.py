@@ -221,13 +221,13 @@ async def _eval_one(
         #   - triaj bypass: expected_domain → domain (triaj hatası ayrı eksende ölçülür)
         #   - başlangıç havuzu düz hybrid (HyDE/MQ adaptive-routing LLM ister; demo'da kapalı)
         #   - decontextualize/step-back: chat_history yok + default OFF → no-op (parite)
-        from agents.config import TOP_K_LAW
         from agents.nodes.mevzuat import (
             MEVZUAT_DOC_TYPES,
             apply_step_back,
+            mevzuat_pool_k,
             rank_law_candidates,
         )
-        pool = await search(question=soru, top_k=TOP_K_LAW * 4,
+        pool = await search(question=soru, top_k=mevzuat_pool_k(),
                             sparse_domain=expected_domain, doc_type=MEVZUAT_DOC_TYPES)
         # Step-back paritesi (P7): default OFF (no-op); QUERY_REWRITE_ENABLED=1 + LLM
         # ile A/B ölçülür — production'da da aynı blok koşuyor.

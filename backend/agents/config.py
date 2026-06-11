@@ -415,6 +415,10 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "BLDK",     # 5393 — Belediye
         "IOIK",     # 5302 — İl Özel
         "CK",       # 2872 — Çevre
+        # KAMK tapu'dan çıkarılmıştı ('idari'ye ait' notuyla) ama idari'ye hiç
+        # eklenmemişti → kamulaştırma soruları boost'suz/tier-2 kalıp sistematik
+        # miss veriyordu (2026-06-11 teşhis: V_idari_004 + V3_idari_023/024 hepsi KAMK).
+        "KAMK",     # 2942 — Kamulaştırma (bedel tespiti m.10-11, acele m.27)
     ),
 }
 
