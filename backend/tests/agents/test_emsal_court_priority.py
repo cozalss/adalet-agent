@@ -112,6 +112,37 @@ def test_domain_without_preference_is_noop():
     assert n_pref == 0
 
 
+# --- daire alt-tier (P9, 2026-06-11) ---
+
+def _rr_ch(chunk_id: str, score: float, chamber: str) -> emsal_mod.RerankResult:
+    rr = _rr(chunk_id, score, "yargitay")
+    rr.metadata["chamber"] = chamber
+    return rr
+
+
+def test_chamber_subtier_promotes_consumer_chambers():
+    """tuketici: 13. HD/3. HD/HGK, hacim-baskın 11. HD'nin ÜSTÜNE çıkar (court-tier içinde)."""
+    cases = [
+        _rr_ch("hd11_a", 0.9, "11. Hukuk Dairesi"),
+        _rr_ch("hd11_b", 0.8, "11. Hukuk Dairesi"),
+        _rr_ch("hd13", 0.5, "13. Hukuk Dairesi"),
+        _rr_ch("hgk", 0.3, "Hukuk Genel Kurulu"),
+    ]
+    out, _ = emsal_mod._court_priority_sort(cases, "tuketici")
+    assert [c.chunk_id for c in out] == ["hd13", "hgk", "hd11_a", "hd11_b"]
+    # alt-tier içinde CE sırası korunur (hd13 0.5 > hgk 0.3; hd11_a 0.9 > hd11_b 0.8)
+
+
+def test_chamber_subtier_only_for_configured_domains():
+    """Daire tercihi tanımlı OLMAYAN domain'de (kira) sıra court-tier'la aynı kalır."""
+    cases = [
+        _rr_ch("hd11", 0.9, "11. Hukuk Dairesi"),
+        _rr_ch("hd13", 0.5, "13. Hukuk Dairesi"),
+    ]
+    out, _ = emsal_mod._court_priority_sort(cases, "kira")
+    assert [c.chunk_id for c in out] == ["hd11", "hd13"]  # CE sırası bozulmaz
+
+
 # --- node entegrasyonu: anayasa gürültüsü Yargıtay'ın altına iner ---
 
 @pytest.mark.asyncio

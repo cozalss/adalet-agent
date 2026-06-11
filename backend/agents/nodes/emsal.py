@@ -16,6 +16,7 @@ import os
 import structlog
 
 from agents.config import (
+    DOMAIN_PREFERRED_CHAMBERS,
     DOMAIN_PREFERRED_COURTS,
     EMSAL_LIVE_MIN_SCORE,
     RERANK_CANDIDATES,
@@ -237,13 +238,25 @@ def _court_priority_sort(cases: list, domain: str) -> tuple[list, int]:
         return cases, 0
     preferred_set = set(preferred)
 
-    def _tier(rr) -> int:
+    # P9 (2026-06-11): court-tier İÇİNDE daire alt-tier'ı. Ölçüldü: tuketici emsal
+    # top-3'ün 20/24'ü 11. HD (ticaret/sigorta) — gerçek tüketici daireleri (3./13.
+    # HD, HGK) corpus'ta varken (13. HD 888 chunk) hacim altında kalıyordu. Tercih
+    # edilen daire önce; stable sort CE sırasını alt-tier içinde korur.
+    chambers = DOMAIN_PREFERRED_CHAMBERS.get(domain, ())
+
+    def _chamber_tier(rr) -> int:
+        if not chambers:
+            return 0
+        ch = str(rr.metadata.get("chamber") or rr.metadata.get("court") or "")
+        return 0 if any(c in ch for c in chambers) else 1
+
+    def _tier(rr) -> tuple[int, int]:
         src = str(rr.source or "").lower()
         if src in preferred_set:
-            return 0
+            return (0, _chamber_tier(rr))
         if src == "anayasa":
-            return 2
-        return 1
+            return (2, 0)
+        return (1, 0)
 
     ordered = sorted(cases, key=_tier)  # stable → tier içinde cross-encoder sırası
     n_preferred = sum(1 for rr in cases if str(rr.source or "").lower() in preferred_set)

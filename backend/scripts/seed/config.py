@@ -89,6 +89,17 @@ DOMAINS: dict[str, DomainConfig] = {
             "yenilemesiz iade",
         ),
         kanunlar=("TKHK",),
+        # P9 (2026-06-11): chambers routing YOKTU → seed 11. HD (ticaret/sigorta)
+        # hacmiyle doldu (tuketici-yargitay'ın %87'si 11. HD; gerçek tüketici
+        # daireleri 3./13. HD + HGK 1/24 görünürlükteydi). Delta-seed bu filtreyle
+        # doğru-daire chunk arzını artırır (iş/kira deseni).
+        chambers={
+            "yargitay": (
+                "3. Hukuk Dairesi",
+                "13. Hukuk Dairesi",
+                "Hukuk Genel Kurulu",
+            ),
+        },
     ),
     "isHukuku": DomainConfig(
         name="isHukuku",

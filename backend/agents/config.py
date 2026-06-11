@@ -506,6 +506,16 @@ DOMAIN_PREFERRED_COURTS: dict[str, tuple[str, ...]] = {
     "idari": ("danistay", "sayistay"),
 }
 
+# Domain → DOĞRU Yargıtay dairesi (chamber-priority alt-tier, P9 2026-06-11).
+# ÖLÇÜLDÜ: tuketici emsal top-3'ün 20/24'ü 11. HD (ticaret/sigorta dairesi) —
+# gerçek tüketici daireleri (3./13. HD, HGK) 1/24. Corpus'ta 888 adet 13. HD
+# tuketici chunk'ı VAR ama hacim-baskın 11. HD'nin altında kalıyor. Court-tier
+# İÇİNDE ikincil sıralama: tercih edilen daire öne (stable — CE sırası korunur).
+# Yalnız ölçülmüş-problemli domain'ler; yenisini eklemeden ÖNCE eval_emsal ile ölç.
+DOMAIN_PREFERRED_CHAMBERS: dict[str, tuple[str, ...]] = {
+    "tuketici": ("3. Hukuk Dairesi", "13. Hukuk Dairesi", "Hukuk Genel Kurulu"),
+}
+
 # --- Disclaimer ---
 DISCLAIMER_TR = (
     "⚠️ Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır. "
