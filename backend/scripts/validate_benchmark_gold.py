@@ -54,36 +54,68 @@ async def main() -> int:
 
     # Tekil (kanun, madde) çiftleri — aynı çifti bir kez sorgula.
     pairs: set[tuple[str, int]] = set()
-    ek_golds: list[tuple[str, str]] = []
+    # Ek/Geçici gold'lar ('ek-11') ayrı: madde_tur filtreli gerçek kontrol (P8 sonrası).
+    ek_pairs: set[tuple[str, str, int]] = set()
+    malformed: list[tuple[str, str]] = []
     for c in cases:
         for kanun in c.get("expected_kanun", []):
             for m in c.get("expected_madde_no", []):
-                if str(m).strip().lstrip("-").isdigit():
-                    pairs.add((kanun, int(m)))
+                s = str(m).strip().lower()
+                if s.lstrip("-").isdigit():
+                    pairs.add((kanun, int(s)))
+                    continue
+                tur, _, no = s.partition("-")
+                if tur in ("ek", "gecici") and no.isdigit():
+                    ek_pairs.add((kanun, tur, int(no)))
                 else:
-                    ek_golds.append((c["id"], f"{kanun} m.{m}"))
+                    malformed.append((c["id"], f"{kanun} m.{m}"))
 
     missing: list[tuple[str, int]] = []
     for kanun, madde in sorted(pairs):
+        flt = models.Filter(
+            must=[
+                models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kanun)),
+                models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
+                models.FieldCondition(key="doc_type", match=models.MatchValue(value="law")),
+            ],
+            # P8: normal-madde gold'u ek/geçici chunk'la karşılanamaz (aynı madde_no!).
+            must_not=[models.FieldCondition(
+                key="madde_tur", match=models.MatchAny(any=["ek", "gecici"]),
+            )],
+        )
+        n = (await client.count(collection, count_filter=flt, exact=True)).count
+        if n == 0:
+            missing.append((kanun, madde))
+
+    missing_ek: list[tuple[str, str, int]] = []
+    for kanun, tur, no in sorted(ek_pairs):
         flt = models.Filter(must=[
             models.FieldCondition(key="kanun_kodu", match=models.MatchValue(value=kanun)),
-            models.FieldCondition(key="madde_no", match=models.MatchValue(value=madde)),
+            models.FieldCondition(key="madde_no", match=models.MatchValue(value=no)),
+            models.FieldCondition(key="madde_tur", match=models.MatchValue(value=tur)),
             models.FieldCondition(key="doc_type", match=models.MatchValue(value="law")),
         ])
         n = (await client.count(collection, count_filter=flt, exact=True)).count
         if n == 0:
-            missing.append((kanun, madde))
+            missing_ek.append((kanun, tur, no))
     await client.close()
 
-    if ek_golds:
-        print(f"UYARI — Ek/Geçici madde gold'u ({len(ek_golds)}; P8 boşluğu, eval-dışı):")
-        for cid, ref in ek_golds:
+    if malformed:
+        print(f"UYARI — tanınmayan madde-gold formatı ({len(malformed)}):")
+        for cid, ref in malformed:
             print(f"  {cid}: {ref}")
         print()
+    if missing_ek:
+        print(f"EKSİK Ek/Geçici gold ({len(missing_ek)}/{len(ek_pairs)} — P8 reseed gerekli?):")
+        for kanun, tur, no in missing_ek:
+            print(f"  {kanun} {tur}-{no}")
+        print()
 
-    if not missing:
-        print(f"TAMAM — {len(pairs)} tekil (kanun, madde) çiftinin hepsi corpus'ta mevcut.")
+    if not missing and not missing_ek:
+        print(f"TAMAM — {len(pairs)} normal + {len(ek_pairs)} ek/geçici çiftin hepsi corpus'ta mevcut.")
         return 0
+    if not missing:
+        return 1
 
     print(f"GEÇERSİZ GOLD — {len(missing)}/{len(pairs)} çift corpus'ta YOK:")
     bad_pairs = set(missing)

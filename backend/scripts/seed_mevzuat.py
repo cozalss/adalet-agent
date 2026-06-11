@@ -146,7 +146,9 @@ def _build_maddeler(
 ) -> list[Madde]:
     """chunker.chunk_mevzuat ile madde madde böl, Madde dataclass'a sar."""
     full_text = sanitize_text(full_text)
-    raw_chunks = chunk_mevzuat(full_text)
+    # subchunk=False: Madde.id madde-bazlı → alt-chunk'lar çakışıp yalnız KUYRUK
+    # parçası hayatta kalıyordu (P8 reseed regresyonu; chunk_mevzuat docstring'i).
+    raw_chunks = chunk_mevzuat(full_text, subchunk=False)
     source_url = f"https://mevzuat.gov.tr/mevzuat?MevzuatNo={kanun_numarasi}&MevzuatTur=1"
 
     maddeler: list[Madde] = []

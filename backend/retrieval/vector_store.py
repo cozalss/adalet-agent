@@ -171,6 +171,9 @@ _PAYLOAD_INDEXES: tuple[tuple[str, models.PayloadSchemaType], ...] = (
     ("kanun_kodu", models.PayloadSchemaType.KEYWORD),
     ("chunk_id", models.PayloadSchemaType.KEYWORD),
     ("madde_no", models.PayloadSchemaType.INTEGER),
+    # P8 (2026-06-11): madde_tur (madde|ek|gecici) — fetch_maddeler must_not +
+    # gold-validator + verify filtreleri bu alanı kullanır.
+    ("madde_tur", models.PayloadSchemaType.KEYWORD),
 )
 
 

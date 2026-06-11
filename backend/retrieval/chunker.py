@@ -115,13 +115,19 @@ def chunk_text(
 _MEVZUAT_SUBCHUNK_THRESHOLD = 1500
 
 
-def chunk_mevzuat(text: str) -> list[Chunk]:
+def chunk_mevzuat(text: str, *, subchunk: bool = True) -> list[Chunk]:
     """Mevzuat metnini madde başlıklarına göre böl.
 
     "Madde 11 — ..." gibi başlıklar ayrı chunk olur. Madde numarası metadata'ya
     yazılır → citation verification'da hızlı arama için. Çok-fıkralı UZUN maddeler
     (> _MEVZUAT_SUBCHUNK_THRESHOLD) paragraf-aware alt-chunk'lara bölünür; her alt-chunk
     AYNI madde_no'yu taşır → citation/fetch_maddeler bozulmaz, yalnız madde başına >1 chunk.
+
+    subchunk=False (P8 reseed dersi, 2026-06-11): SEED yolu madde başına TEK tam-metin
+    chunk ister — Madde.id madde-bazlı olduğundan alt-chunk'lar upsert'te çakışıp yalnız
+    SON (kuyruk) parça hayatta kalıyordu → maddenin başı (başlık+ilk fıkralar) corpus'tan
+    siliniyordu (VUK-359 kelime ortasından başlar bulundu; dev madde@8 69.8→62.6
+    regresyonunun kök nedeni). Eski corpus alt-chunk özelliğinden önce seed edilmişti.
     """
     text = text.strip()
     if not text:
@@ -143,7 +149,7 @@ def chunk_mevzuat(text: str) -> list[Chunk]:
             metadata = {"madde_no": int(madde_match.group("no")), "madde_tur": tur}
         else:
             metadata = {}
-        if len(part) > _MEVZUAT_SUBCHUNK_THRESHOLD:
+        if subchunk and len(part) > _MEVZUAT_SUBCHUNK_THRESHOLD:
             # Uzun madde → paragraf/fıkra-aware alt-böl (overlap ile bağlam korunur).
             for sub in chunk_text(part, chunk_chars=1000, overlap_chars=150) or [part]:
                 chunks.append(Chunk(text=sub, seq=seq, metadata=dict(metadata)))
