@@ -20,7 +20,7 @@ import structlog
 from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
 from agents.risk_guard import verify_risk_veto
-from agents.smalltalk import smalltalk_reply
+from agents.smalltalk import has_legal_signal, smalltalk_reply
 from agents.state import AgentState
 from core.observability import observe_node
 
@@ -38,6 +38,31 @@ _LEGAL_REDIRECT = (
     "bir yanıt hazırlarım. Çalıştığım alanlar: tüketici, iş, kira, icra, trafik, vergi, "
     "tapu ve idari hukuk."
 )
+
+
+# KAPSAM-DIŞI red (2026-06-15, kullanıcı: "alanımız ile alakalı olmayan soruları
+# cevaplamayalım"). ADALET yalnız 8 sivil hukuk alanında çalışır. Hukuki-sinyal
+# TAŞIMAYAN alan-dışı sorular (yemek tarifi, matematik, spor, kripto, kod, hava…) bir
+# hukuk asistanına ait değildir → serbest-form Qwen'e BIRAKILMAZ (ChatGPT gibi cevap
+# verme riski deterministik kapatılır). Smalltalk (selam/teşekkür/kimsin) ayrı tutulur
+# (intent='smalltalk' bu dala düşmez → Qwen ile doğal/sıcak kalır).
+_OUT_OF_SCOPE_REFUSAL = (
+    "Ben yalnızca Türk hukuku alanında yardımcı olan bir asistanım; bu soru uzmanlık "
+    "alanımın dışında kalıyor. Tüketici, iş, kira, icra, trafik, vergi, tapu ve idari "
+    "hukuk konularındaki sorularınızı memnuniyetle yanıtlarım."
+)
+
+
+def _out_of_scope_message(question: str) -> str:
+    """Kapsam-dışı (unknown domain) için deterministik mesaj seçer.
+
+    Soru hukuki-sinyal taşıyorsa (rakam/hukuki anahtar) ama 8 alana atanamadıysa,
+    kullanıcıdan durumunu açmasını isteyen yumuşak yönlendirme (_LEGAL_REDIRECT) daha
+    yardımcıdır. Hiç hukuki-sinyal yoksa (tamamen alakasız) net kapsam-reddi döner.
+    Saf fonksiyon (LLM'siz, test edilebilir)."""
+    if has_legal_signal(question):
+        return _LEGAL_REDIRECT
+    return _OUT_OF_SCOPE_REFUSAL
 
 
 def _safe_or_redirect(text: str) -> str:
@@ -123,7 +148,29 @@ async def chat_node(state: AgentState) -> dict[str, object]:
             "prediction": None,
         }
 
+    # KAPSAM-DIŞI (unknown domain, smalltalk DEĞİL): deterministik red — serbest-form
+    # Qwen'e bırakılmaz. response_intent='redirect_to_scope' (triaj unknown domain için
+    # set eder) ya da güvenlik için domain=='unknown' & intent smalltalk/sensitive değil.
+    # Smalltalk (intent='smalltalk') bu daldan MUAF → aşağıda Qwen ile doğal yanıtlanır.
+    intent = state.get("response_intent")
     question = state.get("question", "")
+    if intent == "redirect_to_scope" or (
+        state.get("domain") == "unknown"
+        and intent not in ("smalltalk", "out_of_scope_sensitive")
+    ):
+        text = _out_of_scope_message(question)
+        sink = draft_token_sink.get()
+        if sink is not None:
+            sink(text)
+        log.info("chat_out_of_scope_redirect", n_chars=len(text))
+        return {
+            "response": text,
+            "response_intent": "chat",
+            "confidence": 1.0,
+            "disclaimers": [],
+            "prediction": None,
+        }
+
     messages = [ChatMessage(role="system", content=_CHAT_SYSTEM)]
     for turn in (state.get("chat_history") or [])[-_HISTORY_TURNS:]:
         role = turn.get("role")

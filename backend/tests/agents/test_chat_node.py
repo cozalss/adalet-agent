@@ -8,7 +8,12 @@ sorusunu serbest-form LLM cevabına açma riskini kapatır.
 
 from __future__ import annotations
 
-from agents.nodes.chat import _LEGAL_REDIRECT, _safe_or_redirect, chat_node
+from agents.nodes.chat import (
+    _LEGAL_REDIRECT,
+    _OUT_OF_SCOPE_REFUSAL,
+    _safe_or_redirect,
+    chat_node,
+)
 
 
 def test_chat_safe_or_redirect_blocks_fabricated_legal_claim():
@@ -52,4 +57,42 @@ async def test_chat_node_out_of_scope_fallback_without_triaj_message():
         "response_intent": "out_of_scope_sensitive",
     })
     assert "avukat" in out["response"].lower()
+    assert out["response_intent"] == "chat"
+
+
+async def test_chat_node_off_domain_no_legal_signal_is_deterministic_refusal():
+    """KAPSAM-DIŞI (2026-06-15): hukuki-sinyali olmayan alan-dışı soru (yemek tarifi) →
+    serbest Qwen'e BIRAKILMAZ; deterministik kapsam-reddi döner. LLM'e bağımlı değil."""
+    out = await chat_node({
+        "question": "Mercimek çorbası nasıl yapılır?",
+        "response_intent": "redirect_to_scope",
+        "domain": "unknown",
+    })
+    assert out["response"] == _OUT_OF_SCOPE_REFUSAL
+    assert out["response_intent"] == "chat"
+    assert out["disclaimers"] == []
+    assert out["prediction"] is None
+
+
+async def test_chat_node_unknown_with_legal_signal_soft_redirects():
+    """Hukuki-sinyal taşıyan ama 8 alana atanamayan soru → durumunu açmasını isteyen
+    yumuşak yönlendirme (deterministik, yine Qwen'e bırakılmaz)."""
+    out = await chat_node({
+        "question": "5000 TL alacağım için ne yapabilirim?",
+        "response_intent": "redirect_to_scope",
+        "domain": "unknown",
+    })
+    assert out["response"] == _LEGAL_REDIRECT
+    assert out["response_intent"] == "chat"
+
+
+async def test_chat_node_smalltalk_is_exempt_from_refusal():
+    """Smalltalk (selam/kimsin) kapsam-reddine DÜŞMEZ → Qwen ile doğal yanıt (mock'ta
+    fallback selam). Deterministik red sabitleri dönmemeli."""
+    out = await chat_node({
+        "question": "Selam, sen kimsin?",
+        "response_intent": "smalltalk",
+        "domain": "unknown",
+    })
+    assert out["response"] not in (_OUT_OF_SCOPE_REFUSAL, _LEGAL_REDIRECT)
     assert out["response_intent"] == "chat"
