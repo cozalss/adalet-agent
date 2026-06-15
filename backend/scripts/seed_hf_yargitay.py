@@ -39,9 +39,13 @@ CHAMBER_TO_DOMAIN: dict[str, str] = {
     "21. Hukuk Dairesi": "isHukuku",
     "7. Hukuk Dairesi":  "isHukuku",
     "10. Hukuk Dairesi": "isHukuku",  # SGK alacakları
-    # Tüketici
-    "13. Hukuk Dairesi": "tuketici",  # eski tüketici dairesi
-    "11. Hukuk Dairesi": "tuketici",  # tüketici/ticari (en hacimli)
+    # Tüketici — SADECE gerçek tüketici dairesi (13. HD).
+    # KÖK-NEDEN DÜZELTME (2026-06-16): "11. Hukuk Dairesi" BİLEREK kaldırıldı. 11. HD =
+    # TİCARET/marka-patent/sigorta/deniz-ticaret dairesidir; tüketici yetkisi YOKTUR.
+    # Önceki "11.HD→tuketici" eşlemesi corpus'a 3.194 yanlış-etiket (ticari kararı tüketici
+    # sanma) sokmuştu → temizlikte ayıklandı (snapshot'lı). TEKRAR EKLEME. 11.HD haritada
+    # yoksa _detect_chamber_domain domain=None döner → karar ATLANIR (corpus dışı kalır).
+    "13. Hukuk Dairesi": "tuketici",  # eski/standart tüketici dairesi
     # Kira
     "3. Hukuk Dairesi":  "kira",
     "6. Hukuk Dairesi":  "kira",
@@ -121,7 +125,10 @@ async def _run(args: argparse.Namespace) -> int:
                 karar_nos = batch.column("kararNo").to_pylist()
                 karar_tarihleri = batch.column("kararTarihi").to_pylist()
                 for txt, did, eno, kno, ktar in zip(texts, ids, esas_nos, karar_nos, karar_tarihleri):
-                    if not txt or len(txt) < 200:
+                    # Stub-kapısı: toplam-metin<300 char kararlar gerekçesiz disposition
+                    # fıkralarıdır ("BOZULMASINA/ONANMASINA…", RAG-değersiz). Temizlikte
+                    # ölçüldü: <300 = çöp sınıfı → seed AŞAMASINDA filtrele (kirlilik girmesin).
+                    if not txt or len(txt) < 300:
                         continue
                     chamber, domain = _detect_chamber_domain(txt)
                     if not domain:
