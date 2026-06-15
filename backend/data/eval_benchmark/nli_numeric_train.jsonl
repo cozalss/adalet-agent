@@ -1,0 +1,102 @@
+{"id": "num0000", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "1 yıl olan kişi kıdem tazminatına hak kazanır.", "label": "entailment"}
+{"id": "num0001", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "2 yıl olan kişi kıdem tazminatına hak kazanır.", "label": "entailment"}
+{"id": "num0002", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı için en az 1 yıl şartı vardır.", "label": "entailment"}
+{"id": "num0003", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "6 ay olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0004", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "3 ay olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0005", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "182 gün olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0006", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı için en az 3 yıl gerekir.", "label": "contradiction"}
+{"id": "num0007", "premise": "Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı son brüt ücret üzerinden hesaplanır.", "label": "neutral"}
+{"id": "num0008", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "1 yıl olan kişi yıllık ücretli izne hak kazanır.", "label": "entailment"}
+{"id": "num0009", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "2 yıl olan kişi yıllık ücretli izne hak kazanır.", "label": "entailment"}
+{"id": "num0010", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin için en az 1 yıl şartı vardır.", "label": "entailment"}
+{"id": "num0011", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "6 ay olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0012", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "3 ay olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0013", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "182 gün olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0014", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin için en az 3 yıl gerekir.", "label": "contradiction"}
+{"id": "num0015", "premise": "Yıllık ücretli izne hak kazanmak için en az 1 yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin süresi kıdeme göre artar.", "label": "neutral"}
+{"id": "num0016", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "14 gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0017", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "15 gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0018", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "28 gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0019", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az 14 gün şartı vardır.", "label": "entailment"}
+{"id": "num0020", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "11 gün olan kişi cayma hakkını kullanabilir.", "label": "contradiction"}
+{"id": "num0021", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "7 gün olan kişi cayma hakkını kullanabilir.", "label": "contradiction"}
+{"id": "num0022", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az 21 gün gerekir.", "label": "contradiction"}
+{"id": "num0023", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az 28 gün gerekir.", "label": "contradiction"}
+{"id": "num0024", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren 14 gün içinde cayabilir.", "hypothesis": "Cayma bildirimi yazılı veya kalıcı veri saklayıcısıyla yapılır.", "label": "neutral"}
+{"id": "num0025", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "60 gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0026", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "61 gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0027", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "120 gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0028", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "Iptal davası için en az 60 gün şartı vardır.", "label": "entailment"}
+{"id": "num0029", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "57 gün olan kişi iptal davası açabilir.", "label": "contradiction"}
+{"id": "num0030", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "30 gün olan kişi iptal davası açabilir.", "label": "contradiction"}
+{"id": "num0031", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "Iptal davası için en az 67 gün gerekir.", "label": "contradiction"}
+{"id": "num0032", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "Iptal davası için en az 120 gün gerekir.", "label": "contradiction"}
+{"id": "num0033", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren 60 gün içinde açılır.", "hypothesis": "İptal davası idari işlemin hukuka aykırılığı iddiasıyla açılır.", "label": "neutral"}
+{"id": "num0034", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "30 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0035", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "31 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0036", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "60 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0037", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "Vergi davası için en az 30 gün şartı vardır.", "label": "entailment"}
+{"id": "num0038", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "27 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "contradiction"}
+{"id": "num0039", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "15 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "contradiction"}
+{"id": "num0040", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "Vergi davası için en az 37 gün gerekir.", "label": "contradiction"}
+{"id": "num0041", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "Vergi davası için en az 60 gün gerekir.", "label": "contradiction"}
+{"id": "num0042", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi 30 gündır.", "hypothesis": "Vergi davası vergi mahkemesinde görülür.", "label": "neutral"}
+{"id": "num0043", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "7 gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0044", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "8 gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0045", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "14 gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0046", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "Icra itirazı için en az 7 gün şartı vardır.", "label": "entailment"}
+{"id": "num0047", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "4 gün olan kişi ödeme emrine itiraz edebilir.", "label": "contradiction"}
+{"id": "num0048", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "3 gün olan kişi ödeme emrine itiraz edebilir.", "label": "contradiction"}
+{"id": "num0049", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "Icra itirazı için en az 14 gün gerekir.", "label": "contradiction"}
+{"id": "num0050", "premise": "Ödeme emrine itiraz, tebliğden itibaren 7 gün içinde yapılır.", "hypothesis": "İtiraz takibi durdurur, alacaklı itirazın iptalini ister.", "label": "neutral"}
+{"id": "num0051", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Bir yıl olan kişi kıdem tazminatına hak kazanır.", "label": "entailment"}
+{"id": "num0052", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Iki yıl olan kişi kıdem tazminatına hak kazanır.", "label": "entailment"}
+{"id": "num0053", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı için en az bir yıl şartı vardır.", "label": "entailment"}
+{"id": "num0054", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Altı ay olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0055", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Üç ay olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0056", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "182 gün olan kişi kıdem tazminatına hak kazanır.", "label": "contradiction"}
+{"id": "num0057", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı için en az üç yıl gerekir.", "label": "contradiction"}
+{"id": "num0058", "premise": "Kıdem tazminatı için işçinin en az bir yıl çalışmış olması gerekir.", "hypothesis": "Kıdem tazminatı son brüt ücret üzerinden hesaplanır.", "label": "neutral"}
+{"id": "num0059", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Bir yıl olan kişi yıllık ücretli izne hak kazanır.", "label": "entailment"}
+{"id": "num0060", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Iki yıl olan kişi yıllık ücretli izne hak kazanır.", "label": "entailment"}
+{"id": "num0061", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin için en az bir yıl şartı vardır.", "label": "entailment"}
+{"id": "num0062", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Altı ay olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0063", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Üç ay olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0064", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "182 gün olan kişi yıllık ücretli izne hak kazanır.", "label": "contradiction"}
+{"id": "num0065", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin için en az üç yıl gerekir.", "label": "contradiction"}
+{"id": "num0066", "premise": "Yıllık ücretli izne hak kazanmak için en az bir yıl çalışma şartı aranır.", "hypothesis": "Yıllık izin süresi kıdeme göre artar.", "label": "neutral"}
+{"id": "num0067", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "On dört gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0068", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "On beş gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0069", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "28 gün olan kişi cayma hakkını kullanabilir.", "label": "entailment"}
+{"id": "num0070", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az on dört gün şartı vardır.", "label": "entailment"}
+{"id": "num0071", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "11 gün olan kişi cayma hakkını kullanabilir.", "label": "contradiction"}
+{"id": "num0072", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "Yedi gün olan kişi cayma hakkını kullanabilir.", "label": "contradiction"}
+{"id": "num0073", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az 21 gün gerekir.", "label": "contradiction"}
+{"id": "num0074", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "Cayma hakkı için en az 28 gün gerekir.", "label": "contradiction"}
+{"id": "num0075", "premise": "Mesafeli sözleşmede tüketici, malı teslim aldığı tarihten itibaren on dört gün içinde cayabilir.", "hypothesis": "Cayma bildirimi yazılı veya kalıcı veri saklayıcısıyla yapılır.", "label": "neutral"}
+{"id": "num0076", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "Altmış gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0077", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "61 gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0078", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "120 gün olan kişi iptal davası açabilir.", "label": "entailment"}
+{"id": "num0079", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "Iptal davası için en az altmış gün şartı vardır.", "label": "entailment"}
+{"id": "num0080", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "57 gün olan kişi iptal davası açabilir.", "label": "contradiction"}
+{"id": "num0081", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "Otuz gün olan kişi iptal davası açabilir.", "label": "contradiction"}
+{"id": "num0082", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "Iptal davası için en az 67 gün gerekir.", "label": "contradiction"}
+{"id": "num0083", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "Iptal davası için en az 120 gün gerekir.", "label": "contradiction"}
+{"id": "num0084", "premise": "İdari işleme karşı iptal davası, tebliğden itibaren altmış gün içinde açılır.", "hypothesis": "İptal davası idari işlemin hukuka aykırılığı iddiasıyla açılır.", "label": "neutral"}
+{"id": "num0085", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Otuz gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0086", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "31 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0087", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Altmış gün olan kişi vergi mahkemesinde dava açabilir.", "label": "entailment"}
+{"id": "num0088", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Vergi davası için en az otuz gün şartı vardır.", "label": "entailment"}
+{"id": "num0089", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "27 gün olan kişi vergi mahkemesinde dava açabilir.", "label": "contradiction"}
+{"id": "num0090", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "On beş gün olan kişi vergi mahkemesinde dava açabilir.", "label": "contradiction"}
+{"id": "num0091", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Vergi davası için en az 37 gün gerekir.", "label": "contradiction"}
+{"id": "num0092", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Vergi davası için en az altmış gün gerekir.", "label": "contradiction"}
+{"id": "num0093", "premise": "Vergi/ceza ihbarnamesine karşı dava açma süresi otuz gündır.", "hypothesis": "Vergi davası vergi mahkemesinde görülür.", "label": "neutral"}
+{"id": "num0094", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Yedi gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0095", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Sekiz gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0096", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "On dört gün olan kişi ödeme emrine itiraz edebilir.", "label": "entailment"}
+{"id": "num0097", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Icra itirazı için en az yedi gün şartı vardır.", "label": "entailment"}
+{"id": "num0098", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Dört gün olan kişi ödeme emrine itiraz edebilir.", "label": "contradiction"}
+{"id": "num0099", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Üç gün olan kişi ödeme emrine itiraz edebilir.", "label": "contradiction"}
+{"id": "num0100", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "Icra itirazı için en az on dört gün gerekir.", "label": "contradiction"}
+{"id": "num0101", "premise": "Ödeme emrine itiraz, tebliğden itibaren yedi gün içinde yapılır.", "hypothesis": "İtiraz takibi durdurur, alacaklı itirazın iptalini ister.", "label": "neutral"}
