@@ -569,4 +569,12 @@ OUT_OF_SCOPE_KEYWORDS = (
     # Aile hukuku — çok-token form'lar
     "boşanma davası", "nafaka", "velayet", "evlat edinme",
     "aile hukuku", "aile mahkemesi",
+    # Boşanma/eş bağlamı (çok-token, FP önle: "evlilik sözleşmesi" tüketici değil)
+    "boşanmak isti", "boşanma sürec", "eşimden boşan", "eşinden boşan",
+    # Fikri mülkiyet — çok-token form'lar (tek-token patent/telif triaj prefix-set'te).
+    "fikri mülkiyet", "marka tescil", "marka hakk", "faydalı model", "tasarım tescil",
+    # Dijital varlık — çok-token (tek-token kripto/bitcoin/metaverse prefix-set'te).
+    "sanal arsa", "sanal para",
+    # Göçmenlik — çok-token (tek-token vatandaşlık/sığınma/göçmen prefix-set'te).
+    "oturma izni", "oturum izni", "pasaport başvuru",
 )

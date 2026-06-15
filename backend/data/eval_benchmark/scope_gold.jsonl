@@ -1,0 +1,37 @@
+{"id": "oos_uzay_01", "soru": "uzaylılar evime girdi, hangi hukuki yola başvururum?", "expected": "out_of_scope", "neden": "gerçek-dışı/alakasız"}
+{"id": "oos_kuantum_01", "soru": "kuantum bilgisayar patentimi çaldılar, Yargıtay kararı var mı?", "expected": "out_of_scope", "neden": "fikri mülkiyet (kapsam dışı)"}
+{"id": "oos_meta_01", "soru": "metaverse'te aldığım sanal arsa silindi, tüketici hakem heyeti bakar mı?", "expected": "out_of_scope", "neden": "dijital varlık (kapsam dışı)"}
+{"id": "oos_patent_01", "soru": "buluşum için patent başvurusu nasıl yapılır?", "expected": "out_of_scope", "neden": "fikri mülkiyet"}
+{"id": "oos_marka_01", "soru": "şirketimin marka tescilini nasıl yaptırırım?", "expected": "out_of_scope", "neden": "fikri mülkiyet"}
+{"id": "oos_telif_01", "soru": "yazdığım kitabın telif hakkı bana mı ait?", "expected": "out_of_scope", "neden": "fikri mülkiyet"}
+{"id": "oos_kripto_01", "soru": "kripto borsasında param dolandırıldı, hangi mahkeme bakar?", "expected": "out_of_scope", "neden": "dijital varlık/kapsam dışı"}
+{"id": "oos_ceza_01", "soru": "komşumu dövdüm, kaç yıl hapis cezası alırım?", "expected": "out_of_scope", "neden": "ceza hukuku"}
+{"id": "oos_ceza_02", "soru": "uyuşturucu bulundurmaktan gözaltına alındım ne olur?", "expected": "out_of_scope", "neden": "ceza hukuku"}
+{"id": "oos_ceza_03", "soru": "dolandırıcılık suçunun cezası nedir?", "expected": "out_of_scope", "neden": "ceza hukuku"}
+{"id": "oos_aile_01", "soru": "boşanma davasında nafaka miktarı nasıl hesaplanır?", "expected": "out_of_scope", "neden": "aile hukuku"}
+{"id": "oos_aile_02", "soru": "çocuğumun velayetini nasıl alırım?", "expected": "out_of_scope", "neden": "aile hukuku"}
+{"id": "oos_aile_03", "soru": "eşimden boşanmak istiyorum süreç nasıl işler?", "expected": "out_of_scope", "neden": "aile hukuku"}
+{"id": "oos_yemek_01", "soru": "mercimek çorbası nasıl yapılır?", "expected": "out_of_scope", "neden": "tamamen alakasız"}
+{"id": "oos_mat_01", "soru": "ikinci dereceden denklemi nasıl çözerim?", "expected": "out_of_scope", "neden": "tamamen alakasız"}
+{"id": "oos_saglik_01", "soru": "baş ağrım geçmiyor hangi ilacı içmeliyim?", "expected": "out_of_scope", "neden": "tıbbi/alakasız"}
+{"id": "oos_genel_01", "soru": "bugün hava nasıl olacak?", "expected": "out_of_scope", "neden": "alakasız"}
+{"id": "oos_idari_dis_01", "soru": "vatandaşlık başvurum reddedildi ne yapabilirim?", "expected": "out_of_scope", "neden": "göçmenlik/vatandaşlık (8 alan dışı)"}
+{"id": "st_merhaba_01", "soru": "merhaba", "expected": "smalltalk", "neden": "selamlaşma"}
+{"id": "st_kimsin_01", "soru": "sen kimsin ve bana nasıl yardımcı olabilirsin?", "expected": "smalltalk", "neden": "tanışma"}
+{"id": "st_nasil_01", "soru": "naber nasılsın?", "expected": "smalltalk", "neden": "selamlaşma"}
+{"id": "st_tesekkur_01", "soru": "teşekkür ederim çok yardımcı oldun", "expected": "smalltalk", "neden": "nezaket"}
+{"id": "st_ne_01", "soru": "neler yapabilirsin?", "expected": "smalltalk", "neden": "yetenek sorgusu"}
+{"id": "in_tuketici_01", "soru": "internetten aldığım telefon bozuk çıktı, ne yapabilirim?", "expected": "in_scope", "neden": "tüketici"}
+{"id": "in_tuketici_02", "soru": "buzdolabı 3 ay sonra bozuldu garanti kapsamında mı?", "expected": "in_scope", "neden": "tüketici"}
+{"id": "in_tuketici_03", "soru": "kargoda kaybolan paketimin parasını kimden alırım?", "expected": "in_scope", "neden": "tüketici (garip ifade)"}
+{"id": "in_is_01", "soru": "2 yıl çalıştığım işten çıkarıldım kıdem tazminatı alabilir miyim?", "expected": "in_scope", "neden": "iş"}
+{"id": "in_is_02", "soru": "patronum maaşımı sürekli geç yatırıyor ne yapabilirim?", "expected": "in_scope", "neden": "iş (konuşma dili)"}
+{"id": "in_kira_01", "soru": "ev sahibim depozitomu geri vermiyor?", "expected": "in_scope", "neden": "kira"}
+{"id": "in_kira_02", "soru": "kiracım aylardır kira ödemiyor nasıl çıkarırım?", "expected": "in_scope", "neden": "kira (konuşma dili)"}
+{"id": "in_icra_01", "soru": "hakkımda icra takibi başlatılmış ama borcum yok?", "expected": "in_scope", "neden": "icra"}
+{"id": "in_trafik_01", "soru": "kırmızı ışıkta geçtim cezası geldi itiraz edebilir miyim?", "expected": "in_scope", "neden": "trafik"}
+{"id": "in_vergi_01", "soru": "emlak vergimi geç ödedim gecikme cezası haksız mı?", "expected": "in_scope", "neden": "vergi"}
+{"id": "in_tapu_01", "soru": "miras kalan evi kardeşlerimle paylaşamıyoruz ne yapılır?", "expected": "in_scope", "neden": "tapu"}
+{"id": "in_idari_01", "soru": "memurum haksız disiplin cezası aldım iptal davası açabilir miyim?", "expected": "in_scope", "neden": "idari"}
+{"id": "in_garip_01", "soru": "komşu üst kat su kaçırıyor tavanım mahvoldu kim öder?", "expected": "in_scope", "neden": "tapu/komşuluk (garip ifade, gerçek)"}
+{"id": "in_garip_02", "soru": "spor salonu üyeliğimi iptal ettim ama para iade etmiyorlar", "expected": "in_scope", "neden": "tüketici (garip ifade)"}

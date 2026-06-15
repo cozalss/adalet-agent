@@ -119,6 +119,17 @@ def _has_legal_hint(norm: str) -> bool:
     return any(tok in norm for tok in _LEGAL_HINT_TOKENS)
 
 
+def has_legal_signal(question: str) -> bool:
+    """Soruda hukuki-ipucu (rakam veya hukuki anahtar kelime) var mı?
+
+    Triaj DistilBERT guard'ı (2026-06-15): model HER girdiyi 8 alana zorlar
+    ("mercimek çorbası nasıl yapılır" → tüketici@yüksek-güven). Hiçbir hukuki-sinyal
+    yoksa modele güvenme → LLM kademesi (ikinci şans; recall>precision). Gerçek
+    sivil-hukuk soruları ya fast_domain keyword'ü ya hukuki-token taşır, etkilenmez.
+    """
+    return _has_legal_hint(_normalize(question))
+
+
 def detect_smalltalk(question: str) -> SmalltalkCategory | None:
     """Soru saf bir sohbet girdisiyse kategorisini, değilse None döndür.
 
@@ -145,8 +156,16 @@ def detect_smalltalk(question: str) -> SmalltalkCategory | None:
     if norm in _GREETINGS:
         return "greeting"
 
-    # Selamla başlayan kısa girdi ("merhaba dostum", "selam") — hukuki ipucu yoksa.
+    # Tam-eşleşmeyen ama net sohbet — yalnız hukuki ipucu YOKSA (rakam/hukuki token
+    # eler → "teşekkürler, kıdem nasıl alınır" gerçek soru olarak kalır). 2026-06-15.
     if not _has_legal_hint(norm):
+        # Teşekkür ile başlayan ("teşekkür ederim çok yardımcı oldun").
+        if norm.startswith(("teşekkür", "sağ ol", "eyvallah")):
+            return "thanks"
+        # Kimlik sorusu ("sen kimsin ve nasıl yardımcı olabilirsin").
+        if any(k in norm for k in ("kimsin", "nesin", "adın ne", "ismin ne", "kim olduğun")):
+            return "identity"
+        # Selamla başlayan kısa girdi ("merhaba dostum", "selam").
         for greet in _GREETINGS:
             if norm == greet or norm.startswith(f"{greet} "):
                 return "greeting"

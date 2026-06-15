@@ -27,7 +27,7 @@ import structlog
 from agents.config import MIN_DOMAIN_CONFIDENCE, OUT_OF_SCOPE_KEYWORDS
 from agents.llm import ChatMessage, get_llm
 from agents.policy import CLARIFY_MARKER
-from agents.smalltalk import detect_smalltalk, smalltalk_reply
+from agents.smalltalk import detect_smalltalk, has_legal_signal, smalltalk_reply
 from agents.state import AgentState, ConversationTurn, Domain, ImageAttachment
 from agents.triage_classifier import classify_domain
 from core.observability import observe_node
@@ -58,6 +58,16 @@ _OUT_OF_SCOPE_PREFIX_KEYWORDS = frozenset({
     "nafaka", "velayet", "boşan",
     "hapis",   # hapis cezası/yatmak — ceza hukuku (sivil sözlükte geçmez)
     "dövdü",   # dövdüm/dövdü/dövdün — kasten yaralama ("dövdü"; "döv" döviz'i de yakalardı)
+    # Kapsam-dışı hukuk/konu — Türkçe çekim ekleri için PREFIX (\\b yetmez:
+    # "patentimi"/"kriptoda"/"vatandaşlığım"). Yalnız FP-güvenli tek-kökler
+    # (prefix başka anlama gelmez): "marka"→"market" gibi riskliler config'te
+    # çok-token substring (2026-06-15 kapsam-güven /loop).
+    "patent",     # fikri mülkiyet (FSEK/SMK — ayrı uzmanlık)
+    "telif",      # telif hakkı
+    "kripto",     # kriptopara/kriptoda — dijital varlık
+    "bitcoin", "metaverse",
+    "vatandaşlık",  # vatandaşlığım — göçmenlik/idari ama 8-alan dışı
+    "sığınma", "iltica", "göçmen", "mülteci",
 })
 
 _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
@@ -493,6 +503,10 @@ async def triaj_node(state: AgentState) -> dict:
         not history
         and os.getenv("TRIAJ_FAST_PATH", "1").lower() in {"1", "true", "yes"}
         and (model_result := await asyncio.to_thread(classify_domain, question))
+        # DistilBERT HER girdiyi 8 alana zorlar (yemek/günlük soru → tüketici@yüksek
+        # güven; gerçek-LLM testi 2026-06-15). Hiçbir hukuki-sinyal yoksa modele
+        # GÜVENME → LLM kademesine düş (ikinci şans; kapsam-dışı redde fırsat).
+        and has_legal_signal(question)
     ):
         model_domain, model_conf = model_result
         facts = _merge_case_facts(prior_facts, _fast_facts(question, model_domain))
