@@ -11,6 +11,7 @@ from __future__ import annotations
 from agents.nodes.chat import (
     _LEGAL_REDIRECT,
     _OUT_OF_SCOPE_REFUSAL,
+    _emit_streamed,
     _safe_or_redirect,
     chat_node,
 )
@@ -84,6 +85,21 @@ async def test_chat_node_unknown_with_legal_signal_soft_redirects():
     })
     assert out["response"] == _LEGAL_REDIRECT
     assert out["response_intent"] == "chat"
+
+
+async def test_emit_streamed_chunks_word_by_word():
+    """Sabit mesaj kelime-kelime sink'e iter (akış hissi) → birleşince orijinal metin.
+    Tek-parça yerine >1 chunk gelmeli (UX: 'bir anda patlama' yok)."""
+    chunks: list[str] = []
+    text = "Bu bir kapsam dışı yanıttır"
+    await _emit_streamed(text, chunks.append)
+    assert "".join(chunks) == text
+    assert len(chunks) == len(text.split(" "))
+
+
+async def test_emit_streamed_no_sink_is_noop():
+    """sink None (non-stream /ask, test) → no-op, hata atmaz."""
+    await _emit_streamed("herhangi metin", None)
 
 
 async def test_chat_node_smalltalk_is_exempt_from_refusal():

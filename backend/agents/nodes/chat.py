@@ -13,7 +13,9 @@ Akış: draft_token_sink set ediliyse (SSE) token'ları canlı yayar (frontend y
 
 from __future__ import annotations
 
+import asyncio
 import re
+from collections.abc import Callable
 
 import structlog
 
@@ -122,6 +124,25 @@ def _strip_foreign_drift(text: str) -> str:
     return (head[: cut + 1] if cut > 0 else head).strip()
 
 
+# Deterministik (sabit) mesajları da token-token akıtma hızı. Üretilen LLM cevabı
+# gerçek token akışıyla gelir; sabit mesaj tek parça basılırsa "bir anda patlar" ve
+# diğer cevaplarla tutarsız hisseder. Kelime-kelime ~20ms gecikme = ChatGPT-vari nazik
+# akış (~30 kelimelik red ≈ 0.6s; latency ihmal edilebilir).
+_STREAM_WORD_DELAY_S = 0.02
+
+
+async def _emit_streamed(text: str, sink: Callable[[str], None] | None) -> None:
+    """Sabit metni mevcut SSE token kanalından kelime-kelime iter (akış hissi).
+
+    sink None ise (non-stream /ask, mock, test) no-op → çağıran metni return'de döndürür.
+    Boşlukları koruyarak böler; ilk kelime önek-boşluksuz, sonrakiler ' ' önekli."""
+    if sink is None:
+        return
+    for i, word in enumerate(text.split(" ")):
+        sink(word if i == 0 else " " + word)
+        await asyncio.sleep(_STREAM_WORD_DELAY_S)
+
+
 @observe_node(name="chat")
 async def chat_node(state: AgentState) -> dict[str, object]:
     """Hukuki-olmayan soruya Qwen ile doğal cevap. response_intent='chat' set eder;
@@ -136,9 +157,7 @@ async def chat_node(state: AgentState) -> dict[str, object]:
             "danışmanızı öneririm. Tüketici, iş, kira, icra, trafik, vergi, tapu "
             "veya idari hukuk konularında yardımcı olabilirim."
         )
-        sink = draft_token_sink.get()
-        if sink is not None:
-            sink(text)  # SSE: deterministik mesajı da 'yazılıyor' gibi akıt
+        await _emit_streamed(text, draft_token_sink.get())  # SSE: kelime-kelime akıt
         log.info("chat_out_of_scope_deterministic", n_chars=len(text))
         return {
             "response": text,
@@ -159,9 +178,7 @@ async def chat_node(state: AgentState) -> dict[str, object]:
         and intent not in ("smalltalk", "out_of_scope_sensitive")
     ):
         text = _out_of_scope_message(question)
-        sink = draft_token_sink.get()
-        if sink is not None:
-            sink(text)
+        await _emit_streamed(text, draft_token_sink.get())  # SSE: kelime-kelime akıt
         log.info("chat_out_of_scope_redirect", n_chars=len(text))
         return {
             "response": text,
