@@ -7,7 +7,6 @@ import {
 } from "./components/ui.jsx";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, EvidenceStats, QuickTyping } from "./components/panels.jsx";
-import { AgentFlowGraph } from "./components/agent-flow/AgentFlowGraph.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
@@ -624,19 +623,6 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
               streaming status (ADALET'in farkı). Önceden triage'da "Düşünüyor" spinner vardı;
               artık baştan stepper (sınıflandırma→mevzuat→doğrulama aşamaları görünür → lokal
               model daha hızlı HİSSEDİLİR + hangi aşamada olduğu şeffaf). */}
-          {/* Canlı Ajan Akış Şeması (LangGraph görseli): streaming'de düğümler gerçek-zamanlı
-              canlanır; final'de tüm zincir done + doğrulama rozeti (jüri: pipeline + verify
-              skoru görünür). Soft-path/reject/clarify'da gösterilmez. */}
-          {!softPath && (streaming || (p === "final" && d.answer)) && (
-            <AgentFlowGraph
-              phase={p}
-              activeNode={d.activeNode}
-              intent={d.intent}
-              retryCount={d.retryCount}
-              sources={d.graphSources}
-              verify={d.graphVerify}
-            />
-          )}
           {/* HUKUK yolu "tek şey": ham DOĞRULANMAMIŞ taslak prose'u gösterilmez (kullanıcı
               onu okuyup sonra kart'a dönüşmesi kafa karıştırıyordu + sıfır-halüsinasyon: doğrulanmamış
               metni nihaiymiş gibi sunma). Canlı geri-bildirim = StreamStepper (yukarıda, "Cevap
