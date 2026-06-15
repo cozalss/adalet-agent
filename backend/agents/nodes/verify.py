@@ -43,6 +43,7 @@ from agents.risk_guard import is_high_risk_eligibility_claim, verify_risk_veto
 from agents.state import AgentState, Citation, Claim, DebateVerdict
 from agents.verifier_layers import (
     VerifierUnavailableError,
+    citation_content_mismatch,
     layer1_rules,
     layer2_fuzzy,
     layer3_nli_batch,
@@ -163,6 +164,14 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
         l25_score, l25_fallback = layer25_results[i]
         l3_contradicted, l3_ent, l3_con, l3_msg = layer3_results[i]
         _cited = cite_check and bool(claim.get("cite_ids"))
+
+        # Citation-içerik tutarsızlığı (deterministik, "doğru kanun/yanlış madde"):
+        # claim metni 'TBK madde 342' der ama [src: m-TBK-372] → grounded olamaz.
+        # TR-NLI bunu kaçırır; madde-no çelişkisi sembolik ve FP≈0 (ölçüldü 2026-06-12).
+        if citation_content_mismatch(claim.get("text", ""), claim.get("cite_ids", []) or []):
+            verified.append(_mark(claim, False, 0.0, "Citation-içerik tutarsızlığı (madde-no çelişkisi)"))
+            contradictions += 1
+            continue
 
         # NLI hard veto — claim kaynakla çelişiyor
         if l3_contradicted:

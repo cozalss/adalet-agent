@@ -8,6 +8,13 @@ import os
 MAX_RETRY = 3                    # debate → draft re-loop max
 MIN_DOMAIN_CONFIDENCE = 0.35     # bu altına düşerse "netleştirin" reddi
 
+# --- Selective prediction / abstention (FAZ 1.5, 2026-06-12) ---
+# Verdict=pass olsa BİLE final güven skoru bu tabanın altındaysa cevabı reddet
+# (abstain → "avukata danışın"). Hukuki güvenlikte recall>precision: belirsiz cevap
+# vermektense çekilmek yeğdir. Default 0.0 = kapalı (mevcut davranış); production
+# muhafazakâr ~0.40 (_compute_confidence tabanı). Env ile A/B (abstention curve).
+ABSTAIN_CONFIDENCE_FLOOR = float(os.getenv("ABSTAIN_CONFIDENCE_FLOOR", "0.0"))
+
 # --- Retrieval limitleri ---
 TOP_K_LAW = 8                    # Mevzuat ajanı top-k madde
 TOP_K_CASE = 8                   # Emsal ajanı top-k karar
@@ -75,6 +82,19 @@ def is_verify_strict() -> bool:
     """
     return os.getenv("VERIFY_STRICT", "0").lower() in {"1", "true", "yes"}
 
+
+def _strict_default_flag(env_name: str) -> bool:
+    """Production-aware savunma-bayrağı: VERIFY_STRICT=1 (NLI/Lettuce yüklü production)
+    iken DEFAULT AÇIK, aksi halde (mock/dev/CI) kapalı → test baseline birebir korunur.
+
+    Gerekçe (2026-06-12): CLATTER/CITE/partial-note kod-default 0 idi; production'da
+    yalnız .env export'uyla açıktı → biri VERIFY_STRICT=1 koşup bu export'ları unutursa
+    savunma SESSİZCE kapalı kalıyordu. Tek production sinyaline (VERIFY_STRICT) bağlanır.
+    Explicit env override her zaman okunur (ablation/A-B korunur)."""
+    default = "1" if is_verify_strict() else "0"
+    return os.getenv(env_name, default).lower() in {"1", "true", "yes"}
+
+
 def is_clatter_gate_enabled() -> bool:
     """CLATTER entailment kapısı (opt-in, default 0).
 
@@ -91,8 +111,10 @@ def is_clatter_gate_enabled() -> bool:
 
     Dinamik okunur (is_verify_strict deseni) → testler monkeypatch.setenv ile toggle eder.
     SOTA: CLATTER (arXiv 2506.05243) neutral=not-supported → attribution 0.72→0.97.
+
+    Default: VERIFY_STRICT-aware (production'da otomatik açık; mock/dev kapalı) — 2026-06-12.
     """
-    return os.getenv("CLATTER_GATE_ENABLED", "0").lower() in {"1", "true", "yes"}
+    return _strict_default_flag("CLATTER_GATE_ENABLED")
 
 
 def is_partial_answer_note_enabled() -> bool:
@@ -100,8 +122,8 @@ def is_partial_answer_note_enabled() -> bool:
     iddiaları kaynaklayamayıp DÜŞÜRDÜYSE (finalize._filter_to_verified n_dropped>0), kullanıcıya
     'bazı noktaları doğrulayamadım, ayrıca sorun' notu eklenir → sessiz-eksiltme yerine ŞEFFAF.
     Grounding/sıfır-halüsinasyon DEĞİŞMEZ (ungrounded zaten gösterilmez); yalnız dürüst çerçeve.
-    Call-time okunur (test toggle). Default 0 (test stabil); production'da açık."""
-    return os.getenv("PARTIAL_ANSWER_NOTE", "0").lower() in {"1", "true", "yes"}
+    Call-time okunur (test toggle). Default VERIFY_STRICT-aware (production açık, dev kapalı)."""
+    return _strict_default_flag("PARTIAL_ANSWER_NOTE")
 
 
 def is_emsal_live_fallback_enabled() -> bool:
@@ -157,8 +179,10 @@ def is_guided_cite_enabled() -> bool:
     (baseline). Dinamik okunur → testler monkeypatch.setenv ile toggle eder.
 
     SOTA: guided-decoding (arXiv 2404.08189) 0-shot %100 halüsinasyon → 1-shot %1.8.
+
+    Default: VERIFY_STRICT-aware (production açık; MockLLM zaten yok sayar → test güvenli).
     """
-    return os.getenv("GUIDED_CITE_ENABLED", "0").lower() in {"1", "true", "yes"}
+    return _strict_default_flag("GUIDED_CITE_ENABLED")
 
 
 def is_cite_grounding_check_enabled() -> bool:
@@ -177,8 +201,10 @@ def is_cite_grounding_check_enabled() -> bool:
 
     SOTA: Stanford-2024 / RAGAS faithfulness (arXiv 2412.18004) — misgrounded citation
     (gerçek kaynak ama desteklemiyor) daha tehlikeli/fark edilmesi zor.
+
+    Default: VERIFY_STRICT-aware (production açık; mock/dev kapalı → baseline korunur).
     """
-    return os.getenv("CITE_GROUNDING_CHECK", "0").lower() in {"1", "true", "yes"}
+    return _strict_default_flag("CITE_GROUNDING_CHECK")
 
 
 def get_ask_graph_timeout_s() -> float:

@@ -190,6 +190,42 @@ def test_negative_not_met_still_vetoed():
         assert verify_risk_veto(bad)[0] is True, f"olumsuz hak-reddi veto edilmedi: {bad}"
 
 
+# --- POZİTİF fabrike çıkarım (sayısal eşik-altı hak-tanıma, FAZ 1.3) ---
+
+def test_positive_below_threshold_fabrication_vetoed():
+    """'6 ay → kıdem alırsınız' (kaynak min 1 yıl) → süre-eşik-altı FABRİKE → veto.
+
+    Negatif yol kaçırıyordu (grant verb, denial değil; ölçüldü 2026-06-12)."""
+    src = ["Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir."]
+    for bad in (
+        "Altı ay çalıştıysanız kıdem tazminatına hak kazanırsınız.",
+        "Üç ay çalışan işçi kıdem tazminatı talep edebilir.",
+    ):
+        blocked, reasons = verify_risk_veto(bad, source_texts=src)
+        assert blocked is True, f"eşik-altı pozitif fabrike kaçtı: {bad}"
+        assert any("fabrike hak-tanıma" in r for r in reasons)
+
+
+def test_positive_above_threshold_not_vetoed():
+    """'2 yıl → hak kazanırsınız' (≥ min 1 yıl) DOĞRU pozitif → bloklanmamalı (FP guard)."""
+    src = ["Kıdem tazminatı için işçinin en az 1 yıl çalışmış olması gerekir."]
+    for good in (
+        "İki yıl çalıştığınız için kıdem tazminatına hak kazanırsınız.",
+        "Bir yıl dolduran işçi kıdem tazminatına hak kazanır.",
+    ):
+        blocked, reasons = verify_risk_veto(good, source_texts=src)
+        assert blocked is False, f"doğru pozitif yanlış vetolandı: {good} → {reasons}"
+
+
+def test_positive_fabrication_silent_without_source_minimum():
+    """Kaynak gereklilik-eşiği yoksa pozitif detektör SESSİZ (fail-open, FP koruması)."""
+    blocked, _ = verify_risk_veto(
+        "Altı ay çalıştıysanız kıdem tazminatına hak kazanırsınız.",
+        source_texts=["Kıdem tazminatı işçinin haklarındandır."],  # eşik YOK
+    )
+    assert blocked is False
+
+
 def test_real_law_name_not_flagged():
     good = "İş Kanunu madde 14 uyarınca kıdem tazminatı ödenir [src: m-IK-14]."
     assert fabricated_law_names(good) == []

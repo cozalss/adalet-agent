@@ -115,6 +115,27 @@ def _ref_madde_no(ref: Citation) -> MaddeKey | None:
     return None
 
 
+def citation_content_mismatch(claim_text: str, cite_ids: list[str]) -> bool:
+    """Claim METNİNDE söylenen madde-no ile ATIF EDİLEN cite_id madde-no tutarsız mı?
+
+    "Doğru kanun / yanlış madde" sınıfı (örn metin 'TBK madde 342' der ama [src: m-TBK-372]):
+    deterministik, NLI'sız (TR-NLI bunu kaçırır; ölçüldü 2026-06-12). Yalnız İKİSİ DE madde-no
+    taşıyor VE hiç kesişmiyorsa True → o claim grounded sayılamaz (cite içeriğiyle çelişir).
+    Claim madde söylemiyorsa veya cite_id'de madde yoksa → False (kısıt yok, scope ele alır).
+    """
+    stated = _stated_madde_numbers(claim_text)
+    if not stated:
+        return False
+    cited: set[MaddeKey] = set()
+    for cid in cite_ids or []:
+        m = _REF_SID_MADDE_RE.search(cid or "")
+        if m:
+            cited.add(((m.group(1) or "madde").lower(), int(m.group(2))))
+    if not cited:
+        return False
+    return stated.isdisjoint(cited)
+
+
 def _scope_refs_to_claim_madde(
     claim_text: str, refs: list[Citation],
 ) -> tuple[list[Citation], bool]:

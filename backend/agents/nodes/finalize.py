@@ -9,7 +9,11 @@ import re
 
 import structlog
 
-from agents.config import DISCLAIMER_TR, is_partial_answer_note_enabled
+from agents.config import (
+    ABSTAIN_CONFIDENCE_FLOOR,
+    DISCLAIMER_TR,
+    is_partial_answer_note_enabled,
+)
 from agents.nodes.compose import redirect_to_scope_fallback
 from agents.state import AgentState
 from core.observability import observe_node
@@ -226,6 +230,14 @@ async def finalize_node(state: AgentState) -> dict:
     )
 
     confidence = _compute_confidence(state, verified_claims)
+
+    # Selective prediction (FAZ 1.5): verdict=pass olsa bile güven tabanın altındaysa
+    # abstain → "avukata danışın" (recall>precision; belirsiz cevap vermektense çekil).
+    # Default floor 0.0 = kapalı. Production'da ABSTAIN_CONFIDENCE_FLOOR ile açılır.
+    if confidence < ABSTAIN_CONFIDENCE_FLOOR:
+        log.info("finalize_abstain_low_confidence", confidence=confidence,
+                 floor=ABSTAIN_CONFIDENCE_FLOOR)
+        return _reject_response(state)
 
     log.info(
         "finalize_done",

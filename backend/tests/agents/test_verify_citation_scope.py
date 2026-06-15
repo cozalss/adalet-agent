@@ -99,6 +99,34 @@ def test_scope_ek_claim_matches_ek_ref():
     assert [r["source_id"] for r in scoped] == ["m-VUK-ek-11"]
 
 
+# --- citation_content_mismatch (doğru kanun/yanlış madde, FAZ 1.2) ---
+
+def test_citation_mismatch_text_vs_cite():
+    """Metin 'madde 342' der ama cite 'm-TBK-372' → mismatch (grounded olamaz)."""
+    assert vl.citation_content_mismatch("Depozito TBK madde 342'ye göre.", ["m-TBK-372"]) is True
+
+
+def test_citation_match_no_mismatch():
+    """Metin ve cite aynı madde → mismatch yok."""
+    assert vl.citation_content_mismatch("Cayma TKHK madde 11 ile.", ["m-TKHK-11"]) is False
+
+
+def test_citation_mismatch_text_madde_in_cite_set():
+    """Metindeki madde cite kümesinde varsa (11 ∈ {11,8}) → mismatch yok."""
+    assert vl.citation_content_mismatch("TKHK madde 11 uyarınca.", ["m-TKHK-11", "m-TKHK-8"]) is False
+
+
+def test_citation_mismatch_no_stated_madde():
+    """Metin madde-no söylemiyorsa → mismatch yok (kısıt yok, scope ele alır)."""
+    assert vl.citation_content_mismatch("Depozito iade edilir.", ["m-TBK-342"]) is False
+
+
+def test_citation_mismatch_no_cite_ids():
+    """cite_id'de madde yoksa (emsal/boş) → mismatch yok."""
+    assert vl.citation_content_mismatch("TBK madde 342 uyarınca.", ["h-123-c1"]) is False
+    assert vl.citation_content_mismatch("TBK madde 342 uyarınca.", []) is False
+
+
 # --- _ref_madde_no ---
 
 def test_ref_madde_no_from_source_id():

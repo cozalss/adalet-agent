@@ -204,6 +204,68 @@ def fabricated_eligibility_threshold(text: str, source_texts: list[str]) -> list
     return flags
 
 
+# --- POZİTİF fabrike çıkarım (sayısal eşik-altı hak-tanıma) ---
+# Negatif hak-reddi (fabricated_eligibility_threshold + _grounded_true_eligibility) ZATEN
+# kapsanıyor (ölçüldü 2026-06-12). KAÇAN sınıf: POZİTİF yanlış-çıkarım — "6 ay çalıştıysanız
+# kıdem alırsınız" (kaynak: en az 1 yıl). Burada basit "eşik kaynakta var mı" YETMEZ: "2 yıl
+# → alırsınız" da kaynakta birebir yok ama DOĞRU (2 yıl ≥ 1 yıl min). Gerçek sayısal
+# karşılaştırma gerekir: claim-süresi kaynak-MİNİMUMUNUN ALTINDA mı (birim-normalize).
+_UNIT_DAYS = {"yıl": 365, "ay": 30, "hafta": 7, "gün": 1}
+
+
+def _duration_days(num: str, unit: str) -> int | None:
+    """(sayı, kanonik-birim) → yaklaşık gün. Eşik karşılaştırması için kaba ölçek yeter."""
+    days = _UNIT_DAYS.get(unit)
+    if days is None or not num.isdigit():
+        return None
+    return int(num) * days
+
+
+def _min_required_days(source_texts: list[str]) -> int | None:
+    """Gereklilik bağlamlı snippet'lerdeki EN KÜÇÜK süre eşiği (gün). Yoksa None.
+
+    Yalnız asgari-gereklilik bağlamı taşıyan snippet'lerden (çapraz-kontaminasyon koruması,
+    negatif tarafla aynı _grounded_thresholds felsefesi). 'en az 1 yıl' → 365 gün.
+    """
+    best: int | None = None
+    for num, unit in _grounded_thresholds(source_texts):
+        d = _duration_days(num, unit)
+        if d is not None and (best is None or d < best):
+            best = d
+    return best
+
+
+def fabricated_positive_eligibility(text: str, source_texts: list[str]) -> list[str]:
+    """Süre-eşik-ALTI POZİTİF hak-tanıma cümleleri (FABRİKE pozitif çıkarım).
+
+    "6 ay çalıştıysanız kıdem alırsınız" + kaynak "en az 1 yıl" → 180 gün < 365 → FABRİKE.
+    "2 yıl çalıştığınız için hak kazanırsınız" → 730 ≥ 365 → DOĞRU (boş döner).
+    Kaynak gereklilik-eşiği yoksa (min belirlenemez) → sessiz (boş) — temellendirme yapılamaz,
+    pozitif tarafta fail-OPEN bilinçli: FP (doğru cevabı bloklama) hukuki UX'i bozar; bu sınıf
+    yalnız kaynak-minimumu NET iken devreye girer (yüksek-kesinlik). source_texts boşsa boş.
+    """
+    if not source_texts:
+        return []
+    min_days = _min_required_days(source_texts)
+    if min_days is None:
+        return []
+    flags: list[str] = []
+    for sent in _SENT_SPLIT_RE.split(text):
+        # POZİTİF hak-tanıma (grant) + süre içeren cümle; denial cümlesi negatif yolda ele alınır.
+        if not _HIGH_RISK_ELIGIBILITY_RE.search(sent):
+            continue
+        if not re.search(_GRANT_VERB, sent, re.IGNORECASE):
+            continue
+        if _NEGATIVE_ELIGIBILITY_RE.search(sent):
+            continue  # denial baskın → negatif detektörün işi (çifte-sayma yok)
+        for num, unit in _norm_thresholds(sent.lower()):
+            d = _duration_days(num, unit)
+            if d is not None and d < min_days:
+                flags.append(sent.strip()[:160])
+                break
+    return flags
+
+
 def fabricated_citation_claims(text: str) -> list[str]:
     """İmkânsız mahkeme dairesi atıflarını döndür (örn '99. Hukuk Dairesi').
 
@@ -273,6 +335,10 @@ def verify_risk_veto(text: str, source_texts: list[str] | None = None) -> tuple[
         if sent in grounded_true:
             continue  # kaynakta-temelli DOĞRU bilgilendirme → vetolanma
         reasons.append(f"süre/eşik gerekçeli hak-reddi: {sent}")
+    # POZİTİF fabrike çıkarım (sayısal eşik-altı hak-tanıma) — "6 ay → kıdem alırsınız"
+    # (kaynak min 1 yıl). Negatif yol kaçırıyordu (grant verb, denial değil; ölçüldü 2026-06-12).
+    for sent in fabricated_positive_eligibility(text, source_texts or []):
+        reasons.append(f"süre/eşik-altı fabrike hak-tanıma: {sent}")
     for cite in fabricated_citation_claims(text):
         reasons.append(f"imkânsız mahkeme dairesi atfı: {cite}")
     for art in implausible_article_numbers(text):
