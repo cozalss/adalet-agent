@@ -95,3 +95,6 @@ frontend/.last-run.json
 /stepper-*.png
 backend/eval/runs/*.txt
 backend/scripts/*_probe.py
+
+# LoRA adapter ciktilari (egitimle uretilir, repo'ya girmez)
+backend/data/lora/

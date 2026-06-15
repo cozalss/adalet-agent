@@ -109,8 +109,11 @@ def train(args: argparse.Namespace) -> int:
     lora = LoraConfig(
         task_type=TaskType.SEQ_CLS, r=args.r, lora_alpha=args.alpha,
         lora_dropout=args.dropout,
-        # mDeBERTa-v2 attention proje katmanları (query/key/value + output dense).
-        target_modules=["query_proj", "key_proj", "value_proj", "output.dense"],
+        # mDeBERTa-v2 attention proje katmanları (query/key/value).
+        target_modules=["query_proj", "key_proj", "value_proj"],
+        # classifier head'i de eğit (yoksa base XNLI head LoRA-değişen gövdeyle
+        # uyumsuzlaşıp contradiction_recall=0 veriyordu — ilk deneme bulgusu).
+        modules_to_save=["classifier", "pooler"],
     )
     model = get_peft_model(model, lora)
     model.print_trainable_parameters()
@@ -133,7 +136,9 @@ def train(args: argparse.Namespace) -> int:
         eval_strategy="epoch",
         save_strategy="no",
         logging_steps=10,
-        fp16=torch.cuda.is_available(),
+        # LoRA + fp16 "unscale FP16 gradients" hatası; bf16 (4070) çalışır ama DeBERTa-v3
+        # disentangled-attention bf16'da kararsız olabilir → --fp32 ile tam-hassasiyet.
+        bf16=(not args.fp32) and torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
         seed=args.seed,
         report_to=[],
     )
@@ -167,6 +172,7 @@ def main() -> int:
     ap.add_argument("--dropout", type=float, default=0.05)
     ap.add_argument("--max-length", type=int, default=256)
     ap.add_argument("--val-split", type=float, default=0.15)
+    ap.add_argument("--fp32", action="store_true", help="bf16 yerine fp32 (DeBERTa-v3 kararlılık)")
     ap.add_argument("--seed", type=int, default=42)
     return train(ap.parse_args())
 

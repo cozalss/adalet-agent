@@ -64,20 +64,41 @@ class NLIVerifier:
 
     @cached_property
     def _components(self):
-        """Lazy-load tokenizer + model. cuda varsa GPU + fp16."""
+        """Lazy-load tokenizer + model. cuda varsa GPU + fp16.
+
+        NLI_MODEL bir PEFT-adapter dizini ise (adapter_config.json içerir, FAZ 3.1
+        TR-legal LoRA) base mDeBERTa XNLI yüklenip adapter merge edilir → sayısal-
+        çıkarım fine-tune'u production'a sıfır-mimari değişiklikle girer. Aksi halde
+        düz model yükleme (mevcut davranış birebir).
+        """
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.float16 if (self.use_fp16 and device == "cuda") else torch.float32
 
-        log.info(
-            "nli_loading", model=self.model_name, device=device, dtype=str(dtype),
-        )
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        model = AutoModelForSequenceClassification.from_pretrained(
-            self.model_name, dtype=dtype,
-        ).to(device)
+        adapter_cfg = os.path.join(self.model_name, "adapter_config.json")
+        is_adapter = os.path.isdir(self.model_name) and os.path.isfile(adapter_cfg)
+        log.info("nli_loading", model=self.model_name, device=device,
+                 dtype=str(dtype), peft_adapter=is_adapter)
+
+        if is_adapter:
+            import json as _json
+
+            from peft import PeftModel
+            with open(adapter_cfg, encoding="utf-8") as fh:
+                base_name = _json.load(fh).get("base_model_name_or_path", NLI_MODEL)
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            base = AutoModelForSequenceClassification.from_pretrained(base_name, dtype=dtype)
+            # merge_and_unload: adapter'ı base'e kaynaştır → inference'ta PEFT overhead yok,
+            # mevcut forward/cache yolu AYNEN (NLIResult/eşik/namespace değişmez).
+            model = PeftModel.from_pretrained(base, self.model_name).merge_and_unload()
+            model = model.to(device)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            model = AutoModelForSequenceClassification.from_pretrained(
+                self.model_name, dtype=dtype,
+            ).to(device)
         model.eval()
         return tokenizer, model, device
 
