@@ -434,6 +434,24 @@ def test_anchor_cap_regulation_slot_independent(monkeypatch):
     assert out == {"a1", "reg1"}
 
 
+@pytest.mark.asyncio
+async def test_rank_and_build_laws_maps_regulation_to_law_citation(monkeypatch):
+    """Yönetmelik, API'nin mevzuat kaynak grubu olan `law` olarak yayınlanır."""
+    reg = _sr("reg1", 0.8)
+    reg.metadata["doc_type"] = "regulation"
+
+    async def _fake_rank(*_args, **_kwargs):
+        return [reg]
+
+    monkeypatch.setattr(mevzuat_mod, "rank_law_candidates", _fake_rank)
+
+    citations = await mevzuat_mod._rank_and_build_laws(
+        "cayma hakkı", "tuketici", [reg], "hybrid",
+    )
+
+    assert citations[0]["doc_type"] == "law"
+
+
 # --------------------------------------------------------------------------
 #  Çapa entegrasyonu — fetch_maddeler ile kilit maddeler havuza GARANTİ girer
 # --------------------------------------------------------------------------
