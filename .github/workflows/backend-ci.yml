@@ -147,14 +147,21 @@ jobs:
     needs: [lint-and-types]
     steps:
       - uses: actions/checkout@v4
-      # GH Actions ubuntu-latest ~14GB free; torch CUDA 12.4 wheel (~3GB) +
-      # uv cache + builder katmanları kolayca taşar → "no space left on device".
-      # Kullanılmayan ön-yüklü SDK'ları sil.
+      # GH Actions ubuntu-latest ~14GB free; torch CUDA 12.4 wheel (~3GB) + uv cache +
+      # builder katmanları + load:true tarball export (imajı 2× yazar) kolayca taşar →
+      # "no space left on device". Manuel rm (~20GB) yetmedi → jlumbroso ile ~30GB boşalt
+      # (tool-cache + android + dotnet + haskell + large-packages + swap). docker-images:
+      # false — buildx/docker daemon'ı bozmasın.
       - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+          docker-images: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build (no push)

@@ -1,6 +1,11 @@
-# pnpm 11: build-script onayı buradan okunur.
-# esbuild kendi native binary'sini kurar — Vite için gerekli.
+# pnpm 11: build-script onayı + overrides buradan okunur (workspace varken
+# package.json'daki pnpm.overrides yok sayılır).
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
   - esbuild
+# Güvenlik (CI pnpm audit HIGH): vite <=6.4.2 (GHSA-fx2h-pf6j-xcff) +
+# esbuild <0.28.1 (GHSA-gv7w-rqvm-qjhr) → yamalı transitive sürüme zorla.
+overrides:
+  vite: ">=6.4.3"
+  esbuild: ">=0.28.1"

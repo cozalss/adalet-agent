@@ -10,7 +10,7 @@ dependencies = [
     "pydantic>=2.9.2",
     "pydantic-settings>=2.5.2",
     "httpx>=0.27.2",
-    "python-multipart>=0.0.12",
+    "python-multipart>=0.0.31",
     "slowapi>=0.1.9",
     "structlog>=24.4.0",
     # Agents
@@ -41,7 +41,7 @@ dependencies = [
     "snowballstemmer>=3.1.0",
     "pyjwt>=2.13.0",
     # Supabase ES256 (asimetrik JWT) doğrulama — JWKS public key (auth.py C2).
-    "cryptography>=42.0.0",
+    "cryptography>=48.0.1",
     # Sprint-5 W16: APScheduler — Resmi Gazete + Yargıtay delta refresh cron
     "apscheduler>=3.10.4",
     "faster-whisper>=1.2.1",
@@ -106,10 +106,17 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-# Güvenlik: aiohttp 3.13.5'te CVE-2026-34993 + CVE-2026-47265 (ikisi de 3.14.0'da fixli).
-# aiohttp transitive bağımlılık (instructor/langchain-community/fsspec/datasets) → constraint ile
-# minimum güvenli sürümü zorla (doğrudan import yok; sadece güvenlik tabanı).
-constraint-dependencies = ["aiohttp>=3.14.0"]
+# Güvenlik (CI pip-audit HIGH → constraint ile transitive min güvenli sürümü zorla):
+#  - aiohttp>=3.14.1   : CVE-2026-54273..54280 (8 adet, 3.14.1'de fixli; 3.13.5 eski CVE'ler de kapanır)
+#  - cryptography>=48.0.1 : GHSA-537c-gmf6-5ccf
+#  - python-multipart>=0.0.31 : CVE-2026-53538/53539/53540
+#  - starlette>=1.3.1  : CVE-2026-48817/48818/54282/54283 (fastapi transitive)
+constraint-dependencies = [
+    "aiohttp>=3.14.1",
+    "cryptography>=48.0.1",
+    "python-multipart>=0.0.31",
+    "starlette>=1.3.1",
+]
 
 # PyTorch CUDA 12.4 wheel index — RTX 4070 GPU için
 [tool.uv.sources]
