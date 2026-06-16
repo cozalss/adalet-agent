@@ -1,17 +1,22 @@
-# -*- coding: utf-8 -*-
 """TEŞHİS (read-only): holdout madde@8 başarısızlıklarında gold maddenin
 havuz-sırası + rerank-sonrası konumu. Kök-neden: pool'da yok (recall tavanı) /
 pool'da var top-8 dışı (rerank düzeltilebilir)."""
-import asyncio, os, sys
+import asyncio
+import sys
 from collections import Counter
-SPLIT = sys.argv[1] if len(sys.argv) > 1 else "holdout"
 
-from core import native_preload  # noqa: F401  (Windows pyarrow<torch)
-from scripts.eval_run import _load_benchmark, _split_of
+from core import native_preload  # noqa: F401  # isort: skip  (Windows: torch-import'tan ÖNCE)
+
+from agents.nodes.mevzuat import (
+    MEVZUAT_DOC_TYPES,
+    apply_step_back,
+    mevzuat_pool_k,
+    rank_law_candidates,
+)
 from retrieval.hybrid_search import search
-from agents.nodes.mevzuat import (MEVZUAT_DOC_TYPES, apply_step_back,
-                                  mevzuat_pool_k, rank_law_candidates)
+from scripts.eval_run import _load_benchmark, _split_of
 
+SPLIT = sys.argv[1] if len(sys.argv) > 1 else "holdout"
 DEEP_POOL = 60  # recall tavanı kontrolü için geniş havuz
 
 def _km(r):
@@ -25,7 +30,8 @@ async def main():
     buckets = Counter()
     detail = []
     for c in cases:
-        soru = c["soru"]; dom = c["expected_domain"]
+        soru = c["soru"]
+        dom = c["expected_domain"]
         exp = [(k, int(m) if str(m).isdigit() else m)
                for k in c.get("expected_kanun", []) for m in c.get("expected_madde_no", [])]
         # production zinciri (top-8 penceresi)
@@ -33,7 +39,7 @@ async def main():
                             sparse_domain=dom, doc_type=MEVZUAT_DOC_TYPES)
         pool, rq, rm = await apply_step_back(soru, dom, pool, "hybrid")
         ranked = await rank_law_candidates(soru, dom, pool, rm, rerank_query=rq)
-        top8 = set(_km(r) for r in ranked[:8])
+        top8 = {_km(r) for r in ranked[:8]}
         # derin havuz (recall tavanı): geniş ham hybrid
         deep = await search(question=soru, top_k=DEEP_POOL, sparse_domain=dom,
                             doc_type=MEVZUAT_DOC_TYPES)
@@ -42,7 +48,8 @@ async def main():
         for k, m in exp:
             tgt = (k, m)
             if tgt in top8:
-                buckets["PASS_top8"] += 1; continue
+                buckets["PASS_top8"] += 1
+                continue
             # başarısız — nerede?
             in_pool = tgt in pool_km
             in_deep = tgt in deep_km
