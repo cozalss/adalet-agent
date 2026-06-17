@@ -25,7 +25,7 @@ const RISK_KEYWORDS = [
 ];
 
 /** citations[] → source_id'den 1-tabanlı numaraya map. */
-function buildCiteMap(citations) {
+export function buildCiteMap(citations) {
   const map = new Map();
   citations.forEach((c, i) => map.set(c.source_id, i + 1));
   return map;
@@ -68,7 +68,7 @@ export function mapSources(citations) {
 }
 
 /** Markdown gövdesini bölümlere ayır → UI answer.sections[]. */
-function parseSections(body, citeMap) {
+export function parseSections(body, citeMap) {
   // Başlık konumlarını bul
   const heads = [];
   let m;

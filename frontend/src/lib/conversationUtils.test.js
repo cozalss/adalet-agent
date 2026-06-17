@@ -24,12 +24,21 @@ describe("answerText", () => {
 });
 
 describe("turnsToMessages", () => {
+  const srcCard = {
+    id: 1, type: "Kanun", badge: "kanun", title: "TBK m.344",
+    ref: "m-TBK-344", passage: "madde metni", url: "http://x",
+  };
+
   it("her tur için user + (varsa) assistant satırı üretir", () => {
-    const msgs = turnsToMessages([turn("soru", "yanıt", [{ id: 1, title: "TBK m.344", doc_type: "law" }], 88)]);
+    const msgs = turnsToMessages([turn("soru", "yanıt", [srcCard], 88)]);
     expect(msgs).toHaveLength(2);
     expect(msgs[0]).toMatchObject({ turn_index: 0, role: "user", content: "soru" });
     expect(msgs[1]).toMatchObject({ turn_index: 1, role: "assistant", content: "yanıt", confidence: 88 });
-    expect(msgs[1].citations).toEqual([{ id: 1, title: "TBK m.344", doc_type: "law" }]);
+    // Zengin atıf: source_id + snippet saklanır (reload'da sections/çip/panel için)
+    expect(msgs[1].citations).toEqual([{
+      id: 1, source_id: "m-TBK-344", title: "TBK m.344", badge: "kanun",
+      type: "Kanun", snippet: "madde metni", url: "http://x",
+    }]);
   });
 
   it("cevap yoksa yalnız user satırı", () => {
@@ -50,14 +59,25 @@ describe("turnsToMessages", () => {
 });
 
 describe("messagesToTurns", () => {
-  it("DB mesajlarından görüntülenebilir turn'leri kurar (turnsToMessages tersi)", () => {
-    const msgs = turnsToMessages([turn("soru", "yanıt", [{ id: 1, title: "TBK m.344", doc_type: "law" }], 88)]);
+  const srcCard = {
+    id: 1, type: "Kanun", badge: "kanun", title: "TBK m.344",
+    ref: "m-TBK-344", passage: "madde metni", url: "http://x",
+  };
+
+  it("DB mesajlarından görüntülenebilir turn'leri kurar + sections YENİDEN PARSE eder", () => {
+    const body = "**Kısa cevap:** Yasal sınır budur [src: m-TBK-344].";
+    const msgs = turnsToMessages([turn("soru", body, [srcCard], 88)]);
     const turns = messagesToTurns(msgs, "kira");
     expect(turns).toHaveLength(1);
     expect(turns[0]).toMatchObject({ question: "soru", phase: "final" });
     expect(turns[0].data).toMatchObject({ kind: "answer", domain: "kira", sourceCount: 1 });
-    expect(turns[0].data.answer).toMatchObject({ text: "yanıt", confidence: 88 });
-    expect(turns[0].data.sources).toEqual([{ id: 1, title: "TBK m.344", doc_type: "law" }]);
+    expect(turns[0].data.answer.confidence).toBe(88);
+    // KRİTİK FİX: reload'da sections yeniden kurulur (ham-text fallback DEĞİL)
+    expect(turns[0].data.answer.sections.length).toBeGreaterThan(0);
+    // ham [src:] etiketi render'a sızmamalı (textToRuns strip + çip)
+    expect(JSON.stringify(turns[0].data.answer.sections)).not.toContain("src:");
+    // kaynak kartı ref/snippet ile geri kurulur (panel için)
+    expect(turns[0].data.sources[0]).toMatchObject({ id: 1, ref: "m-TBK-344", title: "TBK m.344", passage: "madde metni" });
   });
 
   it("turn_index sırasız gelse de doğru eşler + sıralar", () => {

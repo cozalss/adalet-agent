@@ -4,6 +4,8 @@
    olmadıkları için doğrudan birim test edilebilirler (Kaynaklar/Dosyalarım/arama
    ve backend mesaj dönüşümü mantığı). */
 
+import { parseSections } from "./parseAnswer.js";
+
 /** Cevap metnini turn'den çıkar (answer.text veya reject body). */
 export function answerText(turn) {
   const d = (turn && turn.data) || {};
@@ -21,7 +23,12 @@ export function turnsToMessages(turns) {
     if (ans) {
       msgs.push({
         turn_index: i * 2 + 1, role: "assistant", content: ans, domain: t.data?.domain || "",
-        citations: (t.data?.sources || []).map((s) => ({ id: s.id, title: s.title, doc_type: s.doc_type })),
+        // Zengin atıf: source_id + snippet + tür → reload'da sections/çip/panel yeniden kurulur
+        // (yoksa eski kayıtlar 'Cevap' başlığı + ham [src:] olarak bozuk görünüyordu).
+        citations: (t.data?.sources || []).map((s) => ({
+          id: s.id, source_id: s.ref, title: s.title, badge: s.badge, type: s.type,
+          snippet: s.passage, url: s.url,
+        })),
         confidence: t.data?.answer?.confidence || 0,
       });
     }
@@ -42,15 +49,34 @@ export function messagesToTurns(messages, domain = "") {
     if (m.role !== "user") continue;
     const next = sorted[i + 1];
     const ans = next && next.role === "assistant" ? next : null;
+    // Kaynak kartlarını DB atıflarından geri kur (panel + çip için ref/snippet dahil).
+    const sources = (ans?.citations || []).map((c, idx) => ({
+      id: c.id ?? idx + 1,
+      type: c.type || (c.doc_type === "law" ? "Kanun" : "Yargıtay"),
+      badge: c.badge || (c.doc_type === "law" ? "kanun" : "yargitay"),
+      title: c.title || c.source_id || "",
+      ref: c.source_id || "",
+      passage: c.snippet || "",
+      url: c.url || "",
+      verified: true,
+      rel: [c.id ?? idx + 1],
+    }));
+    // source_id → çip numarası (kaydedilmişse). Eski kayıtlarda ref yoksa → [src:] STRIP edilir
+    // (ham etiket görünmez), düzgün sections korunur.
+    const citeMap = new Map(sources.filter((s) => s.ref).map((s) => [s.ref, s.id]));
+    const text = ans?.content || "";
+    // KRİTİK FİX: metni yeniden parse et → 'Cevap' başlığı + ham [src:] yerine düzgün
+    // bölümler + çipler (oturum-içi yeni mesajlarla AYNI görünüm).
+    const sections = text ? parseSections(text, citeMap) : [];
     turns.push({
       question: m.content || "",
       phase: "final",
       data: {
         kind: "answer",
         domain,
-        answer: { text: ans?.content || "", confidence: Number(ans?.confidence) || 0 },
-        sources: (ans?.citations || []).map((c) => ({ id: c.id, title: c.title, doc_type: c.doc_type })),
-        sourceCount: (ans?.citations || []).length,
+        answer: { text, confidence: Number(ans?.confidence) || 0, sections },
+        sources,
+        sourceCount: sources.length,
       },
     });
   }
