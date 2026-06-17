@@ -94,15 +94,18 @@ def _effective_domain(result: Any, expected_domain: str) -> str:
 SearchMode = str  # "hybrid" | "rerank" | "node" | "hyde" | "multi_query"
 
 
-def _load_benchmark(version: str = "v1") -> list[dict[str, Any]]:
+def _load_benchmark(version: str = "v1", benchmark_path: Path | None = None) -> list[dict[str, Any]]:
     """JSONL benchmark dosyasını oku.
 
     Args:
         version: "v1" (default, eski 50 vaka) | "v2" (W2 expansion, 186 vaka)
     """
-    multi = {"v3": [BENCHMARK_V2_PATH, BENCHMARK_V3_EXT_PATH]}
-    paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
-    file_list = multi.get(version) or [paths.get(version, BENCHMARK_PATH)]
+    if benchmark_path is not None:
+        file_list = [benchmark_path]
+    else:
+        multi = {"v3": [BENCHMARK_V2_PATH, BENCHMARK_V3_EXT_PATH]}
+        paths = {"v1": BENCHMARK_PATH, "v2": BENCHMARK_V2_PATH, "yonetmelik": BENCHMARK_YON_PATH}
+        file_list = multi.get(version) or [paths.get(version, BENCHMARK_PATH)]
     cases: list[dict[str, Any]] = []
     for path in file_list:
         if not path.exists():
@@ -224,15 +227,21 @@ async def _eval_one(
         from agents.nodes.mevzuat import (
             MEVZUAT_DOC_TYPES,
             apply_step_back,
+            apply_typo_variants,
             mevzuat_pool_k,
             rank_law_candidates,
         )
         pool = await search(question=soru, top_k=mevzuat_pool_k(),
                             sparse_domain=expected_domain, doc_type=MEVZUAT_DOC_TYPES)
+        pool, retrieval_mode = await apply_typo_variants(
+            soru, expected_domain, pool, "hybrid",
+        )
         # Step-back paritesi (P7): default OFF (no-op); QUERY_REWRITE_ENABLED=1 + LLM
         # ile A/B ölçülür — production'da da aynı blok koşuyor.
-        pool, rerank_q, _rm = await apply_step_back(soru, expected_domain, pool, "hybrid")
-        results = await rank_law_candidates(soru, expected_domain, pool, _rm,
+        pool, rerank_q, retrieval_mode = await apply_step_back(
+            soru, expected_domain, pool, retrieval_mode,
+        )
+        results = await rank_law_candidates(soru, expected_domain, pool, retrieval_mode,
                                             rerank_query=rerank_q)
     elif mode == "hyde":
         from retrieval.hyde import search_with_hyde
@@ -378,6 +387,8 @@ async def main() -> int:
     parser.add_argument("--version", choices=["v1", "v2", "v3", "yonetmelik"], default="v1",
                         help="Benchmark sürümü: v1 (50) | v2 (186) | v3 (244, kuyruk-domain"
                              " genişletmeli) | yonetmelik (13)")
+    parser.add_argument("--benchmark-path", type=Path, default=None,
+                        help="Özel JSONL benchmark dosyası (version yerine bunu kullanır)")
     parser.add_argument("--split", choices=["dev", "holdout", "all"], default="all",
                         help="Aile-bazlı 70/30 split: knob-tuning 'dev'de; 'holdout'"
                              " YALNIZ final doğrulamada (double-dip overfit koruması)")
@@ -390,7 +401,7 @@ async def main() -> int:
     mode_label = {"hybrid": "HYBRID", "rerank": "HYBRID + RERANK",
                   "node": "PRODUCTION-YOLU (node)"}[mode]
 
-    cases = _load_benchmark(args.version)
+    cases = _load_benchmark(args.version, benchmark_path=args.benchmark_path)
     n_total = len(cases)
     if args.split != "all":
         cases = [c for c in cases if _split_of(c) == args.split]

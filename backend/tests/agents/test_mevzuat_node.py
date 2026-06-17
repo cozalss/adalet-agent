@@ -158,6 +158,60 @@ def test_merge_dedup_primary_score_wins():
     assert out[0].score == pytest.approx(0.9)  # primary korunur
 
 
+@pytest.mark.asyncio
+async def test_apply_typo_variants_merges_corrected_branch(monkeypatch):
+    """Hybrid/fallback yolda typo variant adayları ana havuza eklenir."""
+    base = [_sr("base", 0.5, kanun_kodu="IK")]
+    typo_hit = _sr("typo-hit", 0.9, kanun_kodu="IK")
+
+    monkeypatch.setattr(
+        mevzuat_mod,
+        "typo_retrieval_variants",
+        lambda *_args, **_kwargs: ["kıdem tazminatı"],
+    )
+
+    async def _fake_fan_out(queries, **kwargs):
+        assert queries == ["kıdem tazminatı"]
+        assert kwargs["sparse_domain"] == "isHukuku"
+        return [typo_hit]
+
+    monkeypatch.setattr(mevzuat_mod, "fan_out_search", _fake_fan_out)
+
+    out, mode = await mevzuat_mod.apply_typo_variants(
+        "kidem tazmnatı", "isHukuku", base, "hybrid",
+    )
+
+    assert mode == "hybrid+typo"
+    assert [r.chunk_id for r in out] == ["base", "typo-hit"]
+
+
+@pytest.mark.asyncio
+async def test_apply_typo_variants_skips_successful_mq(monkeypatch):
+    """MQ zaten typo variantlarını içerdiği için duplicate branch açılmaz."""
+    called = False
+
+    async def _unexpected(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return []
+
+    monkeypatch.setattr(
+        mevzuat_mod,
+        "typo_retrieval_variants",
+        lambda *_args, **_kwargs: ["kıdem tazminatı"],
+    )
+    monkeypatch.setattr(mevzuat_mod, "fan_out_search", _unexpected)
+
+    base = [_sr("base", 0.5, kanun_kodu="IK")]
+    out, mode = await mevzuat_mod.apply_typo_variants(
+        "kidem tazmnatı", "isHukuku", base, "mq",
+    )
+
+    assert called is False
+    assert out == base
+    assert mode == "mq"
+
+
 # --------------------------------------------------------------------------
 #  _domain_priority_rerank — cross-encoder sırasını domain-önceliğiyle birleştir
 # --------------------------------------------------------------------------

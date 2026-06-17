@@ -57,14 +57,62 @@ export function messagesToTurns(messages, domain = "") {
   return turns;
 }
 
+const SEARCH_FOLD = {
+  ç: "c", ğ: "g", ı: "i", i: "i", ö: "o", ş: "s", ü: "u",
+};
+
+export function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[çğıiöşü]/g, (ch) => SEARCH_FOLD[ch] || ch)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function editDistance(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+function closeToken(queryToken, hayToken) {
+  if (queryToken === hayToken || hayToken.includes(queryToken)) return true;
+  if (/\d/.test(queryToken) || /\d/.test(hayToken)) return false;
+  if (queryToken.length < 5 || hayToken.length < 5) return false;
+  const maxDistance = queryToken.length >= 9 ? 2 : 1;
+  if (queryToken[0] !== hayToken[0] && maxDistance <= 1) return false;
+  return editDistance(queryToken, hayToken) <= maxDistance;
+}
+
+function fuzzyIncludes(hay, needle) {
+  if (hay.includes(needle)) return true;
+  const hayTokens = hay.split(/\s+/).filter(Boolean);
+  const queryTokens = needle.split(/\s+/).filter(Boolean);
+  if (!queryTokens.length) return true;
+  return queryTokens.every((qt) => hayTokens.some((ht) => closeToken(qt, ht)));
+}
+
 /** "Sohbetlerde ara" — başlık + soru + cevap metninde (TR case-fold). Boş q → tümü. */
 export function searchConversations(list, q) {
-  const ql = (q || "").trim().toLocaleLowerCase("tr-TR");
+  const ql = normalizeSearchText(q);
   if (!ql) return list || [];
   return (list || []).filter((c) => {
     const hay = [c.title, ...(c.turns || []).flatMap((t) => [t.question, answerText(t)])]
-      .join(" ").toLocaleLowerCase("tr-TR");
-    return hay.includes(ql);
+      .join(" ");
+    return fuzzyIncludes(normalizeSearchText(hay), ql);
   });
 }
 

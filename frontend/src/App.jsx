@@ -155,7 +155,7 @@ function Sidebar({ collapsed, onToggle, onNew, onNav, conversations, activeConvI
 export default function App({ auth }) {
   const authUser = auth?.user || null;
   const onLogout = auth?.logout || null;
-  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, undoReset, loadConversation, busy, conversationId } = useChat();
+  const { turns: chatTurns, ask, stop, pickClarify, retryLast, editFrom, reset, loadConversation, busy, conversationId } = useChat();
   const { prefs, setPref, toggleDomain } = usePrefs();
   const { conversations, saveConversation, removeConversation, getConversation, search, allSources, allFiles } = useConversations();
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
@@ -244,14 +244,14 @@ export default function App({ auth }) {
   }, []);
   const dismissToast = useCallback(() => { clearTimeout(toastTimer.current); setToast(null); }, []);
 
-  // "Yeni sohbet": görünümü temizle (geçmiş KALICI — silmez). Geri-al view'ı döndürür.
+  // "Yeni sohbet": görünümü temizle (geçmiş KALICI — silmez).
   const onNewChat = useCallback(() => {
     sessionFilesRef.current = [];
     savedSigRef.current = null;
     if (reset()) {
-      showToast("Yeni sohbet başlatıldı", { label: "Geri al", onClick: undoReset });
+      showToast("Yeni sohbet başlatıldı");
     }
-  }, [reset, undoReset, showToast]);
+  }, [reset, showToast]);
 
   // Geçmiş sohbeti yükle (sidebar) → useChat'e bas + oturum dosyalarını geri yükle.
   const onSelectConv = useCallback((conv) => {

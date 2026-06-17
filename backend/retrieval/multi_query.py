@@ -37,6 +37,7 @@ import structlog
 from agents.llm import ChatMessage, get_llm
 from retrieval.hybrid_search import SearchResult, search
 from retrieval.turkish_text import expand_with_synonyms, morphological_variants
+from retrieval.typo_tolerance import typo_retrieval_variants
 
 log = structlog.get_logger()
 
@@ -85,17 +86,17 @@ _PARAPHRASE_USER = (
 #  In-memory LRU cache (Redis Sprint-5'te eklenecek)
 # --------------------------------------------------------------------------
 
-_query_cache: OrderedDict[tuple[str, str, int], list[str]] = OrderedDict()
+_query_cache: OrderedDict[tuple[str, str, int, str], list[str]] = OrderedDict()
 
 
-def _cache_get(key: tuple[str, str, int]) -> list[str] | None:
+def _cache_get(key: tuple[str, str, int, str]) -> list[str] | None:
     if key in _query_cache:
         _query_cache.move_to_end(key)
         return list(_query_cache[key])
     return None
 
 
-def _cache_put(key: tuple[str, str, int], val: list[str]) -> None:
+def _cache_put(key: tuple[str, str, int, str], val: list[str]) -> None:
     _query_cache[key] = val
     _query_cache.move_to_end(key)
     while len(_query_cache) > MQ_CACHE_SIZE:
@@ -125,14 +126,26 @@ async def expand_queries(
     if not question or n <= 1:
         return [question]
 
-    cache_key = (question.lower(), (domain or "").lower(), n)
+    typo_variants = typo_retrieval_variants(question, max_variants=max(0, n - 1))
+    cache_key = (
+        question.lower(),
+        (domain or "").lower(),
+        n,
+        "|".join(typo_variants) if typo_variants else "-",
+    )
     cached = _cache_get(cache_key)
     if cached:
         log.debug("mq_cache_hit", key=cache_key)
         return cached
 
+    llm_slots = max(0, n - 1 - len(typo_variants))
+    if llm_slots <= 0:
+        out_queries = list(dict.fromkeys([question, *typo_variants]))[:n]
+        _cache_put(cache_key, out_queries)
+        return out_queries
+
     user_msg = _PARAPHRASE_USER.format(
-        domain=domain or "genel hukuk", question=question, n=n - 1,
+        domain=domain or "genel hukuk", question=question, n=llm_slots,
     )
 
     llm = get_llm()
@@ -160,8 +173,8 @@ async def expand_queries(
         )
         # Hukuki eşanlam + morfoloji birlikte — LLM yokken en geniş deterministik
         # genişletme (eşanlam vatandaş↔jargon, morfoloji ek-çekim).
-        budget = n - 1
-        variants: list[str] = []
+        budget = n - 1 - len(typo_variants)
+        variants: list[str] = list(typo_variants)
         if LEGAL_SYNONYM_ENABLED:
             variants += expand_with_synonyms(question, max_variants=budget)
         variants += morphological_variants(question, max_variants=budget)
@@ -170,13 +183,13 @@ async def expand_queries(
             _cache_put(cache_key, out_queries)
         return out_queries
 
-    paraphrases = _parse_json_paraphrases(resp.content, max_n=n - 1)
+    paraphrases = _parse_json_paraphrases(resp.content, max_n=llm_slots)
     # JSON parse silent-fallback: numaralı/markdown formatına düşer.
     if not paraphrases:
         log.debug("mq_json_parse_empty_fallback_to_numbered", raw=resp.content[:160])
-        paraphrases = _parse_numbered(resp.content, max_n=n - 1)
+        paraphrases = _parse_numbered(resp.content, max_n=llm_slots)
     # Boş çıkarsa orijinalle dön; çift ise tek tut
-    queries = [question] + [p for p in paraphrases if p and p != question]
+    queries = [question, *typo_variants] + [p for p in paraphrases if p and p != question]
     queries = list(dict.fromkeys(queries))[:n]
 
     # LLM az paraphrase ürettiyse (veya hiç) kalan slot'ları deterministik

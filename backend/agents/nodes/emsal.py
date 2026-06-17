@@ -27,8 +27,10 @@ from agents.state import AgentState, Citation
 from core.observability import observe_node
 from retrieval.hybrid_search import search, search_with_rerank
 from retrieval.live_emsal import fetch_and_rank_live, should_trigger_live
+from retrieval.multi_query import fan_out_search
 from retrieval.query_rewrite import decontextualize_for_retrieval
 from retrieval.reranker import get_reranker
+from retrieval.typo_tolerance import typo_retrieval_variants
 
 log = structlog.get_logger()
 
@@ -89,6 +91,25 @@ async def rank_case_candidates(question: str, domain: str) -> tuple[list, int, i
         candidates_n=RERANK_CANDIDATES,
         domain=domain,
     )
+
+    typo_variants = typo_retrieval_variants(question, max_variants=1)
+    if typo_variants:
+        try:
+            typo_candidates = await fan_out_search(
+                typo_variants,
+                top_k=RERANK_CANDIDATES,
+                per_query_k=RERANK_CANDIDATES,
+                domain=domain,
+                sparse_domain=domain,
+                doc_type="case",
+            )
+            if typo_candidates:
+                typo_rerank = await asyncio.to_thread(
+                    get_reranker().rerank, question, typo_candidates, TOP_K_CASE * 2,
+                )
+                rerank_results = _merge_dedup_rerank(rerank_results, typo_rerank)
+        except Exception as exc:
+            log.warning("emsal_typo_variant_failed", error=str(exc) or type(exc).__name__)
 
     preferred = DOMAIN_PREFERRED_COURTS.get(domain) or ()
     n_scoped = 0

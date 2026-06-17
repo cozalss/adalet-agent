@@ -151,6 +151,23 @@ async def test_expand_queries_empty_input():
     assert out == [""]
 
 
+@pytest.mark.asyncio
+async def test_expand_queries_reserves_slot_for_typo_variant(monkeypatch):
+    """Typo varsa deterministic variant LLM'e gitmeden arama kolu olur."""
+    mq.reset_cache()
+
+    class _UnexpectedLLM:
+        async def chat(self, **_kwargs):
+            raise AssertionError("LLM should not be called when typo variant fills n=2")
+
+    monkeypatch.setattr(mq, "get_llm", lambda: _UnexpectedLLM())
+    queries = await mq.expand_queries("kidem tazmnatı", n=2, domain="isHukuku")
+
+    assert queries[0] == "kidem tazmnatı"
+    assert len(queries) == 2
+    assert "kıdem tazminatı" in queries[1]
+
+
 # --------------------------------------------------------------------------
 # Hukuki eşanlam genişletmesi entegrasyonu (W15)
 # --------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import json
 import math
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import structlog
@@ -32,6 +33,7 @@ from agents.state import AgentState, ConversationTurn, Domain, ImageAttachment
 from agents.triage_classifier import classify_domain
 from core.observability import observe_node
 from core.text import tr_lower as _tr_lower
+from retrieval.typo_tolerance import match_variants
 
 log = structlog.get_logger()
 
@@ -158,22 +160,23 @@ def _is_out_of_scope(question: str) -> bool:
     bağlamında match etmeli — bu yüzden multi-token form'lar tercih edilir.
     """
     import re as _re
-    q_low = _tr_lower(question)
-    tokens = _re.findall(r"[a-zçğıöşü]+", q_low)
-    if any(
-        token.startswith(prefix)
-        for token in tokens
-        for prefix in _OUT_OF_SCOPE_PREFIX_KEYWORDS
-    ):
-        return True
-    for kw in OUT_OF_SCOPE_KEYWORDS:
-        # Çok-token ise (örn "ceza hukuku") aynen aranır; tek token ise \b ile
-        if " " in kw:
-            if kw in q_low:
-                return True
-        else:
-            if _re.search(rf"\b{_re.escape(kw)}\b", q_low):
-                return True
+    for q_low in _triage_match_texts(question):
+        tokens = _re.findall(r"[a-zçğıöşü]+", q_low)
+        if any(
+            token.startswith(prefix)
+            for token in tokens
+            for prefix in _OUT_OF_SCOPE_PREFIX_KEYWORDS
+        ):
+            return True
+        for kw in OUT_OF_SCOPE_KEYWORDS:
+            kw_low = _tr_lower(kw)
+            # Çok-token ise (örn "ceza hukuku") aynen aranır; tek token ise \b ile
+            if " " in kw_low:
+                if kw_low in q_low:
+                    return True
+            else:
+                if _re.search(rf"\b{_re.escape(kw_low)}\b", q_low):
+                    return True
     return False
 
 
@@ -226,6 +229,24 @@ _CONSUMER_PRODUCTS = (
 )
 
 
+@lru_cache(maxsize=1)
+def _typo_vocabulary() -> tuple[str, ...]:
+    terms: list[str] = []
+    for keywords in _FAST_DOMAIN_KEYWORDS.values():
+        terms.extend(keywords)
+    terms.extend(_CONSUMER_BUY)
+    terms.extend(_CONSUMER_DEFECT)
+    terms.extend(_CONSUMER_PRODUCTS)
+    terms.extend(_OUT_OF_SCOPE_PREFIX_KEYWORDS)
+    terms.extend(OUT_OF_SCOPE_KEYWORDS)
+    terms.extend(_CONTINUATION_MARKERS)
+    return tuple(dict.fromkeys(t for t in terms if t))
+
+
+def _triage_match_texts(question: str) -> list[str]:
+    return match_variants(question, vocabulary=_typo_vocabulary(), max_variants=3)
+
+
 def _is_consumer_complaint(q_low: str) -> bool:
     """Ayıplı-mal (tüketici) şikâyeti sezgisi — FP-düşük kombolar.
 
@@ -246,13 +267,17 @@ def _fast_domain(question: str) -> Domain | None:
 
     Belirsiz/çakışmalı durumda None döner ve eski JSON-mode LLM triaj çalışır.
     """
-    q_low = _tr_lower(question)
+    q_lows = _triage_match_texts(question)
     # Satın-alma + arıza kombosu → güçlü tüketici sinyali (keyword-dışı ürünleri kapsar).
-    if _is_consumer_complaint(q_low):
+    if any(_is_consumer_complaint(q_low) for q_low in q_lows):
         return "tuketici"
     scores: dict[Domain, int] = {}
     for domain, keywords in _FAST_DOMAIN_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in q_low)
+        score = sum(
+            2 if " " in kw else 1
+            for kw in keywords
+            if any(_tr_lower(kw) in q_low for q_low in q_lows)
+        )
         if score:
             scores[domain] = score
     if not scores:
@@ -266,7 +291,7 @@ def _fast_domain(question: str) -> Domain | None:
 def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
     """LLM'siz küçük olgu çıkarımı; eksik olursa draft yine sorudan anlar."""
     facts: dict[str, str] = {}
-    q_low = _tr_lower(question)
+    q_match = " ".join(_triage_match_texts(question))
     if m := _SURE_RE.search(question):
         facts["sure"] = m.group(0)
     if m := _TUTAR_RE.search(question):
@@ -284,7 +309,7 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
         "alacaklı": "alacaklı",
     }
     for marker, label in taraf_map.items():
-        if marker in q_low:
+        if marker in q_match:
             facts["taraf"] = label
             break
 
@@ -307,29 +332,29 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
                   "soruşturma", "atama", "ihraç", "kamu görevlis"),
     }
     for marker in olay_by_domain.get(domain, ()):
-        if marker in q_low:
+        if marker in q_match:
             facts["olay"] = marker
             break
     if domain == "isHukuku":
         unpaid = []
-        if "kıdem" in q_low:
+        if "kıdem" in q_match:
             unpaid.append("kıdem tazminatı")
-        if "ihbar" in q_low:
+        if "ihbar" in q_match:
             unpaid.append("ihbar tazminatı")
-        if unpaid and any(x in q_low for x in ("ödenmedi", "ödenmedi.", "ödemedi", "yatmadı")):
+        if unpaid and any(x in q_match for x in ("ödenmedi", "ödenmedi.", "ödemedi", "yatmadı")):
             facts["odenmeyen_haklar"] = ", ".join(unpaid)
-        if any(x in q_low for x in ("yazılı gerekçe göstermeden", "gerekçe göstermeden", "sebep göstermeden")):
+        if any(x in q_match for x in ("yazılı gerekçe göstermeden", "gerekçe göstermeden", "sebep göstermeden")):
             facts["fesih_bildirimi"] = "yazılı gerekçe gösterilmedi"
-        if any(x in q_low for x in ("işe iade", "ise iade")):
+        if any(x in q_match for x in ("işe iade", "ise iade")):
             facts["olay"] = "işe iade"
     if domain == "kira":
-        if any(x in q_low for x in ("sözleşme bitti", "sözleşme sona erdi", "sona erdi")):
+        if any(x in q_match for x in ("sözleşme bitti", "sözleşme sona erdi", "sona erdi")):
             facts["sozlesme_durumu"] = "sona erdi"
-        elif "sözleşme devam" in q_low:
+        elif "sözleşme devam" in q_match:
             facts["sozlesme_durumu"] = "devam ediyor"
-        if any(x in q_low for x in ("teslim ettim", "evi teslim", "tahliye ettim")):
+        if any(x in q_match for x in ("teslim ettim", "evi teslim", "tahliye ettim")):
             facts["teslim"] = "evi teslim etti"
-        if any(x in q_low for x in ("gerekçe göstermiyor", "gerekçe sunmuyor", "hiçbir gerekçe")):
+        if any(x in q_match for x in ("gerekçe göstermiyor", "gerekçe sunmuyor", "hiçbir gerekçe")):
             facts["gerekce"] = "gerekçe gösterilmedi"
     return facts
 

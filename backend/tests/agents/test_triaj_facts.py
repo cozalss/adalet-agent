@@ -279,6 +279,20 @@ def test_fast_domain_consumer_product_anchor():
     assert fd("fırınım bozuldu dün aldım") == "tuketici"        # kombo (keyword-dışı ürün)
 
 
+def test_fast_domain_typo_tolerant_legal_keywords():
+    """ASCII/eksik-harfli vatandaş sorguları hızlı triajda domain kaçırmamalı."""
+    fd = triaj_mod._fast_domain
+    assert fd("isden cikarildim kidem tazmnatı alabilir miyim") == "isHukuku"
+    assert fd("tuketici hakem heyetine basvurmak istiyorum") == "tuketici"
+    assert fd("kira artisinda tufe siniri nedir") == "kira"
+    assert fd("iseiade davası acabilir miyim") == "isHukuku"
+
+
+def test_out_of_scope_typo_tolerant_family_law():
+    """Kapsam-dışı aile hukuku ASCII yazılsa da yakalanır."""
+    assert triaj_mod._is_out_of_scope("bosanma davası ve nafaka sorum var") is True
+
+
 def test_fast_domain_no_cross_domain_false_positive():
     """Tüketici sinyalleri başka domain'leri/off-topic'i çalmamalı."""
     fd = triaj_mod._fast_domain

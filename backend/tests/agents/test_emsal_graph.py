@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agents.nodes import emsal as emsal_mod
+from retrieval.hybrid_search import SearchResult
 from retrieval.reranker import RerankResult
 
 
@@ -33,6 +34,40 @@ def _rr(
     )
 
 
+def _sr(chunk_id: str, score: float) -> SearchResult:
+    return SearchResult(
+        chunk_id=chunk_id,
+        score=score,
+        text=f"text-{chunk_id}",
+        source="yargitay",
+        source_url=f"https://yargi/{chunk_id}",
+        domain="isHukuku",
+        metadata={
+            "doc_type": "case",
+            "court": "Yargıtay",
+            "esas_no": "2021",
+            "karar_no": "456",
+        },
+    )
+
+
+class _FakeReranker:
+    def rerank(self, _query, candidates, top_k):
+        return [
+            RerankResult(
+                chunk_id=c.chunk_id,
+                score=0.99 - i * 0.1,
+                text=c.text,
+                source=c.source,
+                source_url=c.source_url,
+                domain=c.domain,
+                metadata=c.metadata,
+                original_score=c.score,
+            )
+            for i, c in enumerate(candidates[:top_k])
+        ]
+
+
 @pytest.fixture
 def _mock_emsal_search(monkeypatch):
     """search_with_rerank'i + source-scoped supplementary `search`'i mock."""
@@ -48,6 +83,35 @@ def _mock_emsal_search(monkeypatch):
         return []
     monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
     monkeypatch.setattr(emsal_mod, "search", fake_search)
+
+
+@pytest.mark.asyncio
+async def test_rank_case_candidates_merges_typo_variant_branch(monkeypatch):
+    """Typo-corrected emsal adayları mevcut rerank havuzuna eklenir."""
+    async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
+        return [_rr("base-case", 0.80)]
+
+    async def fake_fan_out(queries, **kwargs):
+        assert queries == ["kıdem tazminatı"]
+        assert kwargs["doc_type"] == "case"
+        return [_sr("typo-case", 0.90)]
+
+    monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
+    monkeypatch.setattr(emsal_mod, "fan_out_search", fake_fan_out)
+    monkeypatch.setattr(
+        emsal_mod,
+        "typo_retrieval_variants",
+        lambda *_args, **_kwargs: ["kıdem tazminatı"],
+    )
+    monkeypatch.setattr(emsal_mod, "get_reranker", lambda: _FakeReranker())
+    monkeypatch.setattr(emsal_mod, "DOMAIN_PREFERRED_COURTS", {})
+
+    results, _n_preferred, _n_scoped = await emsal_mod.rank_case_candidates(
+        "kidem tazmnatı", "isHukuku",
+    )
+
+    ids = [r.chunk_id for r in results]
+    assert ids[:2] == ["base-case", "typo-case"]
 
 
 @pytest.fixture

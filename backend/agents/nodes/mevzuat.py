@@ -41,7 +41,7 @@ from retrieval.hybrid_search import (
     search,
 )
 from retrieval.hyde import search_with_hyde
-from retrieval.multi_query import search_multi_query
+from retrieval.multi_query import fan_out_search, search_multi_query
 from retrieval.query_rewrite import (
     decontextualize_for_retrieval,
     search_with_step_back,
@@ -49,6 +49,7 @@ from retrieval.query_rewrite import (
 )
 from retrieval.reranker import get_reranker
 from retrieval.speculative_search import search_speculative
+from retrieval.typo_tolerance import typo_retrieval_variants
 
 log = structlog.get_logger()
 
@@ -178,6 +179,10 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         results = await search(question=question, top_k=target_k, sparse_domain=domain, doc_type=MEVZUAT_DOC_TYPES)
         retrieval_mode = "hybrid"
 
+    results, retrieval_mode = await apply_typo_variants(
+        question, domain, results, retrieval_mode,
+    )
+
     results, rerank_query, retrieval_mode = await apply_step_back(
         question, domain, results, retrieval_mode,
     )
@@ -186,6 +191,35 @@ async def _mevzuat_retrieve(question: str, domain: str) -> dict:
         question, domain, results, retrieval_mode, rerank_query=rerank_query,
     )
     return {"mevzuat_refs": laws}
+
+
+async def apply_typo_variants(
+    question: str, domain: str, results: list[SearchResult], retrieval_mode: str,
+) -> tuple[list[SearchResult], str]:
+    """Add a deterministic typo-corrected retrieval branch when needed.
+
+    Multi-query already includes typo variants, so this helper mainly covers
+    hybrid/HyDE/speculative-fallback paths. It is a no-op for clean queries.
+    """
+    if "mq" in retrieval_mode and "failed" not in retrieval_mode and "fallback" not in retrieval_mode:
+        return results, retrieval_mode
+    variants = typo_retrieval_variants(question, max_variants=1)
+    if not variants:
+        return results, retrieval_mode
+    try:
+        typo_results = await fan_out_search(
+            variants,
+            top_k=mevzuat_pool_k(),
+            per_query_k=mevzuat_pool_k(),
+            domain=None,
+            sparse_domain=domain,
+            doc_type=MEVZUAT_DOC_TYPES,
+        )
+        if typo_results:
+            return _merge_dedup(results, typo_results), f"{retrieval_mode}+typo"
+    except _RETRIEVAL_FALLBACK_EXCEPTIONS as exc:
+        log.warning("typo_variant_retrieval_failed", error=str(exc) or type(exc).__name__)
+    return results, retrieval_mode
 
 
 async def apply_step_back(

@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import {
   answerText, turnsToMessages, messagesToTurns,
-  searchConversations, aggregateSources, aggregateFiles,
+  searchConversations, aggregateSources, aggregateFiles, normalizeSearchText,
 } from "./conversationUtils.js";
 
 const turn = (q, ans, sources, conf) => ({
@@ -96,11 +96,27 @@ describe("searchConversations", () => {
   it("cevap metninde arar", () => {
     expect(searchConversations(list, "tüfe").map((c) => c.id)).toEqual(["a"]);
   });
+  it("Türkçe diakritik olmadan arar", () => {
+    expect(searchConversations(list, "tufe").map((c) => c.id)).toEqual(["a"]);
+    expect(searchConversations(list, "kidem").map((c) => c.id)).toEqual(["b"]);
+  });
+  it("küçük yazım hatasını tolere eder", () => {
+    expect(searchConversations(list, "tazmnatı").map((c) => c.id)).toEqual(["b"]);
+  });
   it("eşleşme yoksa []", () => {
     expect(searchConversations(list, "trafik")).toEqual([]);
   });
+  it("sayılarda fuzzy eşleştirme yapmaz", () => {
+    expect(searchConversations(list, "31")).toEqual([]);
+  });
   it("null liste → []", () => {
     expect(searchConversations(null, "x")).toEqual([]);
+  });
+});
+
+describe("normalizeSearchText", () => {
+  it("TR case + diakritik fold uygular", () => {
+    expect(normalizeSearchText("İŞÇİ TÜFE")).toBe("isci tufe");
   });
 });
 
