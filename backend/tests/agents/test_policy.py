@@ -200,3 +200,18 @@ def test_bare_question_words_answer_iter11():
                    ("idari", "bu karara neden itiraz edemiyorum")]:
         assert decide_path({"response_intent": "legal_answer", "domain": dom,
                             "case_facts": {}, "question": q}) == "answer"
+
+
+def test_is_general_question_ability_pattern_typo_robust():
+    """'...alabilir mi(yim)' yetenek sorusu = genel (cevapla); typo/birleşik dayanıklı.
+
+    Prod-bug (2026-06-17): 'kdm tazminatı albilirmiyim' clarify'a düşüyordu — 'alabilir mi'
+    marker'ı birleşik/typo formda eşleşmiyordu. Regex 'bil[ie]r mi' → typo'da bile yakalar.
+    """
+    from agents.policy import _is_general_question
+    assert _is_general_question("kıdem tazminatı alabilir miyim")
+    assert _is_general_question("kdm tazminatı albilirmiyim")       # typo + birleşik
+    assert _is_general_question("işe iade davası açabilir miyim")
+    assert _is_general_question("tazminatımı alabilirmiyim")
+    # Durumsal şikâyet (yetenek sorusu DEĞİL) → genel değil → clarify korunur
+    assert not _is_general_question("ev sahibim depozitomu vermiyor")

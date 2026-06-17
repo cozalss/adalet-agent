@@ -11,10 +11,17 @@ edilebilir, yan etkisiz, graph'tan bağımsız.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from agents.state import AgentState
 from core.text import tr_lower as _tr_lower
+
+# Yetenek/uygunluk sorusu kalıbı: "...-abilir/-ebilir mi(yim)" — BİLGİ sorusudur (cevapla).
+# Birleşik/typo formları da yakalar: "alabilir miyim" / "alabilirmiyim" / "albilirmiyim"
+# (typo'da bile 'bilir' + 'mi' korunur) / "açabilir mi" / "edebilirmiyiz". \w* önce gelir
+# (kelime kökü). 'bilirkişi mi' gibi nadir FP düşük (bil[ie]r ardından 'mi' nadir).
+_ABILITY_QUESTION_RE = re.compile(r"bil[ie]r\s*mi", re.IGNORECASE)
 
 PolicyDecision = Literal["answer", "clarify", "chat", "redirect", "reject_sensitive", "smalltalk"]
 
@@ -92,6 +99,8 @@ _GENERAL_QUESTION_MARKERS: tuple[str, ...] = (
 def _is_general_question(question: str) -> bool:
     """Soru genel/tanımsal bir bilgi sorusu mu? (olgu-eksik olsa da cevaplanır)."""
     low = _tr_lower(question)
+    if _ABILITY_QUESTION_RE.search(low):  # "...alabilir miyim/albilirmiyim" (typo-dayanıklı)
+        return True
     return any(marker in low for marker in _GENERAL_QUESTION_MARKERS)
 
 

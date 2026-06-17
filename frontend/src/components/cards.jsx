@@ -75,18 +75,20 @@ export function RejectCard({ data, onRetry }) {
 }
 
 export function ClarifyCard({ data, onPick }) {
-  // Yumuşak (soft): glass-ağırlık yerine sıcak zemin; numara yerine ok-ipucu → "diktat"
-  // değil sohbet tonu. Selam ASLA buraya/RejectCard'a düşmez (useChat smalltalk dalı önce).
+  // Seçenekler SORU'dur (cevap-chip değil) → tıklanabilir buton DEĞİL (eski hata: soruya
+  // tıklayınca soru-metni kullanıcı mesajı olarak gönderiliyordu). Okunabilir liste; kullanıcı
+  // cevabını aşağıdaki yazı kutusuna yazar. onPick yalnız "Hepsini yanıtla/atla" için (varsa).
   return (
     <div className="card clarify soft" aria-live="polite">
       <p className="cl-q">{data.intro}</p>
-      <div className="cl-opts">
+      <ul className="cl-opts">
         {data.options.map((o, i) => (
-          <button className="cl-opt" key={i} onClick={() => onPick(o)}>
+          <li className="cl-opt" key={i}>
             <span className="cl-arrow" aria-hidden="true">→</span>{o}
-          </button>
+          </li>
         ))}
-      </div>
+      </ul>
+      <p className="cl-hint">Yanıtınızı aşağıya yazabilirsiniz — birkaçını birden yanıtlamanız yeterli.</p>
     </div>
   );
 }

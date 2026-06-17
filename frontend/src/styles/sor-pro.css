@@ -156,16 +156,14 @@ body { font-feature-settings: "ss01", "cv01"; letter-spacing: -0.005em; }
 }
 @keyframes conf-sheen { 50%, 100% { transform: translateX(280%); } }
 
-/* buttons — shine sweep */
-.btn, .cl-opt { position: relative; overflow: hidden; }
-.btn.primary::after, .cl-opt::after {
+/* buttons — shine sweep (clarify soruları artık tıklanabilir DEĞİL → dahil değil) */
+.btn { position: relative; overflow: hidden; }
+.btn.primary::after {
   content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
   background: linear-gradient(105deg, transparent, rgba(255,255,255,.4), transparent);
   transform: skewX(-18deg); transition: left .6s ease;
 }
-.btn.primary:hover::after, .cl-opt:hover::after { left: 160%; }
-.cl-opt { transition: border-color .15s, background .15s, transform .2s var(--ease-spring); }
-.cl-opt:hover { transform: translateX(3px); }
+.btn.primary:hover::after { left: 160%; }
 
 /* risk card — subtle pulse on the icon */
 .risk .r-ic svg { animation: r-tick 2.4s ease-in-out infinite; }

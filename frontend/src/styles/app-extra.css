@@ -777,7 +777,6 @@ a.btn:not(:disabled):active {
   border-color: transparent; box-shadow: none;
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.card.clarify.soft .cl-opt:hover { border-color: var(--accent, #D4A574); }
 .clarify .cl-arrow { color: var(--accent-text, var(--accent, #D4A574)); font-weight: 600; margin-right: 8px; flex: 0 0 auto; }
 
 @media (prefers-reduced-motion: reduce) {
