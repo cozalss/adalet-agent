@@ -39,15 +39,14 @@ cat <<'EOF'
 ✅ KURULUM TAMAM. Sırada (manuel) 2 adım var:
 
 1) KORPUS  ⚠️ ZORUNLU — boş Qdrant'ta her cevap "doğrulayamadım" diye REDDEDİLİR.
-   • HIZLI (önerilen): proje sahibinden Qdrant snapshot dosyasını al, içe aktar:
-       docker cp adalet_mursit_hybrid.snapshot adalet-qdrant:/qdrant/snapshots/
-       curl -X PUT "http://localhost:6333/collections/adalet_mursit_hybrid/snapshots/recover" \
-         -H 'Content-Type: application/json' \
-         -d '{"location":"file:///qdrant/snapshots/adalet_mursit_hybrid.snapshot"}'
-   • YA DA sıfırdan seed et (yavaş, ~saatler, internet + HF gerekir):
+   Sıfırdan seed et — tüm kaynaklar PUBLIC, sadece internet gerekir (snapshot/Drive YOK):
        cd backend
-       uv run python -m scripts.seed_mevzuat
-       uv run python -m scripts.seed_hf_yargitay --shards 0 --cap-per-domain 500
+       uv run python -m scripts.seed_mevzuat                              # kanunlar (mevzuat-mcp public)
+       uv run python -m scripts.seed_hf_yargitay --shards 0 --cap-per-domain 500   # kararlar (HF public dataset)
+   Notlar:
+     • İlk çalışmada embedder modeli (Mursit) HF'den otomatik iner (~1-2GB).
+     • DEMO için yukarısı yeter (~birkaç bin karar, ~20-60dk CPU / GPU'da hızlı).
+     • TAM korpus için: --shards 0,1,2 --cap-per-domain 2000 (saatler sürer).
 
 2) ÇALIŞTIR
    • Backend (mock LLM — GPU GEREKMEZ, denemek için ideal):
