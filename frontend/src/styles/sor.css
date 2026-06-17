@@ -728,6 +728,9 @@ a { color: inherit; }
   font-style: italic;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.source-panel.drawer .drawer-scan {
+  margin: 6px 0 0; font-size: 11.5px; color: var(--text-3, #8a8278);
+}
 
 @media (max-width: 760px) {
   .sidebar { position: fixed; inset: 0 auto 0 0; box-shadow: var(--shadow-lg); }

@@ -162,6 +162,8 @@ export function mapResponse(resp, question) {
     domain,
     domainConfidence: typeof resp.domain_confidence === "number" ? resp.domain_confidence : null,
     sources: mapSources(usedCitations),
+    // Retrieval havuzu boyutu (corpus'tan taranan aday) — şeffaflık: "N tarandı, M kullanıldı".
+    scannedCount: citations.length,
     answer: { confidence: Math.round((resp.confidence || 0) * 100), sections, text: body },
     risk: deriveRisk(question, body),
     // Backend'in cevaba özel disclaimer listesi (çocuk filtresi, süre uyarısı, ...);

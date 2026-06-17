@@ -538,6 +538,15 @@ export default function App({ auth }) {
                 “{(sheetTurn || srcTurn).question}”
               </p>
             )}
+            {/* Şeffaflık: corpus'tan kaç aday tarandı, kaçı cevaba dayanak oldu. */}
+            {(() => {
+              const _st = sheetTurn || srcTurn;
+              const _used = _st?.data?.sources?.length || 0;
+              const _scanned = _st?.data?.scannedCount || 0;
+              return _scanned > _used ? (
+                <p className="drawer-scan">{_scanned} kaynak tarandı · {_used} tanesi bu cevaba dayanak oldu</p>
+              ) : null;
+            })()}
           </div>
           <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kaynaklar panelini kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
         </div>
