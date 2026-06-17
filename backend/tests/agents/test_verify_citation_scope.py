@@ -127,6 +127,53 @@ def test_citation_mismatch_no_cite_ids():
     assert vl.citation_content_mismatch("TBK madde 342 uyarınca.", []) is False
 
 
+# --- citation_numeric_mismatch (paraphrase-drift: doğru madde / yanlış SAYI) ---
+
+def test_word_to_int_turkish_numbers():
+    """Türkçe sayı-kelimeleri (bileşik dahil) doğru çevrilir."""
+    assert vl._word_to_int("oniki") == 12
+    assert vl._word_to_int("on iki") == 12
+    assert vl._word_to_int("on") == 10
+    assert vl._word_to_int("beş") == 5
+    assert vl._word_to_int("otuz") == 30
+    assert vl._word_to_int("yirmi beş") == 25
+    assert vl._word_to_int("7") == 7
+    assert vl._word_to_int("kelime") is None
+
+
+def test_extract_durations():
+    """(sayı, kanonik-birim) çiftleri; sene→yıl normalize."""
+    assert vl._extract_durations("oniki aylık ortalama") == {(12, "ay")}
+    assert vl._extract_durations("bir yıl ve 30 gün") == {(1, "yıl"), (30, "gün")}
+    assert vl._extract_durations("iki sene içinde") == {(2, "yıl")}
+    assert vl._extract_durations("kaynak metni sayısız") == set()
+
+
+def test_numeric_mismatch_on_vs_oniki():
+    """Gözlemlenen prod hatası: claim 'on aylık' (10) ↔ kaynak 'oniki aylık' (12) → flag."""
+    src = ["MADDE 344 - ... tüketici fiyat endeksindeki oniki aylık ortalamalara göre ..."]
+    assert vl.citation_numeric_mismatch("TÜFE on aylık ortalamasına göre artar.", src) is True
+
+
+def test_numeric_mismatch_grounded_ok():
+    """Claim süresi kaynakta birebir geçiyorsa → flag yok."""
+    src = ["... oniki aylık ortalamalara göre ..."]
+    assert vl.citation_numeric_mismatch("TÜFE oniki aylık ortalamaya göre.", src) is False
+    # 7 gün itiraz — kaynakta '7 gün' varsa OK
+    assert vl.citation_numeric_mismatch("7 gün içinde itiraz edilir.", ["itiraz 7 gün içinde yapılır"]) is False
+
+
+def test_numeric_mismatch_unit_absent_no_flag():
+    """Birim kaynakta hiç yoksa (başka yerden gelmiş olabilir) → flag yok (FP önle)."""
+    src = ["kira bedeli sözleşmeyle belirlenir, oran sınırı vardır"]
+    assert vl.citation_numeric_mismatch("5 yıl sonra dava açılır.", src) is False
+
+
+def test_numeric_mismatch_empty_sources():
+    """Kaynak yoksa → flag yok (temellendirme yapılamaz)."""
+    assert vl.citation_numeric_mismatch("on aylık ortalama.", []) is False
+
+
 # --- _ref_madde_no ---
 
 def test_ref_madde_no_from_source_id():

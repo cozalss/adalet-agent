@@ -44,6 +44,7 @@ from agents.state import AgentState, Citation, Claim, DebateVerdict
 from agents.verifier_layers import (
     VerifierUnavailableError,
     citation_content_mismatch,
+    citation_numeric_mismatch,
     layer1_rules,
     layer2_fuzzy,
     layer3_nli_batch,
@@ -73,6 +74,12 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     refs: list[Citation] = list(state.get("mevzuat_refs", [])) + list(
         state.get("emsal_refs", []),
     )
+    # cite_id → kaynak metni (sayısal-uyumsuzluk: claim'i KENDİ cite-hedefiyle karşılaştır).
+    _ref_text_by_id: dict[str, str] = {
+        r.get("source_id", ""): r.get("snippet", "")
+        for r in refs
+        if r.get("source_id") and r.get("snippet")
+    }
 
     # §4.2 ablation kaldıracı: VERIFY_ENABLED=0 → doğrulama katmanını TAMAMEN
     # bypass et (ham RAG-LLM gibi davran: tüm iddialar sorgusuz "supported",
@@ -170,6 +177,20 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
         # TR-NLI bunu kaçırır; madde-no çelişkisi sembolik ve FP≈0 (ölçüldü 2026-06-12).
         if citation_content_mismatch(claim.get("text", ""), claim.get("cite_ids", []) or []):
             verified.append(_mark(claim, False, 0.0, "Citation-içerik tutarsızlığı (madde-no çelişkisi)"))
+            contradictions += 1
+            continue
+
+        # Citation SAYISAL tutarsızlık (paraphrase-drift): claim, cite-hedef kaynağının
+        # süresini yanlış aktarır ('on aylık' ↔ kaynak 'oniki aylık'). NLI/fuzzy kaçırır.
+        # cite_ids varsa O kaynağa karşı (kesin); yoksa (BLUF/özet cümlesi cite taşımaz)
+        # TÜM getirilen kaynak havuzuna karşı — birim-eşleşme guard'ı FP'yi düşük tutar
+        # (yalnız aynı birim havuzda FARKLI sayıyla varsa flag). 'on aylık' BLUF'ta cite'sızdı.
+        _cited_texts = [
+            _ref_text_by_id[c] for c in (claim.get("cite_ids") or []) if c in _ref_text_by_id
+        ]
+        _num_texts = _cited_texts if _cited_texts else list(_ref_text_by_id.values())
+        if citation_numeric_mismatch(claim.get("text", ""), _num_texts):
+            verified.append(_mark(claim, False, 0.0, "Citation sayısal tutarsızlık (kaynakta farklı süre)"))
             contradictions += 1
             continue
 

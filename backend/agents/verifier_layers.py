@@ -136,6 +136,83 @@ def citation_content_mismatch(claim_text: str, cite_ids: list[str]) -> bool:
     return stated.isdisjoint(cited)
 
 
+# --- Citation SAYISAL (süre) tutarsızlığı — paraphrase-drift yakalama ---
+# "Doğru madde / yanlış SAYI" sınıfı: claim KENDİ cite ettiği kaynağın süresini yanlış
+# aktarır — gözlemlenen prod hatası (2026-06-17): kaynak "oniki aylık (12) TÜFE ortalaması"
+# iken model "on aylık (10)" yazdı, [src: m-TBK-344] etiketli → NLI/fuzzy kaçırdı (yüksek
+# leksik örtüşme, 'on'⊂'oniki'). DETERMİNİSTİK: claim süresi cite-hedef kaynağında YOK ama
+# AYNI birim kaynakta FARKLI sayıyla geçiyorsa → misgrounded (claim kaynağıyla çelişir).
+_NUM_ONES = {"bir": 1, "iki": 2, "üç": 3, "dört": 4, "beş": 5,
+             "altı": 6, "yedi": 7, "sekiz": 8, "dokuz": 9}
+_NUM_TENS = {"on": 10, "yirmi": 20, "otuz": 30, "kırk": 40, "elli": 50,
+             "altmış": 60, "yetmiş": 70, "seksen": 80, "doksan": 90}
+_DUR_UNIT_CANON = {"yıl": "yıl", "sene": "yıl", "ay": "ay", "hafta": "hafta", "gün": "gün"}
+# Sayı-ifadesi: rakam | [onlar][birler] bileşik ('on iki'/'oniki') | yalın birler/onlar.
+_DUR_NUM = (
+    r"\d+"
+    r"|(?:on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan)\s*"
+    r"(?:bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz)"
+    r"|on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan"
+    r"|bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz"
+)
+_DURATION_RE = re.compile(
+    rf"\b({_DUR_NUM})\s*(yıl|sene|ay|hafta|gün)", re.IGNORECASE,
+)
+
+
+def _word_to_int(phrase: str) -> int | None:
+    """Türkçe sayı-kelimesini (veya rakamı) tam sayıya çevir. 'oniki'/'on iki'→12, 'beş'→5."""
+    w = phrase.strip().lower().replace(" ", "")
+    if w.isdigit():
+        return int(w)
+    if w in _NUM_ONES:
+        return _NUM_ONES[w]
+    if w in _NUM_TENS:
+        return _NUM_TENS[w]
+    for tw, tv in _NUM_TENS.items():
+        if w.startswith(tw):
+            rest = w[len(tw):]
+            if rest in _NUM_ONES:
+                return tv + _NUM_ONES[rest]
+    return None
+
+
+def _extract_durations(text: str) -> set[tuple[int, str]]:
+    """Metindeki (sayı, kanonik-birim) süre çiftleri. 'oniki ay'→(12,'ay'), '1 yıl'→(1,'yıl')."""
+    out: set[tuple[int, str]] = set()
+    for m in _DURATION_RE.finditer(text):
+        n = _word_to_int(m.group(1))
+        if n is not None:
+            out.add((n, _DUR_UNIT_CANON.get(m.group(2).lower(), m.group(2).lower())))
+    return out
+
+
+def citation_numeric_mismatch(claim_text: str, cited_texts: list[str]) -> bool:
+    """Claim'in süresi, cite ettiği kaynaktaki AYNI birim ile FARKLI ise True (misgrounded).
+
+    Yüksek-kesinlik, FP-min: yalnız claim'in (sayı,birim)'i cite-hedef kaynağında YOK iken
+    AYNI birim kaynakta BAŞKA sayıyla geçiyorsa işaretler ('on ay' claim + kaynak 'oniki ay'
+    → 10≠12, '10 ay' kaynakta yok → flag). Claim süresi kaynakta birebir varsa, ya da o birim
+    kaynakta hiç yoksa (başka yerden gelmiş olabilir) → False (vetolamaz, FP önle).
+    cited_texts boşsa False (temellendirme yapılamaz → scope/diğer katmanlar ele alır).
+    """
+    if not cited_texts:
+        return False
+    claim_durs = _extract_durations(claim_text)
+    if not claim_durs:
+        return False
+    src_durs: set[tuple[int, str]] = set()
+    for t in cited_texts:
+        src_durs |= _extract_durations(t)
+    src_units = {u for _, u in src_durs}
+    for n, u in claim_durs:
+        if (n, u) in src_durs:
+            continue  # kaynakta birebir var → grounded
+        if u in src_units:
+            return True  # birim kaynakta var ama bu sayı yok → kaynakla çelişen sayı
+    return False
+
+
 def _scope_refs_to_claim_madde(
     claim_text: str, refs: list[Citation],
 ) -> tuple[list[Citation], bool]:
