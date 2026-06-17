@@ -653,3 +653,32 @@ def test_promote_bluf_noop_single_sentence_prose():
     from agents.nodes.finalize import _promote_first_verified_as_bluf
     body = "Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11]."
     assert _promote_first_verified_as_bluf(body) == body
+
+
+# --- "2." parça-BLUF kusuru (2026-06-17): 1/7-grounded run'da promote liste-no üretiyordu ---
+
+def test_promote_skips_list_number_fragment():
+    """BLUF düştü + ilk [src:] içerik bir liste-no parçası ('2. [src:]') → promote onu ATLAR,
+    gerçek anlamlı cümleyi 'Kısa cevap' yapar; 'Kısa cevap: 2.' parçası ASLA üretilmez."""
+    from agents.nodes.finalize import _first_content_sentence, _promote_first_verified_as_bluf
+    body = (
+        "**Ne yapmalı:**\n"
+        "2. [src: m-KAMK-26]\n"
+        "Mal sahibinin kabulü halinde kamulaştırma bedeli yerine taşınmaz verilebilir [src: m-KAMK-26]."
+    )
+    fc = _first_content_sentence(body)
+    assert fc is not None and "Mal sahibinin" in fc       # parça değil, gerçek cümle
+    out = _promote_first_verified_as_bluf(body)
+    assert "**Kısa cevap:** 2." not in out                # parça-BLUF YOK
+    assert "Mal sahibinin" in out
+
+
+def test_promote_strips_leading_list_marker_from_bluf():
+    """Promote edilen cümle baştaki liste-no'yu ('1. ') taşısa bile BLUF temiz olur."""
+    from agents.nodes.finalize import _promote_first_verified_as_bluf
+    body = (
+        "**Dayanak:**\n"
+        "1. Kamulaştırma bedeline itiraz tebliğden itibaren süresinde yapılır [src: m-KAMK-30]."
+    )
+    out = _promote_first_verified_as_bluf(body)
+    assert "**Kısa cevap:** Kamulaştırma bedeline" in out  # '1. ' sökülmüş

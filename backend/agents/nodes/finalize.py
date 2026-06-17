@@ -81,7 +81,15 @@ def _first_content_sentence(text: str) -> str | None:
         if re.search(r"\d\.$", buf) and len(buf) < 240:
             continue  # sıra/madde-no fragmanı → bölüm İÇİNDE birleştir
         if "[src:" in buf:
-            return buf            # yalnız kaynağa-bağlı cümle promote edilir
+            # [src:] DIŞINDA ≥3 anlamlı kelime ŞART (baştaki liste-no/'2.' sökülerek bakılır).
+            # Aksi halde 1/7-grounded run'larda promote 'Kısa cevap: 2.' gibi PARÇA üretiyordu
+            # (prod-bug 2026-06-17). Parça → promote etme, sonraki [src:]'li cümleye geç.
+            # VERBATIM döndürülür (promote body'den replace ile çıkarır); marker promote'ta sökülür.
+            real = re.sub(r"\[src:[^\]]*\]", "", re.sub(r"^\s*\d+[.)]\s*", "", buf))
+            if not [w for w in real.split() if len(w) > 2]:
+                buf = ""          # [src:]/liste-no dışında anlamlı kelime YOK → parça, atla
+                continue
+            return buf            # yalnız kaynağa-bağlı, anlamlı cümle promote edilir
         buf = ""                  # [src:]'siz tam cümle (framing/çıkarım) → promote ETME, atla
     return None
 
@@ -111,9 +119,11 @@ def _promote_first_verified_as_bluf(text: str) -> str:
     remainder = body.replace(first_sentence, "", 1)
     remainder = _LEADING_ORPHAN_HEADER_RE.sub("", remainder, count=1)
     remainder = re.sub(r"[ \t]{2,}", " ", re.sub(r"\n{3,}", "\n\n", remainder)).strip()
+    # BLUF metninde baştaki liste-no'yu ('2. ') sök → 'Kısa cevap: 2. …' değil temiz cümle.
+    bluf = re.sub(r"^\s*\d+[.)]\s*", "", first_sentence).strip()
     if remainder:
-        return f"**Kısa cevap:** {first_sentence}\n\n{remainder}"
-    return f"**Kısa cevap:** {first_sentence}"
+        return f"**Kısa cevap:** {bluf}\n\n{remainder}"
+    return f"**Kısa cevap:** {bluf}"
 
 
 @observe_node(name="finalize")
