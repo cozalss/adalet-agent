@@ -48,8 +48,10 @@ CHUNK_CHARS = 800
 OVERLAP     = 100
 
 DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    # Genişletme (2026-06-17, yol-1 net-yeni harvest): daire + keyword + tarih-penceresi
+    # genişletildi (gerçek vergi/idari hukuk konuları — benchmark-fitting değil).
     "vergi": (
-        ("7. Daire", "9. Daire", "Vergi Dava Daireleri Kurulu"),
+        ("3. Daire", "4. Daire", "7. Daire", "9. Daire", "Vergi Dava Daireleri Kurulu"),
         (
             "katma değer vergisi",
             "gelir vergisi kesintisi",
@@ -59,10 +61,22 @@ DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
             "özel usulsüzlük",
             "kurumlar vergisi",
             "vergi incelemesi",
+            # genişletme
+            "damga vergisi",
+            "motorlu taşıtlar vergisi",
+            "emlak vergisi",
+            "tarh zamanaşımı",
+            "tecil ve terkin",
+            "katma değer vergisi iadesi",
+            "ödeme emri iptali",
+            "ihtirazi kayıt",
+            "uzlaşma",
+            "transfer fiyatlandırması",
         ),
     ),
     "idari": (
-        ("5. Daire", "10. Daire", "İdari Dava Daireleri Kurulu"),
+        ("2. Daire", "5. Daire", "6. Daire", "8. Daire", "10. Daire",
+         "12. Daire", "İdari Dava Daireleri Kurulu"),
         (
             "iptal davası",
             "idari işlem iptali",
@@ -70,6 +84,19 @@ DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
             "memuriyet ihraç",
             "devlet memuru",
             "görevden uzaklaştırma",
+            # genişletme
+            "tam yargı davası",
+            "kamulaştırma",
+            "imar planı iptali",
+            "ruhsat iptali",
+            "naklen atama",
+            "göreve iade",
+            "soruşturma izni",
+            "idari para cezası",
+            "kamu ihalesi",
+            "yıkım kararı",
+            "emeklilik işlemi",
+            "akademik kadro",
         ),
     ),
 }
@@ -77,6 +104,9 @@ DOMAIN_CONFIG: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 DATE_WINDOWS = (
     ("01.01.2024", "31.12.2026"),
     ("01.01.2022", "31.12.2023"),
+    # genişletme: daha eski pencereler (net-yeni karar havuzu)
+    ("01.01.2019", "31.12.2021"),
+    ("01.01.2016", "31.12.2018"),
 )
 
 
@@ -188,7 +218,9 @@ async def main(args: argparse.Namespace) -> None:
 
                         text = await _fetch_doc(client, doc_id, keyword=kw)
                         await asyncio.sleep(0.3)
-                        if len(text) < 100:
+                        # Stub-kapısı: <300 char = gerekçesiz disposition (RAG-değersiz);
+                        # corpus-temizliği dersi (toplam<300 = çöp sınıfı) seed'de uygulanır.
+                        if len(text) < 300:
                             continue
 
                         chunks = _chunk_text(text)
