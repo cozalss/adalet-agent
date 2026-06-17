@@ -86,6 +86,10 @@ export RERANK_PROVIDER=bgem3 COLBERT_RERANK_DEVICE=cpu COLBERT_RERANK_WEIGHTS=0.
 # bile GEÇTİ), HIZLI (stored, ekstra forward yok). recall@5 grounding-baskın metrik.
 export COLBERT_FUSE_HYBRID=1 COLBERT_FUSE_WEIGHT=0.6
 export PREDICTIVE_ENABLED=1 PREDICTIVE_USE_MODEL=1 PREDICTIVE_DEVICE=cpu
+# NLI CPU'da (tek-GPU: llama-cpp Qwen GPU'yu tutarken NLI torch CUDA-context'i çatışıyor
+# → "CUDA error: invalid argument" → nli_unavailable → verify gerekçeleyemez → reject.
+# CPU'da ~100ms/çift güvenilir; predictive gibi GPU yemez.
+export NLI_DEVICE=cpu
 # Verify sertleştirme — E2E ölçülmüş-güvenli (2026-06-04, over-reject yok): yüksek-riskli
 # uygunluk iddialarında + cited iddialarda POZİTİF NLI grounding şart (çıkarım/misgrounded
 # halüsinasyon kapısı). Yalnız NLI yüklüyken anlamlı; bu demo NLI yüklü.

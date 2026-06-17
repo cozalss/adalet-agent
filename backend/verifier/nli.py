@@ -74,7 +74,15 @@ class NLIVerifier:
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # NLI_DEVICE env override (default: cuda varsa GPU). Tek-GPU demo'da llama-cpp
+        # (Qwen) GPU'yu tutarken NLI'ın torch lazy-load'u aynı process'te CUDA-context
+        # çatışması ("CUDA error: invalid argument") yapabiliyor → NLI_DEVICE=cpu ile
+        # NLI CPU'ya alınır (küçük model, ~100ms/çift; verify güvenilir kalır, GPU çatışması biter).
+        _forced = os.environ.get("NLI_DEVICE", "").strip().lower()
+        if _forced in {"cpu", "cuda"}:
+            device = _forced if (_forced == "cpu" or torch.cuda.is_available()) else "cpu"
+        else:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.float16 if (self.use_fp16 and device == "cuda") else torch.float32
 
         adapter_cfg = os.path.join(self.model_name, "adapter_config.json")
