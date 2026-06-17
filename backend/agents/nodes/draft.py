@@ -476,7 +476,13 @@ def _format_history_for_prompt(history: list[Any]) -> str:
 
 
 _PROMPT_REF_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
-    (("kira art", "yüzde", "tüfe", "tüketici fiyat"), ("m-TBK-344",)),
+    # Kira artış/zam/fahiş/yasal-sınır sorgularının ASIL maddesi TBK 344 (TÜFE 12-ay tavanı).
+    # Markerlar vatandaş-diline genişletildi: "kira zammı / yasal sınır / fahiş" de m.344'ü
+    # prompt'ta öne çeker (önce yalnız "kira art/yüzde/tüfe" eşleşiyordu → "zammı/sınır"
+    # sorgusunda model m.343/345'e kayıp ASIL sınırı atlıyordu — ölçülen prod hatası).
+    (("kira art", "kira zam", "zammı", "zam istiyor", "zam talep", "yüzde", "tüfe",
+      "tüketici fiyat", "yasal sınır", "fahiş", "artış oran", "kira oran", "artış sınır"),
+     ("m-TBK-344",)),
     (("depozito", "güvence bedeli", "kira teminatı"), ("m-TBK-342", "m-TBK-372")),
     (("seçimlik", "iade", "değişim", "bedel indir"), ("m-TKHK-11", "m-TKHK-8")),
     (("ayıpl", "arız", "bozuk", "teslim", "10 gün"), ("m-TKHK-11", "m-TKHK-8", "m-TKHK-10")),

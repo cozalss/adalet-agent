@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import structlog
 
+from agents.policy import _is_general_question
 from agents.state import AgentState
 from core.observability import observe_node
 from predictive import predict_outcome
@@ -32,6 +33,14 @@ async def tahmin_node(state: AgentState) -> dict[str, object]:
     refs = state.get("emsal_refs", []) or []
     if not refs:
         # Emsal yok → tahmin yapılamaz (uydurma yok). Display'de gösterilmez.
+        return {"prediction": None}
+
+    # Dava-sonucu tahmini YALNIZ somut uyuşmazlık-senaryosunda anlamlı. Bilgi/usul/
+    # tanım soruları ("kira yasal sınırı nedir?", "nasıl itiraz ederim?") dava DEĞİL —
+    # bunlarda "geçmiş davalar %X aleyhe" göstermek yanıltıcı (jüri-riski). _is_general_question
+    # bu soruları yakalar → tahmin gizlenir (prediction=None → frontend kartı render etmez).
+    if _is_general_question(state.get("question", "")):
+        log.info("tahmin_skip", reason="general_question")
         return {"prediction": None}
 
     top = refs[:_TOP_K_CASES]

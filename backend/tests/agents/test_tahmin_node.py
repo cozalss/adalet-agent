@@ -27,8 +27,9 @@ async def test_tahmin_node_no_emsal_returns_none():
 
 @pytest.mark.asyncio
 async def test_tahmin_node_predicts_from_emsal():
+    # Durumsal şikâyet (genel/bilgi soru-kalıbı İÇERMEZ) → tahmin gösterilir.
     state = {
-        "question": "Kıdem tazminatı alabilir miyim?",
+        "question": "İşten haksız yere çıkarıldım ve tazminatım ödenmedi.",
         "emsal_refs": [
             _case("c1", "davanın kabulüne karar verildi"),
             _case("c2", "talebin kabulüne karar verildi"),
@@ -41,6 +42,26 @@ async def test_tahmin_node_predicts_from_emsal():
     assert pred["verdict_class"] == "kazandi"
     assert pred["similar_case_ids"] == ["c1", "c2", "c3"]
     assert 0.0 < pred["confidence"] <= 0.85
+
+
+@pytest.mark.asyncio
+async def test_tahmin_node_general_question_suppressed():
+    """Bilgi/usul/tanım sorusunda (emsal olsa bile) tahmin GİZLENİR — dava değil.
+
+    'yasal sınır nedir?' / 'nasıl itiraz ederim?' tipi sorularda 'geçmiş davalar
+    %X aleyhe' göstermek yanıltıcı (jüri-riski). prediction=None → kart render olmaz.
+    """
+    refs = [
+        _case("c1", "davanın kabulüne karar verildi"),
+        _case("c2", "talebin kabulüne karar verildi"),
+    ]
+    for q in (
+        "Ev sahibim fahiş kira zammı istiyor, yasal sınır nedir?",
+        "Hakkımda icra takibi başlatıldı, nasıl itiraz ederim?",
+        "Kıdem tazminatı nasıl hesaplanır?",
+    ):
+        out = await tahmin_node({"question": q, "emsal_refs": refs})
+        assert out == {"prediction": None}, f"genel soru tahmin üretmemeli: {q}"
 
 
 @pytest.mark.asyncio

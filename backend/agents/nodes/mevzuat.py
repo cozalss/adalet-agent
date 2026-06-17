@@ -31,6 +31,7 @@ from agents.config import (
 )
 from agents.state import AgentState, Citation
 from core.observability import observe_node
+from core.text import tr_lower
 from retrieval.adaptive_router import route_query
 from retrieval.hybrid_search import (
     SearchResult,
@@ -335,7 +336,7 @@ async def rank_law_candidates(
         law_cands, n_primary = _domain_priority_rerank(law_cands, domain)
 
     # 5.4-5.5 Garanti seti: (tavanlı) çapalar + 1 yönetmelik slotu — detay helper'da.
-    anchor_ids = _final_guaranteed_ids(law_cands, anchor_ids)
+    anchor_ids = _final_guaranteed_ids(law_cands, anchor_ids, question=question, domain=domain)
 
     # 6. Final top-K: çapa maddeleri GARANTİ et, kalanı sıralı doldur.
     final_cands = _ensure_core_in_topk(law_cands, anchor_ids, TOP_K_LAW)
@@ -364,7 +365,33 @@ def _anchor_slot_cap() -> int:
         return 5
 
 
-def _final_guaranteed_ids(law_cands: list, anchor_ids: set[str]) -> set[str]:
+# Sorgu-spesifik çapa koruması: sorgu BELİRLİ bir maddeyi işaret ediyorsa o çapa,
+# anchor-cap kesiminde elenmemeli. draft._PROMPT_REF_HINTS'in retrieval-eşi — ama orası
+# yalnız madde refs'e ULAŞTIYSA çalışır; bu kapı maddeyi refs'e ULAŞTIRIR.
+# Örn: kira "fahiş zam / yasal sınır / TÜFE" → TBK 344 (artış tavanı). m.344 cross-encoder'da
+# "yenilenen kira dönemi" başlığıyla vatandaş-diline zayıf eşleşir → cap=5'te 6-7. sıraya düşüp
+# eleniyordu → cevap m.343/345 ile dolup ASIL sınırı (m.344) atlıyordu (ölçülen prod hatası).
+_QUERY_PRIORITY_ANCHORS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("kira",
+     ("zam", "artış", "artis", "yüzde", "yuzde", "tüfe", "tufe", "fahiş", "fahis",
+      "yasal sınır", "yasal sinir", "oran", "üfe", "ufe"),
+     "m-TBK-344"),
+)
+
+
+def _query_priority_anchor_ids(question: str, domain: str) -> set[str]:
+    """Sorgunun spesifik olarak işaret ettiği çapa chunk_id'leri (cap'ten muaf)."""
+    low = tr_lower(question or "")
+    out: set[str] = set()
+    for dom, markers, chunk_id in _QUERY_PRIORITY_ANCHORS:
+        if domain == dom and any(m in low for m in markers):
+            out.add(chunk_id)
+    return out
+
+
+def _final_guaranteed_ids(
+    law_cands: list, anchor_ids: set[str], question: str = "", domain: str = "",
+) -> set[str]:
     """Final top-K'da garanti edilecek chunk_id seti.
 
     (a) Çapa-tavanı (2026-06-10 icra teşhisi): icra'da 6 çapa top-8'in 6 slotunu HER
@@ -372,6 +399,8 @@ def _final_guaranteed_ids(law_cands: list, anchor_ids: set[str]) -> set[str]:
     giremiyordu. Tavan: tier-sort sonrası EN İYİ sıradaki N çapa garantili kalır,
     gerisi normal aday gibi yarışır (havuzdan düşmez, yalnız garanti kaybeder).
     Default 0 = sınırsız; MEVZUAT_ANCHOR_SLOT_CAP ile aç.
+    (a2) Sorgu-spesifik istisna: sorgu belirli bir çapayı işaret ediyorsa (kira artış
+    → TBK 344) o çapa cap dışında kalsa bile garantilenir → ASIL madde cevaba girer.
     (b) Yönetmelik slot-garantisi (P4): tier-0 birincil kanun top-K'yı tek başına
     doldurur → en iyi sıradaki yönetmelik adayı 1 slot garanti alır (yonetmelik-bench
     kanun@8 %46→%100, v2 law-gold nötr ölçüldü).
@@ -379,7 +408,12 @@ def _final_guaranteed_ids(law_cands: list, anchor_ids: set[str]) -> set[str]:
     cap = _anchor_slot_cap()
     if cap > 0 and len(anchor_ids) > cap:
         ranked_anchor_ids = [r.chunk_id for r in law_cands if r.chunk_id in anchor_ids]
-        anchor_ids = set(ranked_anchor_ids[:cap])
+        kept = set(ranked_anchor_ids[:cap])
+        # Sorgu-spesifik çapa cap dışında kalmasın (havuzda varsa geri-garantile).
+        for pid in _query_priority_anchor_ids(question, domain):
+            if pid in anchor_ids:
+                kept.add(pid)
+        anchor_ids = kept
     best_reg = next(
         (r for r in law_cands if r.metadata.get("doc_type") == "regulation"), None,
     )

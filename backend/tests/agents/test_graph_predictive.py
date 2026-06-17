@@ -32,7 +32,12 @@ def _force_happy_path(monkeypatch):
     from agents import graph as graph_mod
 
     async def fake_triaj(_s):
-        return {"domain": "isHukuku", "domain_confidence": 0.9, "triage_reasoning": "test"}
+        # case_facts yeterli (olay + 1) → policy answer'a gider (clarify değil); böylece
+        # test soru-kalıbından bağımsız tahmin wiring'ine odaklanır.
+        return {
+            "domain": "isHukuku", "domain_confidence": 0.9, "triage_reasoning": "test",
+            "case_facts": {"olay": "işten çıkarma", "tarih": "2025"},
+        }
 
     async def fake_mevzuat(_s):
         return {"mevzuat_refs": [_law("m1")]}
@@ -71,10 +76,12 @@ async def test_graph_produces_prediction_when_enabled(monkeypatch, _force_happy_
     from agents.graph import build_graph, make_initial_state
 
     graph = build_graph()
-    result = await graph.ainvoke(make_initial_state("Kıdem tazminatı alabilir miyim?"))
+    # Durumsal şikâyet (genel/bilgi soru-kalıbı içermez) → tahmin gate'i geçer.
+    # NOT: "...alabilir miyim?" gibi bilgi soruları artık tahmini bastırır (jüri-riski fix).
+    result = await graph.ainvoke(make_initial_state("İşten haksız çıkarıldım ve tazminatım ödenmedi."))
 
     pred = result.get("prediction")
-    assert pred is not None, "PREDICTIVE_ENABLED=1 iken prediction üretilmeli"
+    assert pred is not None, "PREDICTIVE_ENABLED=1 + durumsal şikâyet iken prediction üretilmeli"
     # 2 kabul + 1 ret → çoğunluk kazandi
     assert pred["verdict_class"] == "kazandi"
     assert 0.0 < pred["confidence"] <= 0.85

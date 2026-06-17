@@ -490,3 +490,35 @@ async def test_anchor_madde_guaranteed_in_output(monkeypatch):
     out = await mevzuat_mod.mevzuat_node({"question": "işten atıldım", "domain": "isHukuku"})
     ids = [r["source_id"] for r in out["mevzuat_refs"]]
     assert "m-IK-17" in ids  # çapa GARANTİ final'da
+
+
+# --- Sorgu-spesifik çapa koruması (kira TBK 344) ---
+
+def test_query_priority_anchor_kira_artis():
+    """Kira artış/sınır/TÜFE sorgusu → TBK 344 öncelikli çapa."""
+    f = mevzuat_mod._query_priority_anchor_ids
+    assert f("Ev sahibim fahiş kira zammı istiyor, yasal sınır nedir?", "kira") == {"m-TBK-344"}
+    assert f("kira artışı TÜFE üstünde olabilir mi?", "kira") == {"m-TBK-344"}
+    # Alakasız kira sorgusu → öncelik yok
+    assert f("depozitomu geri alamıyorum", "kira") == set()
+    # Yanlış domain → tetiklenmez (zam kelimesi olsa da)
+    assert f("zam", "isHukuku") == set()
+
+
+def test_final_guaranteed_keeps_priority_anchor_past_cap(monkeypatch):
+    """7 çapa + cap=5: TBK 344 en düşük sırada olsa bile sorgu eşleşince garantilenir."""
+    monkeypatch.setenv("MEVZUAT_ANCHOR_SLOT_CAP", "5")
+    # law_cands sırası = tier-sort sonrası alaka (m-TBK-344 EN SONDA → normalde cap'ten düşer)
+    anchor_ids = {f"m-TBK-{n}" for n in (299, 315, 342, 347, 350, 372, 344)}
+    order = ["m-TBK-299", "m-TBK-315", "m-TBK-342", "m-TBK-347", "m-TBK-350", "m-TBK-372", "m-TBK-344"]
+    law_cands = [_sr(cid, 1.0 - i * 0.1, kanun_kodu="TBK") for i, cid in enumerate(order)]
+
+    # Sorgu eşleşmezse → m-TBK-344 cap dışı (ilk 5 garantili)
+    kept_no_q = mevzuat_mod._final_guaranteed_ids(law_cands, set(anchor_ids), question="depozito", domain="kira")
+    assert "m-TBK-344" not in kept_no_q
+
+    # Sorgu "yasal sınır/zam" eşleşince → m-TBK-344 cap'i aşıp garantilenir
+    kept_q = mevzuat_mod._final_guaranteed_ids(
+        law_cands, set(anchor_ids), question="fahiş kira zammı yasal sınır nedir", domain="kira",
+    )
+    assert "m-TBK-344" in kept_q
