@@ -161,6 +161,8 @@ export default function App({ auth }) {
   const turns = PREVIEW ? [DEMO_TURN] : chatTurns;
   const [input, setInput] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Yan kaynak-panelinde gösterilecek turn (per-cevap). null → en son cevap (srcTurn).
+  const [sheetTurn, setSheetTurn] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 760);
   const [flash, setFlash] = useState(null);
   const [attachments, setAttachments] = useState([]);
@@ -423,7 +425,7 @@ export default function App({ auth }) {
           )}
           <div className="spacer"></div>
           {showSrcPill && (
-            <button className="src-pill" onClick={() => setSheetOpen(true)}>
+            <button className="src-pill" onClick={() => { setSheetTurn(null); setSheetOpen(true); }}>
               <Icon.book />Kaynaklar <span className="badge kanun">{srcCount}</span>
             </button>
           )}
@@ -494,6 +496,7 @@ export default function App({ auth }) {
                         onClarifyPick={pickClarify}
                         onToast={showToast}
                         onDownloadDilekce={onDownloadDilekce}
+                        onOpenSources={(t) => { setSheetTurn(t); setSheetOpen(true); }}
                       />
                     ))}
                   </div>
@@ -531,7 +534,7 @@ export default function App({ auth }) {
           <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kaynaklar panelini kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
         </div>
         <div className="source-inner" style={{ paddingTop: 6 }}>
-          <SourcePanelBody turn={srcTurn} flash={flash} registerRef={(n, el) => { srcRefs.current[n] = el; }} />
+          <SourcePanelBody turn={sheetTurn || srcTurn} flash={flash} registerRef={(n, el) => { srcRefs.current[n] = el; }} />
         </div>
       </aside>
 
@@ -600,7 +603,7 @@ export function AttachRow({ attachments, onClear }) {
 }
 
 /* ---------- one conversation turn ---------- */
-export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce }) {
+export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce, onOpenSources }) {
   const d = turn.data;
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
@@ -646,7 +649,10 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
           {p === "final" && d.answer && (
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
-              <EvidenceStats confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims} />
+              <EvidenceStats
+                confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims}
+                onOpenSources={onOpenSources ? () => onOpenSources(turn) : undefined}
+              />
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
                 retryCount={d.retryCount} sourceCount={(d.sources ?? []).length}

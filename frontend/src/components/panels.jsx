@@ -33,7 +33,7 @@ function useCountUp(value) {
 }
 
 /* ---------- Kanıt özeti — daisyUI stat deseni (Güven · Kaynak · İddia) ---------- */
-export function EvidenceStats({ confidence, sourceCount, claims }) {
+export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }) {
   const conf = useCountUp(confidence);
   const list = claims || [];
   const verified = list.filter((c) => c.verified).length;
@@ -53,10 +53,25 @@ export function EvidenceStats({ confidence, sourceCount, claims }) {
         <div className="ev-bar" aria-hidden="true"><span style={{ width: confidence + "%" }}></span></div>
       </div>
       <div className="ev-divider" aria-hidden="true"></div>
-      <div className="ev-stat">
-        <div className="ev-val">{sourceCount}</div>
-        <div className="ev-label">Kaynak</div>
-      </div>
+      {/* Kaynak stat'ı tıklanabilir: bu CEVABIN kaynakları yan panelde açılır (per-cevap;
+          sohbet akışı kaynak listeleriyle dolmaz, karışmaz). onOpenSources yoksa düz stat. */}
+      {onOpenSources && sourceCount > 0 ? (
+        <button
+          type="button"
+          className="ev-stat ev-stat-btn"
+          onClick={onOpenSources}
+          title="Bu cevabın kaynaklarını yan panelde aç"
+          aria-label={`${sourceCount} kaynak — yan panelde göster`}
+        >
+          <div className="ev-val">{sourceCount}</div>
+          <div className="ev-label">Kaynak <span className="ev-open" aria-hidden="true">›</span></div>
+        </button>
+      ) : (
+        <div className="ev-stat">
+          <div className="ev-val">{sourceCount}</div>
+          <div className="ev-label">Kaynak</div>
+        </div>
+      )}
       {total > 0 && (
         <>
           <div className="ev-divider" aria-hidden="true"></div>
