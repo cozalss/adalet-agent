@@ -384,8 +384,6 @@ export default function App({ auth }) {
   const domain = last ? last.data.domain : null;
   const domainConf = last ? last.data.domainConfidence : null;
   const domainLow = domainConf != null && domainConf < 0.5;
-  const srcCount = srcTurn ? (srcTurn.data.sources?.length || srcTurn.data.sourceCount || 0) : 0;
-  const showSrcPill = srcTurn && ["sources", "drafting", "verifying", "final"].includes(srcTurn.phase) && srcCount > 0;
 
   return (
     <div className="sor-app">
@@ -430,11 +428,7 @@ export default function App({ auth }) {
             </span>
           )}
           <div className="spacer"></div>
-          {showSrcPill && (
-            <button className="src-pill" onClick={() => { setSheetTurn(null); setSheetOpen(true); }}>
-              <Icon.book />Kaynaklar <span className="badge kanun">{srcCount}</span>
-            </button>
-          )}
+          {/* Global "Kaynaklar" pill kaldırıldı — her cevabın kendi "Kaynak ›" butonu var. */}
         </header>
 
         <div className="panels">
