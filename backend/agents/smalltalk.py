@@ -93,6 +93,10 @@ _LEGAL_HINT_TOKENS: tuple[str, ...] = (
     "ihtar", "dilekçe", "mahkeme", "avukat", "depozito", "fatura", "iade",
     "garanti", "şikayet", "şikâyet", "boşan", "nafaka", "miras", "ceza",
     "haciz", "temyiz", "itiraz", "fesih", "noter", "senet", "kefil",
+    # Tüketici vatandaş-dili (ayıplı mal): ürün/satın-alma/arıza ipuçları → hard
+    # kapsam-dışı red yerine yönlendirme + DistilBERT'e şans (2026-06-17 prod-bug fix).
+    "ayıplı", "ayıp", "satıcı", "aldım", "almıştım", "satın", "telefon", "cihaz",
+    "bozuldu", "bozuk", "arızal", "defolu", "çalışmıyor", "abonelik", "sipariş",
 )
 
 # Türkçe noktalı/noktasız I sorununu çöz (str.lower "İ"→"i̇" combining dot üretir).

@@ -77,6 +77,12 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
         "cayma hakkı", "abonelik", "taksitli satış", "haksız şart",
         "tüketici kredisi", "erken ödeme", "hakem heyeti", "ürün",
         "hizmet", "arızalı", "ayıplı hizmet",
+        # Yaygın tüketici ürünleri (vatandaş-dili): typo'lu/kısa şikâyette ('telefonum
+        # bzuldu dün almıştım') ürün-ismi domain ÇAPASIdır — fiil typo'lansa bile yakalar.
+        # Araç/araba EKLENMEDİ (trafik ile çakışır). 2026-06-17 prod-bug fix.
+        "telefon", "cihaz", "bilgisayar", "laptop", "tablet", "buzdolab",
+        "çamaşır makine", "bulaşık makine", "televizyon", "klima", "beyaz eşya",
+        "elektronik", "ayakkabı", "defolu", "arızalan", "çalışmıyor",
     ),
     "isHukuku": (
         "işten çıkar", "kıdem", "ihbar", "fazla mesai", "maaş", "ücret",
@@ -202,12 +208,35 @@ def _is_continuation(question: str) -> bool:
     return any(q_low.startswith(m) or f" {m}" in q_low[:30] for m in _CONTINUATION_MARKERS)
 
 
+# Satın-alma + arıza/sorun kombosu = güçlü TÜKETİCİ sinyali. Keyword listesinde
+# OLMAYAN ürünleri de yakalar ('fırınım bozuldu dün aldım'). FP-düşük: tek başına
+# satın-alma ('ev aldım' → tapu) veya tek başına arıza ('evliliğim bozuldu' → kapsam-dışı)
+# tetiklemez; İKİSİ birlikte gerekir → net ayıplı-mal şikâyeti. (2026-06-17 prod-bug fix.)
+_CONSUMER_BUY = (
+    "aldım", "almıştım", "aldığım", "satın al", "sipariş", "ısmarladım", "satın ald",
+)
+_CONSUMER_DEFECT = (
+    "bozuldu", "bozul", "bozuk", "arızal", "çalışmıyor", "çalışmadı", "ayıplı",
+    "defolu", "kırıldı", "kırık", "açılmıyor", "patladı", "iade", "değişim", "garanti",
+)
+
+
+def _is_consumer_complaint(q_low: str) -> bool:
+    """Satın-alma fiili + arıza/sorun ifadesi birlikte → ayıplı-mal (tüketici) şikâyeti."""
+    bought = any(k in q_low for k in _CONSUMER_BUY)
+    defect = any(k in q_low for k in _CONSUMER_DEFECT)
+    return bought and defect
+
+
 def _fast_domain(question: str) -> Domain | None:
     """Açık anahtar kelimeli sorularda LLM triajını atla.
 
     Belirsiz/çakışmalı durumda None döner ve eski JSON-mode LLM triaj çalışır.
     """
     q_low = _tr_lower(question)
+    # Satın-alma + arıza kombosu → güçlü tüketici sinyali (keyword-dışı ürünleri kapsar).
+    if _is_consumer_complaint(q_low):
+        return "tuketici"
     scores: dict[Domain, int] = {}
     for domain, keywords in _FAST_DOMAIN_KEYWORDS.items():
         score = sum(1 for kw in keywords if kw in q_low)
@@ -251,7 +280,9 @@ def _fast_facts(question: str, domain: Domain) -> dict[str, str]:  # noqa: C901
     # marker'lar vatandaş diline genişletildi.
     olay_by_domain = {
         "kira": ("kira artış", "tahliye", "depozito", "güvence", "kira sözleşme", "ev sahib"),
-        "tuketici": ("ayıplı", "bozuk", "iade", "değişim", "garanti", "satıcı", "internetten al"),
+        "tuketici": ("ayıplı", "bozuk", "bozul", "arızal", "çalışmıyor", "çalışmadı",
+                     "defolu", "kırıl", "iade", "değişim", "garanti", "satıcı",
+                     "internetten al", "telefon", "cihaz", "aldım", "almıştım", "aldığım"),
         "isHukuku": ("işten çıkar", "kıdem", "ihbar", "maaş", "fazla mesai", "tazminat", "istifa"),
         "icra": ("icra", "haciz", "ödeme emri", "itiraz", "borç", "alacaklı", "takip"),
         "trafik": ("trafik kaz", "sigorta", "değer kaybı", "çarp", "kaza", "park", "kasko",

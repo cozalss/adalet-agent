@@ -256,3 +256,41 @@ def test_fast_domain_trafik_kirmizi_isik_and_no_cross_domain():
     # mtv vergi'de kalmalı (trafik'e eklenmedi — çakışma önlendi)
     assert triaj_mod._fast_domain("mtv borcumu ödemedim") == "vergi"
     assert triaj_mod._fast_domain("emlak vergisi gecikme cezası") == "vergi"
+
+
+# --- Tüketici domain robustness (2026-06-17 prod-bug: 'telefonum bzuldu dün almıştım'
+#     → unknown → kapsam-dışı red). Ürün-ismi çapası + satın-alma×arıza kombosu. ---
+
+def test_consumer_complaint_combo():
+    """Satın-alma + arıza birlikte → tüketici (keyword-dışı ürünleri de yakalar)."""
+    f = triaj_mod._is_consumer_complaint
+    assert f(triaj_mod._tr_lower("fırınım bozuldu dün aldım")) is True
+    assert f(triaj_mod._tr_lower("internetten aldığım ayakkabı defolu çıktı")) is True
+    # Tek başına satın-alma (ev aldım → tapu) veya tek başına arıza → tetiklemez
+    assert f(triaj_mod._tr_lower("ev aldım tapuda sorun var")) is False
+    assert f(triaj_mod._tr_lower("evliliğim bozuldu")) is False
+
+
+def test_fast_domain_consumer_product_anchor():
+    """Ürün-ismi domain çapası: arıza fiili typo'lansa bile ('bzuldu') domain bulunur."""
+    fd = triaj_mod._fast_domain
+    assert fd("telefonum bzuldu dün almıştım") == "tuketici"   # typo → 'telefon' çapa
+    assert fd("buzdolabım çalışmıyor garanti var mı") == "tuketici"
+    assert fd("fırınım bozuldu dün aldım") == "tuketici"        # kombo (keyword-dışı ürün)
+
+
+def test_fast_domain_no_cross_domain_false_positive():
+    """Tüketici sinyalleri başka domain'leri çalmamalı."""
+    fd = triaj_mod._fast_domain
+    assert fd("ev sahibim depozitomu vermiyor") == "kira"
+    assert fd("işten çıkarıldım kıdem tazminatı") == "isHukuku"
+    # 'evliliğim bozuldu' (aile, kapsam-dışı): tüketici'ye KAYMAMALI
+    assert fd("evliliğim bozuldu") != "tuketici"
+
+
+def test_fast_facts_consumer_extracts_olay():
+    """Kısa tüketici şikâyetinde 'olay' çıkar → policy answer (clarify değil)."""
+    ff = triaj_mod._fast_facts
+    assert ff("telefonum bozuldu dün aldım", "tuketici").get("olay")
+    assert ff("fırınım bozuldu dün aldım", "tuketici").get("olay")
+    assert ff("telefonum bzuldu dün almıştım", "tuketici").get("olay")  # typo → 'almıştım'
