@@ -246,7 +246,20 @@ veya canlı API ile alınmıştır. Metodoloji: [docs/theses/measured-results.md
 
 ## 🚀 Hızlı Başlangıç
 
-**Gereksinimler:** Python 3.11 · [uv](https://docs.astral.sh/uv/) · Docker
+**Gereksinimler:** Python 3.11 · [uv](https://docs.astral.sh/uv/) · Docker · (frontend için) [pnpm](https://pnpm.io)
+
+### Tek komut (önerilen — yeni geliştirici)
+
+```bash
+git clone https://github.com/cozalss/adalet-agent.git && cd adalet-agent
+bash setup.sh        # docker dev + backend/frontend deps + .env — hepsi otomatik
+```
+
+`setup.sh` sonunda korpus + çalıştırma adımlarını yazdırır. **Korpus zorunludur** (boş
+Qdrant'ta her cevap reddedilir): proje sahibinden **Qdrant snapshot** alıp içe aktar (hızlı)
+ya da `scripts.seed_*` ile sıfırdan seed et (yavaş). Detay: setup.sh çıktısı.
+
+### Manuel
 
 ```bash
 # 1) Repoyu klonla + dev servisleri (Qdrant + Redis) başlat
@@ -259,6 +272,9 @@ cd backend
 uv sync --extra dev
 export LLM_MODE=mock        # PowerShell:  $env:LLM_MODE="mock"
 uv run uvicorn main:app --reload --port 8000
+
+# 3) Frontend (ayrı terminal)
+cd frontend && pnpm install && pnpm dev    # http://localhost:5173
 ```
 
 Swagger UI → `http://127.0.0.1:8000/docs` &nbsp;·&nbsp; Sağlık → `http://127.0.0.1:8000/health`
