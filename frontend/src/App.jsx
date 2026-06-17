@@ -530,7 +530,15 @@ export default function App({ auth }) {
         role="dialog" aria-modal="true" aria-label="Kaynaklar paneli" aria-hidden={!sheetOpen}
       >
         <div className="drawer-head">
-          <h3>Kaynaklar</h3>
+          <div className="drawer-head-tx">
+            <h3>Kaynaklar</h3>
+            {/* Hangi sorunun kaynakları olduğu net olsun — soru metni başlıkta. */}
+            {(sheetTurn || srcTurn)?.question && (
+              <p className="drawer-q" title={(sheetTurn || srcTurn).question}>
+                “{(sheetTurn || srcTurn).question}”
+              </p>
+            )}
+          </div>
           <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kaynaklar panelini kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
         </div>
         <div className="source-inner" style={{ paddingTop: 6 }}>

@@ -716,10 +716,17 @@ a { color: inherit; }
 .source-panel.drawer.open { transform: none; }
 .source-panel.drawer .sheet-grip { display: none; }
 .source-panel.drawer .drawer-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px 8px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; padding: 14px 16px 8px;
 }
+.source-panel.drawer .drawer-head-tx { min-width: 0; flex: 1; }
 .source-panel.drawer .drawer-head h3 { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 500; }
+/* Hangi sorunun kaynakları — başlık altında soru metni (2 satır truncate). */
+.source-panel.drawer .drawer-q {
+  margin: 3px 0 0; font-size: 12.5px; line-height: 1.35; color: var(--text-3, #8a8278);
+  font-style: italic;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 @media (max-width: 760px) {
   .sidebar { position: fixed; inset: 0 auto 0 0; box-shadow: var(--shadow-lg); }
