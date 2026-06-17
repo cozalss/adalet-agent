@@ -280,12 +280,15 @@ def test_fast_domain_consumer_product_anchor():
 
 
 def test_fast_domain_no_cross_domain_false_positive():
-    """Tüketici sinyalleri başka domain'leri çalmamalı."""
+    """Tüketici sinyalleri başka domain'leri/off-topic'i çalmamalı."""
     fd = triaj_mod._fast_domain
     assert fd("ev sahibim depozitomu vermiyor") == "kira"
     assert fd("işten çıkarıldım kıdem tazminatı") == "isHukuku"
     # 'evliliğim bozuldu' (aile, kapsam-dışı): tüketici'ye KAYMAMALI
     assert fd("evliliğim bozuldu") != "tuketici"
+    # FP guard: çıplak ürün-ismi (satın-alma/arıza YOK) → tüketici DEĞİL
+    assert fd("telefon numaranı verir misin") != "tuketici"
+    assert triaj_mod._is_consumer_complaint(triaj_mod._tr_lower("telefon numaranı verir misin")) is False
 
 
 def test_fast_facts_consumer_extracts_olay():

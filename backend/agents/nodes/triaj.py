@@ -76,13 +76,10 @@ _FAST_DOMAIN_KEYWORDS: dict[Domain, tuple[str, ...]] = {
         "mesafeli satış", "internetten ald", "iade", "değişim", "satıcı",
         "cayma hakkı", "abonelik", "taksitli satış", "haksız şart",
         "tüketici kredisi", "erken ödeme", "hakem heyeti", "ürün",
-        "hizmet", "arızalı", "ayıplı hizmet",
-        # Yaygın tüketici ürünleri (vatandaş-dili): typo'lu/kısa şikâyette ('telefonum
-        # bzuldu dün almıştım') ürün-ismi domain ÇAPASIdır — fiil typo'lansa bile yakalar.
-        # Araç/araba EKLENMEDİ (trafik ile çakışır). 2026-06-17 prod-bug fix.
-        "telefon", "cihaz", "bilgisayar", "laptop", "tablet", "buzdolab",
-        "çamaşır makine", "bulaşık makine", "televizyon", "klima", "beyaz eşya",
-        "elektronik", "ayakkabı", "defolu", "arızalan", "çalışmıyor",
+        "hizmet", "arızalı", "ayıplı hizmet", "defolu",
+        # NOT: çıplak ürün-isimleri (telefon/cihaz...) keyword DEĞİL — "telefon numaranı
+        # verir misin" gibi FP yapardı. Ürünler _CONSUMER_PRODUCTS'ta, _is_consumer_complaint
+        # kombosunda kullanılır (ürün + satın-alma/arıza). 2026-06-17 prod-bug fix.
     ),
     "isHukuku": (
         "işten çıkar", "kıdem", "ihbar", "fazla mesai", "maaş", "ücret",
@@ -219,13 +216,29 @@ _CONSUMER_DEFECT = (
     "bozuldu", "bozul", "bozuk", "arızal", "çalışmıyor", "çalışmadı", "ayıplı",
     "defolu", "kırıldı", "kırık", "açılmıyor", "patladı", "iade", "değişim", "garanti",
 )
+# Yaygın tüketici ürünleri (vatandaş-dili). Tek başına FP yapmasın diye keyword DEĞİL;
+# yalnız satın-alma VEYA arıza ile BİRLİKTE tüketici sayılır ('telefon numaranı verir
+# misin' → ürün var ama buy/defect yok → tüketici DEĞİL). Araç/araba YOK (trafik çakışır).
+_CONSUMER_PRODUCTS = (
+    "telefon", "cihaz", "bilgisayar", "laptop", "tablet", "buzdolab", "çamaşır makine",
+    "bulaşık makine", "televizyon", "klima", "beyaz eşya", "elektronik", "ayakkabı",
+    "ütü", "fırın", "saat", "kulaklık", "şarj",
+)
 
 
 def _is_consumer_complaint(q_low: str) -> bool:
-    """Satın-alma fiili + arıza/sorun ifadesi birlikte → ayıplı-mal (tüketici) şikâyeti."""
+    """Ayıplı-mal (tüketici) şikâyeti sezgisi — FP-düşük kombolar.
+
+    (a) ürün + (satın-alma VEYA arıza): 'telefonum bzuldu dün almıştım' (arıza-fiili
+        typo'lu olsa da ürün+satın-alma yakalar), 'buzdolabım çalışmıyor'.
+    (b) satın-alma + arıza (ürün adı listede olmasa da): 'fırınım bozuldu dün aldım'.
+    Tek başına satın-alma ('ev aldım'→tapu) / arıza ('evliliğim bozuldu'→kapsam-dışı) /
+    ürün ('telefon numaranı verir misin') tetiklemez → cross-domain FP önlenir.
+    """
     bought = any(k in q_low for k in _CONSUMER_BUY)
     defect = any(k in q_low for k in _CONSUMER_DEFECT)
-    return bought and defect
+    product = any(k in q_low for k in _CONSUMER_PRODUCTS)
+    return (product and (bought or defect)) or (bought and defect)
 
 
 def _fast_domain(question: str) -> Domain | None:
