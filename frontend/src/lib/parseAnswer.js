@@ -145,7 +145,15 @@ export function mapResponse(resp, question) {
     };
   }
 
-  const citeMap = buildCiteMap(citations);
+  // "Kaynak" = cevabın GERÇEKTEN cite ettiği kaynaklar (sabit retrieval havuzu '16' DEĞİL —
+  // her cevapta aynı '16' yanıltıcıydı: havuz 8 mevzuat + 8 emsal aday, çoğu kullanılmıyor).
+  // claims.cite_ids = gövdedeki [src:] referansları. citeMap de buradan kurulur → inline [N]
+  // numaraları + panel + sayı TUTARLI. Boşsa (nadir: cite'siz fuzzy-verified) havuza düş ('0' gösterme).
+  const usedIds = new Set();
+  (resp.claims || []).forEach((c) => (c.cite_ids || []).forEach((id) => usedIds.add(id)));
+  const usedCitations = usedIds.size ? citations.filter((c) => usedIds.has(c.source_id)) : citations;
+
+  const citeMap = buildCiteMap(usedCitations);
   const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
 
@@ -153,7 +161,7 @@ export function mapResponse(resp, question) {
     kind: "answer",
     domain,
     domainConfidence: typeof resp.domain_confidence === "number" ? resp.domain_confidence : null,
-    sources: mapSources(citations),
+    sources: mapSources(usedCitations),
     answer: { confidence: Math.round((resp.confidence || 0) * 100), sections, text: body },
     risk: deriveRisk(question, body),
     // Backend'in cevaba özel disclaimer listesi (çocuk filtresi, süre uyarısı, ...);
@@ -162,6 +170,7 @@ export function mapResponse(resp, question) {
     // Doğrulama Ajanı'nın iddia-bazlı çıktısı (şeffaflık paneli) — cite_ids
     // (source_id) UI'ın 1-tabanlı numaralarına çevrilir.
     claims: mapClaims(resp.claims, citeMap),
+    lookedAt: citations.map((c) => c.title || c.source_id).slice(0, 8),
     debateNotes: (resp.debate_notes || "").trim(),
     retryCount: Number(resp.retry_count) || 0,
     // Tahmin Ajanı (8. ajan) — opsiyonel; yoksa null. Disclaimer zorunlu.

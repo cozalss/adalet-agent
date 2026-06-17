@@ -66,6 +66,42 @@ describe("mapResponse — answer", () => {
     });
   });
 
+  it("Kaynak = cevabın CITE ETTİĞİ kaynaklar (sabit retrieval havuzu değil)", () => {
+    // Havuz 4 aday AMA cevap yalnız 2 madde cite ediyor → sources 2 olmalı ('16 saçma' fix).
+    const r = {
+      domain: "kira", verdict: "pass", confidence: 0.7,
+      answer: "**Kısa cevap:** TÜFE sınırı [src: m-TBK-344]. Dava [src: m-TBK-345].",
+      citations: [
+        { source_id: "m-TBK-344", doc_type: "law", title: "TBK 344", snippet: "x" },
+        { source_id: "m-TBK-345", doc_type: "law", title: "TBK 345", snippet: "y" },
+        { source_id: "m-TBK-321", doc_type: "law", title: "TBK 321", snippet: "z" },
+        { source_id: "h-999-c1", doc_type: "case", title: "Yargıtay", snippet: "w" },
+      ],
+      claims: [
+        { text: "TÜFE sınırı", cite_ids: ["m-TBK-344"], verified: true },
+        { text: "Dava açılır", cite_ids: ["m-TBK-345"], verified: true },
+      ],
+    };
+    const out = mapResponse(r, "");
+    expect(out.sources).toHaveLength(2);                       // 4 değil → cite edilen 2
+    expect(out.sources.map((s) => s.ref).sort()).toEqual(["m-TBK-344", "m-TBK-345"]);
+    // inline numaralar cited-listeye göre tutarlı remap (kopuk numara yok)
+    const runs = out.answer.sections[0].runs;
+    expect(runs.some((x) => x.cite === 1)).toBe(true);
+    expect(JSON.stringify(runs)).not.toContain("src:");
+  });
+
+  it("claim cite_ids boşsa → havuza düşer ('0 Kaynak' gösterme)", () => {
+    const r = {
+      domain: "kira", verdict: "pass", confidence: 0.7,
+      answer: "**Kısa cevap:** Genel bilgi.",
+      citations: [{ source_id: "m-TBK-344", doc_type: "law", title: "TBK 344", snippet: "x" }],
+      claims: [{ text: "Genel bilgi", cite_ids: [], verified: true }],
+    };
+    const out = mapResponse(r, "");
+    expect(out.sources).toHaveLength(1);  // fallback: havuz
+  });
+
   it("Kaynaklar/disclaimer kuyruğunu gövdeden kırpar", () => {
     const r = { ...resp, answer: "**Kısa cevap:** X.\n\n--\n\n**Kaynaklar:**\n1. TBK\n\n⚠️ uyarı" };
     const out = mapResponse(r, "");
