@@ -190,6 +190,9 @@ async def test_live_fallback_off_by_default(monkeypatch):
 async def test_live_fallback_triggers_on_weak_corpus(monkeypatch):
     """Flag acik + zayif corpus → internetten cekilen (canli) emsal ONE eklenir."""
     monkeypatch.setenv("EMSAL_LIVE_FALLBACK_ENABLED", "1")
+    # Bu test live-fallback mantığını izole eder; typo-variant dalı (fan_out_search
+    # gerçek corpus'a vurup mock'u bypass eder → zayıf-corpus senaryosu bozulur) kapatılır.
+    monkeypatch.setenv("TYPO_TOLERANCE_ENABLED", "0")
     async def fake_rerank(question, top_k=5, candidates_n=20, domain=None):
         return [_rr("c1", 0.10, "yargitay")]
     monkeypatch.setattr(emsal_mod, "search_with_rerank", fake_rerank)
