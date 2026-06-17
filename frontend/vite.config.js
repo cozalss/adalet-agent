@@ -11,6 +11,9 @@ export default defineConfig({
   // destructuring down-level'i "desteklenmiyor" diye reddediyor. Modern tarayıcılar
   // (2022+: Chrome 94+/FF 93+/Safari 15.4+) es2022'yi native destekler → transform gerekmez.
   build: { target: "es2022" },
+  // Dev-server dep pre-bundling (esbuild) AYRI target kullanır → onu da es2022 yap
+  // (yoksa dev'de supabase-js destructuring aynı esbuild 0.28 hatasını verir).
+  optimizeDeps: { esbuildOptions: { target: "es2022" } },
   // Vitest — jsdom ortamı (localStorage/atob/TextDecoder), saf mantık testleri.
   test: {
     environment: "jsdom",
