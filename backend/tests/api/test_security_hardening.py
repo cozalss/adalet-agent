@@ -79,6 +79,36 @@ def test_decode_supabase_legacy_hs256(monkeypatch):
     assert claims["sub"] == "user-1"
 
 
+def test_decode_supabase_rejects_missing_iss(monkeypatch):
+    """#35 regresyon kilidi: SUPABASE_JWT_ISSUER set iken iss'siz token → 401.
+    iss doğrulaması cross-tenant token kabulünü engeller; gevşetilmemeli."""
+    secret = "legacy-supabase-jwt-secret-min-32-byte"
+    issuer = "https://proj.supabase.co/auth/v1"
+    monkeypatch.setattr(auth_mod, "AUTH_PROVIDER", "supabase")
+    monkeypatch.setattr(auth_mod, "SUPABASE_URL", "")
+    monkeypatch.setattr(auth_mod, "SUPABASE_JWT_SECRET", secret)
+    monkeypatch.setattr(auth_mod, "SUPABASE_JWT_ISSUER", issuer)
+    token = pyjwt.encode({"sub": "u", "aud": "authenticated"}, secret, algorithm="HS256")  # iss YOK
+    with pytest.raises(HTTPException) as exc:
+        auth_mod.decode_token(token)
+    assert exc.value.status_code == 401
+
+
+def test_decode_supabase_with_matching_iss_ok(monkeypatch):
+    """Gerçek GoTrue token şekli (iss taşır) + SUPABASE_JWT_ISSUER eşleşir → decode başarılı."""
+    secret = "legacy-supabase-jwt-secret-min-32-byte"
+    issuer = "https://proj.supabase.co/auth/v1"
+    monkeypatch.setattr(auth_mod, "AUTH_PROVIDER", "supabase")
+    monkeypatch.setattr(auth_mod, "SUPABASE_URL", "")
+    monkeypatch.setattr(auth_mod, "SUPABASE_JWT_SECRET", secret)
+    monkeypatch.setattr(auth_mod, "SUPABASE_JWT_ISSUER", issuer)
+    token = pyjwt.encode(
+        {"sub": "u", "aud": "authenticated", "iss": issuer}, secret, algorithm="HS256",
+    )
+    claims = auth_mod.decode_token(token)
+    assert claims["sub"] == "u"
+
+
 def test_decode_supabase_missing_key_500(monkeypatch):
     """AUTH_PROVIDER=supabase ama URL+secret YOK → 500 config hatası (token oracle değil)."""
     monkeypatch.setattr(auth_mod, "AUTH_PROVIDER", "supabase")

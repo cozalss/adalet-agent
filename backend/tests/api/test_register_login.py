@@ -13,6 +13,8 @@ from api.routes import auth as auth_route
 @pytest.fixture
 def _auth_env(monkeypatch):
     monkeypatch.setattr(auth_mod, "AUTH_ENABLED", True)
+    monkeypatch.setattr(auth_mod, "AUTH_PROVIDER", "internal")  # internal HS256 yolu (Supabase JWKS değil)
+    monkeypatch.setattr(auth_mod, "SUPABASE_URL", "")
     monkeypatch.setattr(auth_mod, "JWT_SECRET", "test-secret-32bytes-min-OK-123456")
     monkeypatch.setattr(auth_mod, "JWT_TTL_SECONDS", 3600)
     monkeypatch.setattr(auth_mod, "JWT_ISSUER", "test-iss")

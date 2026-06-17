@@ -11,9 +11,16 @@ import pytest
 # sentence_transformers→datasets→pyarrow zinciri torch sonrası çökerdi).
 from core import native_preload  # noqa: F401
 
-# Test ortamı: MockLLM zorunlu, HyDE kapalı (network'e gitmesin)
-os.environ.setdefault("LLM_MODE", "mock")
-os.environ.setdefault("HYDE_ENABLED", "0")
+# Test ortamı: MockLLM + internal auth ZORUNLU — HERMETİK (FORCE, setdefault DEĞİL).
+# GEREKÇE (2026-06-17): `source .env` (LLM_MODE=llamacpp_server, AUTH_PROVIDER=supabase,
+# SUPABASE_URL=...) pytest'ten ÖNCE çalışırsa setdefault no-op olur → prod değerleri test
+# sürecine sızar: (1) get_llm() canlı llama-server'a bağlanır (All connection attempts failed),
+# (2) decode_token Supabase JWKS yoluna düşer (internal HS256 test token'ı 'kid=None' ile reddedilir).
+# Bu 3 değişken TEST-MODUNU belirler → her koşulda override edilir (38-test env-sızıntısı kök fix'i).
+os.environ["LLM_MODE"] = "mock"
+os.environ["HYDE_ENABLED"] = "0"
+os.environ["AUTH_PROVIDER"] = "internal"  # internal HS256 yolu; supabase-spesifik testler runtime'da monkeypatch'ler
+os.environ.pop("SUPABASE_URL", None)      # türetilmiş SUPABASE_JWT_ISSUER auth import'unda boş hesaplansın
 # Güvenlik C1: AUTH_ENABLED default'u "1"e çekildi (fail-secure). Test ortamı EXPLICIT
 # "0" ile anonim kalır (auth-spesifik testler auth_mod.AUTH_ENABLED'i monkeypatch'ler).
 os.environ.setdefault("AUTH_ENABLED", "0")
