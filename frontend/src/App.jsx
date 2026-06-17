@@ -381,9 +381,6 @@ export default function App({ auth }) {
     return null;
   }, [turns]);
 
-  const domain = last ? last.data.domain : null;
-  const domainConf = last ? last.data.domainConfidence : null;
-  const domainLow = domainConf != null && domainConf < 0.5;
 
   return (
     <div className="sor-app">
@@ -417,16 +414,8 @@ export default function App({ auth }) {
           <button className="model" style={sidebarCollapsed ? { marginLeft: 40 } : undefined}>
             ADALET <span className="sub">5.0</span> <Icon.chevron />
           </button>
-          {domain && (
-            <span
-              className={"domain-chip" + (domainLow ? " low" : "")}
-              title={domainConf != null ? `Alan güveni %${Math.round(domainConf * 100)}` : undefined}
-            >
-              {/* streaming=true iken gold ripple — 60fps.design D2 */}
-              <span className={"dot" + (busy ? " streaming" : "")}></span>
-              {domain}{domainLow ? " · belirsiz" : ""}
-            </span>
-          )}
+          {/* Global domain çipi kaldırıldı: yalnız EN SON cevabın domain'ini gösteriyordu →
+              çok-konulu sohbette yanıltıcı (ağaç=tapu + kamulaştırma=idari aynı sohbette). */}
           <div className="spacer"></div>
           {/* Global "Kaynaklar" pill kaldırıldı — her cevabın kendi "Kaynak ›" butonu var. */}
         </header>
