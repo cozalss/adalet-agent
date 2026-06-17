@@ -90,10 +90,13 @@ multimodal = [
 graph = [
     "networkx>=3.3",
 ]
-# Production LLM — llama-cpp-python (Qwen 2.5 14B Q4_K_M GGUF için).
-# Kurulum: uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+# Production LLM — llama-cpp-python (Qwen GGUF için).
+# Kurulum: uv pip install "llama-cpp-python==0.3.25" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+# PIN 0.3.25 (2026-06-17): 0.3.30 cu124 wheel'i torch cu124 ile aynı process'te CUDA-runtime
+# uyumsuzluğu → embedder GPU'da "device-side assert triggered" → tüm retrieval çöker. 0.3.25
+# torch cu124 ile uyumlu (ölçüldü: all-GPU warm ~9-10s, 0 CUDA hatası). Yükseltmeden ÖNCE all-GPU test et.
 llm = [
-    "llama-cpp-python>=0.3.0",
+    "llama-cpp-python==0.3.25",
 ]
 lora = [
     "peft>=0.13.0",
