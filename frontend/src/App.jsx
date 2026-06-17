@@ -258,7 +258,13 @@ export default function App({ auth }) {
     const rec = getConversation(conv.id) || conv;
     loadConversation(rec);
     sessionFilesRef.current = rec.files || [];
-    savedSigRef.current = `${rec.id}:${(rec.turns || []).length}:loaded`;
+    // SADECE-AÇMA üste çıkarMAMALI: savedSigRef'i kaydetme-effect'inin (turns değişince)
+    // hesaplayacağı sig ile BİREBİR eşitle → yüklenen sohbet yeniden kaydedilmez, updatedAt
+    // bump'lanmaz, sıra korunur. Yeni soru sorulunca turns.length artar → sig değişir → kaydedilir
+    // → o zaman üste çıkar (son-aktivite sırası, son-açılma değil).
+    const _t = rec.turns || [];
+    const _lastPhase = _t.length ? (_t[_t.length - 1].phase || "") : "";
+    savedSigRef.current = `${rec.id}:${_t.length}:${_lastPhase}`;
     setSheetOpen(false);
     setNavPanel(null);
     if (window.innerWidth < 760) setSidebarCollapsed(true);
