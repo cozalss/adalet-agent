@@ -431,7 +431,10 @@ def _format_eligibility_for_prompt(assessments: list[dict[str, Any]]) -> str:
 # prompt güvenli sınırda tutulur; ayrıca LLM client max_tokens clamp guard'ı var.
 _CHARS_PER_TOKEN_TR = 2.3
 _DRAFT_SNIPPET_CHARS = 260
-_MAX_DRAFT_REFS = 4
+# Draft prompt'una geçen kaynak sayısı. 4→6 (2026-06-18): 8+ alakalı madde getiriliyordu
+# ama yalnız 4'ü prompt'a girip model 2-3 cite ediyordu ("az kaynak" şikâyeti). 6 → model
+# daha çok alakalı maddeyi gerekçeleyebilir (verify ungrounded'ı zaten düşürür → red-line korunur).
+_MAX_DRAFT_REFS = int(os.getenv("DRAFT_MAX_REFS", "6"))
 
 
 _MAX_HISTORY_TURNS = 5      # triaj ile eşit (son 5 tur); coreference için yeterli bağlam
