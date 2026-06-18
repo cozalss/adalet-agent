@@ -506,6 +506,28 @@ async def test_rank_and_build_laws_maps_regulation_to_law_citation(monkeypatch):
     assert citations[0]["doc_type"] == "law"
 
 
+@pytest.mark.asyncio
+async def test_rank_and_build_laws_normalizes_mevzuat_url(monkeypatch):
+    """Eski MBS linkleri `MevzuatTertip=5` ile çalışan public URL'e çevrilir."""
+    result = _sr("m-TBK-344", 0.8, kanun_kodu="TBK")
+    result.source_url = "https://mevzuat.gov.tr/mevzuat?MevzuatNo=6098&MevzuatTur=1"
+    result.metadata["kanun_numarasi"] = "6098"
+
+    async def _fake_rank(*_args, **_kwargs):
+        return [result]
+
+    monkeypatch.setattr(mevzuat_mod, "rank_law_candidates", _fake_rank)
+
+    citations = await mevzuat_mod._rank_and_build_laws(
+        "kira artışı", "kira", [result], "hybrid",
+    )
+
+    assert citations[0]["url"] == (
+        "https://www.mevzuat.gov.tr/mevzuat?"
+        "MevzuatNo=6098&MevzuatTur=1&MevzuatTertip=5"
+    )
+
+
 # --------------------------------------------------------------------------
 #  Çapa entegrasyonu — fetch_maddeler ile kilit maddeler havuza GARANTİ girer
 # --------------------------------------------------------------------------

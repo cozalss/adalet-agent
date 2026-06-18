@@ -29,6 +29,7 @@ import structlog
 from qdrant_client import models
 
 from .embedding import Embedder, MursitEmbedder, get_embedder
+from .mevzuat_urls import normalize_mevzuat_url
 from .reranker import RerankResult, get_reranker
 from .vector_store import COLLECTION_NAME, collection_has_colbert, get_shared_client
 
@@ -551,12 +552,15 @@ def _to_result(point: Any) -> SearchResult:
     # scroll() `Record` döner (score'suz); query_points() `ScoredPoint` (score'lu).
     # getattr ile ikisini de güvenle ele al — fetch_maddeler scroll kullanır.
     score = getattr(point, "score", None)
+    source_url = payload.get("source_url", "")
+    if payload.get("source") == "mevzuat":
+        source_url = normalize_mevzuat_url(source_url, payload)
     return SearchResult(
         chunk_id=chunk_id,
         score=float(score) if score is not None else 0.0,
         text=payload.get("text", ""),
         source=payload.get("source", ""),
-        source_url=payload.get("source_url", ""),
+        source_url=source_url,
         domain=payload.get("domain", ""),
         metadata={
             k: v

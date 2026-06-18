@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agents.nodes.tahmin import tahmin_node
+from agents.nodes.tahmin import _top_unique_case_refs, tahmin_node
 from agents.state import Citation
 
 
@@ -72,3 +72,16 @@ async def test_tahmin_node_uses_top_k_only():
     pred = out["prediction"]
     assert pred is not None
     assert len(pred["similar_case_ids"]) == 5
+
+
+def test_top_unique_case_refs_dedups_chunks_from_same_decision():
+    refs = [
+        _case("h-1-c0", "a"),
+        _case("h-1-c2", "b"),
+        _case("h-2-c0", "c"),
+        _case("h-3-c1", "d"),
+    ]
+
+    out = _top_unique_case_refs(refs, limit=5)
+
+    assert [r["source_id"] for r in out] == ["h-1-c0", "h-2-c0", "h-3-c1"]

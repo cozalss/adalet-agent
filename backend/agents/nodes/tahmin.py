@@ -14,7 +14,7 @@ from __future__ import annotations
 import structlog
 
 from agents.policy import _is_general_question
-from agents.state import AgentState
+from agents.state import AgentState, Citation
 from core.observability import observe_node
 from predictive import predict_outcome
 
@@ -22,6 +22,26 @@ log = structlog.get_logger()
 
 # Tahmin için kullanılacak en benzer emsal sayısı (üst-K, score'a göre sıralı).
 _TOP_K_CASES = 5
+
+
+def _doc_key(source_id: str) -> str:
+    """Chunk id'yi karar id'sine indir: h-123-c4 -> h-123."""
+    return source_id.rsplit("-c", 1)[0] if "-c" in source_id else source_id
+
+
+def _top_unique_case_refs(refs: list[Citation], limit: int = _TOP_K_CASES) -> list[Citation]:
+    """Tahmin için aynı kararın birden fazla chunk'ını tek emsal say."""
+    seen: set[str] = set()
+    out: list[Citation] = []
+    for ref in refs:
+        key = _doc_key(ref.get("source_id", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(ref)
+        if len(out) >= limit:
+            break
+    return out
 
 
 @observe_node(name="tahmin")
@@ -43,7 +63,7 @@ async def tahmin_node(state: AgentState) -> dict[str, object]:
         log.info("tahmin_skip", reason="general_question")
         return {"prediction": None}
 
-    top = refs[:_TOP_K_CASES]
+    top = _top_unique_case_refs(refs)
     texts = [r["snippet"] for r in top]
     ids = [r["source_id"] for r in top]
     prediction = await predict_outcome(state.get("question", ""), texts, ids)

@@ -28,6 +28,7 @@ from core import native_preload  # noqa: F401
 from retrieval.chunker import chunk_mevzuat, sanitize_text
 from retrieval.embedding import Embedder
 from retrieval.mevzuat_client import KANUN_KODU_TO_NUMARA, Madde, MevzuatClient
+from retrieval.mevzuat_urls import build_mevzuat_url
 from retrieval.vector_store import ChunkPoint, ensure_collection, get_client, upsert_chunks
 
 logger = logging.getLogger("scripts.seed_mevzuat")
@@ -149,7 +150,7 @@ def _build_maddeler(
     # subchunk=False: Madde.id madde-bazlı → alt-chunk'lar çakışıp yalnız KUYRUK
     # parçası hayatta kalıyordu (P8 reseed regresyonu; chunk_mevzuat docstring'i).
     raw_chunks = chunk_mevzuat(full_text, subchunk=False)
-    source_url = f"https://mevzuat.gov.tr/mevzuat?MevzuatNo={kanun_numarasi}&MevzuatTur=1"
+    source_url = build_mevzuat_url(kanun_numarasi)
 
     maddeler: list[Madde] = []
     for c in raw_chunks:

@@ -78,7 +78,7 @@ export function CitationMarker({ n, source, onJump }) {
             <span className="v">
               <Icon.check />
               {source.verified ? "Kaynaktan doğrulandı" : "Kaynak"}
-              {source.url ? " · " + source.url.replace(/^https?:\/\//, "").split("/")[0] : ""}
+              {shouldShowSourceUrl(source) ? " · " + source.url.replace(/^https?:\/\//, "").split("/")[0] : ""}
             </span>
             <span className="go">Kaynağa git →</span>
           </span>
@@ -136,6 +136,12 @@ export function Badge({ type, badge }) {
   return <span className={"badge " + badge}>{badge === "kanun" && <Icon.book style={{ width: 12, height: 12 }} />}{type}</span>;
 }
 
+function shouldShowSourceUrl(source) {
+  if (!source?.url) return false;
+  if (source.badge === "kanun" || source.doc_type === "law") return false;
+  return !/mevzuat\.gov\.tr/i.test(source.url);
+}
+
 // Güvenlik: dangerouslySetInnerHTML KULLANMAZ. `text` markdown (**kalın**) içerir,
 // renderInline ile React elemanı olarak basılır (XSS imkânsız — LLM/kullanıcı metni
 // güvenilmez kabul edilir).
@@ -166,6 +172,7 @@ export function DisclaimerBar({ items }) {
 
 export function SourceCard({ s, flash, onRef }) {
   const ref = useRef(null);
+  const showSourceUrl = shouldShowSourceUrl(s);
   const onMove = (e) => {
     const el = ref.current; if (!el) return;
     const r = el.getBoundingClientRect();
@@ -203,7 +210,7 @@ export function SourceCard({ s, flash, onRef }) {
         “{s.passage}”
       </div>
       <div className="sc-foot">
-        {s.url ? (
+        {showSourceUrl ? (
           <a href={s.url.startsWith("http") ? s.url : "https://" + s.url} target="_blank" rel="noreferrer">
             {s.url.replace(/^https?:\/\//, "")} <Icon.ext />
           </a>

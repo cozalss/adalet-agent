@@ -47,16 +47,26 @@ describe("SourceCard", () => {
     id: 1, type: "Kanun", badge: "kanun", title: "TBK m.344", ref: "tbk-344",
     passage: "madde metni", url: "mevzuat.gov.tr", verified: true, rel: [1],
   };
-  it("kanun mührü + başlık + doğrulandı + kaynak linki + data-src-id", () => {
+  it("kanun mührü + başlık + doğrulandı + data-src-id; dış mevzuat linki gösterilmez", () => {
     const out = html(<SourceCard s={s} />);
     expect(out).toContain("TBK m.344");
     expect(out).toContain("Doğrulandı");
     expect(out).toContain("madde metni");
-    expect(out).toContain("mevzuat.gov.tr");
+    expect(out).not.toContain("mevzuat.gov.tr");
     expect(out).toContain('data-src-id="1"');
   });
   it("yargıtay (case) → yargitay badge", () => {
     expect(html(<SourceCard s={{ ...s, badge: "yargitay", type: "Yargıtay" }} />)).toContain("badge yargitay");
+  });
+  it("karar kaynaklarında dış link gösterilir", () => {
+    const out = html(<SourceCard s={{
+      ...s,
+      badge: "yargitay",
+      type: "Yargıtay",
+      url: "https://karararama.yargitay.gov.tr/?aranan=123",
+    }} />);
+
+    expect(out).toContain("karararama.yargitay.gov.tr");
   });
 });
 

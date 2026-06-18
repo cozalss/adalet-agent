@@ -41,6 +41,7 @@ from retrieval.hybrid_search import (
     search,
 )
 from retrieval.hyde import search_with_hyde
+from retrieval.mevzuat_urls import normalize_mevzuat_url
 from retrieval.multi_query import fan_out_search, search_multi_query
 from retrieval.query_rewrite import (
     decontextualize_for_retrieval,
@@ -265,7 +266,7 @@ async def _rank_and_build_laws(
             doc_type="law",
             title=_format_law_title(r),
             snippet=r.text[:500],
-            url=r.source_url,
+            url=normalize_mevzuat_url(r.source_url, r.metadata),
             score=r.score,
         )
         for r in final_cands
