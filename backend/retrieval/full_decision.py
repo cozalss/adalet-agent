@@ -25,6 +25,9 @@ log = structlog.get_logger()
 _cache: dict[str, str] = {}
 _CACHE_MAX = 256
 _RATE_LIMIT_RETRY_DELAY_S = 2.0
+# Paylaşımlı public mcp eşzamanlılık/rate sınırı yiyebiliyor (yerel mcp kapalıyken her
+# istek public'e düşer) → birkaç kez backoff'lu yeniden dene; çoğu geçici sınır düzelir.
+_RATE_LIMIT_MAX_TRIES = 3
 # Yapılandırılmış mcp (genelde yerel YARGI_MCP_URL=127.0.0.1:8765) erişilemezse
 # resmi public instance'a düş → yerel mcp kapalı olsa da tam-metin çalışır.
 _PUBLIC_YARGI_MCP = "https://yargimcp.surucu.dev/mcp"
@@ -95,7 +98,7 @@ async def _route_fetch(yc, source_url: str, source_id: str, court: str) -> str:
 
 
 async def fetch_full_decision(
-    source_url: str, source_id: str = "", court: str = "", *, timeout_s: float = 30.0,
+    source_url: str, source_id: str = "", court: str = "", *, timeout_s: float = 45.0,
 ) -> dict:
     """Kararın TAM metnini çek. → {'text': str, 'cached': bool, 'error': str|None}.
 
@@ -111,11 +114,19 @@ async def fetch_full_decision(
         async def _attempt(base_url: str | None) -> str:
             kwargs = {"base_url": base_url} if base_url else {}
             async with YargiClient(**kwargs) as yc:
-                text = await _route_fetch(yc, source_url, source_id, court)
-                # Rate-limit içerik olarak döndüyse kısa bekleyip 1 kez yeniden dene.
-                if _looks_rate_limited(text):
-                    await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S)
-                    text = await _route_fetch(yc, source_url, source_id, court)
+                text = ""
+                # Rate-limit (içerik VEYA HTTP 429) → artan backoff ile birkaç kez dene.
+                for i in range(_RATE_LIMIT_MAX_TRIES):
+                    try:
+                        text = await _route_fetch(yc, source_url, source_id, court)
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code == 429 and i < _RATE_LIMIT_MAX_TRIES - 1:
+                            await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))
+                            continue
+                        raise
+                    if not _looks_rate_limited(text) or i == _RATE_LIMIT_MAX_TRIES - 1:
+                        return text
+                    await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))  # 2s, 4s
                 return text
 
         async def _do() -> str:
@@ -131,6 +142,10 @@ async def fetch_full_decision(
     except TimeoutError:
         log.warning("full_decision_timeout", source_id=source_id)
         return {"text": "", "cached": False, "error": "timeout"}
+    except httpx.HTTPStatusError as exc:  # 429 → rate_limited (jenerik değil net mesaj)
+        code = exc.response.status_code
+        log.warning("full_decision_http_error", status=code)
+        return {"text": "", "cached": False, "error": "rate_limited" if code == 429 else "not_found"}
     except Exception as exc:
         log.warning("full_decision_failed", error=str(exc) or type(exc).__name__)
         return {"text": "", "cached": False, "error": type(exc).__name__}

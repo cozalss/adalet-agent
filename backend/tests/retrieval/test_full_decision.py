@@ -105,6 +105,21 @@ async def test_fetch_rate_limit_then_retry_success(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_http_429_maps_to_rate_limited(monkeypatch):
+    # HTTP 429 (içerik değil status) → retry tükenince jenerik değil 'rate_limited'.
+    import httpx
+
+    class _YC429(_FakeYC):
+        async def get_document(self, document_id):
+            req = httpx.Request("POST", "https://x")
+            raise httpx.HTTPStatusError("429", request=req, response=httpx.Response(429, request=req))
+
+    monkeypatch.setattr("retrieval.yargi_client.YargiClient", lambda *_a, **_k: _YC429([""]))
+    out = await fetch_full_decision("https://karararama.yargitay.gov.tr/?aranan=9", "")
+    assert out["error"] == "rate_limited"
+
+
+@pytest.mark.asyncio
 async def test_fetch_cache_hit_second_call(monkeypatch):
     body = "İçtihat metni " + "z" * 100
     _patch_yc(monkeypatch, body)
