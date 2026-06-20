@@ -176,6 +176,8 @@ export default function App({ auth }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   // Yan kaynak-panelinde gösterilecek turn (per-cevap). null → en son cevap (srcTurn).
   const [sheetTurn, setSheetTurn] = useState(null);
+  // Yan panel modu: "sources" (kanun+karar) | "cases" (yalnız ilgili mahkeme kararları).
+  const [sheetMode, setSheetMode] = useState("sources");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 760);
   const [flash, setFlash] = useState(null);
   const [attachments, setAttachments] = useState([]);
@@ -518,7 +520,8 @@ export default function App({ auth }) {
                         onClarifyPick={pickClarify}
                         onToast={showToast}
                         onDownloadDilekce={onDownloadDilekce}
-                        onOpenSources={(t) => { setSheetTurn(t); setSheetOpen(true); }}
+                        onOpenSources={(t) => { setSheetMode("sources"); setSheetTurn(t); setSheetOpen(true); }}
+                        onOpenCases={(t) => { setSheetMode("cases"); setSheetTurn(t); setSheetOpen(true); }}
                       />
                     ))}
                   </div>
@@ -549,11 +552,13 @@ export default function App({ auth }) {
       <div className={"sheet-backdrop" + (sheetOpen ? " open" : "")} onClick={() => setSheetOpen(false)} aria-hidden="true"></div>
       <aside
         className={"source-panel drawer " + (sheetOpen ? "open" : "closed")} ref={panelRef}
-        role="dialog" aria-modal="true" aria-label="Kaynaklar paneli" aria-hidden={!sheetOpen}
+        role="dialog" aria-modal="true"
+        aria-label={sheetMode === "cases" ? "İlgili davalar paneli" : "Kaynaklar paneli"}
+        aria-hidden={!sheetOpen}
       >
         <div className="drawer-head">
           <div className="drawer-head-tx">
-            <h3>Kaynaklar</h3>
+            <h3>{sheetMode === "cases" ? "İlgili Davalar" : "Kaynaklar"}</h3>
             {/* Hangi sorunun kaynakları olduğu net olsun — soru metni başlıkta. */}
             {(sheetTurn || srcTurn)?.question && (
               <p className="drawer-q" title={(sheetTurn || srcTurn).question}>
@@ -561,7 +566,7 @@ export default function App({ auth }) {
               </p>
             )}
             {/* Şeffaflık: corpus'tan kaç aday tarandı, kaçı cevaba dayanak oldu. */}
-            {(() => {
+            {sheetMode !== "cases" && (() => {
               const _st = sheetTurn || srcTurn;
               const _used = _st?.data?.sources?.length || 0;
               const _scanned = _st?.data?.scannedCount || 0;
@@ -570,10 +575,10 @@ export default function App({ auth }) {
               ) : null;
             })()}
           </div>
-          <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label="Kaynaklar panelini kapat"><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
+          <button className="icon-btn" onClick={() => setSheetOpen(false)} aria-label={sheetMode === "cases" ? "İlgili davalar panelini kapat" : "Kaynaklar panelini kapat"}><Icon.plus style={{ transform: "rotate(45deg)" }} /></button>
         </div>
         <div className="source-inner" style={{ paddingTop: 6 }}>
-          <SourcePanelBody turn={sheetTurn || srcTurn} flash={flash} registerRef={(n, el) => { srcRefs.current[n] = el; }} />
+          <SourcePanelBody turn={sheetTurn || srcTurn} mode={sheetMode} flash={flash} registerRef={(n, el) => { srcRefs.current[n] = el; }} />
         </div>
       </aside>
 
@@ -652,7 +657,7 @@ export function AttachRow({ attachments, onClear }) {
 }
 
 /* ---------- one conversation turn ---------- */
-export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce, onOpenSources }) {
+export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick, onToast, onDownloadDilekce, onOpenSources, onOpenCases }) {
   const d = turn.data;
   const p = turn.phase;
   const streaming = ["triage", "sources", "drafting", "verifying"].includes(p);
@@ -710,6 +715,8 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
               <EvidenceStats
                 confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims}
                 onOpenSources={onOpenSources ? () => onOpenSources(turn) : undefined}
+                caseCount={(d.relatedCases ?? []).length}
+                onOpenCases={onOpenCases ? () => onOpenCases(turn) : undefined}
               />
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
@@ -833,7 +840,7 @@ export function MsgActions({ text, conversationId, onReask, onToast }) {
 }
 
 /* ---------- source panel body ---------- */
-function SourcePanelBody({ turn, flash, registerRef }) {
+function SourcePanelBody({ turn, mode = "sources", flash, registerRef }) {
   if (!turn) {
     return (
       <div className="source-empty">
@@ -844,6 +851,21 @@ function SourcePanelBody({ turn, flash, registerRef }) {
   }
   const d = turn.data;
   const p = turn.phase;
+
+  // "Davalar" modu: bu cevabın konusuyla ilgili emsal mahkeme kararları (RelatedCases,
+  // onJump'sız → statik başlık + "tam metni" linki). Boşsa dürüst boş-durum.
+  if (mode === "cases") {
+    const cases = d.relatedCases || [];
+    if (!cases.length) {
+      return (
+        <div className="source-empty">
+          <Icon.scale />
+          <div>Bu konuyla ilgili emsal mahkeme kararı bu cevapta yer almadı.</div>
+        </div>
+      );
+    }
+    return <RelatedCases cases={cases} />;
+  }
 
   if (d.kind === "reject") {
     return (

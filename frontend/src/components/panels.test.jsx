@@ -1,9 +1,17 @@
 /* panels.jsx — PredictionCard / AgentTrace özet / EvidenceStats render testleri. */
 import React from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PredictionCard, AgentTrace, EvidenceStats, QuickTyping } from "./panels.jsx";
+
+// NumberTicker (framer-motion useInView) jsdom'da IntersectionObserver arar — full render
+// (fireEvent) testlerinde stub. Statik markup testleri bunu kullanmaz.
+beforeAll(() => {
+  global.IntersectionObserver = class {
+    observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
+  };
+});
 
 const html = (n) => renderToStaticMarkup(n);
 
@@ -109,5 +117,27 @@ describe("EvidenceStats", () => {
     // tooltip + aria: kullanıcı %88'i kalibre doğruluk olasılığı sanmasın
     expect(out).toContain("kalibre edilmiş doğruluk olasılığı DEĞİLDİR");
     expect(out).toContain("sezgisel, kalibre olasılık değil");
+  });
+
+  it("dava varsa 'İlgili Kararlar' tıklanabilir stat'ı gösterir (Doğrulanan iddia yerine)", () => {
+    const out = html(<EvidenceStats confidence={88} sourceCount={5}
+      claims={[{ verified: true }, { verified: false }]} caseCount={3} onOpenCases={() => {}} />);
+    expect(out).toContain("İlgili Kararlar");
+    expect(out).toContain(">3<");                 // caseCount
+    expect(out).not.toContain("Doğrulanan iddia"); // yerine geçti
+  });
+
+  it("İlgili Kararlar stat'ına tıklayınca onOpenCases çağrılır (yan panel açılır)", () => {
+    const onOpenCases = vi.fn();
+    render(<EvidenceStats confidence={88} sourceCount={5} claims={[]} caseCount={2} onOpenCases={onOpenCases} />);
+    fireEvent.click(screen.getByLabelText(/ilgili karar/i));
+    expect(onOpenCases).toHaveBeenCalled();
+  });
+
+  it("dava yoksa eski 'Doğrulanan iddia' stat'ı korunur (bilgi kaybı yok)", () => {
+    const out = html(<EvidenceStats confidence={88} sourceCount={5}
+      claims={[{ verified: true }]} caseCount={0} onOpenCases={() => {}} />);
+    expect(out).toContain("Doğrulanan iddia");
+    expect(out).not.toContain("İlgili Kararlar");
   });
 });

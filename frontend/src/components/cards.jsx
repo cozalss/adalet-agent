@@ -73,10 +73,17 @@ export function RelatedCases({ cases, onJump }) {
       <ul className="rc-list">
         {cases.map((c) => (
           <li className="rc-item" key={c.id}>
-            <button type="button" className="rc-title" onClick={() => onJump?.(c.id)} title="Kaynak kartına git">
-              <span className="rc-badge">{c.type || "Karar"}</span>
-              {c.title}
-            </button>
+            {onJump ? (
+              <button type="button" className="rc-title" onClick={() => onJump(c.id)} title="Kaynak kartına git">
+                <span className="rc-badge">{c.type || "Karar"}</span>
+                {c.title}
+              </button>
+            ) : (
+              <div className="rc-title rc-title-static">
+                <span className="rc-badge">{c.type || "Karar"}</span>
+                {c.title}
+              </div>
+            )}
             {c.passage && (
               <p className="rc-passage">
                 {c.passage.length > 180 ? `${c.passage.slice(0, 180)}…` : c.passage}

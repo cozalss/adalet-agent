@@ -824,6 +824,9 @@ a.btn:not(:disabled):active {
   display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
 }
 .related-cases .rc-title:hover { color: var(--accent-text, var(--accent, #9E6A43)); }
+/* Yan panelde (davalar modu) başlık tıklanamaz → statik; eylem "tam metni" linki. */
+.related-cases .rc-title.rc-title-static { cursor: default; }
+.related-cases .rc-title.rc-title-static:hover { color: var(--text); }
 .related-cases .rc-badge {
   flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .3px;
   color: var(--success, #4a7c59); background: var(--success-soft, rgba(74,124,89,.12));

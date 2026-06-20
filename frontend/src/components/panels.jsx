@@ -34,7 +34,7 @@ function useCountUp(value) {
 }
 
 /* ---------- Kanıt özeti — daisyUI stat deseni (Güven · Kaynak · İddia) ---------- */
-export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }) {
+export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources, caseCount = 0, onOpenCases }) {
   const list = claims || [];
   const verified = list.filter((c) => c.verified).length;
   const total = list.length;
@@ -72,7 +72,24 @@ export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }
           <div className="ev-label">Kaynak</div>
         </div>
       )}
-      {total > 0 && (
+      {/* "İlgili Kararlar" — emsal davalar varsa Kaynak gibi TIKLANABİLİR: yan panelde
+          bu konuyla ilgili mahkeme kararları açılır. Dava yoksa eski "Doğrulanan iddia"
+          stat'ına düşer (doğrulama bilgisi Ajan-izi panelinde de durur). */}
+      {onOpenCases && caseCount > 0 ? (
+        <>
+          <div className="ev-divider" aria-hidden="true"></div>
+          <button
+            type="button"
+            className="ev-stat ev-stat-btn"
+            onClick={onOpenCases}
+            title="Bu konuyla ilgili mahkeme kararlarını yan panelde aç"
+            aria-label={`${caseCount} ilgili karar — yan panelde göster`}
+          >
+            <div className="ev-val">{caseCount}</div>
+            <div className="ev-label">İlgili Kararlar <span className="ev-open" aria-hidden="true">›</span></div>
+          </button>
+        </>
+      ) : total > 0 ? (
         <>
           <div className="ev-divider" aria-hidden="true"></div>
           <div className="ev-stat">
@@ -80,7 +97,7 @@ export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }
             <div className="ev-label">Doğrulanan iddia</div>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
