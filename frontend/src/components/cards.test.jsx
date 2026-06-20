@@ -1,7 +1,8 @@
 /* cards.jsx — cevap/red/netleştirme/kullanıcı-balonu render testleri (statik markup). */
 import React from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { render, fireEvent } from "@testing-library/react";
 import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./cards.jsx";
 
 const html = (n) => renderToStaticMarkup(n);
@@ -57,6 +58,36 @@ describe("ClarifyCard", () => {
     expect(out).toContain("clarify soft"); // glass-ağırlık yerine yumuşak ton
     expect(out).toContain("cl-arrow"); // numara değil ok-ipucu
     expect(out).not.toContain('class="num"'); // eski diktat numarası KALDIRILDI
+  });
+
+  it("chips verilince tıklanabilir cevap-şıkları (button.cl-chip) render eder", () => {
+    const out = html(
+      <ClarifyCard data={{ intro: "Sebep?", options: ["Neden çıkarmak istiyorsunuz?"],
+        chips: ["İhtiyaç nedeniyle", "Kira ödenmiyor (temerrüt)"] }} />,
+    );
+    expect(out).toContain("cl-chip");
+    expect(out).toContain("İhtiyaç nedeniyle");
+    expect(out).toContain("Kira ödenmiyor (temerrüt)");
+    expect(out).toContain("<button");
+  });
+
+  it("chip'e tıklayınca onPick(chip) çağrılır — sebep CEVAP olarak gider", () => {
+    const onPick = vi.fn();
+    const { getByText } = render(
+      <ClarifyCard data={{ intro: "Sebep?", options: ["x"], chips: ["İhtiyaç nedeniyle"] }}
+        onPick={onPick} />,
+    );
+    fireEvent.click(getByText("İhtiyaç nedeniyle"));
+    expect(onPick).toHaveBeenCalledWith("İhtiyaç nedeniyle");
+  });
+
+  it("chips yoksa eski davranış: cevap-şıkkı (cl-chip) basılmaz", () => {
+    const out = html(<ClarifyCard data={{ intro: "i", options: ["a", "b"] }} />);
+    expect(out).not.toContain("cl-chip");
+  });
+
+  it("savunmacı: options tanımsızsa render çökmez (geçmiş-replay/bozuk yanıt)", () => {
+    expect(() => html(<ClarifyCard data={{ intro: "x" }} />)).not.toThrow();
   });
 });
 

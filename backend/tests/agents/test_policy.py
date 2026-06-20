@@ -202,6 +202,239 @@ def test_bare_question_words_answer_iter11():
                             "case_facts": {}, "question": q}) == "answer"
 
 
+# --- ayırt edici (discriminator) kapı: tahliye sebebi ---
+
+def test_kira_landlord_eviction_clarifies_even_when_phrased_general():
+    """Kullanıcının asıl şikâyeti: 'kiracımı çıkaramıyorum ne yapabilirim' gibi
+    GENEL kalıpta bile, ayırt edici tahliye SEBEBİ bilinmeden sığ cevaba düşüyordu.
+    Artık önce sebebi sor (discriminator kapı, general/sufficient'tan önce)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "kiracımı çıkaramıyorum ne yapabilirim",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum", "taraf": "ev sahibi"},
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_kira_eviction_reason_only_asks_reason_specific_followup():
+    """Round-2 dallanma: sebep (ihtiyaç) verildi ama sebebe-özel belirleyici bilgi
+    (kim oturacak / sürekli mi) yok → follow-up sor ('tam akış')."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "kiracımı kendi ihtiyacım için çıkarmak istiyorum nasıl yaparım",
+        "case_facts": {"olay": "kiracıyı ihtiyaç nedeniyle çıkarmak istiyorum"},
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_kira_eviction_full_picture_answers_without_overasking():
+    """Sebep + sebebe-özel ayrıntı tek mesajda verildi → follow-up sorma, cevapla."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": (
+            "kiracımı kendi ihtiyacım için çıkarmak istiyorum; eşim ve çocuğumla biz "
+            "oturacağız, ihtiyaç sürekli"
+        ),
+        "case_facts": {"olay": "kiracıyı ihtiyaç nedeniyle çıkarmak; eşim çocuğum oturacak sürekli"},
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_eviction_round2_asks_reason_specific_followup_across_turns():
+    """Round-1'de sebep soruldu, kullanıcı 'ihtiyaç' dedi (geçmişte 1 marker) →
+    round-2 sebebe-özel soru sor (marker olsa da follow-up beklediği için cevaba düşmez)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "kendi ihtiyacım için lazım",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum kendi ihtiyacım için lazım"},
+        "chat_history": [
+            {"role": "user", "content": "kiracımı çıkaramıyorum"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} kiracıyı hangi sebeple çıkarmak istiyorsunuz?"},
+        ],
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_eviction_hard_cap_two_rounds_then_answers():
+    """Sert tur sınırı: iki clarify turundan sonra (zincir=2) sebebe-özel bilgi hâlâ
+    eksik olsa bile cevapla — sonsuz soru-sorma döngüsü imkânsız."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "tam bilmiyorum",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum kendi ihtiyacım"},
+        "chat_history": [
+            {"role": "user", "content": "kiracımı çıkaramıyorum"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} hangi sebeple çıkarmak istiyorsunuz?"},
+            {"role": "user", "content": "ihtiyacım için"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} konutta kim oturacak?"},
+        ],
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_freetext_reason_round2_clarifies_like_chip():
+    """Kullanıcı şıkka tıklamak yerine sebebi KENDİ yazdı ('kira vermiyor') →
+    yine round-2 sebebe-özel soru sorulur (chip ile aynı akış)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "kira vermiyor",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum kira vermiyor"},
+        "chat_history": [
+            {"role": "user", "content": "kiracımı çıkaramıyorum"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} hangi sebeple çıkarmak istiyorsunuz?"},
+        ],
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_unrecognized_freetext_reason_answers_no_loop():
+    """Tanınmayan serbest-metin sebep (round-1 sonrası) → DÖNGÜYE girmez, best-effort cevaplar
+    (chip'imiz işine yaramayan kullanıcı serbest yazsa bile takılı kalmaz)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "durumum biraz karışık",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum durumum biraz karışık"},
+        "chat_history": [
+            {"role": "user", "content": "kiracımı çıkaramıyorum"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} hangi sebeple çıkarmak istiyorsunuz?"},
+        ],
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_icra_situation_asks_stance_even_when_phrased_general():
+    """Karşılaşılan icra olayı + duruş belirsiz → 'ne yapmalıyım' genel kalıba rağmen
+    önce DURUŞU (itiraz/kabul/alacaklı) sor — cevabı tümden değiştirir."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "icra",
+        "question": "hakkımda icra takibi başlatıldı ne yapmalıyım",
+        "case_facts": {"olay": "icra takibi başlatıldı"},
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_icra_general_howto_answers_no_overclarify():
+    """Genel/tanımsal icra sorusu (karşılaşılan olay yok) → answer (over-clarify YOK)."""
+    for q in ("icra takibi nasıl açılır", "ödeme emrine itiraz nasıl yapılır"):
+        state = {"response_intent": "legal_answer", "domain": "icra",
+                 "case_facts": {}, "question": q}
+        assert decide_path(state) == "answer", q
+
+
+def test_icra_stance_given_round2_followup():
+    """Kullanıcı duruşu verdi (itiraz) → round-2 duruşa-özel soru (süre/itiraz kapsamı)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "icra",
+        "question": "borca itiraz edeceğim",
+        "case_facts": {"olay": "hakkımda icra takibi başlatıldı borca itiraz edeceğim"},
+        "chat_history": [
+            {"role": "user", "content": "icra geldi"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} icra sürecinde durumunuz ne?"},
+        ],
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_new_topic_after_completed_clarify_can_clarify_again():
+    """Tamamlanmış bir clarify+cevap zincirinden SONRA yeni durumsal soru → zincir
+    kırıldığı için (araya normal cevap girdi) yine netleştirilebilir (zincir=0)."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "depozitomu alamıyorum",
+        "case_facts": {},
+        "chat_history": [
+            {"role": "user", "content": "önceki tahliye sorusu"},
+            {"role": "assistant", "content": f"{CLARIFY_MARKER} hangi sebeple?"},
+            {"role": "user", "content": "ihtiyaç, kendim oturacağım sürekli"},
+            {"role": "assistant", "content": "İhtiyaç nedeniyle tahliyede şu yol izlenir... [src:...]"},
+        ],
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_tenant_facing_eviction_not_treated_as_landlord():
+    """Kiracı KENDİSİ tahliye ediliyorsa landlord-eviction değil → mevcut kalibrasyon
+    (genel soru → answer) korunur; yanlış 'neden çıkarmak istiyorsun' sorusu sorulmaz."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "kira",
+        "question": "ev sahibim beni tahliye etmek istiyor ne yapabilirim",
+        "case_facts": {},
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_employer_dismissal_without_reason_clarifies():
+    """İş hukuku fesih: işveren işçiyi çıkarmak istiyor ama SEBEP belli değil →
+    sebep (haklı/geçerli/sebepsiz) kıdem-ihbar + işe iade hakkını belirler → sor."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "isHukuku",
+        "question": "işçimi işten çıkarmak istiyorum ne yapmam gerekir",
+        "case_facts": {"olay": "işçiyi işten çıkarmak istiyorum", "sure": "3 yıl"},
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_employer_dismissal_reason_only_asks_followup():
+    """Round-2: fesih sebebi (devamsızlık) verildi ama sebebe-özel belirleyici bilgi
+    (tutanak/savunma/süre) yok → follow-up sor."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "isHukuku",
+        "question": "devamsızlık yapan işçimi haklı sebeple çıkarmak istiyorum nasıl yaparım",
+        "case_facts": {"olay": "devamsızlık nedeniyle işçi çıkarma"},
+    }
+    assert decide_path(state) == "clarify"
+
+
+def test_employer_dismissal_full_picture_answers():
+    """Fesih sebebi + sebebe-özel ayrıntı (tutanak/savunma) verildi → cevapla."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "isHukuku",
+        "question": (
+            "işçimi devamsızlıktan çıkardım; tutanak tuttum, yazılı savunmasını aldım, "
+            "olayı 2 gün önce öğrendim"
+        ),
+        "case_facts": {"olay": "devamsızlık, tutanak ve savunma var"},
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_employee_dismissal_rights_question_still_answers():
+    """Çalışanın KENDİ hak sorusu (işveren değil) → mevcut kalibrasyon korunur (answer);
+    yanlış 'neden çıkarıyorsun' sorusu sorulmaz."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "isHukuku",
+        "question": "işten haksız yere çıkarıldım hangi haklarım var",
+        "case_facts": {},
+    }
+    assert decide_path(state) == "answer"
+
+
+def test_non_discriminator_ishukuku_complaint_answers_with_facts():
+    """Fesih DIŞI iş sorunu (ücret) + yeterli olgu → discriminator kapı kapalı, answer."""
+    state = {
+        "response_intent": "legal_answer",
+        "domain": "isHukuku",
+        "question": "fazla mesai ücretimi alamıyorum",
+        "case_facts": {"olay": "fazla mesai ücreti ödenmiyor", "sure": "2 yıl"},
+    }
+    assert decide_path(state) == "answer"
+
+
 def test_is_general_question_ability_pattern_typo_robust():
     """'...alabilir mi(yim)' yetenek sorusu = genel (cevapla); typo/birleşik dayanıklı.
 

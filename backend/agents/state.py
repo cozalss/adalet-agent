@@ -170,6 +170,8 @@ class AgentState(TypedDict):
     # clarifier_node 2-4 SABİT Türkçe soru üretir, retrieval/draft YOK, finalize
     # bu metni doğrudan basar. clarification_round loop-guard (max 1 tur).
     clarifying_questions: NotRequired[list[str]]
+    # Round-1 sebep-sorusu için tıklanabilir cevap-şıkları (sebep seçimi); round-2'de boş.
+    clarify_options: NotRequired[list[str]]
     clarify_response: NotRequired[str]
     clarification_round: NotRequired[int]
     # Uygunluk değerlendirmesi (yapılandırılmış akıl yürütme): retrieve edilen her

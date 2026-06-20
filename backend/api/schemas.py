@@ -12,9 +12,14 @@ Reject durumunda answer = boilerplate "avukata danışın" template.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+# Belge-meta sanitizasyonu (sınır-doğrulama): path-ayraç + kontrol/log-injection
+# karakterlerini eler. \w (unicode) Türkçe karakterleri (ç,ş,ğ) KORUR — dosya adı bozulmaz.
+_UNSAFE_META_RE = re.compile(r"[^\w.\- ]")
 
 # user_meta sınırları — sınırsız nested dict DoS'unu önle (deserializasyon
 # bellek/CPU baskısı). Opsiyonel metadata; küçük key:value beklenir.
@@ -34,10 +39,26 @@ class ImageAttachmentInput(BaseModel):
     sonuç metni burada case_facts çıkarımına beslenir).
     """
 
-    filename: str = Field("belge", max_length=256)
+    filename: str = Field("belge", max_length=128)
     ocr_engine: str = Field("tesseract", max_length=32)
     text: str = Field(..., max_length=_MAX_ATTACHMENT_TEXT)
     n_chars: int = Field(0, ge=0)
+
+    @field_validator("filename")
+    @classmethod
+    def _safe_filename(cls, v: str) -> str:
+        """Path-traversal + kontrol-karakter savunması: yalnız basename, güvenli charset.
+        Bu alan metadata (ask.py case_facts/log) — diske yazılmasa da ileriye-dönük kör nokta
+        ve log-injection kapanır (ECC: 'validate at system boundaries'). Türkçe ad korunur."""
+        base = v.replace("\x00", "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        return (_UNSAFE_META_RE.sub("_", base).strip()[:128]) or "belge"
+
+    @field_validator("ocr_engine")
+    @classmethod
+    def _safe_engine(cls, v: str) -> str:
+        """Motor adı istemciden döner ('tesseract'/'qwen2-vl'/'auto'/'none') — geçerli
+        değerleri REDDETME (whitelist kırardı), yalnız kontrol/log-injection karakterlerini el."""
+        return (_UNSAFE_META_RE.sub("", v).strip()[:32]) or "tesseract"
 
 # Domain enum — agents.state.Domain ile aynı küme
 Domain = Literal[
@@ -197,6 +218,22 @@ class AskResponse(BaseModel):
             "soğuk RejectCard değil)."
         ),
     )
+    clarifying_questions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "needs_clarification iken sorulan netleştirme soruları (yapısal liste). "
+            "Frontend bunları markdown'dan regex ile ayrıştırmak yerine doğrudan render "
+            "eder; boşsa cevap clarify değildir."
+        ),
+    )
+    clarify_options: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Round-1 sebep-sorusunda tıklanabilir CEVAP-şıkları (ör. tahliye sebepleri). "
+            "Frontend bunları chip olarak basar; tıklanınca şık kullanıcı yanıtı olarak "
+            "gönderilir (sebebe-özel round-2'yi tetikler). Round-2'de/sorusu yoksa boş."
+        ),
+    )
     citations: list[CitationSchema] = Field(default_factory=list)
     claims: list[ClaimSchema] = Field(default_factory=list)
     disclaimers: list[str] = Field(default_factory=list)
@@ -248,6 +285,9 @@ class OCRUploadResponse(BaseModel):
     # ajanların kesin hukuki çıkarım yapması riskini azaltır.
     confidence: float | None = None
     low_confidence: bool = False
+    # PDF sayfa sayısı (görselde 1). Çok-sayfa belgede istemci "N sayfa işlendi"
+    # gösterebilir; sayfa-cap aşıldıysa kullanıcı eksik metni fark eder.
+    page_count: int = 1
 
 
 class STTUploadResponse(BaseModel):

@@ -117,10 +117,25 @@ export function useChat() {
             _patch(key, { phase: "smalltalk", data: mapSmalltalk(resp) });
             return;
           }
-          if (sawClarify || ((resp.errors || []).length === 0 && _looksClarify(resp))) {
+          // Clarify tespiti: önce backend'in KESİN sinyali (SSE clarify event /
+          // response_intent / yapısal clarifying_questions) — kırılgan regex heuristik
+          // yalnız son-çare (eski/geçmiş yanıtlar için). Yapısal sorular mapClarify'a
+          // verilir → markdown ayrıştırmasına bağımlı kalmaz.
+          const structuredClarify =
+            resp.response_intent === "needs_clarification"
+            || (resp.clarifying_questions || []).length > 0;
+          if (sawClarify || structuredClarify
+              || ((resp.errors || []).length === 0 && _looksClarify(resp))) {
             _patch(key, {
               phase: "clarify",
-              data: { kind: "clarify", domain: _domainLabel(resp.domain), clarify: mapClarify(resp.answer) },
+              data: {
+                kind: "clarify",
+                domain: _domainLabel(resp.domain),
+                clarify: {
+                  ...mapClarify(resp.answer, resp.clarifying_questions),
+                  chips: resp.clarify_options || [],  // tıklanabilir sebep-şıkları (round-1)
+                },
+              },
             });
             return;
           }

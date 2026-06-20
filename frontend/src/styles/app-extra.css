@@ -214,9 +214,21 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
 .dc-label { font-family: var(--font-display); font-size: 14.5px; font-weight: 600; color: var(--text); }
 .dc-q { font-size: 12.5px; line-height: 1.45; color: var(--text-3); }
 .domain-card:hover .dc-q { color: var(--text-2); }
+/* kademeli (stagger) giriş — 4 kart sırayla belirsin (premium his) */
+.domain-card:nth-child(1) { animation-delay: .04s; }
+.domain-card:nth-child(2) { animation-delay: .11s; }
+.domain-card:nth-child(3) { animation-delay: .18s; }
+.domain-card:nth-child(4) { animation-delay: .25s; }
+/* ikon hover'da accent'e dolar + hafif döner (kartla birlikte canlanır) */
+.dc-ic { transition: transform .28s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)), background .22s ease, color .22s ease, border-color .22s ease; }
+.domain-card:hover .dc-ic { transform: scale(1.09) rotate(-5deg); background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+.domain-card:active { transform: translateY(-1px) scale(.99); }
+
 @media (prefers-reduced-motion: reduce) {
   .domain-card { animation: none; transition: border-color .15s ease; }
   .domain-card:hover { transform: none; }
+  .domain-card:hover .dc-ic { transform: none; }
+  .domain-card:active { transform: none; }
 }
 
 /* ---------- "Dilekçe" toggle aktif durumu ---------- */
@@ -708,10 +720,17 @@ a.btn:not(:disabled):active {
 }
 @keyframes sec-caret { 50% { opacity: 0; } }
 
+/* Taslak→kart geçişi: canlı taslak baloncuğu (kenar-çizgili, gölgesiz) kaybolup
+   AnswerCard belirince "pop" hissi oluyordu. Kart yumuşakça belirsin (opacity-only;
+   bölüm-reveal translateY ile çakışmaz) → "taslak oturur" hissi, sıçrama değil. */
+.assistant-body > .card.answer { animation: ans-settle .34s ease both; }
+@keyframes ans-settle { from { opacity: 0; } to { opacity: 1; } }
+
 /* Hareketi azalt: kademeli reveal/imleç yok — içerik anında ve tam görünür. */
 @media (prefers-reduced-motion: reduce) {
   .answer .sec.reveal-target { opacity: 1; transform: none; transition: none; }
   .answer .sec.writing .sec-label::after { display: none; animation: none; }
+  .assistant-body > .card.answer { animation: none; }
 }
 
 /* ================================================================
@@ -779,9 +798,63 @@ a.btn:not(:disabled):active {
 }
 .clarify .cl-arrow { color: var(--accent-text, var(--accent, #D4A574)); font-weight: 600; margin-right: 8px; flex: 0 0 auto; }
 
+/* Tıklanabilir sebep-şıkları (cevap-chip) — tıklayınca o sebep yanıt olarak gider. */
+.clarify .cl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.clarify .cl-chip {
+  appearance: none; cursor: pointer;
+  padding: 7px 14px; border-radius: 999px;
+  font: inherit; font-size: 13.5px; line-height: 1.3;
+  color: var(--accent-text, var(--accent, #9E6A43));
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent-soft, rgba(158,106,67,.28));
+  transition: background .15s ease, border-color .15s ease, transform .12s ease;
+}
+.clarify .cl-chip:hover {
+  background: var(--accent-soft, rgba(212,165,116,.14));
+  border-color: var(--accent, #D4A574);
+}
+.clarify .cl-chip:active { transform: translateY(1px); }
+.clarify .cl-chip:focus-visible { outline: 2px solid var(--accent, #D4A574); outline-offset: 2px; }
+
+/* Hukuki yol CANLI taslak baloncuğu — token'lar geldikçe yazılır (ChatGPT hissi).
+   Açıkça GEÇİCİ: kesik-çizgi sol kenar + "doğrulanacak" rozeti + yanıp sönen imleç.
+   AnswerCard'dan görsel olarak ayrı (kart değil) → kullanıcı bunun nihai olmadığını anlar. */
+.draft-stream {
+  margin: 2px 0 14px; padding: 2px 0 2px 14px;
+  border-left: 2px dashed var(--accent-soft, rgba(158,106,67,.25));
+  animation: st-rise .3s ease both;
+}
+.draft-stream-head {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin-bottom: 8px; font-size: 12px; font-weight: 600;
+  color: var(--accent-text, var(--accent)); letter-spacing: .2px;
+}
+.draft-stream-head .draft-pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 0 var(--accent-soft);
+  animation: draft-glow 1.4s ease-out infinite;
+}
+@keyframes draft-glow {
+  0% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.draft-stream-body {
+  font-size: 15px; line-height: 1.7; color: var(--text); opacity: .82;
+}
+.draft-stream-body p { margin: 0 0 9px; }
+.draft-stream-body p:last-child { margin-bottom: 0; }
+.draft-caret {
+  display: inline-block; width: 2px; height: 1.05em; vertical-align: text-bottom;
+  background: var(--accent); margin-left: 2px; animation: blink 1s step-end infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .smalltalk-bubble { animation: none; }
   .quick-typing .qt-dot { animation: none; opacity: .6; }
+  .draft-stream { animation: none; }
+  .draft-stream-head .draft-pulse { animation: none; }
+  .draft-caret { animation: none; opacity: .7; }
 }
 
 /* Üst-düzey hata sınırı kurtarma ekranı (denetim #8) — sakin, ortalanmış, marka-içi. */

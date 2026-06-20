@@ -54,6 +54,66 @@ async def test_skips_questions_for_already_known_facts():
 
 
 @pytest.mark.asyncio
+async def test_kira_eviction_asks_discriminating_reason_question():
+    # Ev sahibi tahliye senaryosu → jenerik banka yerine ayırt edici SEBEP sorusu.
+    out = await clarifier_node({
+        "domain": "kira",
+        "question": "kiracımı çıkaramıyorum",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum"},
+    })
+    assert out["response_intent"] == "needs_clarification"
+    joined = " ".join(out["clarifying_questions"]).lower()
+    assert "sebep" in joined  # 'hangi sebeple çıkarmak istiyorsunuz'
+    assert CLARIFY_MARKER in out["clarify_response"]
+
+
+@pytest.mark.asyncio
+async def test_kira_eviction_round1_emits_clickable_options():
+    # Round-1 sebep-sorusunda tıklanabilir cevap-şıkları üretilir.
+    out = await clarifier_node({
+        "domain": "kira",
+        "question": "kiracımı çıkaramıyorum",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum"},
+    })
+    assert len(out["clarify_options"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_kira_eviction_round2_has_no_options():
+    # Sebep verildiyse (round-2 follow-up) şık yok — açık uçlu soru sorulur.
+    out = await clarifier_node({
+        "domain": "kira",
+        "question": "kendi ihtiyacım için lazım",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum kendi ihtiyacım için lazım"},
+    })
+    assert out["clarify_options"] == []
+
+
+@pytest.mark.asyncio
+async def test_kira_eviction_round2_asks_reason_specific_followup():
+    # Sebep (ihtiyaç) verilmişse clarifier round-2 sebebe-özel soruyu üretir.
+    out = await clarifier_node({
+        "domain": "kira",
+        "question": "kendi ihtiyacım için lazım",
+        "case_facts": {"olay": "kiracıyı çıkaramıyorum kendi ihtiyacım için lazım"},
+    })
+    joined = " ".join(out["clarifying_questions"]).lower()
+    assert "oturac" in joined or "sürekli" in joined  # ihtiyaç-özel follow-up
+
+
+@pytest.mark.asyncio
+async def test_kira_non_eviction_still_uses_generic_bank():
+    # Tahliye DIŞI kira sorunu (depozito) → eski jenerik banka korunur (regresyon yok).
+    out = await clarifier_node({
+        "domain": "kira",
+        "question": "depozitomu geri alamıyorum",
+        "case_facts": {},
+    })
+    olay_question = next(q for key, q in QUESTION_BANK["kira"] if key == "olay")
+    assert olay_question in out["clarifying_questions"]
+
+
+@pytest.mark.asyncio
 async def test_unsupported_domain_is_noop():
     # Banka'da olmayan/unknown domain → no-op; legal akışa düşer.
     out = await clarifier_node({"domain": "unknown", "case_facts": {}})

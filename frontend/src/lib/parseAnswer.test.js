@@ -1,6 +1,41 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText } from "./parseAnswer.js";
+
+describe("cleanDraftText — CANLI taslak temizliği (saçmalık fix)", () => {
+  it("ham [src: id] kaynak etiketlerini kaldırır (final numaralı çip ekler)", () => {
+    const out = cleanDraftText("İş Kanunu geçici 6. madde [src: m-IK-4] uygulanır.");
+    expect(out).not.toContain("[src:");
+    expect(out).toContain("geçici 6. madde uygulanır.");  // boşluk normalize
+  });
+
+  it("birden çok kaynak etiketini temizler + çift boşluk bırakmaz", () => {
+    const out = cleanDraftText("a [src: x] b [src: y] c");
+    expect(out).toBe("a b c");
+  });
+
+  it("STREAMING guard: sonda kapanmamış ** (yarım başlık) gizlenir", () => {
+    // "**Kısa cevap:** ... **Durumun" → yarım ikinci başlık flaşı görünmemeli
+    const out = cleanDraftText("**Kısa cevap:** metin\n\n**Durumun");
+    expect(out).toContain("**Kısa cevap:**");        // tamamlanmış başlık korunur (renderInline bold yapar)
+    expect(out).not.toContain("**Durumun");          // yarım başlık gizlendi
+  });
+
+  it("STREAMING guard: sonda yarım [src: etiketi gizlenir", () => {
+    const out = cleanDraftText("madde uygulanır [src: m-IK");
+    expect(out).not.toContain("[src:");
+    expect(out).toContain("madde uygulanır");
+  });
+
+  it("tamamlanmış **kalın** korunur (renderInline'a bırakılır, literal yıldız final'le tutarlı)", () => {
+    expect(cleanDraftText("**Dayanak:** İş Kanunu")).toBe("**Dayanak:** İş Kanunu");
+  });
+
+  it("finalize kuyruğunu (Kaynaklar + disclaimer) da keser", () => {
+    const out = cleanDraftText("Cevap.\n\n---\n**Kaynaklar:**\n- x\n\n⚠️ uyarı");
+    expect(out).toBe("Cevap.");
+  });
+});
 
 describe("looksSmalltalk — selam/yönlendirme ayrımı", () => {
   it("response_intent ile kesin ayırır", () => {
@@ -174,6 +209,17 @@ describe("mapClarify", () => {
     expect(out.intro).toMatch(/netleştir/i);
     expect(out.options).toHaveLength(1);
   });
+  it("yapısal clarifying_questions verilince markdown yerine onu kullanır", () => {
+    const out = mapClarify("alakasız markdown gövde", ["Hangi sebeple?", "Sözleşme yazılı mı?"]);
+    expect(out.options).toEqual(["Hangi sebeple?", "Sözleşme yazılı mı?"]);
+    expect(out.intro).toMatch(/netleştir/i);
+  });
+  it("tek yapısal soru (round-2 follow-up) da güvenilir döner", () => {
+    expect(mapClarify("", ["Konutta kim oturacak?"]).options).toEqual(["Konutta kim oturacak?"]);
+  });
+  it("boş yapısal liste → markdown ayrıştırmasına düşer", () => {
+    expect(mapClarify("1. A\n2. B", []).options).toEqual(["A", "B"]);
+  });
 });
 
 describe("mapSources", () => {
@@ -195,6 +241,14 @@ describe("deriveRisk", () => {
     const r = deriveRisk("itiraz süresi", "30 gün içinde başvurun");
     expect(r).not.toBeNull();
     expect(r.text).toContain("süre");
+  });
+  it("DisclaimerBar ile çift 'avukata danışın' üretmez (gereksiz tekrar yok)", () => {
+    const r = deriveRisk("itiraz süresi", "30 gün içinde başvurun");
+    // Anthropic anti-paternalist ilke: aynı cevapta tekrar disclaimer = gereksiz caveat.
+    expect(r.text.toLocaleLowerCase("tr")).not.toContain("avukat");
+    // Risk-spesifik katma-değer korunur (aciliyet + belge saklama).
+    expect(r.text).toContain("hak kaybı");
+    expect(r.text).toContain("belgeleri");
   });
   it("risk kelimesi yoksa null", () => {
     expect(deriveRisk("merhaba", "nasılsın")).toBeNull();

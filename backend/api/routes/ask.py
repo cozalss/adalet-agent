@@ -749,6 +749,8 @@ def _state_to_response(
         n_total_claims=int(state.get("n_total_claims") or 0),
         verdict=state.get("debate_verdict", "pass"),
         response_intent=state.get("response_intent"),
+        clarifying_questions=list(state.get("clarifying_questions") or []),
+        clarify_options=list(state.get("clarify_options") or []),
         citations=citations,
         claims=claims,
         disclaimers=state.get("disclaimers", []),

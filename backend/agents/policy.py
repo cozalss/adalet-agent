@@ -14,6 +14,11 @@ from __future__ import annotations
 import re
 from typing import Literal
 
+from agents.clarify_slots import (
+    discriminator_followup_questions,
+    discriminator_questions,
+    is_discriminator_scenario,
+)
 from agents.state import AgentState
 from core.text import tr_lower as _tr_lower
 
@@ -28,6 +33,12 @@ PolicyDecision = Literal["answer", "clarify", "chat", "redirect", "reject_sensit
 # En fazla kaç tur netleştirme istenebilir. 1 → en çok bir clarify turu, sonra
 # elde olanla best-effort cevapla (sonsuz soru-sorma döngüsünü kapatır).
 MAX_CLARIFICATION_ROUNDS = 1
+
+# Ayırt edici (discriminator) senaryolarda izin verilen tur sayısı: 2 → round-1 SEBEP
+# + round-2 sebebe-özel takip ("tam akış"). Hard cap: çapraz-tur marker sayısı bu
+# değere ulaşınca cevaplanır (sonsuz döngü imkânsız). Yalnız aktif discriminator
+# akışına uygulanır; diğer her şey MAX_CLARIFICATION_ROUNDS=1'de kalır.
+MAX_DISCRIMINATOR_ROUNDS = 2
 
 # Clarifier preamble'ına gömülen sentinel. Loop-guard bunu chat_history'deki son
 # asistan turunda arar; varsa kullanıcının bu turu o sorulara cevap demektir.
@@ -108,13 +119,18 @@ def decide_path(state: AgentState) -> PolicyDecision:
     """Generation öncesi tek karar noktası — erken-return merdiveni.
 
     Sıra (en spesifik → en genel):
-      1. smalltalk / out_of_scope_sensitive → triaj zaten kesin niyet verdi
-      2. unknown domain → redirect
-      3. loop-guard: zaten N tur netleştirildi → answer (best-effort)
-      4. kullanıcı önceki turda netleştirmeye cevap verdi (marker) → answer
-      5. olgular yeterli → answer
-      6. soru genel/tanımsal (bilgi sorusu) → answer
-      7. aksi (olgu-eksik durumsal şikâyet) → clarify
+      1. smalltalk / out_of_scope_sensitive → chat
+      2. unknown domain → chat
+      3. loop-guard (sert sınır): tur sayacı / çapraz-tur marker sayısı cap'e ulaştı → answer
+      4. kullanıcı netleştirmeye cevap verdi (marker) → answer (round-2 follow-up bekleniyorsa HARİÇ)
+      5. ayırt edici sorular: round-1 (sebep) ya da round-2 (sebebe-özel) → clarify
+      6. sebep verilmiş ayırt edici senaryo → answer (jenerik eşiği atla)
+      7. olgular yeterli → answer
+      8. soru genel/tanımsal → answer
+      9. aksi (olgu-eksik durumsal şikâyet) → clarify
+
+    Discriminator akışı (tahliye/fesih) 2 tura kadar "tam akış" toplar (sebep→sebebe-özel);
+    diğer her şey 1 turla sınırlı. Çapraz-tur sayım `chat_history`'deki marker zinciriyle.
     """
     intent = state.get("response_intent", "legal_answer")
     # Hukuki-OLMAYAN her şey (selam, kapsam-dışı ceza/aile, belirsiz/genel soru) →
@@ -127,22 +143,66 @@ def decide_path(state: AgentState) -> PolicyDecision:
     if domain == "unknown":
         return "chat"
 
-    if state.get("clarification_round", 0) >= MAX_CLARIFICATION_ROUNDS:
+    facts = state.get("case_facts") or {}
+    question = state.get("question", "")
+    reason_ask = discriminator_questions(domain, question, facts) is not None
+    followup_pending = discriminator_followup_questions(domain, question, facts) is not None
+    # Aktif discriminator akışına 2 tur, diğer her şeye 1 tur izin ver.
+    cap = MAX_DISCRIMINATOR_ROUNDS if (reason_ask or followup_pending) else MAX_CLARIFICATION_ROUNDS
+
+    # Sert sınırlar — sonsuz soru-sorma döngüsünü kapatır (graph-içi sayaç + zincir markeri).
+    if state.get("clarification_round", 0) >= cap:
         return "answer"
-    if _user_already_answered_clarifier(state):
+    if _clarify_chain_len(state) >= cap:
         return "answer"
-    # ÖNCE olgu-yeterlilik: triaj case_facts'i doldurduysa (ör. trafik/vergi/idari
-    # MIN_FACTS=1 karşılanır) doğrudan cevapla. Aksi halde spesifik sorular gereksiz
-    # netleştirmeye düşüyordu (2026-06-04: "park halinde çarpıp kaçtılar" → clarify).
-    if _facts_sufficient(domain, state.get("case_facts") or {}):
+    # Kullanıcı netleştirmeye cevap verdiyse normalde cevapla; AMA bir round-2 follow-up
+    # (sebebe-özel soru) hâlâ bekliyorsa o turu yaparak "tam akışı" tamamla.
+    #
+    # BİLİNÇLİ TRADEOFF (code-review MEDIUM-1): kullanıcı önce JENERİK bir clarify alıp
+    # SONRA discriminator senaryosuna geçerse (ör. "kiracım sorun çıkarıyor" → jenerik
+    # clarify → "kiracımı çıkaramıyorum"), burada cevaba düşer; discriminator round-1
+    # sorulmaz. Bunu reason_ask'i de muaf tutarak "düzeltmek" mümkün AMA o zaman
+    # TANINMAYAN serbest-metin sebep tekrar tekrar sorulur (İTER-7 "döngüsüz zarif cevap"
+    # regresyonu). Zincir-cap zaten toplam clarify'ı 2 ile sınırladığından, jenerik+
+    # discriminator akışında en fazla 1 ek soru kazanılırdı; "asla can sıkıcı tekrar-sorma"
+    # ilkesini koruyup best-effort cevabı tercih ediyoruz (yaygın akış = ilk mesaj zaten
+    # discriminator → tam 2 tur sorunsuz çalışır).
+    if _user_already_answered_clarifier(state) and not followup_pending:
+        return "answer"
+    # Ayırt edici sorular: round-1 (hangi sebep) ya da round-2 (sebebe-özel belirleyici).
+    # Soru "nasıl/ne yapabilirim" gibi GENEL kalıpta olsa bile önce bunları sor.
+    if reason_ask or followup_pending:
+        return "clarify"
+    # Sebep + ayrıntı verilmiş ayırt edici senaryo → o bilgi cevap için yeterli;
+    # jenerik sayı-eşiğini atla (gereksiz netleştirme yapma).
+    if is_discriminator_scenario(domain, question, facts):
+        return "answer"
+    # Genel olgu-yeterlilik: triaj case_facts'i doldurduysa doğrudan cevapla.
+    if _facts_sufficient(domain, facts):
         return "answer"
     # Olgu eksik AMA soru genel/tanımsal ise yine doğrudan cevapla.
-    if _is_general_question(state.get("question", "")):
+    if _is_general_question(question):
         return "answer"
     # Olgu EKSİK ve durumsal görünüyorsa → netleştir (yalnız gerçekten eksik-bilgide).
-    if _looks_situational(state.get("question", "")) and not _is_general_question(state.get("question", "")):
+    if _looks_situational(question) and not _is_general_question(question):
         return "clarify"
     return "clarify"
+
+
+def _clarify_chain_len(state: AgentState) -> int:
+    """Mevcut netleştirme zincirinin derinliği — sondan geriye kesintisiz clarify
+    (marker'lı asistan) turu sayısı. Normal bir cevap turu zinciri kırar (yeni konuda
+    eski clarify sayılmaz). 2'ye ulaşınca decide_path cevaplar (sert tur sınırı)."""
+    history = state.get("chat_history") or []
+    count = 0
+    for turn in reversed(history):
+        if turn.get("role") != "assistant":
+            continue
+        if CLARIFY_MARKER in (turn.get("content") or ""):
+            count += 1
+        else:
+            break  # araya normal cevap girdi → bu clarify zinciri bitti
+    return count
 
 
 def _facts_sufficient(domain: str, facts: dict[str, object]) -> bool:
@@ -180,6 +240,7 @@ def _user_already_answered_clarifier(state: AgentState) -> bool:
 __all__ = (
     "CLARIFY_MARKER",
     "MAX_CLARIFICATION_ROUNDS",
+    "MAX_DISCRIMINATOR_ROUNDS",
     "MIN_FACTS_FOR_ANSWER",
     "REQUIRED_FACTS",
     "PolicyDecision",

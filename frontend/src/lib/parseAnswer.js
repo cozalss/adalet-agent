@@ -111,9 +111,13 @@ export function deriveRisk(question, answer) {
   return {
     keyword: hit,
     // Markdown (**kalın**) — RiskWarning renderInline ile basar (HTML değil, XSS yok).
+    // NOT: "avukata danışın" TEKRARI bilinçli KALDIRILDI — DisclaimerBar zaten aynı mesajı
+    // basıyor; aynı cevapta üç kat "avukata danışın" = gereksiz/paternalist tekrar (Anthropic
+    // Constitution: "excessive warnings/caveats that aren't necessary"). Burada SADECE risk-spesifik
+    // KATMA-DEĞER kalır (aciliyet + somut belge saklama); genel disclaimer'ı bar üstlenir.
     text:
       "Bu konuda yasal **süre** olabilir — gecikme hak kaybına yol açabilir. " +
-      "İlgili belgeleri (tebligat, sözleşme) saklayın ve bir an önce bir avukata danışın.",
+      "İlgili belgeleri (tebligat, sözleşme) saklayın ve gecikmeden harekete geçin.",
   };
 }
 
@@ -208,8 +212,17 @@ function mapPrediction(p) {
   };
 }
 
-/** Netleştirme cevabını {intro, options[]} şekline ayır (numaralı sorular). */
-export function mapClarify(answerText) {
+/** Netleştirme cevabını {intro, options[]} şekline ayır.
+ *  Backend yapısal `clarifying_questions` listesi verdiyse onu DOĞRUDAN kullan —
+ *  markdown regex ayrıştırmasına bağımlı kalma (tek-soruluk round-2 follow-up'ta
+ *  bile güvenilir; eski heuristik `>=2 numaralı satır` şartında patlıyordu). */
+export function mapClarify(answerText, questions) {
+  if (Array.isArray(questions) && questions.length) {
+    const options = questions.map((q) => String(q).trim()).filter(Boolean);
+    if (options.length) {
+      return { intro: "Size daha doğru yardımcı olabilmem için birkaç şeyi netleştirelim:", options };
+    }
+  }
   const clean = stripAnswerTail(answerText);
   const lines = clean.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const options = [];
@@ -248,6 +261,37 @@ export function stripAnswerTail(text) {
     .replace(SOURCES_TAIL, "")
     .replace(DISCLAIMER_TAIL, "")
     .trim();
+}
+
+/** CANLI taslak metnini ekrana basmadan önce temizle (DraftStreamBubble).
+ *
+ *  Sorun: ham draft `**Kısa cevap:**` markdown'ı + `[src: m-IK-4]` kaynak etiketleri
+ *  içerir; bunlar final kartta parse edilip cilalanır ama canlı baloncukta OLDUĞU GİBİ
+ *  görünüyordu (literal yıldız + sızıntı gibi tag) → bozuk/tutarsız his, sonra bambaşka
+ *  karta sıçrama. Bu fonksiyon taslağı final ile AYNI temiz prose'a indirir:
+ *    • finalize kuyruğu (stripAnswerTail) + `[src:..]` etiketleri kaldırılır (final numaralı
+ *      çip ekleyecek — taslakta numara henüz yok, gizle),
+ *    • STREAMING guard: sonda kapanmamış `**` (yarım başlık) ve yarım `[..` etiketi gizlenir
+ *      (token token gelirken "**Kısa cev" gibi çirkin flaş olmasın).
+ *  Markdown **kalın** korunur → DraftStreamBubble renderInline ile bold basar (final'le tutarlı). */
+// cleanDraftText'e ÖZEL (paylaşılan global SRC_TAG_RE'nin lastIndex'ini bozmamak için
+// ayrı literal — bu fonksiyon her stream token'ında çağrılır, textToRuns exec-loop'uyla
+// aynı obje paylaşılmamalı).
+const SRC_TAG_CLEAN_RE = /\[src:\s*[^\]]+\]/g;
+
+export function cleanDraftText(text) {
+  let t = stripAnswerTail(text);
+  t = t.replace(SRC_TAG_CLEAN_RE, "");     // tam [src: id] etiketleri (kendi regex'i)
+  t = t.replace(/\[[^\]]*$/, "");          // sonda kapanmamış [..  (yarım stream tag)
+  // Sonda kapanmamış ** (tek sayıda) → son **'ten sonrasını gizle (yarım başlık flaşını önle)
+  if (((t.match(/\*\*/g) || []).length) % 2 === 1) {
+    t = t.slice(0, t.lastIndexOf("**"));
+  }
+  return t
+    .replace(/[ \t]*\*$/, "")              // sonda kalan tek * (yarım italik)
+    .replace(/ {2,}/g, " ")                // tag silindikten sonra çift boşluk
+    .replace(/\s+([.,;:])/g, "$1")         // " ." → "." (tag öncesi boşluk)
+    .trimEnd();
 }
 
 /** Smalltalk/redirect yanıtını hafif baloncuk şekline indir (kaynak/disclaimer kuyruğu

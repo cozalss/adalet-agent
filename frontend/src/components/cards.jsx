@@ -2,8 +2,9 @@
    Prototipten birebir; Icon ES import. */
 import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "./icons.jsx";
-import { RunText } from "./ui.jsx";
-import { stripAnswerTail } from "../lib/parseAnswer.js";
+import { RunText, renderInline } from "./ui.jsx";
+import { stripAnswerTail, cleanDraftText } from "../lib/parseAnswer.js";
+import { BorderBeam } from "./ui/border-beam.jsx";
 
 export function AnswerCard({ answer, sources, onJump }) {
   const cardRef = useRef(null);
@@ -37,7 +38,9 @@ export function AnswerCard({ answer, sources, onJump }) {
   }, [sections.length]);
 
   return (
-    <div className="card answer" ref={cardRef}>
+    <div className="card answer" ref={cardRef} style={{ position: "relative", overflow: "hidden" }}>
+      {/* magicui — kenarda dolaşan ince terracotta→gold ışık (AI-üretildi + doğrulandı sinyali) */}
+      <BorderBeam size={70} duration={9} colorFrom="#9e6a43" colorTo="#e2bd91" className="opacity-60" />
       {sections.map((sec, i) => (
         <div className="sec reveal-target" key={i}>
           <div className="sec-label">{sec.label}</div>
@@ -75,20 +78,38 @@ export function RejectCard({ data, onRetry }) {
 }
 
 export function ClarifyCard({ data, onPick }) {
-  // Seçenekler SORU'dur (cevap-chip değil) → tıklanabilir buton DEĞİL (eski hata: soruya
-  // tıklayınca soru-metni kullanıcı mesajı olarak gönderiliyordu). Okunabilir liste; kullanıcı
-  // cevabını aşağıdaki yazı kutusuna yazar. onPick yalnız "Hepsini yanıtla/atla" için (varsa).
+  // `options` = SORULAR → tıklanamaz okunabilir liste (eski hata: soruya tıklayınca soru-metni
+  // mesaj olarak gidiyordu). `chips` = backend'in CEVAP-şıkları (ör. tahliye sebepleri) →
+  // tıklanabilir: tıklayınca o sebep kullanıcı YANITI olarak gider, sebebe-özel round-2'yi
+  // tetikler. Soru-tıklama hatası tekrarlanmaz çünkü chip'ler cevaptır, soru değil.
+  // Savunmacı: data mapClarify dışı (ör. geçmiş-replay / bozuk yanıt) gelse de render
+  // çökmesin — options/chips her zaman dizi olarak ele alınır.
+  const options = Array.isArray(data.options) ? data.options : [];
+  const chips = Array.isArray(data.chips) ? data.chips : [];
   return (
     <div className="card clarify soft" aria-live="polite">
       <p className="cl-q">{data.intro}</p>
-      <ul className="cl-opts">
-        {data.options.map((o, i) => (
+      <ul className="cl-opts" aria-label="Netleştirme soruları">
+        {options.map((o, i) => (
           <li className="cl-opt" key={i}>
             <span className="cl-arrow" aria-hidden="true">→</span>{o}
           </li>
         ))}
       </ul>
-      <p className="cl-hint">Yanıtınızı aşağıya yazabilirsiniz — birkaçını birden yanıtlamanız yeterli.</p>
+      {chips.length > 0 && (
+        <div className="cl-chips" role="group" aria-label="Hızlı seçenekler">
+          {chips.map((c, i) => (
+            <button type="button" className="cl-chip" key={i} onClick={() => onPick?.(c)}>
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="cl-hint">
+        {chips.length > 0
+          ? "Yukarıdan bir seçeneğe tıklayabilir ya da yanıtınızı aşağıya yazabilirsiniz."
+          : "Yanıtınızı aşağıya yazabilirsiniz — birkaçını birden yanıtlamanız yeterli."}
+      </p>
     </div>
   );
 }
@@ -108,6 +129,35 @@ export function SmallTalkBubble({ text }) {
           ))}
         </p>
       ))}
+    </div>
+  );
+}
+
+/** Hukuki yol CANLI taslak baloncuğu — token'lar geldikçe yazılır (ChatGPT hissi).
+ *  Açıkça GEÇİCİ: "yazılıyor · doğrulanacak" rozeti + yanıp sönen imleç. Final
+ *  gelince TurnView bunu doğrulanmış AnswerCard ile DEĞİŞTİRİR (ham taslak düşer).
+ *  Böylece kullanıcı beklemez (anlık yazım görür) ama metnin nihai olmadığını bilir. */
+export function DraftStreamBubble({ text }) {
+  // cleanDraftText: finalize kuyruğu + ham [src:..] etiketleri + yarım-stream guard.
+  // renderInline: **kalın** markdown → <strong> (final kartla tutarlı; literal yıldız YOK).
+  const clean = cleanDraftText(text || "");
+  const paras = clean.split(/\n{2,}/).filter((p) => p.trim());
+  return (
+    <div className="draft-stream" aria-live="polite">
+      <div className="draft-stream-head">
+        <span className="draft-pulse" aria-hidden="true"></span>
+        <span className="draft-tag">Yazılıyor — birazdan kaynaklarla doğrulanacak</span>
+      </div>
+      <div className="draft-stream-body">
+        {paras.map((para, i) => (
+          <p key={i}>
+            {para.split("\n").map((line, j) => (
+              <React.Fragment key={j}>{j > 0 && <br />}{renderInline(line, `d${i}_${j}`)}</React.Fragment>
+            ))}
+            {i === paras.length - 1 && <span className="draft-caret" aria-hidden="true"></span>}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

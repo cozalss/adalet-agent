@@ -15,6 +15,11 @@ from __future__ import annotations
 
 import structlog
 
+from agents.clarify_slots import (
+    discriminator_followup_questions,
+    discriminator_options,
+    discriminator_questions,
+)
 from agents.policy import CLARIFY_MARKER
 from agents.state import AgentState
 from core.observability import observe_node
@@ -87,6 +92,24 @@ def _pick_questions(domain: str, case_facts: dict[str, object]) -> list[str]:
     return filtered[:_MAX_QUESTIONS]
 
 
+def _select_questions(state: AgentState) -> list[str]:
+    """Bağlama göre soru seç (CLAM 'generate' — policy ile AYNI yardımcılar, DRY):
+
+    1. round-2 sebebe-özel follow-up (sebep zaten verildi) → en hedefli
+    2. round-1 sebep sorusu (ayırt edici parametre eksik)
+    3. domain bankasının jenerik soruları (ayırt edici senaryo yok)
+    """
+    domain = state.get("domain", "unknown")
+    case_facts = state.get("case_facts") or {}
+    question = state.get("question", "")
+    targeted = discriminator_followup_questions(domain, question, case_facts) or discriminator_questions(
+        domain, question, case_facts
+    )
+    if targeted:
+        return targeted[:_MAX_QUESTIONS]
+    return _pick_questions(domain, case_facts)
+
+
 def _render(questions: list[str]) -> str:
     """Sıcak preamble (CLARIFY_MARKER) + numaralı sorular + kapanış."""
     numbered = "\n".join(f"{i}. {q}" for i, q in enumerate(questions, start=1))
@@ -101,15 +124,19 @@ def _render(questions: list[str]) -> str:
 async def clarifier_node(state: AgentState) -> dict[str, object]:
     """Eksik bilgide takip soruları üret; banka'da domain yoksa no-op."""
     domain = state.get("domain", "unknown")
-    questions = _pick_questions(domain, state.get("case_facts") or {})
+    questions = _select_questions(state)
     if not questions:
         log.info("clarifier_noop", domain=domain)
         return {}
 
-    log.info("clarifier_ask", domain=domain, n_questions=len(questions))
+    # Round-1 sebep-sorusunda tıklanabilir cevap-şıkları (sebep seçimi); round-2'de boş.
+    options = discriminator_options(domain, state.get("question", ""), state.get("case_facts") or {}) or []
+
+    log.info("clarifier_ask", domain=domain, n_questions=len(questions), n_options=len(options))
     return {
         "response_intent": "needs_clarification",
         "clarifying_questions": questions,
+        "clarify_options": options,
         "clarify_response": _render(questions),
         "clarification_round": state.get("clarification_round", 0) + 1,
     }
