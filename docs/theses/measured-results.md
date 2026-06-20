@@ -1,5 +1,10 @@
 # Ölçülmüş Sonuçlar — ADALET-AGENT (2026-05-29)
 
+> [!IMPORTANT]
+> Bu dosya 2026-05-29 tarihli ölçüm snapshot'ıdır. Korpus sayıları, model ve
+> retrieval sonuçları o koşuya aittir; güncel doğrulama matrisi ve ürün kapsamı
+> için [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) esas alınır.
+
 > Bu dosya **gerçek, doğrulanmış** ölçümleri toplar; `paper-draft.md` Sonuçlar
 > bölümüne (4.1+) entegre edilmek üzere. Tüm sayılar canlı sistemde ölçüldü —
 > placeholder/tahmin YOK. Üye 1 (mimari tezi) + Üye 4 (benchmark tezi) ortak kaynak.

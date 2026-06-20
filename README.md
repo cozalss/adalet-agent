@@ -4,17 +4,17 @@
 
 ### Türkçe hukuk için kaynaklı, doğrulamalı ve lokal çalışan çoklu-ajan yapay zeka asistanı
 
-*Uydurmayan hukuk asistanı — her iddiayı gerçek mevzuat ve içtihada bağlar, bağlayamadığını dürüstçe reddeder.*
+*Uydurmayan hukuk asistanı — iddiaları gerçek mevzuat ve içtihatla karşılaştırır; sahte, çelişen veya vetolu içeriği düşürür.*
 
 [![CI](https://github.com/cozalss/adalet-agent/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/cozalss/adalet-agent/actions/workflows/backend-ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C)](https://langchain-ai.github.io/langgraph/)
-[![Qdrant](https://img.shields.io/badge/Qdrant-159k%20vektör-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Tests](https://img.shields.io/badge/tests-1334%20backend%20%2B%20200%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
+[![Qdrant](https://img.shields.io/badge/Qdrant-159k%20snapshot-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
+[![Tests](https://img.shields.io/badge/tests-1532%20backend%20%2B%20254%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 1334 backend + 200 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · lokal + bulut hibrit model**
+**159k kaynak vektörü (2026-05-29 snapshot) · 1532 backend hızlı test + 254 frontend test + 11 e2e · 8 hukuk alanı · 4 katmanlı doğrulama · lokal + bulut hibrit model**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
@@ -25,6 +25,10 @@
 > [!WARNING]
 > **Hukuki tavsiye değildir.** Sistem bilgilendirme amaçlıdır; somut uyuşmazlıkta avukata danışılmalıdır.
 
+> [!IMPORTANT]
+> Güncel doğrulama matrisi, model/korpus notları ve dokümantasyon otoritesi için
+> [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) esas alınır.
+
 ---
 
 ## 🎯 Sorun
@@ -34,8 +38,9 @@ maddesi, uydurma Yargıtay kararı ve hayalî tarih üretirler — üstelik tam 
 özgüvenle. Avukata erişemeyen vatandaş bu yanlış bilgiye güvenir.
 
 **ADALET-AGENT bu sorunu mimari olarak çözer:** cevabı üreten ajanın yanına, her
-hukuki iddiayı **orijinal kaynağa karşı doğrulayan** bir ekip koyar. Doğrulanamayan
-iddia kullanıcıya **gitmez**.
+hukuki iddiayı **orijinal kaynağa karşı doğrulayan** bir ekip koyar. Sahte kaynak,
+kaynakla çelişen iddia ve veto edilen içerik kullanıcıya **gitmez**; nötr/eşleşmeyen
+iddialar doğrulama metadatasında `unverified` olarak görünür.
 
 | | Genel amaçlı LLM | ⚖️ ADALET-AGENT |
 |---|---|---|
@@ -98,8 +103,8 @@ flowchart LR
     CL --> FN
     FN --> U
 
-    R <-.-> QD[(Qdrant<br/>159k vektör)]
-    DR <-.-> LLM[[llama-server<br/>Qwen3.5 9B · lokal]]
+    R <-.-> QD[(Qdrant<br/>159k snapshot)]
+    DR <-.-> LLM[[llama-server<br/>Qwen3.5-9B-UD-Q4_K_XL · lokal]]
 ```
 
 | Aşama | Görev |
@@ -110,7 +115,7 @@ flowchart LR
 | **Draft** | Yalnız getirilen kaynaklardan, her iddiayı `[src: …]` ile etiketleyerek cevap yazar |
 | **Verify** | 4 katman: Rules → Fuzzy → LettuceDetect → NLI veto |
 | **Debate** | Constitutional self-critique; pass / retry / reject |
-| **Finalize** | Güven skoru hesaplar, doğrulanmamış cümleleri atar, disclaimer ekler |
+| **Finalize** | Güven skoru hesaplar, kaynakla çelişen/vetolu cümleleri atar, disclaimer ekler |
 
 **Kapsanan 8 sivil hukuk alanı:** 🛒 tüketici · 💼 iş · 🏠 kira · ⚖️ icra · 🚗 trafik · 🧾 vergi · 📜 tapu · 🏛️ idari
 &nbsp;&nbsp;·&nbsp;&nbsp; **Kapsam dışı:** ceza & aile hukuku (etik/risk kararı → reddedilip yönlendirilir).
@@ -152,8 +157,8 @@ flowchart TD
 
 ## 🛡️ Doğrulama Zinciri
 
-Her draft cümlesinden çıkarılan iddialar sırayla bu katmanlardan geçer. Amaç tek:
-**kaynağa dayanmayan hiçbir hukuki iddia kullanıcıya ulaşmasın.**
+Her draft cümlesinden çıkarılan iddialar sırayla bu katmanlardan geçer. Amaç:
+**sahte kaynak, kaynakla çelişen iddia ve vetolu içerik kullanıcıya ulaşmasın.**
 
 ```mermaid
 flowchart LR
@@ -164,7 +169,8 @@ flowchart LR
     L3 --> L4[L4 · Debate<br/>constitutional hakemlik]
     L4 --> V{destekli mi?}
     V -->|evet| K[✅ cevaba girer]
-    V -->|hayır| X[❌ cümle atılır / reddedilir]
+    V -->|veto/çelişki| X[❌ cümle atılır / reddedilir]
+    V -->|nötr| M[⚠️ unverified metadata]
 ```
 
 | Katman | Yöntem | Yakaladığı |
@@ -176,7 +182,7 @@ flowchart LR
 | **L4 Debate** | Constitutional self-critique | Bütünsel kalite + retry kararı |
 
 > **Fail-closed:** `VERIFY_STRICT=1` iken doğrulayıcı çökerse cevap **reddedilir** —
-> doğrulayıcı çalışmadıysa iddia "doğrulanmış" sayılamaz (SIFIR HALÜSİNASYON ilkesi).
+> doğrulayıcı çalışmadıysa iddia "doğrulanmış" sayılamaz.
 
 ---
 
@@ -201,11 +207,11 @@ veya canlı API ile alınmıştır. Metodoloji: [docs/theses/measured-results.md
 
 | Yanıt (ort) | Algılanan³ | Verify claim-desteği | Verify ayırt-etme⁴ | Tahmin f1_macro | Test |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1334** ✓ |
+| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1532** ✓ |
 
 > ³ Streaming (SSE `draft_token`) ile kullanıcı cevabın **ilk 1-2 saniyede** oluşmaya başladığını görür.
 > ⁴ Verify açıkken claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı kaynaksız iddiaların
-> **%58.1**'ini işaretliyor (gerçek Qwen3.5 9B, 8 vatandaş sorusu).
+> **%58.1**'ini işaretliyor (gerçek Qwen3.5-9B-UD-Q4_K_XL, 8 vatandaş sorusu).
 
 > **🔬 Mühendislik bulguları (ölç-önce, kazananı tut—kaybedeni reddet):**
 > ① **Concise-nudge** — cevabı kısaltmak latency'yi **%42 düşürdü** (18.7→11 s) *ve* verify-ratio'yu
@@ -281,7 +287,7 @@ Swagger UI → `http://127.0.0.1:8000/docs` &nbsp;·&nbsp; Sağlık → `http://
 
 ```bash
 # 3) Testleri çalıştır
-uv run --extra dev pytest tests/ -q       # 1334 passed, 6 skipped
+uv run --extra dev pytest tests/ --ignore=tests/multimodal --ignore=tests/training --ignore=tests/agents/test_real_llm_e2e.py -q
 uv run --extra dev ruff check .
 uv run --extra dev mypy .
 ```
@@ -346,7 +352,7 @@ Content-Type: application/json
 | **API** | FastAPI · uvicorn · pydantic v2 · slowapi · structlog |
 | **Orkestrasyon** | LangGraph · langchain-core |
 | **Retrieval** | Qdrant · Mursit-TR dense + BGE-M3 sparse/ColBERT · stored-ColBERT MAX_SIM rerank · RRF/DBSF füzyon · rapidfuzz |
-| **LLM (lokal)** | llama-cpp-python (in-process) · Qwen3.5 9B Q4_K_XL (GGUF) |
+| **LLM (lokal)** | llama-cpp-python (in-process) · Qwen3.5-9B-UD-Q4_K_XL (GGUF) |
 | **Doğrulama/ML** | PyTorch (CUDA 12.4) · transformers · mDeBERTa NLI · LettuceDetect · scikit-learn |
 | **Veri** | PostgreSQL (SQLModel + asyncpg + Alembic) · Redis |
 | **Multimodal** | Tesseract (OCR) · faster-whisper (STT) · Piper (TTS) |
@@ -362,16 +368,16 @@ Content-Type: application/json
 ## ✅ Test ve Kalite
 
 ```bash
-cd backend
-uv run --extra dev pytest tests/ -q                       # 1334 passed, 6 skipped
+uv run --extra dev pytest tests/ --ignore=tests/multimodal --ignore=tests/training --ignore=tests/agents/test_real_llm_e2e.py -q
 uv run --extra dev ruff check .                            # geniş strict kural seti
 uv run --extra dev mypy .                                  # strict
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii
 uvx pip-audit --ignore-vuln CVE-2025-69872
+python scripts/check_docs_consistency.py                   # güncel docs drift kontrolü
 ```
 
-CI ([backend-ci.yml](.github/workflows/backend-ci.yml)) her push'ta dört kapı koşar:
-**lint + types** · **pytest + coverage gate (≥%80, son ölçüm ~%89)** · **pip-audit + bandit** · **Docker build smoke**.
+CI ([backend-ci.yml](.github/workflows/backend-ci.yml)) her push'ta beş kapı koşar:
+**lint + types** · **pytest + coverage gate (≥%80)** · **pip-audit + bandit** · **eval scorecard** · **Docker build + boot smoke + Trivy**.
 
 ---
 
@@ -409,8 +415,8 @@ adalet-agent/
 │   ├── multimodal/    OCR · STT · TTS
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
-│   └── tests/         pytest suite (1334)
-├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (200 test)
+│   └── tests/         pytest suite (1532 hızlı CI testi)
+├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (254 unit + E2E)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları
 ├── infra/             Caddy ve deploy altyapısı
@@ -421,7 +427,7 @@ adalet-agent/
 
 ## 🔐 Güvenlik İlkeleri
 
-- **Sıfır halüsinasyon** — kaynak uydurma yoktur; doğrulanamayan iddia reddedilir.
+- **Sıfır halüsinasyon kalkanı** — uydurma kaynak ve kaynakla çelişen/vetolu iddia kullanıcıya gitmez; nötr eşleşmeyen iddialar otomatik silinmez, doğrulama metadata'sında doğrulanmamış kalır.
 - Production'da `VERIFY_STRICT=1` ile **fail-closed** davranış.
 - **Lokal + bulut hibrit** — tam-lokal gizlilik modu mevcut; bulut API'ler opsiyonel.
 - Secret'lar hardcode edilmez; `.env` + secret guard (lokal + bulut anahtarları).

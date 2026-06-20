@@ -1,5 +1,11 @@
 # ADALET-AGENT — Dünya-Standardı Tam-Sistem Denetimi (2026-06-09)
 
+> [!IMPORTANT]
+> Bu belge 2026-06-09 tarihli denetim snapshot'ıdır. Bazı bulgular sonraki
+> çalışmalarda giderilmiş veya dokümantasyonla netleştirilmiş olabilir. Güncel
+> durum ve doğrulama kapıları için [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md)
+> esas alınır.
+
 > Kaynak: workflow `wf_b4c0f5ba-5f1` — 11 uzman denetim merceği + 5 SOTA araştırma ajanı → adversarial doğrulama → sentez.
 > 55 ajan, ~2.7M token, ~640 sn. İstatistik: 99 ham bulgu, 25 doğrulanmış CRITICAL/HIGH, 13 elendi (yanlış-poz/zaten-tasarım), 61 MEDIUM/LOW.
 

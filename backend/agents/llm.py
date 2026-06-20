@@ -544,7 +544,8 @@ class OpenAIClient:
         model: str | None = None,
         timeout: float | None = None,
     ) -> None:
-        self.model = (model or os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini")).strip()
+        model_name = model if model is not None else os.getenv("OPENAI_LLM_MODEL")
+        self.model = (model_name or "gpt-4o-mini").strip() or "gpt-4o-mini"
         self.base_url = validated_base_url()
         self.timeout = timeout if timeout is not None else float(os.getenv("OPENAI_LLM_TIMEOUT_S", "120"))
         self._client: Any = None  # httpx.AsyncClient — process ömrü boyu yeniden kullanılır

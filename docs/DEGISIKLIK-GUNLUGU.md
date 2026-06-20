@@ -1,5 +1,10 @@
 # ADALET — Değişiklik Günlüğü
 
+> [!NOTE]
+> Bu dosya kronolojik değil, tematik bir tarihsel değişiklik günlüğüdür. Eski test
+> sayıları ve teknik seçimler bağlam olarak tutulur; güncel doğrulama matrisi ve
+> ürün kapsamı için [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md) esas alınır.
+
 > Tüm proje geçmişinin (220 commit) temalara göre düzenlenmiş kaydı. Kronolojik değil; her temada en yeni üstte. Madde formatı: `hash` — kısa Türkçe açıklama.
 
 ---

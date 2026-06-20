@@ -1,5 +1,10 @@
 # ADALET-AGENT — Proje Durumu: Şu Ana Kadar Yapılan Her Şey
 
+> [!IMPORTANT]
+> Bu belge tarihsel/as-built proje günlüğüdür. Güncel ürün kapsamı, test sayıları,
+> model/korpus notları ve doğrulama matrisi için otoritatif kaynak
+> [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md) dosyasıdır.
+
 > **Bu belge** projenin baştan beri (tüm oturumlar) gerçekleştirilen işin sadık,
 > birleşik kaydıdır. Kaynak: 220 commit'lik git geçmişi + oturumlar-arası geliştirme
 > notları + as-built kod. Vizyon/kurallar için `../CLAUDE.md`; değişiklik dökümü için

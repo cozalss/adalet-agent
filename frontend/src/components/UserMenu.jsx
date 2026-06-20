@@ -127,7 +127,7 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
               return (
                 <button
                   className="acc-trust-badge" role="menuitem" key={b.key}
-                  title={b.title} aria-label={b.title}
+                  title={b.title} aria-label={b.label}
                   onClick={() => openView(b.id)}
                   style={i ? { animationDelay: `${0.04 * i}s` } : undefined}
                 >

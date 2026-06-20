@@ -8,7 +8,7 @@
 ```mermaid
 flowchart TB
     subgraph Clients["Clients"]
-        Web["Web (Next.js)"]
+        Web["Web (Vite + React)"]
         Mobile["Mobile (Flutter)"]
         B2B["B2B Partner (HTTP)"]
     end
@@ -55,7 +55,7 @@ flowchart TB
     end
 
     subgraph External["External / Local"]
-        LLM["llama-server<br/>(Qwen3.5-9B Q4_K_XL)"]
+        LLM["llama-server<br/>(Qwen3.5-9B-UD-Q4_K_XL)"]
         Redis["Redis<br/>(session + limiter)"]
         Langfuse["Langfuse (observability)"]
     end
@@ -288,12 +288,12 @@ flowchart LR
 | CI/CD | manuel | GitHub Actions (4 job) |
 | Container hardening | non-root | read-only fs, cap-drop ALL |
 
-### Güncel (Sprint-6+ — 2026-05)
+### Güncel (canlı kontrol — 2026-06-20)
 
 | Metric | Değer |
 |---|---|
-| Test sayısı | **771** |
-| mypy --strict | 0 hata · ruff ✅ · bandit ✅ |
+| Test sayısı | **1532 backend hızlı CI testi + 254 frontend unit testi + 11 Playwright E2E** |
+| mypy --strict | 0 hata · ruff ✅ · bandit ✅ · pip-audit ✅ · pnpm audit ✅ |
 | Corpus | **159k vektör** (8 domain; 62k→159k) |
 | Retrieval | **domain@1 %81.2 · @5 %97.3 · MRR 0.88** (186 vaka, ölçüldü) |
 | İlişkisel DB | **PostgreSQL** (feedback/api_key/audit, env-gated, Alembic) |

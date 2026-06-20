@@ -14,7 +14,19 @@ export default defineConfig({
   // Build hedefi es2022: esbuild 0.28+ (güvenlik yaması) varsayılan es2020 hedefine
   // destructuring down-level'i "desteklenmiyor" diye reddediyor. Modern tarayıcılar
   // (2022+: Chrome 94+/FF 93+/Safari 15.4+) es2022'yi native destekler → transform gerekmez.
-  build: { target: "es2022" },
+  build: {
+    target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("react") || id.includes("scheduler")) return "react-vendor";
+          if (id.includes("@supabase")) return "supabase-vendor";
+          return "vendor";
+        },
+      },
+    },
+  },
   // Dev-server dep pre-bundling (esbuild) AYRI target kullanır → onu da es2022 yap
   // (yoksa dev'de supabase-js destructuring aynı esbuild 0.28 hatasını verir).
   optimizeDeps: { esbuildOptions: { target: "es2022" } },

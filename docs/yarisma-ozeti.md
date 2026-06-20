@@ -1,5 +1,10 @@
 # ADALET-AGENT — Yarışma & Hibe Başvuru Özeti
 
+> [!IMPORTANT]
+> Bu belge yarışma/hibe anlatısıdır. Güncel test sayıları, model/korpus notları,
+> auth kapsamı ve doğrulama sınırları için [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md)
+> esas alınır.
+
 > **Amaç:** Bu doküman, TÜBİTAK 2209-A, Teknofest (Türkçe NLP / İnsanlık Yararına
 > Teknoloji / Yazılım) ve benzeri başvurularda doğrudan kullanılmak üzere
 > hazırlanmıştır. Buradaki teknik iddiaların tamamı kod tabanında karşılığı olan,
@@ -24,9 +29,9 @@ var olmayan kanun maddeleri ve sahte mahkeme kararları "uydururlar"
 uğrayabilir. Türkiye'de hukuki danışmanlık maliyeti, dezavantajlı kesimler için
 adalete erişimin önünde somut bir engeldir.
 
-**ADALET'in cevabı:** her yasal iddianın orijinal kaynağından (mevzuat.gov.tr,
-Yargıtay) doğrulandığı, doğrulanamayan iddiaların **reddedildiği**, iddia-doğrulamalı
-**çok-ajanlı** bir mimari.
+**ADALET'in cevabı:** yasal iddiaların orijinal kaynağıyla (mevzuat.gov.tr,
+Yargıtay) karşılaştırıldığı; sahte kaynakların, kaynakla çelişen iddiaların ve
+veto edilen içeriklerin nihai yanıttan temizlendiği **çok-ajanlı** bir mimari.
 
 ---
 
@@ -34,7 +39,7 @@ Yargıtay) doğrulandığı, doğrulanamayan iddiaların **reddedildiği**, iddi
 
 | # | Katkı | Neden özgün |
 |---|-------|-------------|
-| 1 | **İddia-doğrulamalı çoklu-ajan mimarisi** | Cevap üretmeden önce her iddia kaynakla eşleştirilir; doğrulanamazsa cevap reddedilir, ajan en fazla 3 kez yeniden dener. |
+| 1 | **İddia-doğrulamalı çoklu-ajan mimarisi** | Cevap üretmeden önce iddialar kaynaklarla eşleştirilir; sahte/çelişen iddialar temizlenir, riskli durumda güvenli hata veya yeniden deneme yolu kullanılır. |
 | 2 | **Türkçe hukuk için citation verification** | NLI (doğal dil çıkarımı) tabanlı doğrulama katmanı + RARR; iddia ↔ kaynak metin eşleşmesi ölçülür. |
 | 3 | **Türkçe konuşma-dili → hukuk dili köprüsü** | Vatandaşın günlük diliyle sorduğu soruyu mevzuat/içtihat terminolojisine eşleyen retrieval (BM25 + dense + reranker). |
 | 4 | **Dürüst kapsam sınırı** | Sistem yetkin olmadığı alanları (ceza, aile hukuku) **bilerek reddeder** — "ne yapamadığını bilen" asistan. |
@@ -93,10 +98,10 @@ Aşağıdaki üç özellik bu dönemde **uçtan uca geliştirilmiş, test edilmi
   **kaynak kütüphanesi** (tüm sohbetlerde atıf yapılan kanun/karar birikimi) ve
   **belge yönetimi** ("Dosyalarım").
 
-### 5.3 Kimlik doğrulama (e-posta/şifre)
-- Güvenli kayıt + giriş (PBKDF2 ile şifre saklama, JWT oturum, kullanıcı
-  enumerasyonuna karşı zaman eşitleme, alg-confusion koruması), editorial
-  tasarımlı giriş sayfası, "misafir" akışı.
+### 5.3 Kimlik doğrulama
+- Güncel web ürününde Supabase tabanlı kayıt/giriş zorunludur; sohbet geçmişi,
+  kaynak kütüphanesi ve dosya yönetimi oturum açmış kullanıcıya bağlıdır.
+  Misafir/localStorage-only sohbet modu güncel ürün davranışı değildir.
 
 > Bu üç iş için yapılan **çok-ajanlı kod incelemesi** (güvenlik + kalite ajanları)
 > sonucunda **kritik açık tespit edilmemiş**, yüksek öncelikli bulgular giderilmiştir.
@@ -107,7 +112,7 @@ Aşağıdaki üç özellik bu dönemde **uçtan uca geliştirilmiş, test edilmi
 
 Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 
-- **1240+ backend test fonksiyonu (124 dosya) + ~200 frontend testi** (birim + entegrasyon + uçtan uca).
+- **2026-06-21 doğrulaması:** backend hızlı pakette 1532 test, frontend birim/entegrasyon paketinde 254 test ve Playwright e2e paketinde 11 test geçti. Ayrıntı ve hariç tutulan entegrasyon alanları için `docs/CURRENT_STATUS.md`.
 - **Sürekli entegrasyon (CI):** ruff (lint), bandit (güvenlik), mypy (tip
   denetimi) — tümü yeşil.
 - **Çok-ajanlı kod & güvenlik incelemesi** her özellikte (OWASP perspektifi).
@@ -138,7 +143,7 @@ Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 | **TÜBİTAK 2209-A** | Özgün araştırma sorusu (Türkçe hukuk için doğrulamalı RAG + dava tahmini); yöntem, ölçüm ve yaygın etki net. |
 | **Teknofest — Türkçe NLP** | Çekirdek katkı Türkçe doğal dil işleme: konuşma-dili→hukuk-dili retrieval, NLI doğrulama, Türkçe metin normalizasyonu. |
 | **Teknofest — İnsanlık Yararına Teknoloji** | Adalete erişimde eşitsizliği azaltır; dezavantajlı vatandaşı hedefler; erişilebilirlik birinci sınıf. |
-| **Teknofest — Yazılım & Dijital** | Açık kaynak, yüksek mühendislik olgunluğu (CI, 1240+ backend + ~200 frontend test, çok-ajanlı inceleme), modüler mimari. |
+| **Teknofest — Yazılım & Dijital** | Açık kaynak, yüksek mühendislik olgunluğu (2026-06-21 hızlı doğrulamada 1532 backend + 254 frontend + 11 e2e test), modüler mimari. |
 | **Imagine Cup** | Toplumsal etki + ileri yapay zekâ; Azure entegrasyonuna uygun mimari. |
 
 ---
@@ -159,16 +164,18 @@ Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 
 > ADALET, Türkiye'de avukata erişemeyen vatandaşlar için geliştirilen, açık kaynaklı
 > (MIT) bir Türkçe hukuk yapay zekâ asistanıdır. Genel amaçlı dil modellerinin
-> hukukta yarattığı "yasa uydurma" (halüsinasyon) tehlikesine; her yasal iddiayı
-> Yargıtay ve mevzuat gibi resmî kaynaklardan doğrulayan, doğrulanamayanı reddeden
-> **iddia-doğrulamalı çoklu-ajan** mimarisiyle çözüm getirir. Sistem; ileri RAG
+> hukukta yarattığı "yasa uydurma" (halüsinasyon) tehlikesine; yasal iddiaları
+> Yargıtay ve mevzuat gibi resmî kaynaklarla karşılaştıran, sahte veya çelişen
+> içeriği temizleyen **iddia-doğrulamalı çoklu-ajan** mimarisiyle çözüm getirir.
+> Sistem; ileri RAG
 > (HyDE, RAPTOR, hibrit arama, NLI doğrulama), çok modlu giriş (belge OCR + sesli),
 > dava sonucu tahmini ve açıklanabilirlik (her ajanın katkısı + güven skoru)
 > sunar. KVKK-uyumlu (yerel model, PII maskeleme, anonim parmak izi), erişilebilir
-> ve 1240+ backend (+~200 frontend) test ile CI güvencesi altında geliştirilmiştir.
+> ve 1532 backend hızlı test + 254 frontend testi + 11 e2e testlik son doğrulama
+> matrisiyle CI güvencesi altında geliştirilmiştir.
 
 ---
 
-*Bu doküman canlı tutulur; yeni başarılar eklendikçe güncellenir. Teknik detaylar
-için: `docs/architecture.md`, `docs/ablation_study.md`, `docs/benchmark/`,
-`docs/theses/`.*
+*Bu belge başvuru anlatısıdır; güncel doğrulama için önce `docs/CURRENT_STATUS.md`
+okunmalıdır. Teknik detaylar için: `docs/architecture.md`, `docs/ablation_study.md`,
+`docs/benchmark/`, `docs/theses/`.*

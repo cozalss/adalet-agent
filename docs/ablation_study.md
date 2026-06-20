@@ -1,5 +1,11 @@
 # Ablasyon Çalışması: ADALET-AGENT Doğrulama ve Retrieval Katmanları
 
+> [!IMPORTANT]
+> Bu dosya 2026-05-30 tarihli ölçüm snapshot'ıdır. Qwen 2.5 14B ile alınan
+> ablation sonuçlarını saklar; güncel üretim model string'i, hızlı doğrulama
+> kapıları ve son test sayıları için [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md)
+> esas alınır.
+
 **Proje:** ADALET-AGENT — Türkçe Hukuk için Çok Ajanlı Doğrulamalı Yapay Zeka Sistemi  
 **Tarih:** 2026-05-30  
 **Veri Seti:** `data/eval_benchmark/verify_gold.jsonl` (59 vaka) + `benchmark_v2.jsonl` (186 vaka)  
