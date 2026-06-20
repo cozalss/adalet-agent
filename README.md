@@ -14,11 +14,11 @@
 [![Tests](https://img.shields.io/badge/tests-1334%20backend%20%2B%20200%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü · 1334 backend + 200 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · production'da bulut LLM yok**
+**159k kaynak vektörü · 1334 backend + 200 frontend test · 8 hukuk alanı · 4 katmanlı doğrulama · lokal + bulut hibrit model**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
-<sub>🎯 prod doğru-madde **%84.4** &nbsp;·&nbsp; ⚡ yanıt **~11 s** (algılanan ~1-2 s) &nbsp;·&nbsp; 🛡️ verify kaynaksız iddiaların **%58**'ini yakalıyor &nbsp;·&nbsp; 🔒 %100 lokal model</sub>
+<sub>🎯 prod doğru-madde **%84.4** &nbsp;·&nbsp; ⚡ yanıt **~11 s** (algılanan ~1-2 s) &nbsp;·&nbsp; 🛡️ verify kaynaksız iddiaların **%58**'ini yakalıyor &nbsp;·&nbsp; 🔒 lokal + bulut hibrit (tam-lokal gizlilik modu)</sub>
 
 </div>
 
@@ -353,8 +353,9 @@ Content-Type: application/json
 | **Dilekçe** | Jinja2 + ReportLab (PDF) |
 | **Gözlem/Eval** | Langfuse · Ragas |
 
-> **Production'da bulut LLM çağrısı yoktur.** Tüm üretim modelleri (Qwen, Whisper, Piper)
-> lokal koşar — KVKK gereği veri Türkiye sınırlarında kalır.
+> **Lokal + bulut hibrit model desteği.** Tam-lokal mod (Qwen, Whisper, Piper) gizlilik/
+> offline için mevcuttur; en yüksek kalite için bulut API'ler (örn. STT) yapılandırılabilir.
+> Anahtarlar `.env`'de tutulur (hardcode edilmez).
 
 ---
 
@@ -422,8 +423,8 @@ adalet-agent/
 
 - **Sıfır halüsinasyon** — kaynak uydurma yoktur; doğrulanamayan iddia reddedilir.
 - Production'da `VERIFY_STRICT=1` ile **fail-closed** davranış.
-- **Bulut LLM varsayılanı yoktur** (yalnız lokal model).
-- Secret'lar hardcode edilmez; `.env` + secret guard.
+- **Lokal + bulut hibrit** — tam-lokal gizlilik modu mevcut; bulut API'ler opsiyonel.
+- Secret'lar hardcode edilmez; `.env` + secret guard (lokal + bulut anahtarları).
 - **PII maskeleme:** TCKN · telefon · e-posta · IBAN · plaka.
 - Container hardening: read-only fs · cap-drop ALL · no-new-privileges.
 - Test/örnek verilerde gerçek kişisel veri yoktur (sahte: "Ayşe Yılmaz" vb.).

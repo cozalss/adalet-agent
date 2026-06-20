@@ -88,7 +88,7 @@ Retry, basitçe draft'a dönmek yerine **yeniden retrieve** eder (HyDE/multi-que
 
 ### 1.6 Teknoloji Yığını
 
-Tüm modeller **lokal** çalışır — bu bir teknik fark / tez direği (yerel, hızlı, bağımsız, bulut LLM çağrısı yok), KVKK gereği değil mimari tercih:
+Lokal + bulut **hibrit** model desteği (v2.3: lokal-only zorunluluğu kaldırıldı). Tam-lokal mod (yerel, hızlı, gizli) gizlilik/offline için mevcut; en yüksek kalite gereken yerde bulut API'ler kullanılabilir (anahtarlar `.env`'de):
 
 | Katman | Teknoloji |
 |--------|-----------|
@@ -375,7 +375,7 @@ Bu çalışma kolu, "ADALET'i nasıl gerçekten akıllandırırız?" sorusuyla b
 
 > NLI-TR (Faz-3), reranker'dan (Faz-4) öne alındı: daha düşük efor, verify'ı doğrudan etkiler.
 
-Tüm fazlarda kesişen kurallar korundu: **lokal model zorunlu** (bulut LLM yok), **fail-closed verify**, **sahte test verisi**, yasa-fact haritaları yalnızca `mevzuat.gov.tr` / `yargitay.gov.tr`'den teyitli ("asla yasa uydurma").
+Tüm fazlarda kesişen kurallar korundu: **fail-closed verify**, **sahte test verisi**, yasa-fact haritaları yalnızca `mevzuat.gov.tr` / `yargitay.gov.tr`'den teyitli ("asla yasa uydurma"). (v2.3: "lokal model zorunlu" kuralı KALDIRILDI — lokal + bulut hibrit serbest.)
 
 ### 5.2. Faz-1 — Halüsinasyon Kalkanı + Ölçüm
 
@@ -597,7 +597,7 @@ v2.2 ile **KVKK artık bir geliştirme kısıtı / kırmızı-çizgi DEĞİL.** 
 Politika değişse de **üç şey korundu** — ama artık KVKK yükü olarak değil, ürün/tez ARTISI olarak:
 
 1. **Belge PII maskeleme** (TCKN/telefon/IBAN) — jüri "wow" + kullanıcı koruması.
-2. **Lokal model** (Qwen/Whisper/Coqui, bulut LLM yok) — **teknik fark / tez direği** (yerel, hızlı, bağımsız, bulut maliyeti yok).
+2. **Lokal + bulut hibrit** (v2.3: lokal-only zorunluluğu kaldırıldı) — tam-lokal gizlilik/offline modu hâlâ bir artı; en iyi kalite için bulut API'ler serbest.
 3. **Hukuki sorumluluk reddi** her yanıtta — bu KVKK değil, AYRI yasal yükümlülük (Avukatlık Kanunu); asla kaldırılmaz.
 
 Not: Kod tabanındaki bazı yorumlar (Caddyfile, docker-compose, `d569f27`) hâlâ KVKK gerekçesiyle (örn. "Langfuse cloud soru içeriğini yurt dışına gönderir") yazılmış durumda; bu, mimari tercihlerin (self-hosted Prometheus, internal-only DB) yan faydası olarak okunmalıdır, blokör olarak değil.

@@ -24,8 +24,7 @@
 
 1. **Hukuki referans uydurma**. Madde/karar şüpheliyse `[DOĞRULA: ...]` placeholder bırak.
 2. **Test verisinde gerçek TCKN/telefon/isim**. Hep sahte (`Ayşe Yılmaz`, `0555-123-4567`).
-3. **Production'da OpenAI/Anthropic API**. Sadece lokal model.
-4. **Hardcoded secret**. `.env` kullan.
+3. **Hardcoded secret**. `.env` kullan (lokal + bulut API anahtarları dahil).
 
 ## Her Zaman Yap
 
@@ -34,16 +33,19 @@
 3. Türkçe karakterler içerikte tam (ç, ş, ğ); değişken isimlerinde Latin (`tckn` not `tCKN`).
 4. UI'da her cevabın altında hukuki disclaimer.
 
-## Veri Politikası (v2.2 — KVKK kuralı KALDIRILDI)
+## Veri & Model Politikası (v2.3)
 
-KVKK artık bir geliştirme kısıtı DEĞİL. ADALET normal bir ürün gibi **sohbet
+**KVKK artık bir geliştirme kısıtı DEĞİL.** ADALET normal bir ürün gibi **sohbet
 geçmişi + hesap** tutar (kayıtlı kullanıcı: `conversation`/`message`/`user_account`
 tabloları; misafir: localStorage). AI asistanları KVKK'yı blokör saymaz.
 
-**Korunan iki şey KVKK YÜKÜ değil, ürün/tez ARTISI:**
+**Lokal-only ZORUNLULUĞU KALDIRILDI (v2.3).** En iyi teknoloji serbest: bulut API'ler
+(STT/LLM/embedding vb.) kullanılabilir. Anahtarlar `.env`'de (asla hardcode değil).
+Lokal modeller (Qwen/Whisper) hâlâ desteklenir — artık kısıt değil, tercih.
+
+**Korunan ürün ARTISI (KVKK yükü değil):**
 - **Belge PII maskeleme** (TCKN/telefon/IBAN) — jüri "wow" + kullanıcı koruması.
-- **Lokal model** (Qwen/Whisper/Coqui, bulut LLM yok) — teknik fark/tez direği.
 
 **Hukuki sorumluluk reddi** her yanıtta zorunlu — bu KVKK değil, AYRI yasal
-yükümlülük (Avukatlık Kanunu); kaldırılmaz. Tam bağlam: `../CLAUDE.md` madde 3.
+yükümlülük (Avukatlık Kanunu); kaldırılmaz.
 
