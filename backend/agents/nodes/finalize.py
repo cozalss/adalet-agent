@@ -142,8 +142,13 @@ async def finalize_node(state: AgentState) -> dict:
         resp = state.get("response") or ""
         # CLAUDE.md §2: hukuki KAVRAM açıklaması içeren chat yanıtına disclaimer EKLE
         # (saf selam/teşekkür hariç). Aksi halde hukuki bilgi disclaimer'sız çıkıyordu.
+        # Disclaimer dedupe (hukuki-cevap yoluyla parite): model gövdede kendi disclaimer
+        # parafrazını ("hukuki tavsiye değildir") yazmış olabilir → önce yankıyı temizle,
+        # sonra kanonik DISCLAIMER_TR'yi bir kez ekle (eski `DISCLAIMER_TR not in resp` yalnız
+        # birebir eşleşmeyi yakalıyordu, parafrazı kaçırıp çift disclaimer üretiyordu).
         disc: list[str] = []
-        if _chat_needs_disclaimer(state.get("question", ""), resp) and DISCLAIMER_TR not in resp:
+        if _chat_needs_disclaimer(state.get("question", ""), resp):
+            resp = _strip_redundant_disclaimers(resp)
             resp = resp.rstrip() + "\n\n" + DISCLAIMER_TR
             disc = [DISCLAIMER_TR]
         return {
@@ -218,6 +223,10 @@ async def finalize_node(state: AgentState) -> dict:
     if not filtered_draft.strip():
         return _reject_response(state, _unverified_claims_reason(verified_claims))
     filtered_draft = _promote_first_verified_as_bluf(filtered_draft)
+    # Disclaimer dedupe (anti-paternalist ton): model gövdede kendi "hukuki tavsiye değildir /
+    # bilgilendirme amaçlıdır" cümlesini yazmış olabilir; kanonik DISCLAIMER_TR sonda zaten eklenir
+    # → çift disclaimer önlenir (chat yoluyla parite). Gövde-yankısı temizlenir.
+    filtered_draft = _strip_redundant_disclaimers(filtered_draft)
     # Citation bloğu — GÖSTERİLEN (filtrelenmiş) hukuki gövdeden, partial-NOT EKLENMEDEN ÖNCE
     # (MEDIUM-3 + ECC-sweep: not metni hiçbir koşulda kaynak çıkarımına karışmaz — phantom-source yalıtımı).
     citations_md = _format_citations(state, filtered_draft)
@@ -371,6 +380,58 @@ def _remove_orphan_source_tags(text: str) -> str:
     text = re.sub(r"(^|\n)\s*\[src:\s*[A-Za-z0-9_\-]+\s*\]\s*(?=\n|$)", r"\1", text)
     text = re.sub(r"^\s*\[src:\s*[A-Za-z0-9_\-]+\s*\]\s*", "", text)
     return text.strip()
+
+
+# Model gövdede KENDİ disclaimer'ını yazmış olabilir (draft kural 3: "avukata danışmanızı
+# öneririm"; geçmiş turdan disclaimer yankısı). Hukuki-cevap yolunda sonda kanonik DISCLAIMER_TR
+# ZATEN ekleniyor → çift/gereksiz disclaimer. Bu, anti-paternalist ton ilkesine aykırı:
+# Anthropic Constitution gereksiz tekrar disclaimer'ı "unhelpful" sayar ("Adds excessive warnings,
+# disclaimers, or caveats that aren't necessary"). Yalnız KESİN disclaimer-yankısı işaretleri
+# (yasal/hukuki tavsiye değil, bilgilendirme amaçlı) taşıyan cümleler kaldırılır → esaslı hukuki
+# içerik bu kalıpları taşımaz (false-positive minimal). chat yolundaki dedupe ile parite sağlar.
+_DISCLAIMER_ECHO_MARKERS = (
+    "hukuki tavsiye değil",
+    "yasal tavsiye değil",
+    "hukuki danışmanlık değil",
+    "bilgilendirme amaç",
+    "tavsiye niteliği taşımaz",
+    "tavsiye niteliğinde değil",
+)
+
+
+def _strip_redundant_disclaimers(text: str) -> str:
+    """Gövdedeki disclaimer-yankısı cümleleri sil; kanonik DISCLAIMER_TR sonda bir kez eklenir.
+
+    Yapı-koruyan (span bazlı, `_filter_to_verified` deseni): markdown başlık/paragraf düzeni
+    bozulmaz. Birebir DISCLAIMER_TR yankısı + disclaimer-işaretli standalone cümleler kaldırılır.
+    Gövde tümüyle boşalırsa (beklenmez — legal path'te ≥1 doğrulanmış esaslı cümle var) orijinal
+    korunur (graceful). Saf fonksiyon, test-edilebilir.
+    """
+    if not text.strip():
+        return text
+    text = text.replace(DISCLAIMER_TR, "")
+    spans = _sentence_spans(text)
+    if not spans:
+        return text.strip()
+    pieces: list[str] = []
+    cursor = 0
+    removed = False
+    for start, end, sent in spans:
+        low = _tr_lower(sent)
+        if any(m in low for m in _DISCLAIMER_ECHO_MARKERS):
+            pieces.append(text[cursor:start])  # cümleyi at, öncesi boşluğu koru
+            cursor = end
+            removed = True
+            continue
+        pieces.append(text[cursor:end])
+        cursor = end
+    pieces.append(text[cursor:])
+    cleaned = "".join(pieces)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+    if not cleaned and removed:
+        return text.strip()  # her şey disclaimer'mış (beklenmez) → orijinali koru
+    return cleaned
 
 
 # Reject mesajı domain-aware yardımcı hint'leri — dead-end yerine "şunu paylaşın".

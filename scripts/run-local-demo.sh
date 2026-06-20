@@ -60,13 +60,17 @@ set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection
 # Spec-decode bu llama-cpp-python sürümünde viable değil → 0 KALIR. N_BATCH 512→1024 (kod-default)
 # prefill hızlandırır (OOM olursa 768; flash_attn KV-cache küçülttüğü için sığmalı).
 export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=1024 LLM_SPECULATIVE=0
+# KV-cache q8_0 (~kayıpsız, perplexity +<0.1): KV-cache'i ~yarıya indirir → VRAM açar +
+# decode'u biraz hızlandırır. flash_attn açık (default) ön-koşulu sağlar. Bozarsa f16'ya al.
+export LLM_KV_TYPE=q8_0
 export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
 export LLM_NO_THINK=1   # 3.5 default-off; /no_think + _strip_think backstop (defansif)
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
 # ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
 # DRAFT_MAX_TOKENS = ADAPTİF uzunluk TAVANI (karmaşık/olgu-zengin); basit soru draft._adaptive_max_tokens
-# ile DRAFT_MIN_TOKENS'a (384) iner → kısa+hızlı. Sabit 512 cap kaldırıldı (uniform-uzunluk sebebiydi).
-export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=896 DRAFT_MIN_TOKENS=384
+# ile DRAFT_MIN_TOKENS'a iner → kısa+hızlı. MIN 384→512: "answer-first" (kural 14) olgusuz soruda da
+# esaslı kural+formül+kısa takip yazıyor; 384 listeyi 4. adımda kesiyordu (2026-06-18 ölçüldü).
+export HYDE_ENABLED=0 MULTI_QUERY_ENABLED=0 DRAFT_MAX_TOKENS=896 DRAFT_MIN_TOKENS=512
 export SPARSE_EMBEDDER_MODEL=
 export RAPTOR_ENABLED=0 GRAPH_RAG_ENABLED=0 COLBERT_QUERY_ENABLED=0
 # 7B VRAM açtığı için embedder+reranker GPU'ya (retrieval darboğazı ~40s→~5s).
@@ -105,6 +109,9 @@ export PARTIAL_ANSWER_NOTE=1
 # sorguya çevir → retrieval çıpa kazanır (yoksa reddediliyordu). Nötr soru kipi (kırmızı-çizgi).
 export CONV_DECONTEXT_ENABLED=1
 export AUTH_ENABLED=0 ENV=development PRELOAD_MODELS=1
+# Qwen'i de boot'ta ısıt (PRELOAD_LLM): ilk soru ~13s GPU-yükleme cezası yemez → ilk soru ≈ sıcak
+# (~11s). Boot ~13s uzar (görünmez); demoda en kritik ilk-izlenim latency kazancı (2026-06-18).
+export PRELOAD_LLM=1
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 
 echo "[demo] backend → :8000 (log: .run/backend-demo.out.log)  LLM_MODE=$LLM_MODE SPECULATIVE=$LLM_SPECULATIVE"

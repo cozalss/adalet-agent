@@ -207,6 +207,26 @@ def is_cite_grounding_check_enabled() -> bool:
     return _strict_default_flag("CITE_GROUNDING_CHECK")
 
 
+def is_quote_grounding_enabled() -> bool:
+    """Kanıt-önce / quote-grounding draft talimatı (opt-in, default 0) — Anthropic finding-3.
+
+    `DRAFT_QUOTE_GROUNDING=1`: draft system prompt'una ek bir kural eklenir — model her hukuki
+    iddiayı yazmadan ÖNCE o iddiayı DOĞRUDAN destekleyen ifadenin verilen kaynak metninde
+    gerçekten bulunduğunu içsel olarak doğrular; bulamazsa iddiayı yazmaz. Çıktı FORMATI değişmez
+    (ayrı 'alıntı bloğu' üretilmez → BLUF-promote/bölüm-parse/citation pipeline aynen korunur);
+    yalnız mevcut kural 1-2'nin (kaynak-dışı üretme) kanıt-önce pekiştirmesidir.
+
+    Kaynak: Anthropic resmi 'reduce hallucinations' dokümanı + prompt-engineering kursu
+    ('extract word-for-word quotes first... if you can't find relevant quotes, say so';
+    deep-research 3-0 yüksek-güven, RAG için en kritik teknik). MockLLM system prompt'u yok
+    sayar → testler etkilenmez. Dinamik okunur → testler monkeypatch.setenv ile toggle eder.
+
+    Default 0 (DENEYSEL, ÖLÇÜLMEDİ): davranışsal etki GPU harness (test_answers.py) ile
+    ölçülmeli; latency/uzunluk etkisi olabilir. Açılmadan SIFIR davranış değişikliği (baseline).
+    """
+    return os.getenv("DRAFT_QUOTE_GROUNDING", "0").lower() in {"1", "true", "yes"}
+
+
 def get_ask_graph_timeout_s() -> float:
     """/ask + /ask/stream uçtan uca graph timeout (saniye). 0 = devre dışı.
 
@@ -272,6 +292,10 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 DRAFT_MAX_TOKENS = max(128, int(os.getenv("DRAFT_MAX_TOKENS", "896")))
 # Guard (ECC review MEDIUM-1): yanlış env (MIN>MAX) tavanı tersine çevirmesin → MAX'e clamp; alt 64.
 DRAFT_MIN_TOKENS = max(64, min(int(os.getenv("DRAFT_MIN_TOKENS", "384")), DRAFT_MAX_TOKENS))
+# Doğrulanacak iddia tavanı (NLI çift sayısını → verify latency'sini doğrudan etkiler).
+# 15→12: tipik hukuk cevabı ~5-9 iddia; üst kuyruk nadiren bilgi taşır, NLI yükü lineer.
+# MIN_VERIFIED_CLAIMS_RATIO koruması yerinde → kapsama düşmez. Env ile ayarlanabilir.
+DRAFT_MAX_CLAIMS = max(4, int(os.getenv("DRAFT_MAX_CLAIMS", "12")))
 # Debate JSON çıkışı gerçekte ~150 token (verdict+score+issues+rationale).
 # 1536 yerine 350 → edge-case'lerde Qwen Çince sızıntısı veya verbose rationale
 # önlenir; EOS erken ateşlerse sıfır etki. LLM_MAX_TOKENS'tan bağımsız ayarlanabilir.
@@ -479,17 +503,25 @@ MEVZUAT_RERANK_ENABLED = os.getenv("MEVZUAT_RERANK", "1").lower() in {"1", "true
 DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     # TKHK 48 (taksitli/mesafeli satış — gold v2 freq 7, en-sık 2.) eklendi; 5 çapa/8 slot, yer var.
     # TKHK 68 (tüketici hakem heyeti parasal sınır/başvuru — yaygın, prod-recall miss) eklendi.
-    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15), ("TKHK", 48), ("TKHK", 68)),
+    # TKHK 31 (tüketici kredisi/cayma), 47 (devre tatil), 70 (paket tur) eklendi (2026-06-18
+    # query-priority kürasyonu): retrieval'da kaçıyordu ama yaygın vatandaş konusu + spesifik keyword.
+    "tuketici": (("TKHK", 8), ("TKHK", 11), ("TKHK", 13), ("TKHK", 15), ("TKHK", 31),
+                 ("TKHK", 47), ("TKHK", 48), ("TKHK", 68), ("TKHK", 70)),
     # IK 41 (fazla çalışma) eklendi: ölçüldü (iter13) "fazla mesai ödemiyor" → m.25 (fesih)
     # cite ediliyordu (yanlış madde üste çıkıyor) → verify düşürüyordu. 32=ücret, 53=yıllık izin
     # de tipik isHukuku çekirdeği. Garanti-yüzeye-çıkar (icra m.62 ile aynı kanıtlı pattern).
     "isHukuku": (("IK", 17), ("IK", 18), ("IK", 25), ("IK", 32), ("IK", 41), ("IK", 53), ("EIK", 14)),
-    "kira": (("TBK", 299), ("TBK", 315), ("TBK", 342), ("TBK", 344), ("TBK", 347), ("TBK", 350), ("TBK", 372)),
+    # TBK 325 (erken tahliye+kira borcu), 352 (iki haklı ihtar/temerrüt tahliyesi),
+    # 584 (eş rızası-kefalet) eklendi (2026-06-18 query-priority kürasyonu): yaygın + spesifik keyword.
+    "kira": (("TBK", 299), ("TBK", 315), ("TBK", 325), ("TBK", 342), ("TBK", 344),
+             ("TBK", 347), ("TBK", 350), ("TBK", 352), ("TBK", 372), ("TBK", 584)),
     # icra: m.62 = ödeme emrine 7 GÜNlük itiraz (vatandaş "borcum yok itiraz"ının doğru maddesi);
     # bu çapa eklenmeden m.62 aday havuzuna girmiyordu → yanlış süre/madde (2026-06-04 ölçüm).
     # IIK 82 (haczedilemezlik — "maaşıma/evime haciz" vatandaş sorusu, gold v2 freq 3) eklendi.
     # IIK 72 (menfi tespit / istirdat davası — yaygın vatandaş konusu, prod-recall miss) eklendi.
-    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 72), ("IIK", 82), ("IIK", 89), ("IIK", 264)),
+    # IIK 285 (ihtiyati haciz) eklendi (2026-06-18 query-priority kürasyonu): "ihtiyati haciz"
+    # vatandaşın aynen kullandığı spesifik terim; retrieval kaçırıyordu.
+    "icra": (("IIK", 62), ("IIK", 67), ("IIK", 72), ("IIK", 82), ("IIK", 89), ("IIK", 264), ("IIK", 285)),
     # tapu: tescil talebi (TMK 705/706) + taşınmaz satış şekli (TBK 207/237) — satış/devir ana akım.
     # TMK 1023 (tapu siciline güven — iyiniyetli iktisap, tapu davalarının çekirdeği) eklendi.
     # TMK 575 (muris muvazaası/tenkis) + 698 (izale-i şuyu/ortaklığın giderilmesi) — çok yaygın
@@ -501,7 +533,9 @@ DOMAIN_CORE_MADDELER: dict[str, tuple[tuple[str, int], ...]] = {
     "idari": (("IYUK", 7), ("IYUK", 11)),
     # trafik: KTK 85=işletenin sorumluluğu, 91=zorunlu mali sorumluluk sigortası, 98=sağlık giderleri.
     # KTK 56 (manevi/maddi tazminat — trafik kazası tazminat çekirdeği, prod-recall miss) eklendi.
-    "trafik": (("KTK", 56), ("KTK", 85), ("KTK", 91), ("KTK", 98)),
+    # TBK 53 (ölümde destekten yoksun kalma tazminatı — ayrı kanun) eklendi (2026-06-18
+    # query-priority): ölümlü trafik kazası tazminatının çekirdek maddesi, retrieval kaçırıyordu.
+    "trafik": (("KTK", 56), ("KTK", 85), ("KTK", 91), ("KTK", 98), ("TBK", 53)),
     # vergi: VUK 29=tarh, 344=vergi ziyaı cezası (en-sık "ceza/tarhiyat" çekirdeği; diğer slotlar
     # KDV/emlak/MTV sorgu-özel maddelere kalır).
     # VUK 378 (ihtirazi kayıt / dava açma — yaygın vergi-itiraz konusu, prod-recall miss) eklendi.

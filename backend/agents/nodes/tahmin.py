@@ -21,7 +21,10 @@ from predictive import predict_outcome
 log = structlog.get_logger()
 
 # Tahmin için kullanılacak en benzer emsal sayısı (üst-K, score'a göre sıralı).
-_TOP_K_CASES = 5
+# Emsal retrieval zaten TOP_K_CASE=8 aday getiriyor → 8'e çıkarmak EK MALİYETSİZ:
+# getirilen tüm benzersiz kararlar oya katılır (daha büyük örneklem = daha sağlam
+# "N davadan M'i lehine" istatistiği). Doygunluk faktörü 5+'ta zaten 1.0'a doyar.
+_TOP_K_CASES = 8
 
 
 def _doc_key(source_id: str) -> str:

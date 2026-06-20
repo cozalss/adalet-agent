@@ -19,11 +19,13 @@ from typing import Any
 import structlog
 
 from agents.config import (
+    DRAFT_MAX_CLAIMS,
     DRAFT_MAX_TOKENS,
     DRAFT_MIN_TOKENS,
     LLM_CONTEXT_BUDGET,
     LLM_TEMPERATURE,
     is_guided_cite_enabled,
+    is_quote_grounding_enabled,
 )
 from agents.draft_stream import draft_token_sink
 from agents.llm import ChatMessage, get_llm
@@ -156,8 +158,35 @@ _DRAFT_SYSTEM = (
     "13. ÖZ YAZ (latency + okunabilirlik): her bölümü en fazla 2-3 cümle tut; gereksiz tekrar, "
     "dolgu cümle, genel-geçer uyarı veya aynı bilgiyi farklı sözcüklerle yineleme. Hukuki noktaları "
     "(madde, hak, süre, koşul) EKSİLTME — ama en kısa, taranabilir biçimde ver. Kullanıcı hızlı "
-    "ve net cevap ister; uzun-laf değil."
+    "ve net cevap ister; uzun-laf değil.\n"
+    "14. ESASLI CEVAP ÖNCE (kritik): Soru genel/olgusuz olsa bile (kullanıcı süre, ücret, tarih "
+    "vermemişse) ÖNCE kaynaklardaki SOMUT genel kuralı ver — hesaplama yöntemi/formülü, asgari "
+    "şart, hak doğuran koşul ([src: ID] ile dayandır) — SONRA kişiye-özel net sonuç/rakam için "
+    "hangi bilgiye ihtiyacın olduğunu KISACA iste. ASLA yalnızca 'şu bilgileri paylaşın' veya "
+    "'avukata danışın' deyip esaslı kuralı ATLAMA; rakam veremesen bile kuralı/formülü mutlaka yaz."
 )
+
+# Kanıt-önce / quote-grounding kuralı (opt-in, DRAFT_QUOTE_GROUNDING=1). Anthropic finding-3:
+# "extract word-for-word quotes first... if you can't find relevant quotes, say so". Kural 1-2'nin
+# (kaynak-dışı üretme) kanıt-önce pekiştirmesi — ÇIKTI FORMATINI DEĞİŞTİRMEZ (ayrı alıntı bloğu yok).
+_QUOTE_GROUNDING_RULE = (
+    "\n15. KANIT-ÖNCE: Her hukuki iddiayı yazmadan ÖNCE, o iddiayı DOĞRUDAN destekleyen ifadenin "
+    "sana verilen kaynak metninde GERÇEKTEN geçtiğinden emin ol. Destekleyen ifadeyi bulamıyorsan "
+    "o iddiayı YAZMA. Kaynak metninde karşılığı olmayan hiçbir sonucu çıkarımla üretme. (Ayrı bir "
+    "'alıntı' bölümü YAZMA; bu yalnız yazmadan önceki içsel bir kontroldür.)"
+)
+
+
+def _build_draft_system() -> str:
+    """Draft system prompt'unu kur — quote-grounding flag açıksa kanıt-önce kuralını ekle.
+
+    Saf + dinamik (call-time flag okur → test monkeypatch.setenv ile toggle eder). Flag KAPALI
+    (default) → birebir _DRAFT_SYSTEM (sıfır davranış değişikliği, baseline korunur).
+    """
+    if is_quote_grounding_enabled():
+        return _DRAFT_SYSTEM + _QUOTE_GROUNDING_RULE
+    return _DRAFT_SYSTEM
+
 
 # Kaynak ID etiketleri: [src: chunk_abc123]
 _SRC_TAG_RE = re.compile(r"\[src:\s*([A-Za-z0-9_\-]+)\s*\]")
@@ -202,7 +231,7 @@ async def draft_node(state: AgentState) -> dict[str, object]:
 
     llm = get_llm()
     messages = [
-        ChatMessage(role="system", content=_DRAFT_SYSTEM),
+        ChatMessage(role="system", content=_build_draft_system()),
         ChatMessage(role="user", content=user_prompt),
     ]
     # Canlı yazım: /ask/stream bir token-sink set ettiyse VE client streaming
@@ -340,7 +369,7 @@ async def _extract_claims_llm(
     data = json.loads(resp.content)
     raw = data.get("claims", []) if isinstance(data, dict) else []
     claims: list[Claim] = []
-    for item in raw[:15]:
+    for item in raw[:DRAFT_MAX_CLAIMS]:
         if not isinstance(item, dict):
             continue
         ctext = str(item.get("text", "")).strip()

@@ -251,6 +251,15 @@ class LlamaCppClient:
                 draft_model = LlamaPromptLookupDecoding(num_pred_tokens=10)
         flash_attn = _os2.getenv("LLM_FLASH_ATTN", "1").lower() in {"1", "true", "yes"}
 
+        # KV-cache quantization (opt-in). q8_0 ~kayıpsız (perplexity +<0.1) ve KV-cache'i
+        # ~yarıya indirir → VRAM açar (4070 12GB'da Qwen+yardımcılarla sıkışıkken kritik) ve
+        # decode'u biraz hızlandırır. flash_attn ŞART (yoksa her adımda dequantize → yavaş).
+        # Default f16 (mevcut davranış — sıfır değişiklik); LLM_KV_TYPE=q8_0 ile aç. Bozarsa f16.
+        _KV_TYPES = {"f16": 1, "q8_0": 8, "q4_0": 2}
+        _kv = _os2.getenv("LLM_KV_TYPE", "f16").lower()
+        kv_type = _KV_TYPES.get(_kv, 1)
+        kv_quant = kv_type != 1 and flash_attn
+
         # n_threads opsiyonel (LLM_N_THREADS); varsayılan = llama.cpp kendi seçer
         # (fiziksel çekirdek). Düşük değer uzun-prompt prefill'ini YAVAŞLATIR
         # (CPU-side batch ops), o yüzden default'a dokunmuyoruz.
@@ -279,6 +288,9 @@ class LlamaCppClient:
             "verbose": False,
             "chat_format": self.chat_format,
         }
+        if kv_quant:  # yalnız opt-in + flash_attn açıkken (yoksa atla → güvenli)
+            kwargs["type_k"] = kv_type
+            kwargs["type_v"] = kv_type
         if n_threads is not None:
             kwargs["n_threads"] = n_threads
             kwargs["n_threads_batch"] = n_threads

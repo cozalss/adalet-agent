@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from agents.config import DISCLAIMER_TR
 from agents.nodes.finalize import (
     _format_citations,
     _remove_orphan_source_tags,
     _split_sentences,
+    _strip_redundant_disclaimers,
     finalize_node,
 )
 
@@ -682,3 +684,93 @@ def test_promote_strips_leading_list_marker_from_bluf():
     )
     out = _promote_first_verified_as_bluf(body)
     assert "**Kısa cevap:** Kamulaştırma bedeline" in out  # '1. ' sökülmüş
+
+
+# --- Disclaimer dedupe (anti-paternalist ton; Anthropic Constitution finding 8/12) ---
+def test_strip_redundant_disclaimers_removes_exact_canonical_echo():
+    """Gövdedeki birebir DISCLAIMER_TR yankısı kaldırılır; esaslı içerik korunur."""
+    body = (
+        "Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11].\n\n"
+        f"{DISCLAIMER_TR}"
+    )
+    out = _strip_redundant_disclaimers(body)
+    assert "Tüketici ayıplı malda" in out
+    assert "hukuki tavsiye değildir" not in out
+
+
+def test_strip_redundant_disclaimers_removes_model_paraphrase_sentence():
+    """Modelin KENDİ disclaimer-yankısı cümlesi (bilgilendirme amaçlı / tavsiye değil) silinir."""
+    body = (
+        "Kıdem tazminatına hak kazanırsınız [src: m-EIK-14]. "
+        "Bu yanıt yalnızca bilgilendirme amaçlıdır ve hukuki tavsiye değildir."
+    )
+    out = _strip_redundant_disclaimers(body)
+    assert "Kıdem tazminatına hak kazanırsınız" in out
+    assert "bilgilendirme amaç" not in _asciiish(out).replace("ç", "c")
+    assert "tavsiye degildir" not in _asciiish(out)
+
+
+def test_strip_redundant_disclaimers_no_false_positive_on_substantive_text():
+    """Esaslı hukuki cümle (disclaimer işareti taşımayan) ASLA silinmez."""
+    body = (
+        "İşveren ihbar süresine uymazsa ihbar tazminatı ödemek zorundadır [src: m-IK-17]. "
+        "Kıdem tazminatı için en az bir yıllık çalışma şartı aranır [src: m-EIK-14]."
+    )
+    out = _strip_redundant_disclaimers(body)
+    assert "ihbar tazminatı ödemek zorundadır" in out
+    assert "en az bir yıllık çalışma şartı" in out
+
+
+def test_strip_redundant_disclaimers_graceful_when_all_disclaimer():
+    """Gövde tümüyle disclaimer'sa (beklenmez) orijinal korunur — boş cevap üretilmez."""
+    body = "Bu yanıt yalnızca bilgilendirme amaçlıdır."
+    out = _strip_redundant_disclaimers(body)
+    assert out.strip() != ""
+
+
+@pytest.mark.asyncio
+async def test_finalize_legal_answer_disclaimer_appears_exactly_once(base_state):
+    """Hukuki-cevap yolunda model gövdede disclaimer yazmış olsa bile final'de TEK disclaimer."""
+    claims = [
+        {"text": "Tüketici ayıplı malda sözleşmeden dönebilir", "cite_ids": ["m-TKHK-11"],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+    ]
+    verified_claims = [
+        {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "Fuzzy 0.90"},
+    ]
+    state = {
+        **base_state,
+        "draft_response": (
+            "Tüketici ayıplı malda sözleşmeden dönebilir [src: m-TKHK-11]. "
+            "Bu cevap hukuki tavsiye değildir, sadece bilgilendirme amaçlıdır."
+        ),
+        "claims": claims,
+        "verified_claims": verified_claims,
+        "debate_verdict": "pass",
+    }
+
+    out = await finalize_node(state)
+
+    # Disclaimer cümlesi (kanonik) cevapta TAM OLARAK BİR KEZ görünür (çift değil).
+    assert out["response"].count("hukuki tavsiye değildir") == 1
+    assert "Tüketici ayıplı malda" in out["response"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_chat_dedupes_paraphrased_disclaimer():
+    """Chat yolu: model gövdede disclaimer PARAFRAZI yazmışsa final'de TEK kanonik disclaimer."""
+    state = {
+        "domain": "unknown",
+        "response_intent": "chat",
+        "question": "Kıdem tazminatı nedir?",
+        "response": (
+            "Kıdem tazminatı, belirli koşullarda işçiye ödenen bir tazminattır. "
+            "Bu açıklama hukuki tavsiye değildir, yalnızca bilgilendirme amaçlıdır."
+        ),
+    }
+
+    out = await finalize_node(state)
+
+    assert out["response"].count("hukuki tavsiye değildir") == 1
+    assert "Kıdem tazminatı" in out["response"]
+    assert out["disclaimers"] == [DISCLAIMER_TR]

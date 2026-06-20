@@ -348,6 +348,10 @@ async def _colbert_rerank_qdrant(question, candidates, top_k, client) -> list[Re
     """Stored colbert (yan collection) → Qdrant MAX_SIM rerank. Yalnız SORGU-colbert encode
     (1 forward); passage colbert'leri önceden saklı → hızlı. candidate chunk_id'lerine filtreli."""
     emb = _get_colbert_embedder()
+    # Modeli ANA thread'de yükle (Windows native access-violation guard — bkz. embedding.py:107).
+    # encode_query'yi to_thread'e atmadan önce şart; aencode* wrapper'ları bunu yapar ama burada
+    # sync encode_query doğrudan to_thread'e veriliyor → guard elle eklenir (code-review 2026-06-18).
+    emb.ensure_loaded()
     _, _, q_colbert = await asyncio.to_thread(emb.encode_query, question, True)  # return_colbert
     if not q_colbert:
         raise ValueError("sorgu colbert vektörü boş")
@@ -413,6 +417,7 @@ async def _colbert_rerank_compute(question, candidates, top_k) -> list[RerankRes
     scored: list[tuple[object, float]] = []
     nonempty = [(c, t) for c, t in pairs if t]
     if nonempty:
+        emb.ensure_loaded()  # ana-thread yükleme (Windows guard) — rerank_scores to_thread'e gitmeden
         scores = await asyncio.to_thread(
             emb.rerank_scores, question, [t for _, t in nonempty], _colbert_weights(),
         )

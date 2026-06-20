@@ -411,6 +411,49 @@ _QUERY_PRIORITY_ANCHORS: tuple[tuple[str, tuple[str, ...], str], ...] = (
      ("zam", "artış", "artis", "yüzde", "yuzde", "tüfe", "tufe", "fahiş", "fahis",
       "yasal sınır", "yasal sinir", "oran", "üfe", "ufe"),
      "m-TBK-344"),
+    # --- 2026-06-18 query-priority kürasyonu (ECC ajan hukuki yargı + chunk_id doğrulandı) ---
+    # Doğru madde corpus'ta VAR ama citizen-dili↔resmi-başlık uçurumu yüzünden embedding top-8'e
+    # çıkaramıyordu. keyword→madde semantik bağı GENELLENİR (dev-gold ezberlemez). Eksenler ayrık
+    # tutuldu (yanlış-tetikleme yok). Madde DOMAIN_CORE'a da eklendi (force-fetch havuza girsin).
+    # kira: iki haklı ihtar/temerrütle tahliye (m.352, zam-ekseninden ayrı)
+    ("kira",
+     ("iki haklı ihtar", "iki hakli ihtar", "haklı ihtar", "hakli ihtar", "temerrüt",
+      "temerrut", "ihtarla tahliye", "kira ödemedi", "kira odemedi", "kirayı ödemiyor",
+      "kirayi odemiyor"),
+     "m-TBK-352"),
+    # kira: kiracının erken çıkması + devam eden kira borcu (m.325)
+    ("kira",
+     ("erken çık", "erken cik", "erken tahliye", "süresinden önce çık", "suresinden once cik",
+      "sözleşme bitmeden çık", "sozlesme bitmeden cik", "erken boşalt", "erken bosalt"),
+     "m-TBK-325"),
+    # kira: eş rızası olmadan kefalet (m.584)
+    ("kira",
+     ("eş rızası", "es rizasi", "eşimin rızası", "esimin rizasi", "eşim kefil", "esim kefil",
+      "rızam yok", "rizam yok", "eş izni", "es izni"),
+     "m-TBK-584"),
+    # icra: ihtiyati haciz (m.285)
+    ("icra",
+     ("ihtiyati haciz", "ihtiyaten haciz", "ihtiyati hacz"),
+     "m-IIK-285"),
+    # tüketici: paket tur (m.70)
+    ("tuketici",
+     ("paket tur", "tur iptal", "tatil iptal", "tur şirketi", "tur sirketi",
+      "seyahat acentesi", "tur paketi"),
+     "m-TKHK-70"),
+    # tüketici: devre tatil/devremülk (m.47)
+    ("tuketici",
+     ("devre tatil", "devre mülk", "devre mulk", "devremülk", "devremulk"),
+     "m-TKHK-47"),
+    # tüketici: tüketici kredisi/cayma/erken kapama (m.31)
+    ("tuketici",
+     ("tüketici kredisi", "tuketici kredisi", "kredi cayma", "krediden cayma",
+      "kredi erken kapama", "kredinin erken ödenmesi", "kredinin erken odenmesi"),
+     "m-TKHK-31"),
+    # trafik: ölümde destekten yoksun kalma tazminatı (TBK m.53)
+    ("trafik",
+     ("destekten yoksun", "ölüm tazminatı", "olum tazminati", "ölümlü kaza", "olumlu kaza",
+      "cenaze gideri", "vefat tazminatı", "vefat tazminati"),
+     "m-TBK-53"),
 )
 
 

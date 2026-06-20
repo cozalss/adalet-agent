@@ -28,6 +28,10 @@ dependencies = [
     "pytesseract>=0.3.13",
     "pillow>=10.4.0",
     "numpy>=2.1.2",
+    # PDF: dijital metin katmanı çıkarımı (kusursuz Türkçe) + tarama sayfa render.
+    "pymupdf>=1.24.0",
+    # Sistem-kurulumsuz offline OCR (taranmış belge/fotoğraf); tesseract.exe gerekmez.
+    "rapidocr-onnxruntime>=1.4.0",
     # Predictive (opsiyonel — devre dışı bırakmak için kaldırabilirsin)
     # NOT: torch CUDA 12.4 wheel'ı için [tool.uv.sources] aşağıda — RTX 4070 GPU.
     # torch 2.6+ şart: BGE-M3 + FlagEmbedding CVE-2025-32434 fix için torch.load v2.6+ istiyor.

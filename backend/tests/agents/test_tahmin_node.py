@@ -66,12 +66,12 @@ async def test_tahmin_node_general_question_suppressed():
 
 @pytest.mark.asyncio
 async def test_tahmin_node_uses_top_k_only():
-    """5'ten fazla emsal verilse de yalnız ilk 5 kullanılır."""
-    refs = [_case(f"c{i}", "davanın kabulüne karar verildi") for i in range(8)]
+    """Üst-K (8) limiti: daha fazla emsal verilse de yalnız ilk 8 kullanılır."""
+    refs = [_case(f"c{i}", "davanın kabulüne karar verildi") for i in range(12)]
     out = await tahmin_node({"question": "q", "emsal_refs": refs})
     pred = out["prediction"]
     assert pred is not None
-    assert len(pred["similar_case_ids"]) == 5
+    assert len(pred["similar_case_ids"]) == 8
 
 
 def test_top_unique_case_refs_dedups_chunks_from_same_decision():

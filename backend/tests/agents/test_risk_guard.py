@@ -11,6 +11,7 @@ from agents.risk_guard import (
     fabricated_eligibility_threshold,
     fabricated_law_names,
     implausible_article_numbers,
+    is_high_risk_eligibility_claim,
     negative_eligibility_claims,
     verify_risk_veto,
 )
@@ -188,6 +189,37 @@ def test_negative_not_met_still_vetoed():
         "Süreniz asgari koşulu sağlamıyor.",
     ):
         assert verify_risk_veto(bad)[0] is True, f"olumsuz hak-reddi veto edilmedi: {bad}"
+
+
+# --- FALSE-VETO: sayısallaştırmadan kaçınma (gerçek-LLM 2026-06-18) ---
+
+def test_quantify_decline_not_vetoed():
+    """'miktar süreye göre hesaplanır; net tutar belirtemem mümkün değil' = SAYI vermekten
+    kaçınma (hak-reddi DEĞİL) → vetolanMAMALI. Gerçek-LLM regresyonu: 'süre' + 'mümkün değil'
+    0-80 char combo'su net iş-hukuku cevabını reddedip 'emin değilim' clarifier üretiyordu."""
+    for good in (
+        "İşten çıkarıldığınızda kıdem tazminatı miktarı, çalıştığınız toplam süreye ve son "
+        "aylık brüt ücretinize göre hesaplanır; bu nedenle net bir tutar belirtmem mümkün değil "
+        "[src: m-IK-112].",
+        "Tazminatınızın kesin tutarını çalışma sürenizi bilmeden hesaplayamam.",
+        "Süreye bağlı olduğu için net bir rakam veremem; ancak hesaplama yöntemi şudur.",
+    ):
+        blocked, reasons = verify_risk_veto(good)
+        assert blocked is False, f"sayı-reddi yanlış vetolandı: {reasons}"
+
+
+def test_quantify_decline_with_hard_denial_still_vetoed():
+    """Cümle hem sayı-reddi hem SERT hak-reddi içeriyorsa muafiyet İPTAL → veto (fail-closed).
+    'süreniz yetersiz, bu yüzden miktar verilemez' → tehlikeli hak-reddi, korunmalı."""
+    bad = "Süreniz yetersiz olduğundan kıdem tazminatı miktarı hesaplanamaz ve verilemez."
+    assert verify_risk_veto(bad)[0] is True
+
+
+def test_quantify_decline_not_high_risk_eligibility():
+    """CLATTER kapısı da sayı-reddini yüksek-riskli uygunluk iddiası saymamalı (FP guard)."""
+    assert is_high_risk_eligibility_claim("net bir tutar belirtmem mümkün değil") is False
+    # Gerçek yüksek-risk hâlâ True
+    assert is_high_risk_eligibility_claim("2 yıl çalıştıysanız kıdem alabilirsiniz") is True
 
 
 # --- POZİTİF fabrike çıkarım (sayısal eşik-altı hak-tanıma, FAZ 1.3) ---

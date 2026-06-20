@@ -74,6 +74,45 @@ _NEGATIVE_ELIGIBILITY_RE = re.compile(
 
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# --- Sayısallaştırmadan KAÇINMA (iyi-huylu meta-cümle, hak-reddi DEĞİL) ---
+# Asistanın "net bir tutar/kesin rakam belirtemem; süreye+ücrete göre hesaplanır" demesi
+# bir SAYI vermekten kaçınmadır — bir HAKKIN reddi DEĞİL. _DENIAL_VERB içindeki genel
+# "mümkün değil" bu cümleleri "süre/eşik gerekçeli hak-reddi" sanıp tüm cevabı veto
+# ediyordu → kullanıcıya "emin değilim" clarifier (gerçek-LLM 2026-06-18: "kıdem tazminatı
+# miktarı ... süreye göre hesaplanır; net bir tutar belirtmem mümkün değil" → "süre" +
+# "mümkün değil" 0-80 char combo → FALSE-VETO; bkz scope/over-hedge kök sebebi).
+# DAR: yalnız SAYISAL-MİKTAR nesnesi (tutar/rakam/miktar/meblağ) + ifade/hesap fiili eşleşir;
+# "tazminat verilmez" gibi HAK-nesneli reddi (entitlement) YAKALANMAZ → tehlike korunur.
+_QUANTITY_NOUN_RE = r"(?:tutar\w*|rakam\w*|miktar\w*|meblağ\w*|meblâğ\w*)"
+_STATE_VERB_RE = (
+    r"(?:belirt\w*|söyle\w*|hesapla\w*|ver[a-zçğıöşü]*|paylaş\w*|çıkar\w*|sun\w*|kestir\w*)"
+)
+_QUANTIFY_DECLINE_RE = re.compile(
+    rf"{_QUANTITY_NOUN_RE}\s+(?:\w+\s+){{0,2}}?{_STATE_VERB_RE}",
+    re.IGNORECASE,
+)
+# Sert hak-reddi çekirdeği — bu varsa quantify-decline muafiyeti İPTAL (çifte-emniyet,
+# fail-closed). Yalnız uygunluk-reddine ÖZGÜ kesin fiiller (genel "mümkün değil" HARİÇ —
+# muaf edebilmemizin sebebi bu). "süreniz yetersiz, miktar verilemez" → muaf DEĞİL, veto.
+_HARD_DENIAL_RE = re.compile(
+    r"(?:yetersiz|yeterli\s+değil|karşılamı(?!ş)\w*|sağlamı(?!ş)\w*|sağlamaz|"
+    r"hak\s+kazanama\w*|kazanamaz|doğmaz|verilmez|verilmeyebilir|alamaz\w*|"
+    r"hak\w*\s+(?:yok|bulunma\w*))",
+    re.IGNORECASE,
+)
+
+
+def _is_quantify_decline(sent: str) -> bool:
+    """Cümle, asistanın SAYISAL TUTAR vermekten kaçınması mı (hak-reddi DEĞİL)?
+
+    'net bir tutar belirtmem mümkün değil', 'kesin bir rakam veremem' → True (iyi-huylu).
+    'süreniz yetersiz', 'tazminat verilmez' → False (sert hak-reddi → tehlike korunur).
+    Cümle hem sayı-reddi hem sert hak-reddi içeriyorsa muafiyet İPTAL → fail-closed veto.
+    """
+    if _HARD_DENIAL_RE.search(sent):
+        return False
+    return bool(_QUANTIFY_DECLINE_RE.search(sent))
+
 # --- Yüksek-riskli UYGUNLUK-SONUCU (CLATTER kapısı için) ---
 # Süre/eşik gerekçeli bir uygunluk SONUCU (POZİTİF hak-tanıma VEYA NEGATİF hak-reddi).
 # "Çıkarım-halüsinasyonu"nun en tehlikeli sınıfı: model bir süre/eşikten hak SONUCU
@@ -101,8 +140,12 @@ def is_high_risk_eligibility_claim(text: str) -> bool:
     CLATTER kapısı (verify) bu sınıf iddialar için POZİTİF entailment şartı koyar.
     "2 yıl → kıdem alabilirsiniz", "1 yılın altında kıdem doğmaz" → True.
     "iade hakkınız var" (eşiksiz), "ücret ayda bir ödenir" → False (dar kapsam).
+    "net bir tutar belirtemem" (sayısallaştırmadan kaçınma) → False (FP guard).
     """
-    return bool(_HIGH_RISK_ELIGIBILITY_RE.search(text))
+    for sent in _SENT_SPLIT_RE.split(text):
+        if _HIGH_RISK_ELIGIBILITY_RE.search(sent) and not _is_quantify_decline(sent):
+            return True
+    return False
 
 
 def fabricated_law_names(text: str) -> list[str]:
@@ -119,8 +162,11 @@ def negative_eligibility_claims(text: str) -> list[str]:
     """
     flags = []
     for sent in _SENT_SPLIT_RE.split(text):
-        if _NEGATIVE_ELIGIBILITY_RE.search(sent):
-            flags.append(sent.strip()[:160])
+        if not _NEGATIVE_ELIGIBILITY_RE.search(sent):
+            continue
+        if _is_quantify_decline(sent):
+            continue  # "net tutar belirtemem" = sayı-reddi, hak-reddi DEĞİL (FP guard)
+        flags.append(sent.strip()[:160])
     return flags
 
 

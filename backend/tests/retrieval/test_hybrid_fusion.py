@@ -91,6 +91,10 @@ async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
     fake_emb = Embedder("dummy-no-load")
     # rerank_scores'u override et (model yüklenmez); A=0.1, B=0.9, C=0.5 → boş hariç
     fake_emb.rerank_scores = lambda _q, passages, _w=None: [0.1, 0.9, 0.5][: len(passages)]  # type: ignore[assignment]
+    # ensure_loaded (Windows-guard, hybrid_search'te to_thread öncesi çağrılır) → mock'ta spy
+    # (gerçek "dummy-no-load" modelini yüklemeye çalışmasın + guard'ın çağrıldığını doğrula).
+    _guard = {"called": False}
+    fake_emb.ensure_loaded = lambda: _guard.__setitem__("called", True)  # type: ignore[assignment]
 
     monkeypatch.setenv("RERANK_PROVIDER", "bgem3")
     monkeypatch.setenv("COLBERT_RERANK_MODE", "compute")  # stored-Qdrant yolunu atla → compute (mock)
@@ -101,6 +105,7 @@ async def test_colbert_rerank_reorders_by_score_and_sinks_empty(monkeypatch):
     # B(0.9) > C(0.5) > A(0.1) > boş(-1.0)
     assert [r.chunk_id for r in out] == ["c1", "c2", "c0", "c3"]
     assert out[-1].chunk_id == "c3"  # whitespace en sonda
+    assert _guard["called"], "ensure_loaded() to_thread öncesi çağrılmalı (Windows access-violation guard)"
 
 
 @pytest.mark.asyncio

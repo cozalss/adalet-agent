@@ -445,3 +445,39 @@ def test_format_history_cleans_assistant_keeps_user_and_limits():
     assert "Kaynaklar" not in out
     assert "hukuki tavsiye değildir" not in out
     assert "Artış TÜFE ile sınırlıdır." in out
+
+
+# --- Quote-grounding flag (opt-in, Anthropic finding-3; default OFF = baseline) ---
+def test_build_draft_system_baseline_omits_quote_grounding(monkeypatch):
+    """Flag KAPALI (default) → quote-grounding kuralı YOK; birebir _DRAFT_SYSTEM (sıfır değişiklik)."""
+    import agents.nodes.draft as draft_mod
+    monkeypatch.delenv("DRAFT_QUOTE_GROUNDING", raising=False)
+    sysprompt = draft_mod._build_draft_system()
+    assert sysprompt == draft_mod._DRAFT_SYSTEM
+    assert "KANIT-ÖNCE" not in sysprompt
+
+
+def test_build_draft_system_appends_rule_when_flag_on(monkeypatch):
+    """Flag AÇIK → kanıt-önce kuralı eklenir; mevcut MUTLAK KURALLAR korunur (üstüne eklenir)."""
+    import agents.nodes.draft as draft_mod
+    monkeypatch.setenv("DRAFT_QUOTE_GROUNDING", "1")
+    sysprompt = draft_mod._build_draft_system()
+    assert "KANIT-ÖNCE" in sysprompt
+    assert sysprompt.startswith(draft_mod._DRAFT_SYSTEM)  # baseline kurallar bozulmadan kalır
+    assert "Ayrı bir 'alıntı' bölümü YAZMA" in sysprompt  # çıktı formatı korunur uyarısı
+
+
+@pytest.mark.asyncio
+async def test_draft_node_injects_quote_grounding_when_enabled(monkeypatch):
+    """Flag açıkken draft_node LLM'e geçen system mesajı kanıt-önce kuralını taşır."""
+    import agents.nodes.draft as draft_mod
+    monkeypatch.setenv("DRAFT_QUOTE_GROUNDING", "1")
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({
+        "question": "Ayıplı malda tüketici hakkı nedir?",
+        "mevzuat_refs": [_ref()],
+        "emsal_refs": [],
+    })
+    sys_msg = next(m for m in cap.messages if m.role == "system")
+    assert "KANIT-ÖNCE" in sys_msg.content

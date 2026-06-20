@@ -86,12 +86,28 @@ def _preload_heavy_models() -> None:
     eşzamanlı istekler check-then-set yarışına girmez. Her blok best-effort:
     biri patlasa diğerleri yüklenir (graceful degrade).
     """
+    # GERÇEK retrieval singleton'larını ısıt (request-yolu bunları kullanır). ÖNEMLİ:
+    # eski preload düz `Embedder()`'ı ısıtıyordu ama retrieval `hybrid_search._get_embedder()`
+    # (MursitEmbedder, sentence_transformers) + `_get_colbert_embedder()` (BAAI/bge-m3 CPU)
+    # AYRI singleton'larını kullanıyor → ilk sorgu bu iki modeli COLD yüklüyordu (2026-06-18:
+    # ilk sorgu ~22s'in ~12s'i bge-m3+Mursit cold-load, retrieval_done_ms'te görünür). Doğru
+    # singleton'ları + ColBERT yolunu (return_colbert=True) boot'ta warm-up et.
     try:
-        from retrieval.embedding import Embedder
+        from retrieval.hybrid_search import _get_colbert_embedder, _get_embedder
         log.info("preload_embedder_start")
-        emb = Embedder()
-        _ = emb.encode(["warmup"], return_colbert=False)
+        emb = _get_embedder()  # request-yolundaki GERÇEK dense embedder (Mursit)
+        try:
+            emb.encode_query("warmup sorgusu")
+        except Exception:
+            emb.encode(["warmup sorgusu"])  # MursitEmbedder API farkına karşı defansif
         log.info("preload_embedder_done")
+        # ColBERT rerank embedder (BAAI/bge-m3 CPU) — ilk sorgudaki ~10s cold-load'un kaynağı.
+        # Yalnız bgem3 rerank provider'ı açıkken yükle (boşuna ~2GB model yüklemeyelim).
+        if os.getenv("RERANK_PROVIDER", "").strip().lower() == "bgem3":
+            log.info("preload_colbert_start")
+            cb = _get_colbert_embedder()
+            cb.encode_query("warmup sorgusu", return_colbert=True)  # ColBERT vec yolunu ısıt
+            log.info("preload_colbert_done")
     except Exception as exc:
         log.warning("preload_embedder_failed", error=str(exc))
 
@@ -103,6 +119,41 @@ def _preload_heavy_models() -> None:
         log.info("preload_reranker_done")
     except Exception as exc:
         log.warning("preload_reranker_failed", error=str(exc))
+
+    # NLI cross-encoder: verify katmanının (CLATTER/CITE-grounding) ÇEKİRDEĞİ ve ÖLÇÜLEN
+    # en pahalı cold-load (2026-06-18: ilk sorgu ~45s'in ~10.9s'i NLI lazy-load; sıcak ~1.5s).
+    # Boot'ta warm-up (model yükle + 1 forward) → ilk KULLANICI sorgusu bu cezayı yemez
+    # (boot görünmez, ilk sorgu görünür → demoda en kritik latency kazancı). Best-effort.
+    # NOT: lettuce default token-coverage (use_raw_model=False) → ağır model yok, preload gereksiz.
+    try:
+        from agents.verifier_layers import get_verifier
+        log.info("preload_nli_start")
+        nli = get_verifier()
+        _ = nli.verify("warmup hipotezi", "warmup öncül kanıt metni")  # load + ilk forward
+        log.info("preload_nli_done")
+    except Exception as exc:
+        log.warning("preload_nli_failed", error=str(exc))
+
+    # LLM (in-process Qwen GGUF) boot-warm — OPT-IN (PRELOAD_LLM=1). Lazy load ilk KULLANICI
+    # sorgusuna ~13s GPU-yükleme cezası bindiriyor (2026-06-18: ilk sorgu ~28s'in baskını).
+    # Boot'ta yüklenirse ilk sorgu ≈ sıcak sorgu (~11s) — demoda en görünür kazanç. Default
+    # KAPALI: prod/llama-server/mock konfigürasyonlarını etkilemesin (yalnız in-process client'ta
+    # _load var). VRAM zirvesi değişmez (zaten çalışırken yüklü), yalnız zamanlaması öne alınır.
+    if os.environ.get("PRELOAD_LLM", "0").lower() in {"1", "true", "yes"}:
+        try:
+            from agents.llm import get_llm
+            client = get_llm()
+            if getattr(client, "_model", "n/a") is None and hasattr(client, "_load"):
+                log.info("preload_llm_start")
+                client._model = client._load()  # mmap (hızlı); ağırlıklar ilk forward'da GPU'ya
+                # llama.cpp mmap → _load yalnız haritalıyor; GERÇEK GPU-upload ilk inference'ta.
+                # 1-token warmup ile o ~13s yükleme cezasını boot'a taşı (ilk soru ≈ sıcak).
+                client._model.create_chat_completion(
+                    messages=[{"role": "user", "content": "merhaba"}], max_tokens=1,
+                )
+                log.info("preload_llm_done")
+        except Exception as exc:
+            log.warning("preload_llm_failed", error=str(exc))
 
     # Qdrant client singleton'ını boot'ta oluştur: ilk eşzamanlı istekler
     # check-then-set yarışına girmesin (tek client, orphan bağlantı yok).
