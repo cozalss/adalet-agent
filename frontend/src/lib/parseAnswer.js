@@ -160,12 +160,16 @@ export function mapResponse(resp, question) {
   const citeMap = buildCiteMap(usedCitations);
   const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
+  const mappedSources = mapSources(usedCitations);
 
   return {
     kind: "answer",
     domain,
     domainConfidence: typeof resp.domain_confidence === "number" ? resp.domain_confidence : null,
-    sources: mapSources(usedCitations),
+    sources: mappedSources,
+    // Emsal (mahkeme kararları) ayrı yüzeye çıkar: kanun maddeleriyle karışmadan,
+    // cevabın altında görünür "İlgili Kararlar" bölümünde gösterilir (doc_type=case).
+    relatedCases: mappedSources.filter((s) => s.badge === "yargitay"),
     // Retrieval havuzu boyutu (corpus'tan taranan aday) — şeffaflık: "N tarandı, M kullanıldı".
     scannedCount: citations.length,
     answer: { confidence: Math.round((resp.confidence || 0) * 100), sections, text: body },

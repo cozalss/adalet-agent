@@ -5,7 +5,7 @@ import { Icon, SB_NAV, CIVIL_DOMAINS } from "./components/icons.jsx";
 import {
   RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton, StreamStepper,
 } from "./components/ui.jsx";
-import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble } from "./components/cards.jsx";
+import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, EvidenceStats, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
@@ -706,6 +706,7 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
           {p === "final" && d.answer && (
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
+              <RelatedCases cases={d.relatedCases ?? []} onJump={onJump} />
               <EvidenceStats
                 confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims}
                 onOpenSources={onOpenSources ? () => onOpenSources(turn) : undefined}

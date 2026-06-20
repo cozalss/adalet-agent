@@ -59,6 +59,41 @@ export function AnswerCard({ answer, sources, onJump }) {
   );
 }
 
+/** İlgili Kararlar — emsal (Yargıtay/Danıştay/AYM) kararlarını cevabın altında AYRI,
+ *  görünür bir bölümde sunar (kanun maddeleriyle karışmadan). Boşsa hiç render etmez. */
+export function RelatedCases({ cases, onJump }) {
+  if (!Array.isArray(cases) || cases.length === 0) return null;
+  return (
+    <section className="related-cases" aria-label="İlgili mahkeme kararları">
+      <div className="rc-head">
+        <span className="rc-ic" aria-hidden="true"><Icon.scale /></span>
+        <h4>İlgili Kararlar</h4>
+        <span className="rc-count" aria-label={`${cases.length} karar`}>{cases.length}</span>
+      </div>
+      <ul className="rc-list">
+        {cases.map((c) => (
+          <li className="rc-item" key={c.id}>
+            <button type="button" className="rc-title" onClick={() => onJump?.(c.id)} title="Kaynak kartına git">
+              <span className="rc-badge">{c.type || "Karar"}</span>
+              {c.title}
+            </button>
+            {c.passage && (
+              <p className="rc-passage">
+                {c.passage.length > 180 ? `${c.passage.slice(0, 180)}…` : c.passage}
+              </p>
+            )}
+            {c.url && (
+              <a className="rc-link" href={c.url} target="_blank" rel="noreferrer">
+                Kararın tam metni <Icon.ext />
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function RejectCard({ data, onRetry }) {
   return (
     <div className="card reject">

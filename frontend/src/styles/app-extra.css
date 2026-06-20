@@ -798,6 +798,45 @@ a.btn:not(:disabled):active {
 }
 .clarify .cl-arrow { color: var(--accent-text, var(--accent, #D4A574)); font-weight: 600; margin-right: 8px; flex: 0 0 auto; }
 
+/* İlgili Kararlar — emsal (Yargıtay/Danıştay/AYM) kararları cevabın altında AYRI,
+   görünür bölüm; kanun maddeleriyle karışmaz. Başlıkta terazi (Icon.scale). */
+.related-cases {
+  margin: 14px 0 4px; padding: 14px 16px;
+  border: 1px solid var(--border, rgba(0,0,0,.08));
+  border-left: 3px solid var(--accent, #D4A574);
+  border-radius: 12px; background: var(--surface, #fff);
+}
+.related-cases .rc-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.related-cases .rc-ic { color: var(--accent-text, var(--accent, #9E6A43)); display: inline-flex; }
+.related-cases .rc-ic svg { width: 18px; height: 18px; }
+.related-cases .rc-head h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: .2px; }
+.related-cases .rc-count {
+  margin-left: auto; font-size: 12px; font-weight: 600;
+  color: var(--accent-text, var(--accent, #9E6A43)); background: var(--accent-soft, rgba(212,165,116,.14));
+  padding: 1px 9px; border-radius: 999px;
+}
+.related-cases .rc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.related-cases .rc-item { padding-bottom: 12px; border-bottom: 1px solid var(--border, rgba(0,0,0,.06)); }
+.related-cases .rc-item:last-child { padding-bottom: 0; border-bottom: none; }
+.related-cases .rc-title {
+  appearance: none; background: none; border: none; cursor: pointer; text-align: left; padding: 0;
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.45;
+  display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.related-cases .rc-title:hover { color: var(--accent-text, var(--accent, #9E6A43)); }
+.related-cases .rc-badge {
+  flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  color: var(--success, #4a7c59); background: var(--success-soft, rgba(74,124,89,.12));
+  padding: 1px 7px; border-radius: 6px;
+}
+.related-cases .rc-passage { margin: 5px 0 6px; font-size: 13px; line-height: 1.6; color: var(--text-2, #555); }
+.related-cases .rc-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12.5px; font-weight: 600; color: var(--accent-text, var(--accent, #9E6A43)); text-decoration: none;
+}
+.related-cases .rc-link:hover { text-decoration: underline; }
+.related-cases .rc-link svg { width: 13px; height: 13px; }
+
 /* Tıklanabilir sebep-şıkları (cevap-chip) — tıklayınca o sebep yanıt olarak gider. */
 .clarify .cl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .clarify .cl-chip {

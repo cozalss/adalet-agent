@@ -101,6 +101,24 @@ describe("mapResponse — answer", () => {
     });
   });
 
+  it("relatedCases: emsal (case) kararlarını ayrı yüzeye çıkarır", () => {
+    const r = {
+      domain: "kira", verdict: "pass", confidence: 0.8, answer: "**Kısa cevap:** X.",
+      citations: [
+        { source_id: "tbk-350", doc_type: "law", title: "TBK m.350", snippet: "madde" },
+        { source_id: "y-3hd-1", doc_type: "case", title: "Yargıtay 3. HD 2023/123", snippet: "karar özeti", url: "u" },
+      ],
+    };
+    const out = mapResponse(r, "");
+    expect(out.sources).toHaveLength(2);                 // hepsi kaynak panelinde
+    expect(out.relatedCases).toHaveLength(1);            // yalnız emsal ayrı bölümde
+    expect(out.relatedCases[0]).toMatchObject({ type: "Yargıtay", badge: "yargitay", title: "Yargıtay 3. HD 2023/123" });
+  });
+
+  it("relatedCases: emsal yoksa boş dizi (bölüm render edilmez)", () => {
+    expect(mapResponse(resp, "").relatedCases).toEqual([]);  // resp yalnız kanun içeriyor
+  });
+
   it("Kaynak = cevabın CITE ETTİĞİ kaynaklar (sabit retrieval havuzu değil)", () => {
     // Havuz 4 aday AMA cevap yalnız 2 madde cite ediyor → sources 2 olmalı ('16 saçma' fix).
     const r = {

@@ -3,7 +3,7 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { render, fireEvent } from "@testing-library/react";
-import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./cards.jsx";
+import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./cards.jsx";
 
 const html = (n) => renderToStaticMarkup(n);
 
@@ -88,6 +88,33 @@ describe("ClarifyCard", () => {
 
   it("savunmacı: options tanımsızsa render çökmez (geçmiş-replay/bozuk yanıt)", () => {
     expect(() => html(<ClarifyCard data={{ intro: "x" }} />)).not.toThrow();
+  });
+});
+
+describe("RelatedCases", () => {
+  it("emsal kararlarını başlık + rozet + tam-metin linkiyle render eder", () => {
+    const out = html(
+      <RelatedCases cases={[{ id: 2, type: "Yargıtay", badge: "yargitay",
+        title: "Yargıtay 3. HD 2023/123", passage: "ihtiyaç nedeniyle tahliye...", url: "http://k" }]} />,
+    );
+    expect(out).toContain("related-cases");
+    expect(out).toContain("İlgili Kararlar");
+    expect(out).toContain("Yargıtay 3. HD 2023/123");
+    expect(out).toContain("Kararın tam metni");
+  });
+
+  it("boş/eksik listede hiç render etmez (bölüm gizli)", () => {
+    expect(html(<RelatedCases cases={[]} />)).toBe("");
+    expect(html(<RelatedCases cases={undefined} />)).toBe("");
+  });
+
+  it("başlığa tıklayınca onJump(id) — kaynak kartına gider", () => {
+    const onJump = vi.fn();
+    const { getByRole } = render(
+      <RelatedCases cases={[{ id: 5, title: "Yargıtay 9. HD", type: "Yargıtay" }]} onJump={onJump} />,
+    );
+    fireEvent.click(getByRole("button"));
+    expect(onJump).toHaveBeenCalledWith(5);
   });
 });
 
