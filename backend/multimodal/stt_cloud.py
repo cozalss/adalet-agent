@@ -13,18 +13,11 @@ ENV:
 from __future__ import annotations
 
 import os
-from urllib.parse import urlparse
 
 import httpx
 
-
-def _validated_base_url() -> str:
-    """OPENAI_BASE_URL şema/host doğrulaması (SSRF sertleştirme — file://, gopher:// reddet)."""
-    raw = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    parsed = urlparse(raw)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise ValueError(f"OPENAI_BASE_URL güvensiz: {raw!r}")
-    return raw
+from core.openai_compat import cloud_enabled, require_api_key
+from core.openai_compat import validated_base_url as _validated_base_url
 
 # Uzantı → MIME — OpenAI multipart `file` alanı doğru içerik-tipini ister.
 _EXT_MIME = {
@@ -40,8 +33,8 @@ _TRANSCRIBE_PATH = "/audio/transcriptions"
 
 
 def cloud_stt_enabled() -> bool:
-    """OpenAI anahtarı set mi? (auto-routing kararı için)."""
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    """OpenAI anahtarı set mi? (auto-routing kararı için — ortak helper)."""
+    return cloud_enabled()
 
 
 async def transcribe_openai(
@@ -56,9 +49,7 @@ async def transcribe_openai(
     Başarısızlıkta (anahtar yok / ağ / 4xx-5xx) exception fırlatır ki çağıran (stt.py)
     lokal'e graceful düşebilsin. Anahtar `.env`'den okunur — ASLA hardcode edilmez.
     """
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY yok — bulut STT devre dışı")
+    api_key = require_api_key("bulut STT")
 
     model = os.getenv("OPENAI_STT_MODEL", "gpt-4o-transcribe").strip()
     base = _validated_base_url()
@@ -68,7 +59,7 @@ async def transcribe_openai(
     data = {"model": model, "language": language, "response_format": "json"}
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    async with httpx.AsyncClient(timeout=timeout_s) as client:
+    async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
         resp = await client.post(
             f"{base}{_TRANSCRIBE_PATH}", headers=headers, data=data, files=files,
         )

@@ -20,9 +20,11 @@ import asyncio
 import base64
 import io
 import os
-from urllib.parse import urlparse
 
 import httpx
+
+from core.openai_compat import cloud_enabled, require_api_key
+from core.openai_compat import validated_base_url as _validated_base_url
 
 _TRANSCRIBE_PATH = "/chat/completions"
 
@@ -44,18 +46,8 @@ _OCR_PROMPT = (
 
 
 def cloud_ocr_enabled() -> bool:
-    """OpenAI anahtarı set mi? (auto-routing kararı için)."""
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
-
-
-def _validated_base_url() -> str:
-    """OPENAI_BASE_URL'i şema/host açısından doğrula (SSRF sertleştirme — file://, gopher://
-    vb. reddet). Operatör-config olsa da env-poisoning'e karşı savunma derinliği."""
-    raw = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    parsed = urlparse(raw)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise ValueError(f"OPENAI_BASE_URL güvensiz: {raw!r}")
-    return raw
+    """OpenAI anahtarı set mi? (auto-routing kararı için — ortak helper)."""
+    return cloud_enabled()
 
 
 def _detect_image_mime(data: bytes) -> str:
@@ -106,9 +98,7 @@ async def ocr_image_openai(
 
     Anahtar `.env`'den okunur — ASLA hardcode edilmez.
     """
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY yok — bulut OCR devre dışı")
+    api_key = require_api_key("bulut OCR")
 
     model = (model or os.getenv("OPENAI_OCR_MODEL", "gpt-4o-mini")).strip()
     base = _validated_base_url()
@@ -139,7 +129,7 @@ async def ocr_image_openai(
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    async with httpx.AsyncClient(timeout=timeout_s) as client:
+    async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
         resp = await client.post(f"{base}{_TRANSCRIBE_PATH}", headers=headers, json=payload)
         resp.raise_for_status()
         payload_json = resp.json()

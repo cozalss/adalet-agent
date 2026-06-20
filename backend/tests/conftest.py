@@ -19,6 +19,9 @@ from core import native_preload  # noqa: F401
 # Bu 3 değişken TEST-MODUNU belirler → her koşulda override edilir (38-test env-sızıntısı kök fix'i).
 os.environ["LLM_MODE"] = "mock"
 os.environ["HYDE_ENABLED"] = "0"
+# Testler ASLA gerçek OpenAI'ye gitmesin (LLM/STT/OCR/TTS/judge bulut yolları). Dev .env
+# anahtarı pytest'e sızmasın; bulut yolunu test edenler monkeypatch.setenv ile açar.
+os.environ.pop("OPENAI_API_KEY", None)
 os.environ["AUTH_PROVIDER"] = "internal"  # internal HS256 yolu; supabase-spesifik testler runtime'da monkeypatch'ler
 os.environ.pop("SUPABASE_URL", None)      # türetilmiş SUPABASE_JWT_ISSUER auth import'unda boş hesaplansın
 # Güvenlik C1: AUTH_ENABLED default'u "1"e çekildi (fail-secure). Test ortamı EXPLICIT

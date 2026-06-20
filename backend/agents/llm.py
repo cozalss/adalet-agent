@@ -28,6 +28,8 @@ from typing import Any, Literal, Protocol
 
 import structlog
 
+from core.openai_compat import require_api_key, validated_base_url
+
 log = structlog.get_logger()
 
 Role = Literal["system", "user", "assistant"]
@@ -35,6 +37,10 @@ Role = Literal["system", "user", "assistant"]
 # llama.cpp KV-cache quantization tipleri (modül sabiti — N806; _load() içinde tekrar
 # tanımlanıyordu). f16=1 (default/kayıpsız), q8_0=8 (~yarı VRAM), q4_0=2.
 _KV_TYPES = {"f16": 1, "q8_0": 8, "q4_0": 2}
+
+# OpenAI SSE akışı bellek tavanı: kötü/SSRF proxy sonsuz akışla worker'ı OOM etmesin.
+# Meşru hukuki cevaplar << 200K karakter (max_tokens zaten sınırlar; bu ek savunma).
+_STREAM_MAX_CHARS = int(os.getenv("OPENAI_STREAM_MAX_CHARS", str(200_000)))
 
 
 @dataclass(slots=True)
@@ -158,41 +164,6 @@ class LLMClient(Protocol):
         json_mode: bool = False,
         json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse: ...
-
-
-class MockLLM:
-    """Test/CI client — gerçek model yok, deterministik dummy yanıt.
-
-    JSON mode'da geçerli {"label": "...", "confidence": ...} döner ki
-    LangGraph akışı çalıştığı test edilebilsin.
-    """
-
-    def __init__(self, fixed_response: str | None = None) -> None:
-        self.fixed_response = fixed_response
-        self.call_count = 0
-
-    async def chat(
-        self,
-        messages: list[ChatMessage],
-        *,
-        temperature: float = 0.1,
-        max_tokens: int = 1024,
-        json_mode: bool = False,
-        json_schema: dict[str, Any] | None = None,
-    ) -> LLMResponse:
-        # MockLLM json_schema'yı yok sayar (gerçek grammar yok); json_mode davranışı korunur.
-        self.call_count += 1
-        if self.fixed_response is not None:
-            content = self.fixed_response
-        elif json_mode:
-            content = _mock_json_response(messages)
-        else:
-            content = (
-                "[MOCK] Test cevabı — gerçek LLM bağlanmadı. "
-                "Bu mock yanıt LangGraph akışını doğrulamak içindir. "
-                "Kaynaklara dayalı gerçek hukuki sentez yalnız llamacpp modunda yapılır."
-            )
-        return LLMResponse(content=content)
 
 
 class LlamaCppClient:
@@ -353,7 +324,10 @@ class LlamaCppClient:
             self._model.create_chat_completion, **kwargs,
         )
         result = await asyncio.wrap_future(cf_future)
-        choice = result["choices"][0]
+        choices = result.get("choices") or []
+        if not choices:
+            raise ValueError("LlamaCpp yanıtında choices boş")
+        choice = choices[0]
         usage = result.get("usage", {})
         return LLMResponse(
             content=_strip_think(choice["message"]["content"]),
@@ -528,7 +502,10 @@ class LlamaCppServerClient:
             log.warning("llama_server_call_failed", error=str(exc), url=self.base_url)
             raise
 
-        choice = data["choices"][0]
+        choices = data.get("choices") or []
+        if not choices:
+            raise ValueError("llama-server yanıtında choices boş")
+        choice = choices[0]
         usage = data.get("usage", {})
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         log.info(
@@ -553,6 +530,209 @@ class LlamaCppServerClient:
             self._client = None
 
 
+class OpenAIClient:
+    """OpenAI (gpt-4o / gpt-4o-mini) Chat Completions — bulut ana LLM (v2.3).
+
+    Tüm ajan node'ları get_llm()'den geçtiği için TEK bu client ile draft/finalize/dilekçe/
+    HyDE/sorgu-yeniden-yazma/clarifier hepsi gpt-4o kullanır. Raw httpx (openai SDK yok,
+    stt_cloud deseni). json_schema → json_object (GBNF yok; cite doğruluğu post-hoc filtrede).
+    _apply_no_think UYGULANMAZ (Qwen'e özgü). Anahtar .env'de (asla hardcode).
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        self.model = (model or os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini")).strip()
+        self.base_url = validated_base_url()
+        self.timeout = timeout if timeout is not None else float(os.getenv("OPENAI_LLM_TIMEOUT_S", "120"))
+        self._client: Any = None  # httpx.AsyncClient — process ömrü boyu yeniden kullanılır
+
+    def _ensure_client(self) -> Any:
+        import httpx
+
+        if self._client is None:
+            # follow_redirects=False: SSRF redirect-bypass sertleştirme (yargi_client deseni).
+            self._client = httpx.AsyncClient(timeout=self.timeout, follow_redirects=False)
+        return self._client
+
+    def _headers(self) -> dict[str, str]:
+        # Anahtarı call-time oku (require_api_key) → singleton sonrası set edilse de güncel.
+        key = require_api_key("LLM_MODE=openai")
+        return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    def _payload(
+        self, messages: list[ChatMessage], temperature: float, max_tokens: int,
+        *, json_mode: bool, json_schema: dict[str, Any] | None, stream: bool,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [m.to_dict() for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": stream,
+        }
+        # json_schema da dahil → json_object (OpenAI strict-schema formatı kırılgan; geçerli
+        # JSON garantisi + prompt yönlendirmesi + post-hoc filtre yeterli).
+        if json_mode or json_schema is not None:
+            payload["response_format"] = {"type": "json_object"}
+        if stream:
+            payload["stream_options"] = {"include_usage": True}
+        return payload
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.1,
+        max_tokens: int = 1024,
+        json_mode: bool = False,
+        json_schema: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        import asyncio
+
+        import httpx
+
+        client = self._ensure_client()
+        payload = self._payload(
+            messages, temperature, max_tokens,
+            json_mode=json_mode, json_schema=json_schema, stream=False,
+        )
+        url = f"{self.base_url}/chat/completions"
+        started = time.perf_counter()
+        # Geçici hatalarda (429/5xx/ağ) kısa retry — kalıcı (4xx auth) hemen yükselir.
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = await client.post(url, json=payload, headers=self._headers())
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                code = exc.response.status_code
+                if code in (429, 500, 502, 503, 504) and attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                log.warning("openai_llm_failed", status=code)
+                raise
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                log.warning("openai_llm_failed", error=type(exc).__name__)
+                raise
+        else:  # pragma: no cover — döngü break/raise ile çıkar
+            raise last_exc or RuntimeError("openai_llm_unreachable")
+
+        choices = data.get("choices") or []
+        if not choices:
+            raise ValueError(f"OpenAI yanıtında choices boş: {str(data)[:200]}")
+        choice = choices[0]
+        usage = data.get("usage", {})
+        log.info(
+            "openai_llm_done", model=self.model,
+            elapsed_ms=int((time.perf_counter() - started) * 1000),
+            tokens_in=usage.get("prompt_tokens", 0), tokens_out=usage.get("completion_tokens", 0),
+        )
+        return LLMResponse(
+            content=_strip_think(choice["message"]["content"] or ""),
+            raw=data,
+            finish_reason=choice.get("finish_reason", "stop"),
+            tokens_in=usage.get("prompt_tokens", 0),
+            tokens_out=usage.get("completion_tokens", 0),
+        )
+
+    async def chat_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.1,
+        max_tokens: int = 1024,
+        on_token: Callable[[str], None],
+    ) -> LLMResponse:
+        """OpenAI SSE streaming — token'lar üretildikçe on_token(delta). Async (event loop'ta)
+        çağrıldığı için on_token doğrudan çağrılır (threadsafe sarmaya gerek yok).
+
+        Retry YALNIZ bağlantı seviyesinde (token emit edilmeden, 429/5xx); token akmaya
+        başlayınca ortada retry edilmez (çift-token olur) → propagate. Bellek: birikim
+        _STREAM_MAX_CHARS ile sınırlı (kötü/SSRF proxy sonsuz akış → OOM önle)."""
+        import asyncio
+
+        import httpx
+
+        client = self._ensure_client()
+        payload = self._payload(
+            messages, temperature, max_tokens, json_mode=False, json_schema=None, stream=True,
+        )
+        url = f"{self.base_url}/chat/completions"
+        parts: list[str] = []
+        total_chars = 0
+        tokens_in = 0
+        tokens_out = 0
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            parts.clear()  # retry'a yalnız token emit edilmeden gelinir → temiz başla
+            total_chars = 0
+            try:
+                async with client.stream(
+                    "POST", url, json=payload, headers=self._headers(),
+                ) as resp:
+                    try:
+                        resp.raise_for_status()
+                    except httpx.HTTPStatusError as exc:
+                        code = exc.response.status_code
+                        if code in (429, 500, 502, 503, 504) and attempt < 2:
+                            last_exc = exc
+                            await asyncio.sleep(2 ** attempt)
+                            continue  # token emit edilmedi → güvenli retry
+                        log.warning("openai_stream_failed", status=code)
+                        raise
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        chunk_str = line[5:].strip()
+                        if not chunk_str or chunk_str == "[DONE]":
+                            continue
+                        try:
+                            chunk = json.loads(chunk_str)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:  # son usage-only chunk (include_usage)
+                            usage = chunk.get("usage") or {}
+                            tokens_in = usage.get("prompt_tokens", tokens_in)
+                            tokens_out = usage.get("completion_tokens", tokens_out)
+                            continue
+                        delta = (choices[0].get("delta") or {}).get("content")
+                        if delta:
+                            total_chars += len(delta)
+                            if total_chars > _STREAM_MAX_CHARS:
+                                raise RuntimeError("SSE akışı boyut sınırını aştı")
+                            parts.append(delta)
+                            on_token(delta)
+                return LLMResponse(
+                    content=_strip_think("".join(parts)), raw={}, finish_reason="stop",
+                    tokens_in=tokens_in, tokens_out=tokens_out,
+                )
+            except httpx.HTTPError as exc:
+                # transport hata: token AKMADIYSA (parts boş) retry güvenli; aktıysa propagate.
+                if not parts and attempt < 2:
+                    last_exc = exc
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                log.warning("openai_stream_failed", error=type(exc).__name__)
+                raise
+        raise last_exc or RuntimeError("openai_stream_unreachable")  # pragma: no cover
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+
 _singleton: LLMClient | None = None
 
 
@@ -560,17 +740,27 @@ def get_llm() -> LLMClient:
     """Process-singleton LLM. ENV ile seçilebilir.
 
     LLM_MODE=mock              → MockLLM (test, CI, hızlı dev)
+    LLM_MODE=openai            → OpenAIClient (bulut gpt-4o/gpt-4o-mini — en iyi kalite, v2.3)
     LLM_MODE=llamacpp          → LlamaCppClient (in-proc Python, CUDA Toolkit gerek)
     LLM_MODE=llamacpp_server   → LlamaCppServerClient (HTTP, prebuilt binary, RTX 4070)
     LLM_MODEL_PATH=...         → GGUF dosya yolu (llamacpp için zorunlu)
     LLM_SERVER_URL=...         → llama-server endpoint (default 127.0.0.1:8080)
+    OPENAI_LLM_MODEL=...       → openai modeli (default gpt-4o-mini; gpt-4o = max kalite)
     """
     global _singleton
     if _singleton is not None:
         return _singleton
 
     mode = os.environ.get("LLM_MODE", "mock").lower()
-    if mode == "llamacpp":
+    if mode == "openai":
+        if not os.environ.get("OPENAI_API_KEY", "").strip():
+            log.warning("openai_llm_no_key_fallback_mock",
+                        note="LLM_MODE=openai ama OPENAI_API_KEY yok → mock'a düşüldü")
+            _singleton = MockLLM()
+        else:
+            _singleton = OpenAIClient()
+            log.info("llm_using_openai", model=os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini"))
+    elif mode == "llamacpp":
         path = os.environ.get("LLM_MODEL_PATH")
         if not path or not os.path.exists(path):
             raise RuntimeError(
@@ -604,105 +794,6 @@ async def aclose_llm() -> None:
         await aclose()
 
 
-# MockLLM için kaba domain keyword routing — sadece smoke test akışı için
-_MOCK_DOMAIN_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
-    ("isHukuku",   ("kıdem", "ihbar", "işçi", "mobbing", "fazla mesai")),
-    ("kira", ("kira", "depozito", "tahliye", "ev sahibi", "kiracı")),
-    ("tuketici",   ("tüketici", "ayıplı", "garanti", "iade", "satın al")),
-    ("icra",       ("icra", "haciz", "borç", "takip")),
-    ("trafik",     ("trafik", "kaza", "sigorta", "ehliyet", "plaka")),
-    ("vergi",      ("vergi", "kdv", "ötv")),
-    ("tapu",       ("tapu", "mülkiyet", "kat mülkiyeti")),
-    ("idari",      ("kamulaştırma", "vatandaşlık", "idari")),
-]
-
-
-def _mock_domain_from_messages(messages: list[ChatMessage]) -> str:
-    """Son user mesajından kaba keyword tabanlı domain — sadece MockLLM için."""
-    user_text = " ".join(m.content for m in messages if m.role == "user").lower()
-    for domain, kws in _MOCK_DOMAIN_KEYWORDS:
-        if any(kw in user_text for kw in kws):
-            return domain
-    return "unknown"
-
-
-# Mock JSON şablonları — _mock_json_response dispatch table.
-# system_text'in tetikleyicisi → JSON payload. İlk eşleşen kazanır.
-_MOCK_PARAPHRASE_BASE = "soru"  # _multi_query_paraphrases içinde override edilir
-
-
-def _mock_multi_query_paraphrases(messages: list[ChatMessage]) -> str:
-    user_text = " ".join(m.content for m in messages if m.role == "user")
-    base = user_text.strip()[:120] or _MOCK_PARAPHRASE_BASE
-    return json.dumps(
-        {"paraphrases": [f"[MOCK paraphrase {i}] {base}" for i in range(1, 5)]},
-        ensure_ascii=False,
-    )
-
-
-# (predicate(system_text) -> bool, payload_builder(messages, system_text) -> str)
-# Sıra önemli: önce spesifik, sonra genel ("hakem"/"verdict" en sonda kalsın).
-_MOCK_DISPATCH: tuple[tuple[Any, Any], ...] = (
-    (lambda s: "paraphrases" in s,
-     lambda msgs, _s: _mock_multi_query_paraphrases(msgs)),
-    (lambda s: "faithful" in s and "complete" in s,
-     lambda _m, _s: json.dumps(
-         {"faithful": 0.85, "complete": 0.75, "tone": 0.80,
-          "notes": "[MOCK] Judge: ölçütler test seviyesinde."},
-         ensure_ascii=False)),
-    (lambda s: "self-rag" in s or ("retrieve" in s and "supported" in s and "utility" in s),
-     lambda _m, _s: json.dumps(
-         {"retrieve": "no", "supported": "yes", "utility": 5,
-          "notes": "[MOCK] Self-RAG: yansıma testi, tüm reflection tokens pozitif."},
-         ensure_ascii=False)),
-    (lambda s: "claim" in s and ("çıkart" in s or "atomic" in s),
-     lambda _m, _s: json.dumps(
-         {"claims": ["[MOCK] Atomic claim 1.", "[MOCK] Atomic claim 2."]},
-         ensure_ascii=False)),
-    (lambda s: "uygunluk değerlendir" in s,
-     lambda _m, _s: json.dumps(
-         {"degerlendirmeler": [
-             {"madde": "m-MOCK-1", "hak": "[MOCK] hak", "kosul": "-",
-              "saglaniyor": "belirsiz", "gerekce": "[MOCK] uygunluk testi."},
-         ]},
-         ensure_ascii=False)),
-    (lambda s: "entailment" in s,
-     lambda _m, _s: json.dumps(
-         {"verdict": "yes", "reason": "[MOCK] context destekliyor."},
-         ensure_ascii=False)),
-    (lambda s: "soru üretici" in s or ("questions" in s and "soru" in s),
-     lambda _m, _s: json.dumps(
-         {"questions": ["[MOCK] Test sorusu 1?", "[MOCK] Test sorusu 2?"]},
-         ensure_ascii=False)),
-    (lambda s: "kaynak hakem" in s or "useful" in s,
-     lambda _m, _s: json.dumps(
-         {"useful": "yes", "reason": "[MOCK] kaynak gerekli."},
-         ensure_ascii=False)),
-    (lambda s: "hakem" in s or "verdict" in s or "constitutional" in s,
-     lambda _m, _s: json.dumps(
-         {"verdict": "pass", "score": 0.78, "issues": [],
-          "revised_answer": None,
-          "rationale": "[MOCK] Debate hakem: taslak kaynaklarla tutarlı görünüyor."},
-         ensure_ascii=False)),
-)
-
-
-def _mock_json_response(messages: list[ChatMessage]) -> str:
-    """MockLLM json_mode router — system prompt'tan hangi node çağırdığını anla.
-
-    Dispatch table pattern: _MOCK_DISPATCH (predicate, builder) tuple'larını
-    sırayla dener. İlk eşleşmenin payload'u döner. Hiçbiri eşleşmezse default
-    triaj cevabı üretir.
-    """
-    system_text = " ".join(m.content for m in messages if m.role == "system").lower()
-
-    for predicate, builder in _MOCK_DISPATCH:
-        if predicate(system_text):
-            return str(builder(messages, system_text))
-
-    # Default: triaj
-    domain = _mock_domain_from_messages(messages)
-    return json.dumps(
-        {"domain": domain, "confidence": 0.85, "reasoning": "MockLLM tahmini"},
-        ensure_ascii=False,
-    )
+# MockLLM + mock dispatch → agents/llm_mock.py (CLAUDE.md <800). DİP re-export, circular-safe:
+# llm_mock llm.py'nin SONUNDA import edilir → ChatMessage/LLMResponse tanımlı.
+from agents.llm_mock import MockLLM  # noqa: E402
