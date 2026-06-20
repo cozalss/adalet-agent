@@ -14,9 +14,6 @@ latency+uzunluk kabul edilebilir.
 """
 from __future__ import annotations
 
-# Windows: pyarrow'u torch'tan ÖNCE (access-violation guard) — torch dolaylı yüklenmeden önce.
-from core import native_preload as _native_preload  # noqa: F401  (import sırası kritik)
-
 import asyncio
 import json
 import os
@@ -26,6 +23,9 @@ from pathlib import Path
 
 from agents.graph import build_graph
 from agents.llm import reset_llm
+
+# Windows: pyarrow'u torch'tan ÖNCE (access-violation guard) — torch dolaylı yüklenmeden önce.
+from core import native_preload as _native_preload  # noqa: F401  (import sırası kritik)
 
 _GOLD = Path("data/eval_benchmark/answer_cases.jsonl")
 
@@ -71,7 +71,7 @@ def _metrics(out: dict, dt: float) -> dict:
         "n_verified": n_ver,
         "grounded_ratio": round(n_ver / n_total, 3) if n_total else None,
         "resp_len": len(resp),
-        "has_src": ("[src:" in resp) or any((c.get("cite_ids") for c in claims)),
+        "has_src": ("[src:" in resp) or any(c.get("cite_ids") for c in claims),
         "has_disclaimer": ("avukat" in low or "hukuki tavsiye" in low),
         "latency_s": round(dt, 1),
     }

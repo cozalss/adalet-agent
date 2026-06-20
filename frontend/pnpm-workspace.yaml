@@ -5,7 +5,9 @@ allowBuilds:
 onlyBuiltDependencies:
   - esbuild
 # Güvenlik (CI pnpm audit HIGH): vite <=6.4.2 (GHSA-fx2h-pf6j-xcff) +
-# esbuild <0.28.1 (GHSA-gv7w-rqvm-qjhr) → yamalı transitive sürüme zorla.
+# esbuild <0.28.1 (GHSA-gv7w-rqvm-qjhr) + undici 7.0-7.27 (GHSA-vmh5/vxpw/hm92,
+# vitest>jsdom transitive, dev-only) → yamalı transitive sürüme zorla.
 overrides:
   vite: ">=6.4.3"
   esbuild: ">=0.28.1"
+  undici: "^7.28.0"  # v7'de kal (jsdom 29 undici 8.x ile uyumsuz), patched (>=7.28)

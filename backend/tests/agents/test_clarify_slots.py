@@ -21,7 +21,6 @@ from agents.clarify_slots import (
     tahliye_clarify_questions,
 )
 
-
 # --- is_landlord_eviction: ev sahibi kiracısını çıkarmak istiyor ---
 
 def test_detects_landlord_eviction():
