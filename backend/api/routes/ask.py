@@ -52,6 +52,7 @@ from core.observability import (
     observe_ask_request,
     update_current_trace,
 )
+from core.text import tr_lower as _tr_lower
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/ask", tags=["ask"])
@@ -81,6 +82,57 @@ def _merge_history_facts(history: list[ConversationTurn]) -> dict[str, Any]:
         if isinstance(facts, dict):
             merged.update({k: v for k, v in facts.items() if str(v).strip()})
     return merged
+
+
+# Kullanıcının önceki TEKLİFE kısa onayı ("isterim/evet/olur"). Asistan dilekçe teklifini
+# KENDİSİ sunduğundan ("...hazırlamamı ister misiniz?"), tek-kelimelik onay bağlam kaybedip
+# kapsam-dışı reddine düşmemeli — teklif uygulanmalı (bug: "isterim" → "uzmanlık dışı").
+# İlk kelimesi bunlardan biri olan KISA (≤3 kelime) mesaj = onay. "peki" BİLİNÇLİ
+# yok (genelde soru önceler: "peki tahliye nasıl olur") — o continuation, onay değil.
+_AFFIRM_WORDS: frozenset[str] = frozenset({
+    "isterim", "istiyorum", "evet", "olur", "tamam", "lütfen", "hazırla", "hazırlayın",
+    "hazırlasana", "hazırlar", "yap", "yapın", "yapalım", "olsun", "tabii", "tabi",
+})
+# finalize._next_step_offer imzası (tüm dilekçe teklifleri bu sonekle biter).
+_DILEKCE_OFFER_MARK = "hazırlamamı ister"
+
+
+def _is_affirmation(question: str) -> bool:
+    """Kısa onay mesajı mı? İlk kelimesi onay + en çok 3 kelime (uzun takip sorusu DEĞİL:
+    'evet ama 1 yıldan azsa ne olur' → 7 kelime → onay sayılmaz)."""
+    low = _tr_lower((question or "").strip()).strip(" .!?,")
+    if not low:
+        return False
+    words = low.split()
+    return len(words) <= 3 and words[0] in _AFFIRM_WORDS
+
+
+def _last_assistant_offered_dilekce(history: list[ConversationTurn]) -> bool:
+    """Geçmişteki SON asistan turu bir dilekçe teklifi içeriyor mu?"""
+    for turn in reversed(history or []):
+        if turn.get("role") == "assistant":
+            return _DILEKCE_OFFER_MARK in (turn.get("content") or "")
+    return False
+
+
+def _last_user_question(history: list[ConversationTurn]) -> str | None:
+    """Geçmişteki son kullanıcı sorusu (onay öncesi asıl soru — bağlam çıpası)."""
+    for turn in reversed(history or []):
+        if turn.get("role") == "user":
+            content = (turn.get("content") or "").strip()
+            if content:
+                return content
+    return None
+
+
+def _resolve_affirmed_offer(question: str, history: list[ConversationTurn]) -> str | None:
+    """Kullanıcı bir dilekçe teklifine kısa onay verdiyse, uygulanacak ASIL soruyu döndür
+    (yoksa None). Çağıran want_dilekce=True yapıp bu soruyu işler."""
+    if not _is_affirmation(question):
+        return None
+    if not _last_assistant_offered_dilekce(history):
+        return None
+    return _last_user_question(history)
 
 
 def _sse_event(event: str, payload: dict[str, Any]) -> str:
@@ -188,9 +240,21 @@ async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
     store = get_store()
     history = await store.get_history(conv_id) if req.conversation_id else []
 
+    # Kullanıcı önceki dilekçe TEKLİFİNE kısa onay verdiyse ("isterim") → teklifi uygula:
+    # asıl soruyu (bağlam) yeniden işle + want_dilekce=True (yoksa "isterim" tek başına
+    # kapsam-dışı reddine düşüyordu — asistan kendi teklifini reddediyordu).
+    effective_question = req.question
+    want_dilekce = req.want_dilekce
+    if not want_dilekce:
+        prior = _resolve_affirmed_offer(req.question, history)
+        if prior:
+            effective_question = prior
+            want_dilekce = True
+            log.info("affirm_dilekce_offer", affirm=req.question[:24], prior=prior[:60])
+
     initial = make_initial_state(
-        req.question,
-        want_dilekce=req.want_dilekce,
+        effective_question,
+        want_dilekce=want_dilekce,
         user_meta=req.user_meta,
     )
     initial["conversation_id"] = conv_id
