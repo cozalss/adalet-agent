@@ -102,16 +102,47 @@ export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources, 
   );
 }
 
+/* ---------- Cevap altı sade bağlantı satırı (Kaynaklar / İlgili Kararlar) ----------
+   deep-research: kalibre-olmayan "%X güven" stat-kartı KALDIRILDI (net zararlı). Yerine
+   düşük-gürültülü, tıklanınca yan paneli açan sade metin-bağlantıları (Perplexity-vari
+   "toplu kaynak"). Kaynak/karar yoksa hiç render etmez. */
+export function AnswerFooter({ sourceCount = 0, onOpenSources, caseCount = 0, onOpenCases }) {
+  if (sourceCount <= 0 && caseCount <= 0) return null;
+  return (
+    <div className="answer-footer" role="group" aria-label="Kaynaklar ve ilgili kararlar">
+      {sourceCount > 0 && (onOpenSources ? (
+        <button type="button" className="af-link" onClick={onOpenSources}
+          aria-label={`${sourceCount} kaynak — yan panelde göster`}>
+          <Icon.book aria-hidden="true" /> Kaynaklar <span className="af-n">{sourceCount}</span>
+        </button>
+      ) : (
+        // callback yoksa düz metin (pill/buton görünümü VERME → yanıltıcı etkileşim sinyali yok, WCAG 4.1.2)
+        <span className="af-static"><Icon.book aria-hidden="true" /> Kaynaklar: {sourceCount}</span>
+      ))}
+      {caseCount > 0 && (onOpenCases ? (
+        <button type="button" className="af-link" onClick={onOpenCases}
+          aria-label={`${caseCount} ilgili karar — yan panelde göster`}>
+          <Icon.scale aria-hidden="true" /> İlgili Kararlar <span className="af-n">{caseCount}</span>
+        </button>
+      ) : (
+        <span className="af-static"><Icon.scale aria-hidden="true" /> İlgili Kararlar: {caseCount}</span>
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Ajan-izi / doğrulama şeffaflık paneli (açılır) ---------- */
-export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domain }) {
+export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domain, prediction }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();  // a11y (#37): toggle ↔ açılan bölge ilişkilendirmesi (aria-controls)
   const list = claims || [];
   const total = list.length;
   const okCount = list.filter((c) => c.verified).length;
 
-  // Gösterilecek bir şey yoksa render etme (DRY/temizlik).
-  if (!total && !debateNotes) return null;
+  // Gösterilecek bir şey yoksa render etme (DRY/temizlik). Tahmin de progressive-disclosure
+  // içine alındı (deep-research: kalibre-olmayan tahmin/güven HER ZAMAN gösterilince aşırı-güven
+  // üretir → varsayılan gizli, tıkla-aç).
+  if (!total && !debateNotes && !prediction) return null;
 
   const summary = total > 0
     ? `${okCount}/${total} iddia kaynakla doğrulandı`
@@ -144,7 +175,7 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domai
       </button>
 
       {open && (
-        <div className="at-body" id={panelId}>
+        <div className="at-body" id={panelId} role="region" aria-label="Ajan doğrulama dökümü">
           {/* Pipeline timeline — hangi ajanların çalıştığı (daisyUI timeline) */}
           <ol className="at-timeline" aria-label="Ajan hattı">
             {stages.map((s, i) => {
@@ -187,6 +218,9 @@ export function AgentTrace({ claims, debateNotes, retryCount, sourceCount, domai
               <p>{debateNotes}</p>
             </div>
           )}
+          {/* Tahmin (8. ajan) — artık ayrı her-zaman-görünür kart DEĞİL, doğrulama dökümünün
+              içinde (progressive-disclosure). Kalibre-olmayan "%X aleyhe" ana akışı kalabalıklaştırmaz. */}
+          {prediction && <PredictionCard prediction={prediction} />}
         </div>
       )}
     </div>
@@ -207,6 +241,7 @@ export function PredictionCard({ prediction: p }) {
   if (!p) return null;
   const tone = PRED_TONE[p.verdictClass] || "neutral";
   const pct = p.confidence;
+  const caseIds = p.similarCaseIds ?? [];  // backend alanı atlarsa TypeError → guard (ECC)
   return (
     <div className={"pred-card tone-" + tone}>
       <div className="pred-head">
@@ -224,18 +259,18 @@ export function PredictionCard({ prediction: p }) {
 
       {p.reasoning && <p className="pred-reason">{p.reasoning}</p>}
 
-      {p.similarCaseIds.length > 0 && (
+      {caseIds.length > 0 && (
         <div className="pred-cases">
           <span className="pred-cases-lbl">Benzer kararlar</span>
           <div className="pred-cases-list">
             {/* Çip sayısı oylanan emsal sayısıyla eşleşsin (reasoning "8 emsal" derken
                 6 çip göstermek tutarsız görünüyordu). Backend ≤8 benzersiz karar verir;
                 8'i göster, fazlası olursa "+N" ile dürüstçe belirt. */}
-            {p.similarCaseIds.slice(0, 8).map((id, i) => (
+            {caseIds.slice(0, 8).map((id, i) => (
               <span className="pred-case" key={i}>{id}</span>
             ))}
-            {p.similarCaseIds.length > 8 && (
-              <span className="pred-case more">+{p.similarCaseIds.length - 8}</span>
+            {caseIds.length > 8 && (
+              <span className="pred-case more">+{caseIds.length - 8}</span>
             )}
           </div>
         </div>

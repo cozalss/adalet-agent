@@ -152,6 +152,7 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
   .msg-action.icon { padding: 10px; }
   .cl-opt, .domain-card { min-height: 48px; }
   .scroll-bottom { width: 46px; height: 46px; }
+  .af-link { min-height: 44px; padding: 11px 14px; }  /* dokunmatik hedef (WCAG 2.5.8) */
 }
 
 /* ---------- Sidebar placeholder nav (henüz yok → dürüstçe "yakında") ---------- */
@@ -326,6 +327,32 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
 @media (max-width: 420px) { .kbd-hints { gap: 12px; font-size: 11.5px; } }
 
 /* ---------- Kanıt özeti (daisyUI stat deseni — elle CSS) ---------- */
+/* Cevap altı sade bağlantı satırı (Kaynaklar / İlgili Kararlar) — gürültülü stat-kartı yerine.
+   deep-research: düşük-bilişsel-yük; "%X güven" kaldırıldı. */
+.answer-footer {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 12px;
+}
+.af-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-2); cursor: pointer;
+  font: inherit; font-size: 13px; line-height: 1.2;
+  transition: background var(--duration-fast, 150ms) ease, color var(--duration-fast, 150ms) ease, border-color var(--duration-fast, 150ms) ease;
+}
+/* hover metni --text (koyu) → --accent-soft üstünde ≥7:1 kontrast (WCAG 1.4.3; accent-text ~4:1 idi) */
+.af-link:hover { background: var(--accent-soft); color: var(--text); border-color: var(--border-strong); }
+.af-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.af-link svg { width: 15px; height: 15px; flex: 0 0 15px; color: var(--accent-text); }
+/* callback yoksa: pill/buton DEĞİL → sade ikincil metin (yanıltıcı etkileşim sinyali yok, WCAG 4.1.2) */
+.af-static { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.af-static svg { width: 15px; height: 15px; flex: 0 0 15px; color: var(--text-3); }
+.af-n {
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; font-weight: 700;
+  color: var(--text); background: var(--accent-soft); border-radius: 999px;
+  min-width: 18px; padding: 0 6px; text-align: center; font-size: 12px;
+}
+
 .ev-stats {
   display: flex; align-items: stretch; gap: 0;
   margin-top: 14px; padding: 14px 6px;
@@ -378,7 +405,7 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
-  overflow: hidden;
+  overflow: clip;  /* hidden DEĞİL → iç buton :focus-visible outline'ı kırpılmaz (WCAG 2.4.11) */
 }
 .at-head {
   display: flex; align-items: center; gap: 10px; width: 100%;

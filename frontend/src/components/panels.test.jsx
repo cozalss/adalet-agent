@@ -3,7 +3,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PredictionCard, AgentTrace, EvidenceStats, QuickTyping } from "./panels.jsx";
+import { PredictionCard, AgentTrace, AnswerFooter, EvidenceStats, QuickTyping } from "./panels.jsx";
 
 // NumberTicker (framer-motion useInView) jsdom'da IntersectionObserver arar — full render
 // (fireEvent) testlerinde stub. Statik markup testleri bunu kullanmaz.
@@ -92,6 +92,51 @@ describe("AgentTrace (özet)", () => {
   it("iddia özetini hesaplar (X/Y doğrulandı)", () => {
     const out = html(<AgentTrace claims={[{ verified: true }, { verified: false }]} sourceCount={3} domain="kira" />);
     expect(out).toContain("1/2 iddia kaynakla doğrulandı");
+  });
+
+  it("tahmin VARSAYILAN GİZLİ (collapsed) — açılınca PredictionCard görünür (progressive-disclosure)", () => {
+    const pred = { verdictClass: "kaybetti", confidence: 42, similarCaseIds: ["K-1"], reasoning: "r", disclaimer: "d" };
+    // Kapalıyken: tahmin metni DOM'da yok (at-body render edilmez)
+    const closed = html(<AgentTrace claims={[{ verified: true }]} sourceCount={2} domain="tuketici" prediction={pred} />);
+    expect(closed).not.toContain("Aleyhe eğilim");
+    // Açınca: PredictionCard at-body içinde
+    render(<AgentTrace claims={[{ verified: true }]} sourceCount={2} domain="tuketici" prediction={pred} />);
+    fireEvent.click(screen.getByRole("button", { name: /doğrulama dökümü/i }));
+    expect(screen.getByText(/Aleyhe eğilim/)).toBeTruthy();
+  });
+
+  it("yalnız tahmin (iddia/debate yok) varsa yine render eder", () => {
+    const pred = { verdictClass: "belirsiz", confidence: 0, similarCaseIds: [], disclaimer: "d" };
+    expect(html(<AgentTrace claims={[]} sourceCount={0} prediction={pred} />)).not.toBe("");
+  });
+});
+
+describe("AnswerFooter (sade kaynak/karar bağlantıları)", () => {
+  it("kaynak ve karar yoksa → hiçbir şey render etmez", () => {
+    expect(html(<AnswerFooter sourceCount={0} caseCount={0} />)).toBe("");
+  });
+
+  it("Kaynaklar + İlgili Kararlar sayılarını gösterir; güven% YOK", () => {
+    const out = html(<AnswerFooter sourceCount={2} caseCount={4} onOpenSources={() => {}} onOpenCases={() => {}} />);
+    expect(out).toContain("Kaynaklar");
+    expect(out).toContain("İlgili Kararlar");
+    expect(out).toContain(">2<");
+    expect(out).toContain(">4<");
+    expect(out).not.toContain("Güven");   // kalibre-olmayan güven% kaldırıldı
+  });
+
+  it("Kaynaklar bağlantısına tıklayınca onOpenSources çağrılır (yan panel)", () => {
+    const onOpenSources = vi.fn();
+    render(<AnswerFooter sourceCount={3} onOpenSources={onOpenSources} caseCount={0} />);
+    fireEvent.click(screen.getByLabelText(/kaynak — yan panelde göster/i));
+    expect(onOpenSources).toHaveBeenCalled();
+  });
+
+  it("callback yoksa düz metin (buton/pill DEĞİL — yanıltıcı etkileşim yok)", () => {
+    const out = html(<AnswerFooter sourceCount={2} caseCount={0} />);
+    expect(out).toContain("af-static");
+    expect(out).not.toContain("af-link");   // pill/buton stili verilmez
+    expect(out).not.toContain("<button");
   });
 });
 

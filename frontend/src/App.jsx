@@ -6,7 +6,7 @@ import {
   RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton, StreamStepper,
 } from "./components/ui.jsx";
 import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble } from "./components/cards.jsx";
-import { AgentTrace, PredictionCard, EvidenceStats, QuickTyping } from "./components/panels.jsx";
+import { AgentTrace, AnswerFooter, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
@@ -772,10 +772,12 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
           {p === "final" && d.answer && (
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
-              {/* İlgili Kararlar inline GÖSTERİLMEZ (tekrar olmasın): yalnız EvidenceStats'taki
-                  "İlgili Kararlar" stat'ına basınca yan panelde açılır (SourcePanelBody cases modu). */}
-              <EvidenceStats
-                confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims}
+              {/* deep-research (2026-06-20): kalibre-olmayan "%X güven" stat-kartı + her-zaman-görünür
+                  tahmin/ajan-izi kartları KALDIRILDI (kanıt: meta-kart yığını aşırı-güven üretir).
+                  Yerine sade kaynak/karar bağlantıları (yan panel) + TEK collapsed "doğrulama"
+                  disclosure (tahmin onun içinde, varsayılan gizli — progressive-disclosure). */}
+              <AnswerFooter
+                sourceCount={(d.sources ?? []).length}
                 onOpenSources={onOpenSources ? () => onOpenSources(turn) : undefined}
                 caseCount={(d.relatedCases ?? []).length}
                 onOpenCases={onOpenCases ? () => onOpenCases(turn) : undefined}
@@ -783,9 +785,8 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
               <AgentTrace
                 claims={d.claims} debateNotes={d.debateNotes}
                 retryCount={d.retryCount} sourceCount={(d.sources ?? []).length}
-                domain={d.domain}
+                domain={d.domain} prediction={d.prediction}
               />
-              {d.prediction && <PredictionCard prediction={d.prediction} />}
               {d.hasDilekce && (
                 <div className="dilekce-bar">
                   <button className="btn ghost" onClick={() => onDownloadDilekce("pdf")}><Icon.download /> Dilekçe (PDF)</button>
