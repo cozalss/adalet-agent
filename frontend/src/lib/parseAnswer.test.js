@@ -119,6 +119,26 @@ describe("mapResponse — answer", () => {
     expect(mapResponse(resp, "").relatedCases).toEqual([]);  // resp yalnız kanun içeriyor
   });
 
+  it("relatedCases: cite EDİLMEYEN emsal da gösterilir + aynı başlık teklenir", () => {
+    // Gerçek davranış: cevap kanun cite eder, emsalı CITE ETMEZ (8 getirilip 0 cite).
+    // relatedCases usedCitations'tan DEĞİL, getirilen TÜM emsaldan gelir.
+    const r = {
+      domain: "kira", verdict: "pass", confidence: 0.8,
+      answer: "**Kısa cevap:** TÜFE [src: tbk-344].",
+      citations: [
+        { source_id: "tbk-344", doc_type: "law", title: "TBK m.344", snippet: "m" },
+        { source_id: "y-1", doc_type: "case", title: "Yargıtay 3.HD 2011/1", snippet: "k", url: "u1" },
+        { source_id: "y-2", doc_type: "case", title: "Yargıtay 3.HD 2011/1", snippet: "k", url: "u2" },
+        { source_id: "y-3", doc_type: "case", title: "Yargıtay 6.HD 2025/9", snippet: "k", url: "u3" },
+      ],
+      claims: [{ text: "x", cite_ids: ["tbk-344"], verified: true }],
+    };
+    const out = mapResponse(r, "");
+    expect(out.sources).toHaveLength(1);        // yalnız cite edilen kanun
+    expect(out.relatedCases).toHaveLength(2);   // 3 emsal → başlıkla teklenip 2
+    expect(out.relatedCases.map((c) => c.title)).toEqual(["Yargıtay 3.HD 2011/1", "Yargıtay 6.HD 2025/9"]);
+  });
+
   it("Kaynak = cevabın CITE ETTİĞİ kaynaklar (sabit retrieval havuzu değil)", () => {
     // Havuz 4 aday AMA cevap yalnız 2 madde cite ediyor → sources 2 olmalı ('16 saçma' fix).
     const r = {

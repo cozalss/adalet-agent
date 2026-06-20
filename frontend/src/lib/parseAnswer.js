@@ -161,6 +161,17 @@ export function mapResponse(resp, question) {
   const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
   const mappedSources = mapSources(usedCitations);
+  // İlgili Kararlar: GETİRİLEN tüm emsal kararlar. Cevap gövdesi genelde kanun maddesi
+  // cite eder, emsalı CITE ETMEZ (8 emsal getirilip 0'ı cite ediliyordu) → usedCitations'a
+  // güvenme; FULL citations'tan al. Aynı kararın farklı chunk'ları başlıkla teklenir.
+  const _seenCase = new Set();
+  const caseCitations = (citations || []).filter((c) => {
+    if ((c.doc_type || "") === "law") return false;
+    const key = (c.title || c.source_id || "").trim().toLowerCase();
+    if (!key || _seenCase.has(key)) return false;
+    _seenCase.add(key);
+    return true;
+  });
 
   return {
     kind: "answer",
@@ -168,8 +179,8 @@ export function mapResponse(resp, question) {
     domainConfidence: typeof resp.domain_confidence === "number" ? resp.domain_confidence : null,
     sources: mappedSources,
     // Emsal (mahkeme kararları) ayrı yüzeye çıkar: kanun maddeleriyle karışmadan,
-    // cevabın altında görünür "İlgili Kararlar" bölümünde gösterilir (doc_type=case).
-    relatedCases: mappedSources.filter((s) => s.badge === "yargitay"),
+    // "İlgili Kararlar" stat'ı + bölümü + yan panelde gösterilir (cite edilmese de).
+    relatedCases: mapSources(caseCitations),
     // Retrieval havuzu boyutu (corpus'tan taranan aday) — şeffaflık: "N tarandı, M kullanıldı".
     scannedCount: citations.length,
     answer: { confidence: Math.round((resp.confidence || 0) * 100), sections, text: body },
