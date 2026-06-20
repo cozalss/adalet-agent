@@ -36,6 +36,8 @@ from pathlib import Path
 
 import structlog
 
+from multimodal.tts_cloud import cloud_tts_enabled, synthesize_openai
+
 log = structlog.get_logger()
 
 TTS_ENGINE = os.getenv("TTS_ENGINE", "piper").lower()
@@ -49,6 +51,10 @@ TTS_VOICE_DIR = Path(
 )
 TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "2000"))
 TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "30"))
+# Sağlayıcı (v2.3 — bulut serbest): auto = OPENAI_API_KEY varsa OpenAI TTS (doğal Türkçe),
+# yoksa lokal Piper. openai = her zaman bulut dene. local = tam-lokal (Piper).
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "auto").lower()
+TTS_CLOUD_FALLBACK = os.getenv("TTS_CLOUD_FALLBACK", "1").lower() in {"1", "true", "yes"}
 
 # Hukuki disclaimer'ı TTS'e gönderirken kes — her cevapta tekrarlanması kötü UX
 _DISCLAIMER_MARKERS = (
@@ -139,6 +145,23 @@ def reset_engine() -> None:
 #  Public API
 # --------------------------------------------------------------------------
 
+def _use_cloud_tts() -> bool:
+    """TTS bulut'a mı gitsin? auto: anahtar varsa evet. openai: her zaman dene (anahtar
+    yoksa synthesize_openai raise → fallback). local: asla (Piper)."""
+    if TTS_PROVIDER == "local":
+        return False
+    if TTS_PROVIDER == "openai":
+        return True
+    return cloud_tts_enabled()  # auto
+
+
+def _wav_sample_rate(wav: bytes, default: int = 24000) -> int:
+    """WAV header'dan örnekleme hızı (OpenAI TTS ~24kHz). Parse edilemezse default."""
+    if len(wav) >= 28 and wav[:4] == b"RIFF" and wav[8:12] == b"WAVE":
+        return int.from_bytes(wav[24:28], "little") or default
+    return default
+
+
 async def synthesize_speech(
     text: str,
     *,
@@ -167,6 +190,28 @@ async def synthesize_speech(
 
     cleaned = _prepare_text(text, strip_disclaimer=strip_disclaimer, max_chars=max_chars)
     start = time.perf_counter()
+
+    # Bulut TTS (OpenAI) — anahtar/seçim varsa öncelik; başarısızsa Piper'a graceful düş.
+    if _use_cloud_tts():
+        try:
+            audio = await asyncio.wait_for(
+                synthesize_openai(cleaned, timeout_s=TTS_TIMEOUT_S), timeout=TTS_TIMEOUT_S + 5,
+            )
+            sr = _wav_sample_rate(audio)
+            return TTSResult(
+                audio_bytes=audio, sample_rate=sr, duration_s=_wav_duration_s(audio, sr),
+                elapsed_ms=int((time.perf_counter() - start) * 1000),
+                engine="openai-tts", n_chars=len(cleaned),
+            )
+        except Exception as exc:  # ağ/anahtar/limit/timeout → Piper fallback (detay loglanmaz)
+            log.warning("tts_cloud_failed", error=type(exc).__name__, fallback=TTS_CLOUD_FALLBACK)
+            if not TTS_CLOUD_FALLBACK:
+                return TTSResult(
+                    audio_bytes=b"", sample_rate=0, duration_s=0.0,
+                    elapsed_ms=int((time.perf_counter() - start) * 1000),
+                    engine="openai-tts", n_chars=len(cleaned), error="bulut TTS başarısız",
+                )
+            # fallback açık → aşağıdaki Piper'a devam
 
     try:
         engine = get_engine()
