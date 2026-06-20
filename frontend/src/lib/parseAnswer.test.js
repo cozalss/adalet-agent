@@ -1,6 +1,6 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, caseSearchUrl, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText } from "./parseAnswer.js";
 
 describe("cleanDraftText — CANLI taslak temizliği (saçmalık fix)", () => {
   it("ham [src: id] kaynak etiketlerini kaldırır (final numaralı çip ekler)", () => {
@@ -273,34 +273,6 @@ describe("mapSources", () => {
     expect(mapSources([{ doc_type: "law", source_id: "x" }])[0].title).toBe("x");
   });
 
-  it("bozuk karararama (?aranan=) emsal linkini çalışan aramaya çevirir + urlIsFallback işaretler", () => {
-    const out = mapSources([{
-      doc_type: "case", title: "yargitay 2011/1682/2011/6669", source_id: "y1",
-      url: "https://karararama.yargitay.gov.tr/?aranan=967523700",
-    }]);
-    expect(out[0].url).toContain("google.com/search");
-    expect(out[0].urlIsFallback).toBe(true);
-    const dec = decodeURIComponent(out[0].url);
-    expect(dec).toContain("2011/1682");   // esas
-    expect(dec).toContain("2011/6669");   // karar
-  });
-
-  it("caseSearchUrl mahkemeyi başlık önekinden türetir (Danıştay/AYM ≠ Yargıtay)", () => {
-    const dan = decodeURIComponent(caseSearchUrl("danistay 2020/1/2020/5"));
-    expect(dan).toContain("Danıştay Esas 2020/1");
-    expect(dan).not.toContain("Yargıtay");
-    expect(decodeURIComponent(caseSearchUrl("anayasa mahkemesi 2019/1"))).toContain("Anayasa Mahkemesi");
-  });
-
-  it("emsal url boşsa da arama linki üretir; kanun url'ine dokunmaz", () => {
-    const out = mapSources([
-      { doc_type: "case", title: "yargitay 2020/1/2020/2", source_id: "y", url: "" },
-      { doc_type: "law", title: "TBK m.344", source_id: "t", url: "https://mevzuat.gov.tr/x" },
-    ]);
-    expect(out[0].url).toContain("google.com/search");        // emsal → arama
-    expect(out[1].url).toBe("https://mevzuat.gov.tr/x");      // kanun → korunur
-    expect(out[1].urlIsFallback).toBeFalsy();                 // kanun fallback değil
-  });
 });
 
 describe("deriveRisk", () => {

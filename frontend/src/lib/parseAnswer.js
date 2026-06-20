@@ -49,37 +49,10 @@ function textToRuns(text, citeMap) {
   return runs.length ? runs : [{ t: text }];
 }
 
-// Karar başlığından mahkeme türü (Yargıtay/Danıştay/AYM) — yanlış mahkeme araması olmasın.
-const _COURT_PREFIX_RE = /^(yarg[ıi]tay|dan[ıi][şs]tay|anayasa mahkemesi|aym)\s*/i;
-function _courtName(low) {
-  if (low.startsWith("danıştay") || low.startsWith("danistay")) return "Danıştay";
-  if (low.startsWith("anayasa") || low.startsWith("aym")) return "Anayasa Mahkemesi";
-  return "Yargıtay";
-}
-
-/** Karar numarasından ÇALIŞAN arama linki. karararama SPA'sının `?aranan=<id>` deep-link'i
- *  kararı açmıyor (boş dönüyor) → karar no'suyla güvenilir arama. Mahkeme başlık önekinden
- *  türetilir (Danıştay/AYM kararında "Yargıtay" yazılmasın). */
-export function caseSearchUrl(title) {
-  const t = String(title || "").trim();
-  const court = _courtName(t.toLocaleLowerCase("tr"));
-  const ref = t.replace(_COURT_PREFIX_RE, "").trim();
-  const p = ref.split("/").map((x) => x.trim()).filter(Boolean);
-  const q = p.length === 4
-    ? `${court} Esas ${p[0]}/${p[1]} Karar ${p[2]}/${p[3]}`  // esasyıl/no/kararyıl/no
-    : `${court} kararı ${ref}`;
-  return "https://www.google.com/search?q=" + encodeURIComponent(q);
-}
-
 /** citations[] → UI source kartı şekli. */
 export function mapSources(citations) {
   return citations.map((c, i) => {
     const isLaw = c.doc_type === "law";
-    const raw = c.url || "";
-    // Emsal linki bozuksa → arama linki. NOT: şimdilik yalnız bilinen bozuk SPA (Yargıtay
-    // karararama ?aranan=) + boş url; başka mahkeme portalı (danistay vb.) bozuk link
-    // verirse buradaki kalıp listesi genişletilmeli.
-    const brokenCase = !isLaw && (!raw || /karararama\.yargitay\.gov\.tr\/\?aranan=/i.test(raw));
     return {
       id: i + 1,
       type: isLaw ? "Kanun" : "Yargıtay",
@@ -87,8 +60,7 @@ export function mapSources(citations) {
       title: c.title || c.source_id,
       ref: c.source_id,
       passage: (c.snippet || "").trim(),
-      url: brokenCase ? caseSearchUrl(c.title || c.source_id) : raw,
-      urlIsFallback: brokenCase,  // link gerçek karar değil arama → etiket buna göre
+      url: c.url || "",
       verified: true,
       rel: [i + 1],
     };

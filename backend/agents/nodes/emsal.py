@@ -38,6 +38,10 @@ log = structlog.get_logger()
 # eski davranış birebir korunur (test'ler regression-free).
 GRAPH_NEIGHBORS_TOP_K = int(os.getenv("GRAPH_NEIGHBORS_TOP_K", "3"))
 
+# Emsal özeti UI'da tam gösterildiği için chunk'ın tamamını taşı (eski 500 cümle
+# ortasında kesiyordu → "tam değil" şikâyeti). Tek chunk; tam karar metni değil.
+_CASE_SNIPPET_MAX = int(os.getenv("CASE_SNIPPET_MAX", "2000"))
+
 # Emsal aday kabul edilen karar/kurum kaynakları (seed'lerde doc_type her zaman
 # yazılmıyor → source-fallback). Corpus'taki TÜM karar kaynaklarını içermeli;
 # eksikse o kaynak SESSİZCE filtrelenir (sayistay 231 chunk böyle düşüyordu —
@@ -153,7 +157,9 @@ async def _emsal_retrieve(question: str, domain: str) -> dict:
             source_id=rr.chunk_id,
             doc_type="case",
             title=_format_case_title(rr),
-            snippet=rr.text[:500],
+            # Emsal özeti UI'da "İlgili Kararlar" panelinde tam gösteriliyor → kesik
+            # cümle olmasın diye parçanın TAMAMINI ver (eski 500 cümle ortasında kesiyordu).
+            snippet=rr.text[:_CASE_SNIPPET_MAX],
             url=rr.source_url,
             score=rr.score,
         )
@@ -180,7 +186,7 @@ async def _emsal_retrieve(question: str, domain: str) -> dict:
                     source_id=r.chunk_id,
                     doc_type="case",
                     title=f"{r.source} {r.chunk_id} (canlı)",
-                    snippet=r.text[:500],
+                    snippet=r.text[:_CASE_SNIPPET_MAX],
                     url=r.source_url,
                     score=r.score,
                 )

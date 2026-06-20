@@ -92,28 +92,21 @@ describe("ClarifyCard", () => {
 });
 
 describe("RelatedCases", () => {
-  it("emsal kararlarını başlık + rozet + tam-metin linkiyle render eder", () => {
+  it("emsal kararlarını başlık + rozet + özetle render eder (link YOK)", () => {
     const out = html(
       <RelatedCases cases={[{ id: 2, type: "Yargıtay", badge: "yargitay",
-        title: "Yargıtay 3. HD 2023/123", passage: "ihtiyaç nedeniyle tahliye...", url: "http://k" }]} />,
+        title: "Yargıtay 3. HD 2023/123", passage: "ihtiyaç nedeniyle tahliye yargılaması" }]} />,
     );
     expect(out).toContain("related-cases");
     expect(out).toContain("İlgili Kararlar");
     expect(out).toContain("Yargıtay 3. HD 2023/123");
-    expect(out).toContain("Kararın tam metni");
+    expect(out).toContain("ihtiyaç nedeniyle tahliye yargılaması");  // özet tam (kesik değil)
+    expect(out).not.toContain("rc-link");   // link tamamen kaldırıldı
   });
 
   it("boş/eksik listede hiç render etmez (bölüm gizli)", () => {
     expect(html(<RelatedCases cases={[]} />)).toBe("");
     expect(html(<RelatedCases cases={undefined} />)).toBe("");
-  });
-
-  it("urlIsFallback ise link 'Google'da ara', değilse 'Kararın tam metni'", () => {
-    const fb = html(<RelatedCases cases={[{ id: 1, title: "Y", type: "Yargıtay", url: "http://g", urlIsFallback: true }]} />);
-    expect(fb).toContain("Google");                  // arama etiketi
-    expect(fb).not.toContain("tam metni");
-    const real = html(<RelatedCases cases={[{ id: 2, title: "Y", type: "Yargıtay", url: "http://k", urlIsFallback: false }]} />);
-    expect(real).toContain("tam metni");
   });
 
   it("başlığa tıklayınca onJump(id) — kaynak kartına gider", () => {
