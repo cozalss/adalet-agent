@@ -59,12 +59,19 @@ set -a; source .env 2>/dev/null; set +a   # kullanıcı .env tabanı (collection
 # → draft_llm_failed HER sorguda (suppress yalnız LOAD'ı sarıyor, GENERATION crash'i propagate).
 # Spec-decode bu llama-cpp-python sürümünde viable değil → 0 KALIR. N_BATCH 512→1024 (kod-default)
 # prefill hızlandırır (OOM olursa 768; flash_attn KV-cache küçülttüğü için sığmalı).
-export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=1024 LLM_SPECULATIVE=0
-# KV-cache q8_0 (~kayıpsız, perplexity +<0.1): KV-cache'i ~yarıya indirir → VRAM açar +
-# decode'u biraz hızlandırır. flash_attn açık (default) ön-koşulu sağlar. Bozarsa f16'ya al.
-export LLM_KV_TYPE=q8_0
-export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
-export LLM_NO_THINK=1   # 3.5 default-off; /no_think + _strip_think backstop (defansif)
+# v2.3: OPENAI_API_KEY varsa BULUT gpt-4o (en iyi kalite; tüm ajanlar otomatik) — Qwen YÜKLENMEZ
+# → VRAM açılır (embedder/reranker/NLI'ye yer). Anahtar yoksa yerel Qwen'e düşer.
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  export LLM_MODE=openai OPENAI_LLM_MODEL="${OPENAI_LLM_MODEL:-gpt-4o-mini}"
+  echo "[demo] LLM: OpenAI ($OPENAI_LLM_MODEL) — bulut"
+else
+  # Yerel Qwen3.5-9B UD-Q4_K_XL (GPU). SPECULATIVE=0 (4-ref prompt'ta broadcast crash). KV q8_0.
+  export LLM_MODE=llamacpp LLM_N_GPU_LAYERS=-1 LLM_N_BATCH=1024 LLM_SPECULATIVE=0
+  export LLM_KV_TYPE=q8_0
+  export LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
+  export LLM_NO_THINK=1   # /no_think + _strip_think backstop (defansif)
+  echo "[demo] LLM: yerel Qwen3.5-9B (OPENAI_API_KEY yok)"
+fi
 # HIZ: HyDE/Multi-Query in-process Qwen çağrıları tek-executor'da serialize → retrieval
 # ~53s; kapat → ~5s (ablation: trafik/vergi'de zaten zarar veriyorlardı). DRAFT 768→512.
 # DRAFT_MAX_TOKENS = ADAPTİF uzunluk TAVANI (karmaşık/olgu-zengin); basit soru draft._adaptive_max_tokens
