@@ -24,10 +24,12 @@ it("ScopePanel — 8 sivil alan + kapsam-dışı (ceza/aile dürüstlüğü)", (
   expect(out).toContain("Ceza hukuku");
 });
 
-it("SourcesPanel — resmî kaynaklar (mevzuat/Yargıtay)", () => {
+it("SourcesPanel — resmî kaynaklar (mevzuat/Yargıtay/AYM) + doğrulama reddi", () => {
   const out = html(<SourcesPanel />);
   expect(out).toContain("mevzuat.gov.tr");
   expect(out).toContain("Yargıtay");
+  expect(out).toContain("anayasa.gov.tr");
+  expect(out).toContain("reddeder");
 });
 
 it("PrefsPanel — yazı boyutu + hareketi azalt + alan çipleri", () => {
@@ -39,12 +41,23 @@ it("PrefsPanel — yazı boyutu + hareketi azalt + alan çipleri", () => {
   expect(out).toContain("Tercih edilen alanlar");
 });
 
-it("DisclaimerPanel — hukuki danışmanlık değildir", () => {
-  expect(html(<DisclaimerPanel />)).toContain("danışmanlık değildir");
+it("DisclaimerPanel — hukuki danışmanlık değildir + yapar/yapamaz + yasal dayanak", () => {
+  const out = html(<DisclaimerPanel />);
+  expect(out).toContain("danışmanlık değildir");
+  expect(out).toContain("Yapabildiklerim");
+  expect(out).toContain("Yapamadıklarım");
+  expect(out).toContain("temsil edemez");
+  expect(out).toContain("Avukatlık Kanunu");
 });
 
-it("OpenSourcePanel — açık kaynak (MIT)", () => {
-  expect(html(<OpenSourcePanel />)).toContain("MIT");
+it("OpenSourcePanel — açık kaynak (MIT) + lisans özgürlükleri + neden önemli", () => {
+  const out = html(<OpenSourcePanel />);
+  expect(out).toContain("MIT");
+  expect(out).toContain("İncele");
+  expect(out).toContain("Çalıştır");
+  expect(out).toContain("Değiştir");
+  expect(out).toContain("Paylaş");
+  expect(out).toContain("Neden önemli");
 });
 
 it("ProfilePanel — görünen ad alanı + kaydet", () => {
