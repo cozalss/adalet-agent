@@ -824,9 +824,34 @@ a.btn:not(:disabled):active {
   display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
 }
 .related-cases .rc-title:hover { color: var(--accent-text, var(--accent, #9E6A43)); }
-/* Yan panelde (davalar modu) başlık tıklanamaz → statik; eylem "tam metni" linki. */
+/* Yan panelde (davalar modu) başlık tıklanamaz → statik. */
 .related-cases .rc-title.rc-title-static { cursor: default; }
 .related-cases .rc-title.rc-title-static:hover { color: var(--text); }
+
+/* "Kararın tam metnini getir" — on-demand canlı çekme butonu. */
+.related-cases .rc-getfull {
+  appearance: none; cursor: pointer; margin-top: 6px;
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--accent-text, var(--accent, #9E6A43));
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent-soft, rgba(158,106,67,.28));
+  padding: 5px 11px; border-radius: 8px;
+  transition: background .15s ease, border-color .15s ease;
+}
+.related-cases .rc-getfull:hover:not(:disabled) {
+  background: var(--accent-soft, rgba(212,165,116,.14)); border-color: var(--accent, #D4A574);
+}
+.related-cases .rc-getfull:disabled { opacity: .6; cursor: progress; }
+.related-cases .rc-getfull.ghost { border-color: transparent; background: none; padding-left: 0; }
+/* Tam karar metni — kaydırmalı, satır-içi formatı koru (resmi kaynaktan, düz metin). */
+.related-cases .rc-fulltext {
+  margin: 6px 0; padding: 12px 14px; max-height: 420px; overflow-y: auto;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  background: var(--accent-soft, rgba(212,165,116,.08));
+  border: 1px solid var(--border, rgba(0,0,0,.06)); border-radius: 10px;
+}
+.related-cases .rc-err { margin: 6px 0 0; font-size: 12.5px; color: var(--danger, #b4453a); }
 .related-cases .rc-badge {
   flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .3px;
   color: var(--success, #4a7c59); background: var(--success-soft, rgba(74,124,89,.12));

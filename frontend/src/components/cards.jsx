@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "./icons.jsx";
 import { RunText, renderInline } from "./ui.jsx";
 import { stripAnswerTail, cleanDraftText } from "../lib/parseAnswer.js";
+import { fetchFullDecision } from "../lib/api.js";
 import { BorderBeam } from "./ui/border-beam.jsx";
 
 export function AnswerCard({ answer, sources, onJump }) {
@@ -59,9 +60,69 @@ export function AnswerCard({ answer, sources, onJump }) {
   );
 }
 
-/** İlgili Kararlar — emsal (Yargıtay/Danıştay/AYM) kararlarını cevabın altında AYRI,
- *  görünür bir bölümde sunar (kanun maddeleriyle karışmadan). Boşsa hiç render etmez. */
-export function RelatedCases({ cases, onJump }) {
+/** Tam-metin getirme hatasını kullanıcı-dostu mesaja çevir (backend error kodu). */
+function _fullTextError(code) {
+  if (code === "rate_limited") return "Şu an kaynakta yoğunluk var — birazdan tekrar deneyin.";
+  if (code === "timeout") return "Kaynak zamanında yanıt vermedi — tekrar deneyebilirsiniz.";
+  if (code === "not_found") return "Bu kararın tam metni resmi kaynakta bulunamadı.";
+  return "Tam metin getirilemedi — tekrar deneyebilirsiniz.";
+}
+
+/** Tek emsal karar satırı — özet + "Kararın tam metnini getir" (on-demand canlı çekme).
+ *  Tam metin korpusta YOK (parçalı indeks) → istek üzerine resmi kaynaktan getirilir. */
+function CaseItem({ c }) {
+  const [full, setFull] = useState({ loading: false, text: null, error: null });
+  const abortRef = useRef(null);
+  // Unmount'ta uçuşan isteği iptal et → kapanmış bileşende setState (stale closure) olmasın.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const onGet = async () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setFull({ loading: true, text: null, error: null });
+    try {
+      const r = await fetchFullDecision({ source_url: c.url, source_id: c.ref, court: c.type }, ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      if (r && r.text) setFull({ loading: false, text: r.text, error: null });
+      else setFull({ loading: false, text: null, error: _fullTextError(r && r.error) });
+    } catch {
+      if (ctrl.signal.aborted) return;  // iptal edildi → sessiz
+      setFull({ loading: false, text: null, error: _fullTextError("network") });
+    }
+  };
+
+  return (
+    <li className="rc-item">
+      <div className="rc-title rc-title-static">
+        <span className="rc-badge">{c.type || "Karar"}</span>
+        {c.title}
+      </div>
+      {full.text ? (
+        <>
+          <div className="rc-fulltext" tabIndex={0} aria-label="Kararın tam metni">{full.text}</div>
+          <button type="button" className="rc-getfull ghost" onClick={() => setFull({ loading: false, text: null, error: null })}>
+            Özeti göster
+          </button>
+        </>
+      ) : (
+        <>
+          {c.passage && <p className="rc-passage">{c.passage}</p>}
+          {(c.url || c.ref) && (
+            <button type="button" className="rc-getfull" onClick={onGet} disabled={full.loading}>
+              {full.loading ? "Getiriliyor…" : "Kararın tam metnini getir"}
+            </button>
+          )}
+        </>
+      )}
+      {full.error && <p className="rc-err" role="alert">{full.error}</p>}
+    </li>
+  );
+}
+
+/** İlgili Kararlar — emsal (Yargıtay/Danıştay/AYM) kararlarını AYRI, görünür bölümde
+ *  sunar. Her kararın özetinin altında "tam metni getir" (on-demand). Boşsa render etmez. */
+export function RelatedCases({ cases }) {
   if (!Array.isArray(cases) || cases.length === 0) return null;
   return (
     <section className="related-cases" aria-label="İlgili mahkeme kararları">
@@ -71,22 +132,7 @@ export function RelatedCases({ cases, onJump }) {
         <span className="rc-count" aria-label={`${cases.length} karar`}>{cases.length}</span>
       </div>
       <ul className="rc-list">
-        {cases.map((c) => (
-          <li className="rc-item" key={c.id}>
-            {onJump ? (
-              <button type="button" className="rc-title" onClick={() => onJump(c.id)} title="Kaynak kartına git">
-                <span className="rc-badge">{c.type || "Karar"}</span>
-                {c.title}
-              </button>
-            ) : (
-              <div className="rc-title rc-title-static">
-                <span className="rc-badge">{c.type || "Karar"}</span>
-                {c.title}
-              </div>
-            )}
-            {c.passage && <p className="rc-passage">{c.passage}</p>}
-          </li>
-        ))}
+        {cases.map((c) => <CaseItem key={c.id} c={c} />)}
       </ul>
     </section>
   );

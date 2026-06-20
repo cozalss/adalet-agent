@@ -40,6 +40,7 @@ from api.routes.ask import router as ask_router
 from api.routes.auth import router as auth_router
 from api.routes.conversations import router as conversations_router
 from api.routes.dilekce import router as dilekce_router
+from api.routes.emsal import router as emsal_router
 from api.routes.feedback import router as feedback_router
 from api.routes.multimodal import router as multimodal_router
 from api.routes.preferences import router as preferences_router
@@ -419,6 +420,7 @@ app.include_router(multimodal_router)
 app.include_router(auth_router)
 app.include_router(feedback_router)
 app.include_router(dilekce_router)
+app.include_router(emsal_router)
 app.include_router(preferences_router)
 app.include_router(conversations_router)
 

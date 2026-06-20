@@ -3,7 +3,11 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { render, fireEvent } from "@testing-library/react";
+import { fetchFullDecision } from "../lib/api.js";
 import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./cards.jsx";
+
+// İlgili Kararlar "tam metni getir" canlı çekmeyi mock'la (ağ yok).
+vi.mock("../lib/api.js", () => ({ fetchFullDecision: vi.fn() }));
 
 const html = (n) => renderToStaticMarkup(n);
 
@@ -92,16 +96,23 @@ describe("ClarifyCard", () => {
 });
 
 describe("RelatedCases", () => {
-  it("emsal kararlarını başlık + rozet + özetle render eder (link YOK)", () => {
+  it("emsal kararını başlık + rozet + özet + 'tam metnini getir' butonuyla render eder (link YOK)", () => {
     const out = html(
-      <RelatedCases cases={[{ id: 2, type: "Yargıtay", badge: "yargitay",
-        title: "Yargıtay 3. HD 2023/123", passage: "ihtiyaç nedeniyle tahliye yargılaması" }]} />,
+      <RelatedCases cases={[{ id: 2, type: "Yargıtay", badge: "yargitay", title: "Yargıtay 3. HD 2023/123",
+        passage: "ihtiyaç nedeniyle tahliye yargılaması",
+        url: "https://karararama.yargitay.gov.tr/?aranan=1", ref: "h-1-c0" }]} />,
     );
     expect(out).toContain("related-cases");
     expect(out).toContain("İlgili Kararlar");
     expect(out).toContain("Yargıtay 3. HD 2023/123");
     expect(out).toContain("ihtiyaç nedeniyle tahliye yargılaması");  // özet tam (kesik değil)
-    expect(out).not.toContain("rc-link");   // link tamamen kaldırıldı
+    expect(out).toContain("Kararın tam metnini getir");             // on-demand buton
+    expect(out).not.toContain("rc-link");                            // arama linki yok
+  });
+
+  it("url/ref yoksa 'tam metnini getir' butonu çıkmaz", () => {
+    const out = html(<RelatedCases cases={[{ id: 3, type: "Yargıtay", title: "Y", passage: "özet" }]} />);
+    expect(out).not.toContain("tam metnini getir");
   });
 
   it("boş/eksik listede hiç render etmez (bölüm gizli)", () => {
@@ -109,13 +120,27 @@ describe("RelatedCases", () => {
     expect(html(<RelatedCases cases={undefined} />)).toBe("");
   });
 
-  it("başlığa tıklayınca onJump(id) — kaynak kartına gider", () => {
-    const onJump = vi.fn();
-    const { getByRole } = render(
-      <RelatedCases cases={[{ id: 5, title: "Yargıtay 9. HD", type: "Yargıtay" }]} onJump={onJump} />,
+  it("'tam metnini getir'e tıklayınca kararın TAM metnini gösterir", async () => {
+    fetchFullDecision.mockResolvedValue({ text: "8. HD İçtihat Metni: tam karar gövdesi burada", cached: false, error: null });
+    const { getByText, findByText } = render(
+      <RelatedCases cases={[{ id: 9, type: "Yargıtay", title: "Y 8.HD", passage: "özet parça",
+        url: "https://karararama.yargitay.gov.tr/?aranan=525485900", ref: "h-525485900-c1" }]} />,
     );
-    fireEvent.click(getByRole("button"));
-    expect(onJump).toHaveBeenCalledWith(5);
+    fireEvent.click(getByText("Kararın tam metnini getir"));
+    expect(await findByText(/tam karar gövdesi/)).toBeTruthy();
+    // payload ilk argüman; ikinci argüman AbortSignal (unmount iptali).
+    expect(fetchFullDecision.mock.calls[0][0]).toEqual({
+      source_url: "https://karararama.yargitay.gov.tr/?aranan=525485900", source_id: "h-525485900-c1", court: "Yargıtay",
+    });
+  });
+
+  it("getirme başarısızsa kullanıcı-dostu hata gösterir (uydurmaz)", async () => {
+    fetchFullDecision.mockResolvedValue({ text: "", cached: false, error: "rate_limited" });
+    const { getByText, findByText } = render(
+      <RelatedCases cases={[{ id: 10, type: "Yargıtay", title: "Y", url: "https://karararama.yargitay.gov.tr/?aranan=1", ref: "h-1-c0" }]} />,
+    );
+    fireEvent.click(getByText("Kararın tam metnini getir"));
+    expect(await findByText(/yoğunluk/i)).toBeTruthy();
   });
 });
 

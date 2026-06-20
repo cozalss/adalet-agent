@@ -183,6 +183,20 @@ export async function postFeedback({ conversationId, rating, comment = null, tur
   return res.json();
 }
 
+/** POST /emsal/full-text — bir kararın TAM metnini canlı getir (İlgili Kararlar paneli).
+ *  Korpus kararları parçalı indeksliyor (tam metin yok) → istek üzerine resmi kaynaktan
+ *  (Bedesten/UYAP/Anayasa) çekilir. Döner {text, cached, error}; text boşsa error dolu. */
+export async function fetchFullDecision({ source_url = "", source_id = "", court = "" } = {}, signal) {
+  const res = await fetch("/emsal/full-text", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ source_url, source_id, court }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`Tam metin getirilemedi (HTTP ${res.status})`);
+  return res.json();
+}
+
 /** Backend ayakta mı? (mock fallback kararı için). */
 export async function backendHealthy() {
   try {

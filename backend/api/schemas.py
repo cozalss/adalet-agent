@@ -264,6 +264,37 @@ class AskResponse(BaseModel):
     )
 
 
+class FullDecisionRequest(BaseModel):
+    """POST /emsal/full-text — bir kararın TAM metnini canlı çek (İlgili Kararlar paneli).
+
+    Kimlik korpus citation'ından gelir: source_url (karararama ?aranan=<id>) ya da
+    source_id (chunk_id). source_url DOĞRUDAN fetch edilmez — id çıkarılıp resmi
+    yargi-mcp aracı çağrılır (SSRF koruması full_decision._route_fetch'te)."""
+
+    source_url: str = Field("", max_length=600, description="Kararın kaynak URL'i (karararama/uyap/anayasa)")
+    source_id: str = Field("", max_length=200, description="Citation source_id (chunk_id) — id fallback")
+    court: str = Field("", max_length=80, description="Mahkeme türü (opsiyonel yönlendirme ipucu)")
+
+    @field_validator("source_url")
+    @classmethod
+    def _http_scheme_only(cls, v: str) -> str:
+        """SSRF/şema-injeksiyon koruması: boş ya da yalnız http(s) — file://, javascript:
+        gibi şemalar resmi kaynağa ulaşmadan reddedilir (ECC)."""
+        if v and not v.startswith(("http://", "https://")):
+            raise ValueError("source_url yalnız http(s) olabilir")
+        return v
+
+
+class FullDecisionResponse(BaseModel):
+    """Kararın tam metni (Markdown) + durum. text boşsa error doludur."""
+
+    text: str = Field("", description="Kararın tam Markdown metni (resmi kaynaktan; model üretmez)")
+    cached: bool = Field(False, description="Sonuç in-process cache'ten mi geldi")
+    error: str | None = Field(
+        None, description="None=başarı | not_found | rate_limited | timeout | hata-tipi",
+    )
+
+
 class OCRUploadResponse(BaseModel):
     """POST /multimodal/ocr — belge fotoğrafı → metin.
 
