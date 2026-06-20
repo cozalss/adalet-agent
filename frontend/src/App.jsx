@@ -83,7 +83,7 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
         </button>
         {busy ? (
           <button className="cg-send stop" onClick={onStop} aria-label="Yanıtı durdur" title="Yanıtı durdur"><Icon.stop /></button>
-        ) : hasText ? (
+        ) : (hasText && voice.state === "idle") ? (
           <ShimmerButton
             onClick={submit}
             aria-label="Gönder"
@@ -98,7 +98,7 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
         ) : (
           <button
             className={"cg-send voice" + (voice.state !== "idle" ? " on" : "")}
-            onClick={voice.toggle}
+            onClick={() => { ref.current?.focus(); voice.toggle(); }}
             disabled={!voice.supported || voice.state === "transcribing"}
             aria-label={voice.state === "recording" ? "Kaydı durdur" : "Sesli sor (mikrofon)"}
             aria-pressed={voice.state === "recording"}

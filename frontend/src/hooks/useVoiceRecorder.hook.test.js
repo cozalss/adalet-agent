@@ -27,10 +27,27 @@ function installFakeMedia() {
   return { getUserMedia, tracks };
 }
 
+function installFakeSpeech() {
+  const instances = [];
+  class FakeSpeechRecognition {
+    constructor() { this.lang = ""; this.continuous = false; this.interimResults = false; instances.push(this); }
+    start() { this.started = true; }
+    stop() { this.onend?.(); }
+    // segments: [{ final: bool, text: str }] → SpeechRecognition result event'i taklit eder
+    emit(segments, resultIndex = 0) {
+      const results = segments.map((s) => ({ isFinal: s.final, 0: { transcript: s.text } }));
+      this.onresult?.({ resultIndex, results });
+    }
+  }
+  window.SpeechRecognition = FakeSpeechRecognition;
+  return instances;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   setMediaDevices(undefined);
   delete window.MediaRecorder;
+  delete window.SpeechRecognition;
 });
 
 describe("useVoiceRecorder", () => {
@@ -70,5 +87,41 @@ describe("useVoiceRecorder", () => {
     await act(async () => { result.current.stop(); await Promise.resolve(); });
     await waitFor(() => expect(result.current.error).toMatch(/çevrilemedi/i));
     expect(result.current.state).toBe("idle");
+  });
+
+  it("canlı: Web Speech interim sonuçları onTranscript'e ANLIK yazar (tr-TR)", async () => {
+    const instances = installFakeSpeech();
+    const onTranscript = vi.fn();
+    const { result } = renderHook(() => useVoiceRecorder({ onTranscript }));
+
+    expect(result.current.supported).toBe(true);
+    await act(async () => { result.current.start(); });
+    expect(result.current.state).toBe("recording");
+
+    const recog = instances[0];
+    expect(recog.lang).toBe("tr-TR");
+    expect(recog.interimResults).toBe(true);
+    expect(recog.continuous).toBe(true);
+
+    // interim (henüz final değil) → CANLI yazılır
+    act(() => { recog.emit([{ final: false, text: "kıdem tazmin" }]); });
+    expect(onTranscript).toHaveBeenLastCalledWith("kıdem tazmin");
+
+    // segment finalize + yeni interim → birikmiş final + interim
+    act(() => { recog.emit([{ final: true, text: "kıdem tazminatı " }, { final: false, text: "nedir" }]); });
+    expect(onTranscript).toHaveBeenLastCalledWith("kıdem tazminatı nedir");
+
+    // durdur → onend → idle
+    await act(async () => { result.current.stop(); });
+    expect(result.current.state).toBe("idle");
+  });
+
+  it("canlı yol media'ya tercih edilir (ikisi de varsa SpeechRecognition kullanılır)", async () => {
+    const instances = installFakeSpeech();
+    const { getUserMedia } = installFakeMedia();
+    const { result } = renderHook(() => useVoiceRecorder({ onTranscript: vi.fn() }));
+    await act(async () => { result.current.start(); });
+    expect(instances).toHaveLength(1);          // Web Speech başlatıldı
+    expect(getUserMedia).not.toHaveBeenCalled(); // MediaRecorder fallback'e düşülmedi
   });
 });
