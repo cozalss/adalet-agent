@@ -5,7 +5,6 @@ import { Icon } from "./icons.jsx";
 import { RunText, renderInline } from "./ui.jsx";
 import { stripAnswerTail, cleanDraftText } from "../lib/parseAnswer.js";
 import { fetchFullDecision } from "../lib/api.js";
-import { BorderBeam } from "./ui/border-beam.jsx";
 
 export function AnswerCard({ answer, sources, onJump }) {
   const cardRef = useRef(null);
@@ -39,9 +38,7 @@ export function AnswerCard({ answer, sources, onJump }) {
   }, [sections.length]);
 
   return (
-    <div className="card answer" ref={cardRef} style={{ position: "relative", overflow: "hidden" }}>
-      {/* magicui — kenarda dolaşan ince terracotta→gold ışık (AI-üretildi + doğrulandı sinyali) */}
-      <BorderBeam size={70} duration={9} colorFrom="#9e6a43" colorTo="#e2bd91" className="opacity-60" />
+    <div className="card answer" ref={cardRef}>
       {sections.map((sec, i) => (
         <div className="sec reveal-target" key={i}>
           <div className="sec-label">{sec.label}</div>

@@ -141,6 +141,19 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
 .card.answer .sec:only-child { padding-left: 0; }
 .card.answer .sec:only-child::before { display: none; }
 
+/* Kullanıcı (2026-06-20): cevap "kart KUTUSU"na DÖNÜŞMESİN → akan taslakla görsel süreklilik.
+   Kutu (bg/border/shadow/blur) KALDIRILDI; sade prose (taslak gibi). Sol altın-aksan + bölümler kalır. */
+.card.answer {
+  background: none; border: none; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  padding: 4px 0 2px;
+}
+/* Bölüm etiketi: "KISA CEVAP" mono-uppercase yerine taslaktaki gibi cümle-düzeni kalın (süreklilik) */
+.card.answer .sec-label {
+  font-family: var(--font-body); text-transform: none;
+  letter-spacing: .01em; font-size: 13px; font-weight: 700; color: var(--text-2);
+}
+
 /* ---------- Mobil/touch dokunma hedefleri ≥44px (C7, WCAG AA) ---------- */
 @media (pointer: coarse) {
   .cg-round, .cg-send {
