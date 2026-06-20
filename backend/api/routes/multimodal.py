@@ -123,14 +123,23 @@ class TTSRequest(BaseModel):
 #  OCR
 # --------------------------------------------------------------------------
 
-@router.post("/ocr", response_model=OCRUploadResponse)
-@limiter.limit("5/minute")  # güvenlik: pahalı OCR (Tesseract+Qwen-VL) DoS guard
+@router.post(
+    "/ocr",
+    response_model=OCRUploadResponse,
+    responses={
+        400: {"description": "Boş dosya"},
+        413: {"description": "Dosya boyut sınırı aşıldı"},
+        415: {"description": "Desteklenmeyen tip veya tanınmayan dosya içeriği"},
+    },
+)
+@limiter.limit("5/minute")  # güvenlik: pahalı OCR (render+RapidOCR/Qwen) DoS guard
 async def ocr_upload(
     request: Request,
     image: Annotated[UploadFile, File(...)],
     principal: Principal = Depends(authenticate),
 ) -> OCRUploadResponse:
-    """Belge fotoğrafı → metin (Tesseract TR; auto-fallback Qwen-VL)."""
+    """Belge → metin. Dijital PDF: gömülü metin (kusursuz Türkçe, OCR'sız).
+    Taranmış PDF/görsel: RapidOCR (offline, sistem-kurulumsuz; ENV ile Tesseract/Qwen-VL)."""
     _ = principal
     safe_name = _sanitize_filename(image.filename, "image")
     if image.content_type and image.content_type not in _ALLOWED_IMAGE_MIMES:
@@ -175,6 +184,7 @@ async def ocr_upload(
         pii_counts=dict(pii.counts) if pii and pii.has_pii else {},
         confidence=result.confidence,
         low_confidence=low_conf,
+        page_count=result.page_count,
     )
 
 

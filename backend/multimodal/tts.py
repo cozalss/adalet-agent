@@ -29,9 +29,9 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 
 import structlog
@@ -79,20 +79,29 @@ class PiperEngine:
     def __init__(self, voice_name: str = TTS_MODEL, voice_dir: Path = TTS_VOICE_DIR) -> None:
         self.voice_name = voice_name
         self.voice_dir = voice_dir
+        self._voice_cache: object | None = None
+        self._voice_lock = threading.Lock()
 
-    @cached_property
+    @property
     def _voice(self):
-        from piper import PiperVoice
+        """Piper onnx lazy load — THREAD-SAFE (double-checked locking). synthesize_wav
+        asyncio.to_thread içinde çağrılır; eş zamanlı ilk-istekler çift yüklemesin (OCR
+        _vl_load_lock pattern, code-review 2026-06-18). Yüklü ise kilit ucuz."""
+        if self._voice_cache is None:
+            with self._voice_lock:
+                if self._voice_cache is None:
+                    from piper import PiperVoice
 
-        # piper-tts paketinde voice dosya konvansiyonu: <name>.onnx + .onnx.json
-        onnx_path = self.voice_dir / f"{self.voice_name}.onnx"
-        if not onnx_path.exists():
-            raise FileNotFoundError(
-                f"Piper voice bulunamadı: {onnx_path}. "
-                f"İndir: https://huggingface.co/rhasspy/piper-voices/tree/main/tr/tr_TR"
-            )
-        log.info("tts_loading_piper", voice=str(onnx_path))
-        return PiperVoice.load(str(onnx_path))
+                    # piper-tts voice dosya konvansiyonu: <name>.onnx + .onnx.json
+                    onnx_path = self.voice_dir / f"{self.voice_name}.onnx"
+                    if not onnx_path.exists():
+                        raise FileNotFoundError(
+                            f"Piper voice bulunamadı: {onnx_path}. "
+                            f"İndir: https://huggingface.co/rhasspy/piper-voices/tree/main/tr/tr_TR"
+                        )
+                    log.info("tts_loading_piper", voice=str(onnx_path))
+                    self._voice_cache = PiperVoice.load(str(onnx_path))
+        return self._voice_cache
 
     def synthesize_wav(self, text: str) -> tuple[bytes, int]:
         """Tek pass synthesize → (wav_bytes, sample_rate).

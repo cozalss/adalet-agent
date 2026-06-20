@@ -1,26 +1,33 @@
-"""OCR — belge fotoğraflarından metin çıkarımı.
+"""OCR — belge (PDF/görsel) → metin çıkarımı.
 
-İki seviyeli strateji:
-  1. **Tesseract 5** (TR dil paketi) — hızlı, basılı metin, varsayılan
-  2. **Qwen2-VL** (HF, opsiyonel) — el yazısı / kompleks / tablo için fallback
+Yönlendirme:
+  • **PDF (dijital)** — gömülü metin katmanı varsa PyMuPDF ile doğrudan okunur
+    (`pdf_utils.extract_pdf_text`): OCR'sız, **kusursuz Türkçe**. Hukuk
+    belgelerinin çoğu (UYAP/e-Devlet, Word export) böyledir.
+  • **PDF (taranmış) / görsel** — metin katmanı yoksa sayfalar görsele render
+    edilip (`pdf_utils.render_pdf_to_images`) seçili motora verilir:
+      1. **RapidOCR** (onnxruntime) — pip-tabanlı, offline, sistem-kurulumsuz; VARSAYILAN
+      2. **Tesseract 5** (TR dil paketi) — tam Türkçe diakritik (binary gerekir)
+      3. **Qwen2-VL** (HF, opt-in) — el yazısı / kompleks / tablo fallback
 
-Türkçe karakterler `chunker.sanitize_text` ile NFC normalize edilir; Tesseract
-çıkışındaki tipik mojibake (`Ã§` → `ç`) zaten orada düzeltilir → reuse.
-
-PIL ile basit preprocess: grayscale + adaptive threshold (Otsu) kalite arttırır.
+Türkçe karakterler `_normalize_ocr_text` (sanitize_text + NBSP) ile tüm
+motorlarda tutarlı NFC normalize edilir.
 
 Gizlilik: TCKN/telefon/isim test verilerinde sahte (`12345678901`, `0555...`).
+Yüklenen içerik yalnız bellekte işlenir.
 
 Kullanım:
-    result = await extract_text(image_bytes, lang="tur")
-    result.text     → "Madde 11 ..."
-    result.engine   → "tesseract" | "qwen2-vl"
-    result.elapsed_ms
+    result = await extract_text(doc_bytes)        # engine="auto"
+    result.text       → "Madde 11 ..."
+    result.engine     → "pdf-text" | "rapidocr" | "pdf-scan-rapidocr" | ...
+    result.page_count → çok-sayfa PDF'te sayfa sayısı
 
 ENV:
-    OCR_ENGINE=tesseract|qwen-vl  (default tesseract)
-    OCR_DPI=300                    (preprocess dpi target)
-    OCR_TIMEOUT_S=30
+    OCR_ENGINE=rapidocr|tesseract|qwen-vl  (default rapidocr)
+    OCR_TIMEOUT_S=30                        (motor başına / PDF adımı başına)
+    OCR_PDF_MAX_PAGES=10                    (DoS/latency guard)
+    OCR_PDF_DPI=200                         (tarama render çözünürlüğü)
+    OCR_RAPIDOCR_REC_MODEL / OCR_RAPIDOCR_KEYS  (Latin model — tam diakritik)
 """
 
 from __future__ import annotations
@@ -36,6 +43,8 @@ from typing import Any, Literal
 
 import structlog
 
+from multimodal.ocr_rapidocr import rapidocr_image
+from multimodal.pdf_utils import extract_pdf_text, is_pdf, render_pdf_to_images
 from retrieval.chunker import sanitize_text
 
 log = structlog.get_logger()
@@ -68,12 +77,18 @@ def _get_qwen_vl(model_name: str) -> tuple[Any, Any]:
     with _vl_load_lock:
         return _load_qwen_vl(model_name)
 
-OCREngine = Literal["tesseract", "qwen-vl", "auto"]
+OCREngine = Literal["tesseract", "rapidocr", "qwen-vl", "auto"]
 
-DEFAULT_ENGINE = os.getenv("OCR_ENGINE", "tesseract").lower()
+# Varsayılan görsel-OCR motoru. RapidOCR pip-tabanlı + offline çalışır (sistem
+# tesseract.exe kurulumu GEREKMEZ) → kutudan çıkar çıkmaz çalışır. Tesseract'a
+# OCR_ENGINE=tesseract ile geçilebilir (tam Türkçe diakritik, binary gerekir).
+DEFAULT_ENGINE = os.getenv("OCR_ENGINE", "rapidocr").lower()
 OCR_TIMEOUT_S = float(os.getenv("OCR_TIMEOUT_S", "30"))
 OCR_LANG = os.getenv("OCR_LANG", "tur")
-MIN_TEXT_LEN_QWEN_FALLBACK = 50  # Tesseract bundan az çıkardıysa Qwen-VL dene
+MIN_TEXT_LEN_QWEN_FALLBACK = 50  # Görsel motoru bundan az çıkardıysa Qwen-VL dene (opt-in)
+# Dijital PDF'te bu kadar gömülü metin varsa "metin katmanı var" sayılır → OCR'a
+# gerek yok (kusursuz + Türkçe-diakritikli). Altındaysa taranmış → render+OCR.
+PDF_TEXT_MIN_CHARS = int(os.getenv("OCR_PDF_TEXT_MIN_CHARS", "20"))
 
 # Sprint-6: project-local tessdata path (tur.traineddata burada).
 # Windows'da `C:\Program Files\Tesseract-OCR\tessdata` admin yetkisi gerek,
@@ -94,6 +109,14 @@ _TESSERACT_CMD: str | None = (
 )
 
 
+def _normalize_ocr_text(text: str) -> str:
+    """OCR/PDF çıktısını temizle: NFC + mojibake (sanitize_text) + PDF tipik
+    kırılmaz-boşluk (\\xa0) → boşluk. Tüm motorlarda tutarlı metin garantisi."""
+    if not text:
+        return text
+    return sanitize_text(text.replace("\xa0", " "))
+
+
 @dataclass(slots=True)
 class OCRResult:
     """OCR çıktısı + meta."""
@@ -107,6 +130,9 @@ class OCRResult:
     # Ortalama word-confidence 0..1 (Tesseract image_to_data). Düşük = bozuk tarama/
     # el yazısı → istemci/ajan uyarılabilir (#20). Qwen-VL'de yok → None.
     confidence: float | None = None
+    # PDF sayfa sayısı (görselde 1). Çok-sayfa belgede istemci "3 sayfa işlendi"
+    # gösterebilir; sayfa-cap aşıldıysa kullanıcı eksik metni anlar.
+    page_count: int = 1
 
 
 # --------------------------------------------------------------------------
@@ -122,9 +148,9 @@ async def extract_text(
     """Görüntüden metin çıkar.
 
     Args:
-        image_bytes: PNG/JPG/PDF (single page) bytes
+        image_bytes: PNG/JPG/WEBP/TIFF veya PDF (çok-sayfa; OCR_PDF_MAX_PAGES'e kadar)
         lang: Tesseract dil kodu ("tur" tek; "tur+eng" çoklu)
-        engine: "tesseract", "qwen-vl", veya "auto" (env default + fallback)
+        engine: "rapidocr", "tesseract", "qwen-vl", veya "auto" (env default + fallback)
     """
     if not image_bytes:
         return OCRResult(
@@ -133,20 +159,14 @@ async def extract_text(
         )
 
     chosen = engine if engine != "auto" else DEFAULT_ENGINE
+    auto = engine == "auto"
     start = time.perf_counter()
 
-    if chosen == "qwen-vl":
-        result = await _qwen_vl_ocr(image_bytes, lang)
+    # PDF? → önce dijital metin katmanı (kusursuz Türkçe), yoksa render+OCR (tarama).
+    if is_pdf(image_bytes):
+        result = await _pdf_ocr(image_bytes, lang, chosen, auto=auto)
     else:
-        result = await _tesseract_ocr(image_bytes, lang)
-        # Auto-mode: Tesseract zayıfsa Qwen-VL'a düş
-        if (
-            engine == "auto"
-            and result.n_chars < MIN_TEXT_LEN_QWEN_FALLBACK
-            and not result.error
-        ):
-            log.info("ocr_tesseract_weak_fallback_qwen", n_chars=result.n_chars)
-            result = await _qwen_vl_ocr(image_bytes, lang)
+        result = await _image_ocr(image_bytes, lang, chosen, auto=auto)
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     return OCRResult(
@@ -157,11 +177,150 @@ async def extract_text(
         elapsed_ms=elapsed_ms,
         error=result.error,
         confidence=result.confidence,
+        page_count=result.page_count,
+    )
+
+
+async def _image_ocr(
+    image_bytes: bytes, lang: str, chosen: str, *, auto: bool,
+) -> OCRResult:
+    """Tek görüntüyü seçili motorla OCR'la (+ auto modda zayıf→Qwen-VL fallback)."""
+    if chosen == "qwen-vl":
+        return await _qwen_vl_ocr(image_bytes, lang)
+    if chosen == "tesseract":
+        result = await _tesseract_ocr(image_bytes, lang)
+    else:  # "rapidocr" (varsayılan) ve tanınmayan değerler
+        result = await _rapidocr_ocr(image_bytes, lang)
+
+    # Auto-mode: birincil motor zayıf çıktı verdiyse (kısa metin) Qwen-VL dene.
+    # Yalnız Qwen DAHA FAZLA metin döndürürse benimse — disabled/boş fallback
+    # geçerli-ama-kısa sonucu EZMESİN (regresyon guard).
+    if auto and result.n_chars < MIN_TEXT_LEN_QWEN_FALLBACK and not result.error:
+        log.info("ocr_weak_fallback_qwen", primary=result.engine, n_chars=result.n_chars)
+        fallback = await _qwen_vl_ocr(image_bytes, lang)
+        if not fallback.error and fallback.n_chars > result.n_chars:
+            return fallback
+    return result
+
+
+async def _pdf_ocr(
+    pdf_bytes: bytes, lang: str, chosen: str, *, auto: bool,
+) -> OCRResult:
+    """PDF → metin. Dijital metin katmanı varsa onu kullan (OCR'sız, kusursuz);
+    yoksa sayfaları görsele render edip OCR'la (taranmış belge)."""
+    # PyMuPDF parse/render bloklayıcı + kötücül PDF'te uzun sürebilir → OCR
+    # motorlarıyla simetrik olarak timeout-korumalı (event loop'u bekletme).
+    try:
+        text, page_count = await asyncio.wait_for(
+            asyncio.to_thread(extract_pdf_text, pdf_bytes), timeout=OCR_TIMEOUT_S,
+        )
+    except TimeoutError:
+        return OCRResult(
+            text="", engine="pdf-text", lang=lang, n_chars=0,
+            elapsed_ms=int(OCR_TIMEOUT_S * 1000),
+            error="PDF işleme zaman aşımı", page_count=1,
+        )
+    text = _normalize_ocr_text(text)
+    if len(text) >= PDF_TEXT_MIN_CHARS:
+        log.info("pdf_digital_text", n_chars=len(text), pages=page_count)
+        return OCRResult(
+            text=text, engine="pdf-text", lang=lang, n_chars=len(text),
+            elapsed_ms=0, confidence=None, page_count=page_count,
+        )
+
+    # Metin katmanı yok/yetersiz → taranmış. Sayfaları render et + OCR.
+    try:
+        images = await asyncio.wait_for(
+            asyncio.to_thread(render_pdf_to_images, pdf_bytes), timeout=OCR_TIMEOUT_S,
+        )
+    except TimeoutError:
+        return OCRResult(
+            text="", engine="pdf-text", lang=lang, n_chars=0,
+            elapsed_ms=int(OCR_TIMEOUT_S * 1000),
+            error="PDF render zaman aşımı", page_count=page_count,
+        )
+    if not images:
+        return OCRResult(
+            text="", engine="pdf-text", lang=lang, n_chars=0, elapsed_ms=0,
+            error="PDF'den metin çıkarılamadı (şifreli veya bozuk olabilir)",
+            page_count=page_count,
+        )
+
+    # Kümülatif deadline: N sayfa × per-sayfa timeout, isteğin saatlerce
+    # sürüp thread-pool'u doldurmasını önler (rate-limit istek SAYISINI sınırlar,
+    # SÜRESİNİ değil → ek savunma).
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + OCR_TIMEOUT_S * len(images)
+    page_texts: list[str] = []
+    confs: list[float] = []
+    last_error: str | None = None
+    pages_failed = 0
+    for idx, page_png in enumerate(images):
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            last_error = "taranmış belge çok uzun (zaman aşımı)"
+            log.warning("pdf_scan_deadline_exceeded", processed=idx, total=len(images))
+            break
+        try:
+            r = await asyncio.wait_for(
+                _image_ocr(page_png, lang, chosen, auto=auto), timeout=remaining,
+            )
+        except TimeoutError:
+            pages_failed += 1
+            last_error = "sayfa OCR zaman aşımı"
+            log.warning("pdf_page_ocr_timeout", page=idx)
+            continue
+        if r.text:
+            page_texts.append(r.text)
+        if r.confidence is not None:
+            confs.append(r.confidence)
+        if r.error:
+            pages_failed += 1
+            last_error = r.error
+            log.warning("pdf_page_ocr_failed", page=idx, error=r.error)
+    combined = "\n\n".join(page_texts).strip()
+    # "auto" bu noktada çözülmüş; chosen gerçek motor → doğru etiket.
+    img_engine = chosen if chosen in {"tesseract", "qwen-vl", "rapidocr"} else "rapidocr"
+    if pages_failed:
+        log.info("pdf_scan_partial", pages_failed=pages_failed, total=len(images))
+    return OCRResult(
+        text=combined,
+        engine=f"pdf-scan-{img_engine}",
+        lang=lang,
+        n_chars=len(combined),
+        elapsed_ms=0,
+        error=None if combined else (last_error or "Taranmış PDF'den metin okunamadı"),
+        confidence=round(sum(confs) / len(confs), 3) if confs else None,
+        page_count=page_count,
     )
 
 
 # --------------------------------------------------------------------------
-#  Tesseract 5 — basit, hızlı, default
+#  RapidOCR — pip-tabanlı, offline, sistem-kurulumsuz (varsayılan görsel motoru)
+# --------------------------------------------------------------------------
+
+async def _rapidocr_ocr(image_bytes: bytes, lang: str) -> OCRResult:
+    """RapidOCR (onnxruntime) — timeout-korumalı async wrapper."""
+    try:
+        text, conf, err = await asyncio.wait_for(
+            asyncio.to_thread(rapidocr_image, image_bytes), timeout=OCR_TIMEOUT_S,
+        )
+    except TimeoutError:
+        return OCRResult(
+            text="", engine="rapidocr", lang=lang, n_chars=0,
+            elapsed_ms=int(OCR_TIMEOUT_S * 1000),
+            error="OCR zaman aşımı",
+        )
+    text = _normalize_ocr_text(text)
+    log.info("ocr_rapidocr_done", lang=lang, n_chars=len(text), error=err, confidence=conf)
+    return OCRResult(
+        text=text, engine="rapidocr", lang=lang, n_chars=len(text),
+        elapsed_ms=0, error=err, confidence=conf,
+    )
+
+
+# --------------------------------------------------------------------------
+#  Tesseract 5 — basit, hızlı; tam Türkçe diakritik (binary gerekir)
 # --------------------------------------------------------------------------
 
 async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
@@ -213,7 +372,7 @@ async def _tesseract_ocr(image_bytes: bytes, lang: str) -> OCRResult:
         return OCRResult(
             text="", engine="tesseract", lang=lang, n_chars=0,
             elapsed_ms=int(OCR_TIMEOUT_S * 1000),
-            error=f"tesseract timeout ({OCR_TIMEOUT_S}s)",
+            error="OCR zaman aşımı",
         )
 
     log.info("ocr_tesseract_done", lang=lang, n_chars=len(text), error=err, confidence=conf)
@@ -252,10 +411,12 @@ async def _qwen_vl_ocr(image_bytes: bytes, lang: str) -> OCRResult:
     iterasyonda ENV ile opt-in: `OCR_QWEN_VL_ENABLED=1` olmadıkça çağrılmaz.
     """
     if os.getenv("OCR_QWEN_VL_ENABLED", "0").lower() not in {"1", "true", "yes"}:
+        # İç ENV değişken adını istemciye sızdırma; detay log tarafında.
+        log.info("ocr_qwen_vl_disabled")
         return OCRResult(
             text="", engine="qwen-vl", lang=lang, n_chars=0,
             elapsed_ms=0,
-            error="qwen-vl disabled (OCR_QWEN_VL_ENABLED=1 ile aç)",
+            error="qwen-vl motoru aktif değil",
         )
 
     # transformers kurulu mu? (isim bağlamadan probe — gerçek yükleme cache'li

@@ -36,9 +36,9 @@ import asyncio
 import contextlib
 import os
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
-from functools import cached_property
 from pathlib import Path
 
 import structlog
@@ -106,20 +106,30 @@ class STTEngine:
         self.model_name = model_name
         self.device = device
         self.compute_type = compute_type
+        self._model_cache: object | None = None
+        self._model_lock = threading.Lock()
 
-    @cached_property
+    @property
     def _model(self):
-        from faster_whisper import WhisperModel
+        """faster-whisper lazy load — THREAD-SAFE (double-checked locking). transcribe_file
+        asyncio.to_thread içinde çağrılır; eş zamanlı ilk-istekler kilit olmadan whisper'ı
+        (~3GB) ÇİFT yükleyip OOM/SIGSEGV yapabilirdi (OCR _vl_load_lock ile aynı pattern,
+        code-review 2026-06-18). Yüklü ise kilit ucuz (fast-path)."""
+        if self._model_cache is None:
+            with self._model_lock:
+                if self._model_cache is None:
+                    from faster_whisper import WhisperModel
 
-        log.info(
-            "stt_loading",
-            model=self.model_name, device=self.device, compute=self.compute_type,
-        )
-        return WhisperModel(
-            self.model_name,
-            device=self.device,
-            compute_type=self.compute_type,
-        )
+                    log.info(
+                        "stt_loading",
+                        model=self.model_name, device=self.device, compute=self.compute_type,
+                    )
+                    self._model_cache = WhisperModel(
+                        self.model_name,
+                        device=self.device,
+                        compute_type=self.compute_type,
+                    )
+        return self._model_cache
 
     def transcribe_file(
         self,

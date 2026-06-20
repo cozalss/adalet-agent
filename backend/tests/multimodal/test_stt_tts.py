@@ -70,6 +70,45 @@ def test_transcribe_file_drops_hallucinated_segment(monkeypatch):
     assert lang == "tr"
 
 
+def test_stt_model_thread_safe_single_load(monkeypatch):
+    """Eş zamanlı ilk-istekler whisper'ı TEK kez yükler (double-checked locking, code-review
+    2026-06-18). Lock olmadan 8 thread ~3GB modeli ÇİFT/ÇOK yükleyip OOM/SIGSEGV yapardı."""
+    import sys
+    import threading
+    import time as _t
+    import types
+
+    import multimodal.stt as stt
+
+    calls: list[int] = []
+    _cl = threading.Lock()
+
+    class _CountingModel:
+        def __init__(self, *a, **k):
+            with _cl:
+                calls.append(1)
+            _t.sleep(0.05)  # yükleme penceresini genişlet → lock yoksa race görünür
+
+    fake_mod = types.ModuleType("faster_whisper")
+    fake_mod.WhisperModel = _CountingModel  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_mod)
+
+    eng = stt.STTEngine()
+    results: list[object] = []
+
+    def _access() -> None:
+        results.append(eng._model)
+
+    threads = [threading.Thread(target=_access) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(calls) == 1, f"whisper {len(calls)} kez yüklendi (race! double-check lock bozuk)"
+    assert all(r is results[0] for r in results)  # tüm thread'ler AYNI instance
+
+
 # --------------------------------------------------------------------------
 #  TTS — _prepare_text helper'ları (model-bağımsız)
 # --------------------------------------------------------------------------
