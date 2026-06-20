@@ -91,6 +91,60 @@ async def test_clarify_path_never_calls_retrieval(spied_retrieval, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_eviction_discriminator_graph_round1(spied_retrieval, monkeypatch):
+    """Tahliye (ev sahibi → kiracı) gerçek graph üzerinden: clarifier round-1
+    SEBEP sorusu + tıklanabilir cevap-şıkları döner, retrieval atlanır."""
+    async def fake_triaj(_state):
+        return {
+            "domain": "kira", "domain_confidence": 0.9, "triage_reasoning": "test",
+            "response_intent": "legal_answer",
+            "case_facts": {"olay": "kiracıyı çıkaramıyorum"},
+        }
+
+    from agents import graph as graph_mod
+    monkeypatch.setattr(graph_mod, "triaj_node", fake_triaj)
+
+    graph = build_graph()
+    state = make_initial_state("kiracımı çıkaramıyorum ne yapabilirim")
+    result = await graph.ainvoke(state)
+
+    assert spied_retrieval["mevzuat"] == 0  # clarify dalı retrieval'a girmez
+    assert result["response_intent"] == "needs_clarification"
+    # Ayırt edici SEBEP sorusu + 6 tıklanabilir sebep-şıkkı (chip).
+    assert "sebep" in " ".join(result["clarifying_questions"]).lower()
+    assert len(result["clarify_options"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_eviction_discriminator_graph_round2_followup(spied_retrieval, monkeypatch):
+    """Round-2: kullanıcı sebebi (ihtiyaç) verdi → gerçek graph clarifier sebebe-özel
+    takip sorusu döner (chip yok); retrieval yine atlanır."""
+    async def fake_triaj(_state):
+        return {
+            "domain": "kira", "domain_confidence": 0.9, "triage_reasoning": "test",
+            "response_intent": "legal_answer",
+            "case_facts": {"olay": "kiracıyı çıkaramıyorum kendi ihtiyacım için lazım"},
+        }
+
+    from agents import graph as graph_mod
+    monkeypatch.setattr(graph_mod, "triaj_node", fake_triaj)
+
+    graph = build_graph()
+    state = make_initial_state("kendi ihtiyacım için lazım")
+    state["chat_history"] = [
+        {"role": "user", "content": "kiracımı çıkaramıyorum"},
+        {"role": "assistant", "content": f"{CLARIFY_MARKER} kiracıyı hangi sebeple çıkarmak istiyorsunuz?"},
+    ]
+    result = await graph.ainvoke(state)
+
+    assert spied_retrieval["mevzuat"] == 0
+    assert result["response_intent"] == "needs_clarification"
+    joined = " ".join(result["clarifying_questions"]).lower()
+    assert "oturac" in joined or "sürekli" in joined  # ihtiyaç-özel follow-up
+    assert result["clarify_options"] == []  # round-2'de chip yok
+
+
+@pytest.mark.asyncio
 async def test_sufficient_facts_path_calls_retrieval(spied_retrieval, monkeypatch):
     """Yeterli olgu → answer dalı → retrieval çağrılır (baseline korunur)."""
     async def fake_triaj(_state):
