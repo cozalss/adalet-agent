@@ -43,6 +43,8 @@ from typing import Any, Literal
 
 import structlog
 
+from multimodal.docx_utils import extract_docx_text, is_docx
+from multimodal.ocr_cloud import cloud_ocr_enabled, ocr_image_openai
 from multimodal.ocr_rapidocr import rapidocr_image
 from multimodal.pdf_utils import extract_pdf_text, is_pdf, render_pdf_to_images
 from retrieval.chunker import sanitize_text
@@ -85,6 +87,13 @@ OCREngine = Literal["tesseract", "rapidocr", "qwen-vl", "auto"]
 DEFAULT_ENGINE = os.getenv("OCR_ENGINE", "rapidocr").lower()
 OCR_TIMEOUT_S = float(os.getenv("OCR_TIMEOUT_S", "30"))
 OCR_LANG = os.getenv("OCR_LANG", "tur")
+# Görsel-OCR sağlayıcı (v2.3 — bulut serbest): auto = OPENAI_API_KEY varsa OpenAI vision
+# (gpt-4o-mini, yüksek Türkçe doğruluğu), yoksa lokal motor. openai = her zaman bulut dene.
+# local = tam-lokal (gizlilik/offline). YALNIZ görsel/taranmış sayfayı etkiler; dijital PDF
+# (PyMuPDF) ve Word (.docx) zaten kusursuz metin verir → buluta gitmez.
+OCR_PROVIDER = os.getenv("OCR_PROVIDER", "auto").lower()
+# Bulut OCR çağrısı patlarsa (ağ/anahtar/limit) lokal motora graceful düş — dayanıklılık.
+OCR_CLOUD_FALLBACK = os.getenv("OCR_CLOUD_FALLBACK", "1").lower() in {"1", "true", "yes"}
 MIN_TEXT_LEN_QWEN_FALLBACK = 50  # Görsel motoru bundan az çıkardıysa Qwen-VL dene (opt-in)
 # Dijital PDF'te bu kadar gömülü metin varsa "metin katmanı var" sayılır → OCR'a
 # gerek yok (kusursuz + Türkçe-diakritikli). Altındaysa taranmış → render+OCR.
@@ -162,8 +171,11 @@ async def extract_text(
     auto = engine == "auto"
     start = time.perf_counter()
 
+    # Word (.docx)? → temiz metin katmanı (OCR/bulut GEREKMEZ, kusursuz Türkçe).
+    if is_docx(image_bytes):
+        result = await _docx_text(image_bytes, lang)
     # PDF? → önce dijital metin katmanı (kusursuz Türkçe), yoksa render+OCR (tarama).
-    if is_pdf(image_bytes):
+    elif is_pdf(image_bytes):
         result = await _pdf_ocr(image_bytes, lang, chosen, auto=auto)
     else:
         result = await _image_ocr(image_bytes, lang, chosen, auto=auto)
@@ -181,10 +193,80 @@ async def extract_text(
     )
 
 
+async def _docx_text(docx_bytes: bytes, lang: str) -> OCRResult:
+    """Word (.docx) → metin (python-docx; bloklayıcı parse → to_thread + timeout)."""
+    try:
+        raw = await asyncio.wait_for(
+            asyncio.to_thread(extract_docx_text, docx_bytes), timeout=OCR_TIMEOUT_S,
+        )
+    except TimeoutError:
+        return OCRResult(
+            text="", engine="docx-text", lang=lang, n_chars=0,
+            elapsed_ms=int(OCR_TIMEOUT_S * 1000), error="Word işleme zaman aşımı",
+        )
+    except Exception as exc:
+        log.warning("docx_extract_failed", error=str(exc) or type(exc).__name__)
+        return OCRResult(
+            text="", engine="docx-text", lang=lang, n_chars=0, elapsed_ms=0,
+            error="Word belgesi okunamadı (bozuk olabilir)",
+        )
+    text = _normalize_ocr_text(raw)
+    return OCRResult(
+        text=text, engine="docx-text", lang=lang, n_chars=len(text), elapsed_ms=0,
+        error=None if text else "Word belgesinde metin bulunamadı",
+    )
+
+
+def _use_cloud_ocr() -> bool:
+    """Görsel-OCR bulut'a mı gitsin? auto: anahtar varsa evet. openai: her zaman dene
+    (anahtar yoksa ocr_image_openai raise → fallback). local: asla (tam-lokal mod)."""
+    if OCR_PROVIDER == "local":
+        return False
+    if OCR_PROVIDER == "openai":
+        return True
+    return cloud_ocr_enabled()  # auto
+
+
+async def _cloud_ocr_attempt(image_bytes: bytes, lang: str) -> OCRResult | None:
+    """OpenAI vision OCR dene → metin döndüyse OCRResult, hata/boşsa None (lokal'e düşülür)."""
+    start = time.perf_counter()
+    try:
+        raw = await asyncio.wait_for(
+            ocr_image_openai(image_bytes, timeout_s=OCR_TIMEOUT_S),
+            timeout=OCR_TIMEOUT_S + 5,  # backstop; httpx iç timeout (OCR_TIMEOUT_S) önce tetiklenir
+        )
+    except Exception as exc:
+        # ağ/anahtar/limit/timeout → graceful fallback. CancelledError (BaseException) yakalanmaz
+        # → iptal doğru propagate. Hata DETAYI değil yalnız TİPİ loglanır (OpenAI yanıt
+        # gövdesi/secret sızıntısı önlenir — bilgi ifşası).
+        log.warning("ocr_cloud_failed", error=type(exc).__name__)
+        return None
+    text = _normalize_ocr_text(raw)
+    if not text:
+        return None
+    return OCRResult(
+        text=text, engine="openai-vision", lang=lang, n_chars=len(text),
+        elapsed_ms=int((time.perf_counter() - start) * 1000),
+    )
+
+
 async def _image_ocr(
     image_bytes: bytes, lang: str, chosen: str, *, auto: bool,
 ) -> OCRResult:
-    """Tek görüntüyü seçili motorla OCR'la (+ auto modda zayıf→Qwen-VL fallback)."""
+    """Tek görüntüyü OCR'la. Bulut (OpenAI vision) öncelik; yoksa/patlarsa lokal motor
+    (+ auto modda zayıf→Qwen-VL fallback). PDF tarama yolunda her sayfa buradan geçer."""
+    # Bulut OCR (OpenAI vision) — anahtar/seçim varsa öncelik; başarısızsa lokal'e graceful düş.
+    if _use_cloud_ocr():
+        cloud = await _cloud_ocr_attempt(image_bytes, lang)
+        if cloud is not None:
+            return cloud
+        if not OCR_CLOUD_FALLBACK:
+            return OCRResult(
+                text="", engine="openai-vision", lang=lang, n_chars=0,
+                elapsed_ms=0, error="bulut OCR başarısız",
+            )
+        # fallback açık → aşağıdaki lokal motora devam
+
     if chosen == "qwen-vl":
         return await _qwen_vl_ocr(image_bytes, lang)
     if chosen == "tesseract":
@@ -252,6 +334,7 @@ async def _pdf_ocr(
     loop = asyncio.get_running_loop()  # _pdf_ocr async; get_event_loop() 3.12'de deprecated
     deadline = loop.time() + OCR_TIMEOUT_S * len(images)
     page_texts: list[str] = []
+    page_engines: list[str] = []  # gerçek sayfa motoru (bulut fallback'te etiket doğru kalsın)
     confs: list[float] = []
     last_error: str | None = None
     pages_failed = 0
@@ -272,6 +355,7 @@ async def _pdf_ocr(
             continue
         if r.text:
             page_texts.append(r.text)
+            page_engines.append(r.engine)
         if r.confidence is not None:
             confs.append(r.confidence)
         if r.error:
@@ -279,8 +363,12 @@ async def _pdf_ocr(
             last_error = r.error
             log.warning("pdf_page_ocr_failed", page=idx, error=r.error)
     combined = "\n\n".join(page_texts).strip()
-    # "auto" bu noktada çözülmüş; chosen gerçek motor → doğru etiket.
-    img_engine = chosen if chosen in {"tesseract", "qwen-vl", "rapidocr"} else "rapidocr"
+    # Gerçek sayfa motoruna göre etiketle (bulut/fallback karışımında doğru): baskın motor.
+    # Hiç metin yoksa chosen'a düş ("auto" bu noktada çözülmüş).
+    if page_engines:
+        img_engine = max(set(page_engines), key=page_engines.count)
+    else:
+        img_engine = chosen if chosen in {"tesseract", "qwen-vl", "rapidocr"} else "rapidocr"
     if pages_failed:
         log.info("pdf_scan_partial", pages_failed=pages_failed, total=len(images))
     return OCRResult(

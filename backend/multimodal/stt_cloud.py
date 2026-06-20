@@ -13,8 +13,18 @@ ENV:
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 import httpx
+
+
+def _validated_base_url() -> str:
+    """OPENAI_BASE_URL şema/host doğrulaması (SSRF sertleştirme — file://, gopher:// reddet)."""
+    raw = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"OPENAI_BASE_URL güvensiz: {raw!r}")
+    return raw
 
 # Uzantı → MIME — OpenAI multipart `file` alanı doğru içerik-tipini ister.
 _EXT_MIME = {
@@ -51,7 +61,7 @@ async def transcribe_openai(
         raise RuntimeError("OPENAI_API_KEY yok — bulut STT devre dışı")
 
     model = os.getenv("OPENAI_STT_MODEL", "gpt-4o-transcribe").strip()
-    base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    base = _validated_base_url()
     mime = _EXT_MIME.get(ext.lower().lstrip("."), "application/octet-stream")
 
     files = {"file": (f"audio.{ext}", audio_bytes, mime)}

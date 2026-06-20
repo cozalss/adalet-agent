@@ -36,7 +36,7 @@ from api.audit import emit as emit_audit
 from api.dilekce_store import store_pdf
 from api.limiter import ask_rate_for, limiter
 from api.middleware.auth import Principal, authenticate
-from api.middleware.sanitize import sanitize_question
+from api.middleware.sanitize import sanitize_question, strip_injection_delimiters
 from api.pii import fingerprint, mask_pii
 from api.schemas import (
     AskRequest,
@@ -267,9 +267,13 @@ async def _build_initial_with_session(req: AskRequest) -> tuple[dict, str]:
     # dokunmaz, yalnız kimlik-tanımlayıcıları maskeler). Kullanıcı belgesindeki PII modele
     # ve kalıcı depoya HAM ulaşmasın.
     if req.image_attachments:
+        # Belge metni PII-maskelenir VE prompt-injection delimiter'ları temizlenir: OpenAI vision
+        # belgeye gömülü (beyaz-metin/küçük-font) "önceki talimatları unut" gibi enjeksiyonu da
+        # çıkarabilir → state/LLM'e girmeden strip_injection_delimiters ile nötrle (güvenlik).
         initial["image_attachments"] = [
             {"filename": a.filename, "ocr_engine": a.ocr_engine,
-             "text": mask_pii(a.text).masked_text, "n_chars": a.n_chars or len(a.text)}
+             "text": strip_injection_delimiters(mask_pii(a.text).masked_text),
+             "n_chars": a.n_chars or len(a.text)}
             for a in req.image_attachments
         ]
     return initial, conv_id

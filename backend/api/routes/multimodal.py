@@ -26,6 +26,7 @@ from api.limiter import limiter
 from api.middleware.auth import Principal, authenticate
 from api.pii import mask_pii
 from api.schemas import OCRUploadResponse, STTUploadResponse
+from multimodal.docx_utils import is_docx
 from multimodal.ocr import extract_text
 from multimodal.stt import transcribe_audio
 from multimodal.tts import synthesize_speech
@@ -42,7 +43,9 @@ OCR_LOW_CONFIDENCE = float(os.getenv("OCR_LOW_CONFIDENCE", "0.6"))
 
 _ALLOWED_IMAGE_MIMES = {
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/tiff",
-    "application/pdf",  # tek-sayfa PDF tarama
+    "application/pdf",  # PDF (dijital metin veya taranmış)
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # Word .docx
+    "application/msword",  # bazı tarayıcılar .docx'i bununla gönderir (içerik magic-byte ile doğrulanır)
 }
 _ALLOWED_AUDIO_MIMES = {
     "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3",
@@ -114,6 +117,8 @@ def _detect_image_kind(data: bytes) -> str | None:
         return "tiff"
     if data[:5] == b"%PDF-":
         return "pdf"
+    if is_docx(data):  # Word .docx (OOXML zip — içerikten doğrulanır, uzantıya güvenilmez)
+        return "docx"
     return None
 
 
@@ -185,7 +190,7 @@ async def ocr_upload(
     kind = _detect_image_kind(data)
     if kind is None:
         raise HTTPException(
-            415, "Dosya içeriği tanınmadı (geçerli JPEG/PNG/WEBP/TIFF/PDF değil)",
+            415, "Dosya içeriği tanınmadı (geçerli JPEG/PNG/WEBP/TIFF/PDF/Word .docx değil)",
         )
 
     result = await extract_text(data, engine="auto")
