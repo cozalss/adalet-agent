@@ -27,9 +27,9 @@ def _asciiish(text: str) -> str:
 
 
 @pytest.mark.asyncio
-async def test_finalize_strips_unverified_keeps_verified(base_state):
-    """Bazı claim'ler doğrulanmamışsa: tüm cevap reddedilmez — doğrulanmamış
-    cümle ATILIR, doğrulanmış cümle KORUNUR (kapsam-koruyan fail-closed)."""
+async def test_finalize_strips_contradicted_keeps_verified(base_state):
+    """ORTA YOL (2026-06-20): tüm cevap reddedilmez — KAYNAKLA ÇELİŞEN (NLI/Lettuce veto)
+    cümle ATILIR, doğrulanmış cümle KORUNUR. (neutral 'Yetersiz kanıt' artık korunur — ayrı test.)"""
     claims = [
         {
             "text": "Destekli iddia cümlesi yeterince uzun olmalı burada",
@@ -44,7 +44,7 @@ async def test_finalize_strips_unverified_keeps_verified(base_state):
     ]
     verified_claims = [
         {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
-        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "Yetersiz kanıt"},
+        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "NLI veto: kaynakla çelişiyor"},
     ]
     state = {
         **base_state,
@@ -59,10 +59,40 @@ async def test_finalize_strips_unverified_keeps_verified(base_state):
 
     out = await finalize_node(state)
 
-    # Cevap reddedilmedi (kapsam korundu) ama doğrulanmamış cümle atıldı.
+    # Cevap reddedilmedi (kapsam korundu) ama ÇELİŞEN (vetolu) cümle atıldı.
     assert out["confidence"] > 0.0
     assert "Destekli iddia cümlesi" in out["response"]
     assert "Desteksiz uydurma iddia" not in out["response"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_keeps_neutral_ungrounded_claim(base_state):
+    """ORTA YOL (2026-06-20): kaynakla eşleşmeyen ama ÇELİŞMEYEN ('Yetersiz kanıt') cümle KORUNUR.
+    gpt-4o doğru cevap yazıp verify eşleştiremeyince aşırı-kırpma YOK ('ne yazıyorsa o kalsın')."""
+    claims = [
+        {"text": "Destekli iddia cümlesi yeterince uzun olmalı burada", "cite_ids": ["m-TKHK-11"],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+        {"text": "Doğru ama kaynaklanamayan iddia cümlesi de yeterince uzun", "cite_ids": [],
+         "verified": False, "verify_score": 0.0, "verify_reason": ""},
+    ]
+    verified_claims = [
+        {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
+        {**claims[1], "verified": False, "verify_score": 0.4, "verify_reason": "Yetersiz kanıt (best=0.40)"},
+    ]
+    state = {
+        **base_state,
+        "draft_response": (
+            "Destekli iddia cümlesi yeterince uzun olmalı burada. "
+            "Doğru ama kaynaklanamayan iddia cümlesi de yeterince uzun."
+        ),
+        "claims": claims, "verified_claims": verified_claims, "debate_verdict": "pass",
+    }
+
+    out = await finalize_node(state)
+
+    assert "Destekli iddia cümlesi" in out["response"]
+    assert "Doğru ama kaynaklanamayan iddia" in out["response"]  # neutral KORUNDU (kırpılmadı)
+    assert "ayrı ayrı sorarsanız" not in out["response"]          # n_dropped=0 → hedge YOK
 
 
 @pytest.mark.asyncio
@@ -148,8 +178,8 @@ async def test_finalize_unknown_domain_redirects_to_scope_without_disclaimer(bas
 
 
 @pytest.mark.asyncio
-async def test_finalize_drops_mixed_sentence_instead_of_leaking_unverified(base_state):
-    """Aynı cümlede destekli + desteksiz iddia varsa parçalayamayız; cümle atılır."""
+async def test_finalize_drops_mixed_sentence_instead_of_leaking_contradicted(base_state):
+    """Aynı cümlede destekli + ÇELİŞEN (vetolu) iddia varsa parçalayamayız; cümle atılır."""
     claims = [
         {
             "text": "Destekli iddia bu cümlede geçiyor",
@@ -168,7 +198,7 @@ async def test_finalize_drops_mixed_sentence_instead_of_leaking_unverified(base_
     ]
     verified_claims = [
         {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
-        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "Yetersiz kanıt"},
+        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "NLI veto: kaynakla çelişiyor"},
     ]
     state = {
         **base_state,
@@ -188,8 +218,9 @@ async def test_finalize_drops_mixed_sentence_instead_of_leaking_unverified(base_
 
 
 @pytest.mark.asyncio
-async def test_finalize_treats_missing_verified_claim_as_unverified(base_state):
-    """verify sonucu eksik dönerse eksik claim güvenli tarafta doğrulanmamış sayılır."""
+async def test_finalize_keeps_missing_verify_claim(base_state):
+    """ORTA YOL: verify sonucu EKSİK dönen claim ARTIK KORUNUR (yokluk ≠ çelişki). Yalnız
+    açıkça vetolu (NLI/Lettuce) cümle atılır; eşleşmeyen/eksik içerik silinmez ('ne yazıyorsa kalsın')."""
     claims = [
         {
             "text": "Destekli iddia cümlesi burada kalmalı",
@@ -224,7 +255,7 @@ async def test_finalize_treats_missing_verified_claim_as_unverified(base_state):
 
     assert out["confidence"] > 0.0
     assert "Destekli iddia cümlesi" in out["response"]
-    assert "Eksik verify sonucu" not in out["response"]
+    assert "Eksik verify sonucu" in out["response"]  # ORTA YOL: eksik/eşleşmeyen artık KORUNUR (vetolu değil)
 
 
 def test_split_sentences_keeps_madde_abbreviation_together():
@@ -293,7 +324,8 @@ async def test_finalize_promotes_first_verified_sentence_as_bluf(base_state):
          "verified": False, "verify_score": 0.0, "verify_reason": ""},
     ]
     verified_claims = [
-        {**claims[0], "verified": False},  # açıkça doğrulanmadı → düşer
+        # Aşırı-güven iddiası kaynakla ÇELİŞİR (Lettuce veto) → orta-yolda düşer
+        {**claims[0], "verified": False, "verify_score": 0.1, "verify_reason": "LettuceDetect veto 0.10"},
         {**claims[1], "verified": True, "verify_score": 0.9, "verify_reason": "Fuzzy 0.90"},
     ]
     state = {
@@ -491,7 +523,8 @@ def _partial_state(base_state):
     ]
     verified_claims = [
         {**claims[0], "verified": True, "verify_score": 0.9, "verify_reason": "ok"},
-        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "Yetersiz kanıt"},
+        # Çelişen (veto) → orta-yolda düşer; partial-note ancak vetolu düşüşte tetiklenir
+        {**claims[1], "verified": False, "verify_score": 0.1, "verify_reason": "NLI veto: kaynakla çelişiyor"},
     ]
     return {
         **base_state,

@@ -320,29 +320,37 @@ def _should_split_at(text: str, boundary_pos: int) -> bool:
     return token not in _NO_SPLIT_ABBREVIATIONS
 
 
-def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, int]:
-    """Doğrulanmamış claim'lere karşılık gelen cümleleri taslaktan çıkar.
+# Verify "veto" gerekçeleri = claim KAYNAKLA ÇELİŞİYOR (NLI hard veto / LettuceDetect soft veto).
+# "Yetersiz kanıt" / "Format" = neutral (kaynaklanamadı ama çelişmiyor) → orta-yolda KORUNUR.
+_VETO_REASON_MARKERS = ("nli veto", "lettucedetect veto", "lettuce veto")
 
-    claim["text"] (draft cümlesinden çıkarılmıştı) ile draft cümleleri normalize
-    edilip eşleştirilir. Bir cümle doğrulanmamış bir claim'le eşleşiyor AMA aynı
-    zamanda doğrulanmış bir claim'le eşleşmiyorsa atılır. İddia olmayan cümleler
-    (giriş, disclaimer) ve doğrulanmış cümleler korunur.
+
+def _is_hard_veto(reason: str) -> bool:
+    """Claim kaynakla ÇELİŞİYOR mu? (NLI/Lettuce veto). 'Yetersiz kanıt' (neutral) çelişki DEĞİL."""
+    r = (reason or "").lower()
+    return any(m in r for m in _VETO_REASON_MARKERS)
+
+
+def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, int]:
+    """Taslaktan yalnız KAYNAKLA ÇELİŞEN (vetolu) cümleleri çıkar (ORTA YOL, 2026-06-20).
+
+    `claims` parametresi API-uyumu için tutulur (artık kullanılmıyor).
+
+    ÖNCE: doğrulanmamış (verified=False) her cümle atılırdı → gpt-4o doğru cevap yazıp verify
+    eşleştiremeyince ("Yetersiz kanıt") cevap aşırı kırpılıyordu (kullanıcı: "ne yazıyorsa o
+    kalsın"). ARTIK: yalnız NLI/Lettuce VETO'lu (kaynakla çelişen) cümle atılır; neutral
+    "Yetersiz kanıt" cümleleri korunur. Sıfır-halüsinasyon kalkanı AÇIK (çelişki engellenir)
+    ama doğru-ama-kaynaklanamamış içerik silinmez.
 
     Returns:
         (filtrelenmiş taslak, atılan cümle sayısı)
     """
-    verified_txt = {
-        _normalize_sentence(c["text"]) for c in verified if c.get("verified", False)
-    }
-    verified_txt = {v for v in verified_txt if v}
-    all_claims = {_normalize_sentence(c["text"]) for c in claims}
-    all_claims = {c for c in all_claims if c}
-    unverified = list(
-        {_normalize_sentence(c["text"]) for c in verified if not c.get("verified", False)}
-        | (all_claims - verified_txt)
-    )
-    unverified = [u for u in unverified if u]
-    if not unverified:
+    to_drop = [
+        n for c in verified
+        if not c.get("verified", False) and _is_hard_veto(c.get("verify_reason", ""))
+        and (n := _normalize_sentence(c["text"]))
+    ]
+    if not to_drop:
         return draft, 0
 
     pieces: list[str] = []
@@ -354,14 +362,11 @@ def _filter_to_verified(draft: str, claims: list, verified: list) -> tuple[str, 
             pieces.append(draft[cursor:end])
             cursor = end
             continue
-        # Yalnız tek yönlü substring: doğrulanmamış claim cümle İÇİNDE geçiyorsa
-        # cümle atılır (halüsinasyon sızıntısı önlenir). Önceki çift-yönlü kural
-        # ("norm in u" dahil) çok cömertti: yapısal cevapta kısa yan-cümleler
-        # daha uzun unverified claim'in alt-parçası gibi görünüp atılıyordu
-        # (16-soru testinde finalize 12 cümle düşürdü → cevap 1-2 cümleye indi).
-        # "u in norm" yeterlidir; "norm in u" yanlış-pozitif kapsam silmesidir.
-        is_unverified = any(u and u in norm for u in unverified)
-        if is_unverified:
+        # Yalnız tek yönlü substring: vetolu (çelişen) claim cümle İÇİNDE geçiyorsa cümle
+        # atılır (halüsinasyon/çelişki sızıntısı önlenir). "u in norm" yeterli; "norm in u"
+        # yanlış-pozitif kapsam silmesidir (kısa yan-cümle, uzun claim'in alt-parçası sanılır).
+        is_contradicted = any(u and u in norm for u in to_drop)
+        if is_contradicted:
             dropped += 1
             cursor = end
             continue

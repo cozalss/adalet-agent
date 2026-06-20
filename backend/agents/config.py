@@ -137,8 +137,12 @@ def is_partial_answer_note_enabled() -> bool:
     iddiaları kaynaklayamayıp DÜŞÜRDÜYSE (finalize._filter_to_verified n_dropped>0), kullanıcıya
     'bazı noktaları doğrulayamadım, ayrıca sorun' notu eklenir → sessiz-eksiltme yerine ŞEFFAF.
     Grounding/sıfır-halüsinasyon DEĞİŞMEZ (ungrounded zaten gösterilmez); yalnız dürüst çerçeve.
-    Call-time okunur (test toggle). Default VERIFY_STRICT-aware (production açık, dev kapalı)."""
-    return _strict_default_flag("PARTIAL_ANSWER_NOTE")
+    Call-time okunur (test toggle).
+
+    2026-06-20 — DEFAULT KAPALI: kullanıcı "ne yazıyorsa o kalsın, 'Not:...' eklenmesin" dedi.
+    Ayrıca finalize artık yalnız ÇELİŞEN cümleyi düşürür (orta yol) → n_dropped çoğunlukla 0.
+    Açıkça PARTIAL_ANSWER_NOTE=1 yapılmadıkça gösterilmez."""
+    return os.getenv("PARTIAL_ANSWER_NOTE", "0").lower() in {"1", "true", "yes"}
 
 
 def is_emsal_live_fallback_enabled() -> bool:
