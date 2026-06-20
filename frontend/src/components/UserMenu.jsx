@@ -47,11 +47,21 @@ const VIEW_TITLES = {
 };
 const WIDE_VIEWS = new Set(["how", "scope"]);
 
+// Güven şeridi — ADALET'in kimlik farkları (uydurma değil; her rozet ilgili paneli açar).
+// NOT: "Sıfır Uydurma" bilerek "how" panelini açar — sıfır-uydurma taahhüdü o panelin
+// içindeki çekirdek-fark callout'udur (ayrı panel yok). stable `key` çeviri/yineleme güvenli.
+const TRUST_BADGES = [
+  { key: "agents", id: "how", icon: "users", label: "7 Ajan", title: "ADALET nasıl çalışır? — 7 ajanlı doğrulama ekibi" },
+  { key: "nofab", id: "how", icon: "shield", label: "Sıfır Uydurma", title: "Her iddia kaynağıyla doğrulanır" },
+  { key: "oss", id: "openSource", icon: "code", label: "Açık Kaynak", title: "MIT lisansı — kodu inceleyebilirsiniz" },
+];
+
 export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, showToast, user, onLogout }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(null);
   const rootRef = useRef(null);
   const btnRef = useRef(null);
+  const menuRef = useRef(null);
 
   // Misafir modu yok → user her zaman var (App yalnız authed iken render edilir).
   const dispName = (user?.name || user?.email || prefs.displayName || "").trim();
@@ -68,6 +78,28 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open, view]);
 
+  // Menü açılınca odak ilk öğeye girsin (klavye/SR sözleşmesi — APG menu button).
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
+      menuRef.current?.querySelector('[role="menuitem"]')?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+
+  // Roving klavye gezinme — ↑/↓ döngüsel, Home/End; Tab menüden doğal çıkar.
+  const onMenuKey = useCallback((e) => {
+    const root = menuRef.current; if (!root) return;
+    const items = Array.from(root.querySelectorAll('[role="menuitem"]:not([disabled])'));
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    const focusAt = (n) => { e.preventDefault(); items[(n + items.length) % items.length].focus(); };
+    if (e.key === "ArrowDown") focusAt(i + 1);
+    else if (e.key === "ArrowUp") focusAt(i - 1);
+    else if (e.key === "Home") focusAt(0);
+    else if (e.key === "End") focusAt(items.length - 1);
+  }, []);
+
   const openView = useCallback((id) => { setView(id); setOpen(false); }, []);
   const closeView = useCallback(() => setView(null), []);
 
@@ -77,35 +109,61 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
   return (
     <div className="sb-user-wrap" ref={rootRef}>
       {open && (
-        <div className="acc-menu" role="menu" aria-label="Hesap menüsü">
-          <button className="acc-id" role="menuitem" onClick={() => openView("profile")}>
+        <div className="acc-menu" role="menu" aria-label="Hesap menüsü" ref={menuRef} onKeyDown={onMenuKey}>
+          <button
+            className="acc-id" role="menuitem" onClick={() => openView("profile")}
+            aria-label={`${shown} — profili düzenle`}
+          >
             <Avatar user={user} prefs={prefs} size={34} />
-            <span className="acc-id-tx">
+            <span className="acc-id-tx" aria-hidden="true">
               <b>{shown}</b>
               <span>{subtitle}</span>
             </span>
-            <span className="acc-id-edit"><Icon.pencil style={{ width: 14, height: 14 }} /></span>
+            <span className="acc-id-edit" aria-hidden="true"><Icon.pencil style={{ width: 14, height: 14 }} /></span>
           </button>
-          {GROUPS.map((g) => (
-            <div className="acc-group" key={g.label}>
-              <div className="acc-group-label">{g.label}</div>
-              {g.items.map((it) => {
-                const I = Icon[it.icon] || Icon.info;
-                return (
-                  <button className="acc-item" role="menuitem" key={it.id} onClick={() => openView(it.id)}>
-                    <span className="acc-item-ic"><I /></span>{it.label}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-          <div className="acc-group">
+          <div className="acc-trust" role="group" aria-label="ADALET güven kimliği">
+            {TRUST_BADGES.map((b, i) => {
+              const I = Icon[b.icon] || Icon.shield;
+              return (
+                <button
+                  className="acc-trust-badge" role="menuitem" key={b.key}
+                  title={b.title} aria-label={b.title}
+                  onClick={() => openView(b.id)}
+                  style={i ? { animationDelay: `${0.04 * i}s` } : undefined}
+                >
+                  <span className="acc-trust-ic" aria-hidden="true"><I /></span>{b.label}
+                </button>
+              );
+            })}
+          </div>
+          {GROUPS.map((g) => {
+            const labelId = `acc-grp-${g.label.replace(/\s+/g, "-")}`;
+            return (
+              <div className="acc-group" key={g.label} role="group" aria-labelledby={labelId}>
+                <div className="acc-group-label" id={labelId}>{g.label}</div>
+                {g.items.map((it) => {
+                  const I = Icon[it.icon] || Icon.info;
+                  return (
+                    <button className="acc-item" role="menuitem" key={it.id} onClick={() => openView(it.id)}>
+                      <span className="acc-item-ic" aria-hidden="true"><I /></span>{it.label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+          <div className="acc-group" role="group" aria-label="Oturum yönetimi">
             <button className="acc-item" role="menuitem" onClick={() => { setOpen(false); onClearSession?.(); }}>
-              <span className="acc-item-ic"><Icon.refresh /></span>Bu oturumu temizle
+              <span className="acc-item-ic" aria-hidden="true"><Icon.refresh /></span>Bu oturumu temizle
             </button>
             <button className="acc-item danger-text" role="menuitem" onClick={() => { setOpen(false); onLogout?.(); }}>
-              <span className="acc-item-ic"><Icon.logout /></span>Oturumu kapat
+              <span className="acc-item-ic" aria-hidden="true"><Icon.logout /></span>Oturumu kapat
             </button>
+          </div>
+          {/* footer — her yerde görünür hukuki uyarı (Avukatlık Kanunu yükümlülüğü) */}
+          <div className="acc-foot" role="note">
+            <Icon.scale aria-hidden="true" />
+            <span>Yanıtlar bilgilendirme amaçlıdır, hukuki tavsiye değildir.</span>
           </div>
         </div>
       )}
