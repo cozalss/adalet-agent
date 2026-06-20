@@ -32,7 +32,13 @@ from tenacity import (
     wait_exponential,
 )
 
-from retrieval.mcp_base import PROTOCOL_VERSION, SESSION_HEADER, parse_mcp_response
+from retrieval.mcp_base import (
+    PROTOCOL_VERSION,
+    SESSION_HEADER,
+    enforce_response_size,
+    parse_mcp_response,
+    validate_mcp_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +174,7 @@ class MevzuatClient:
         base_url: str = MEVZUAT_MCP_URL,
         timeout_ms: int = MEVZUAT_MCP_TIMEOUT_MS,
     ) -> None:
-        self.base_url = base_url
+        self.base_url = validate_mcp_base_url(base_url)
         self._timeout = timeout_ms / 1000.0
         self._client: httpx.AsyncClient | None = None
         self._session_id: str | None = None
@@ -183,7 +189,8 @@ class MevzuatClient:
                 "Accept": "application/json, text/event-stream",
                 "Content-Type": "application/json",
             },
-            follow_redirects=True,
+            # SSRF sertleştirme (CWE-918) — yargi_client ile aynı gerekçe; MCP redirect kullanmaz.
+            follow_redirects=False,
         )
         await self._initialize()
         return self
@@ -246,6 +253,7 @@ class MevzuatClient:
             headers={SESSION_HEADER: self._session_id},
         )
         resp.raise_for_status()
+        enforce_response_size(resp, resp.text)
         data = parse_mcp_response(resp.text)
         if "error" in data:
             raise RuntimeError(f"mevzuat-mcp error: {data['error']}")

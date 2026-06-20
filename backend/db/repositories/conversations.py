@@ -22,6 +22,10 @@ import structlog
 
 log = structlog.get_logger()
 
+# Owner-scoped liste sorgularında üst sınır — bir kullanıcı binlerce kayıt biriktirirse
+# tüm satırların belleğe çekilmesini/dev JSON yanıtını engelle (review CRITICAL: LIMIT yok).
+_MAX_LIST_ROWS = 500
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -172,7 +176,7 @@ class PostgresConversationRepo:
         stmt = select(Conversation).where(col(Conversation.owner_sub_hash) == owner)
         if q:
             stmt = stmt.where(col(Conversation.title).ilike(f"%{q}%"))
-        stmt = stmt.order_by(col(Conversation.updated_at).desc())
+        stmt = stmt.order_by(col(Conversation.updated_at).desc()).limit(_MAX_LIST_ROWS)
         async with session_scope() as session:
             rows = (await session.execute(stmt)).scalars().all()
         return [
@@ -259,17 +263,20 @@ class PostgresConversationRepo:
         from db.models import Conversation, Message
 
         async with session_scope() as session:
-            ids = (await session.execute(
-                select(col(Conversation.id)).where(col(Conversation.owner_sub_hash) == owner)
-            )).scalars().all()
-            if ids:
-                await session.execute(
-                    sa_delete(Message).where(col(Message.conversation_id).in_(ids))
-                )
-                await session.execute(
-                    sa_delete(Conversation).where(col(Conversation.owner_sub_hash) == owner)
-                )
-        return len(ids)
+            # TOCTOU-güvenli: Message'ı owner ALT-SORGUSUYLA sil (eski id snapshot'ı DEĞİL).
+            # Eski kod SELECT-ids → DELETE Message IN(ids) → DELETE Conversation WHERE owner
+            # yaparken, araya eklenen yeni conversation broad-delete ile silinip mesajları
+            # orphan kalabiliyordu. Alt-sorgu ikisini de owner predikatına bağlar (tek tx).
+            owner_convs = select(col(Conversation.id)).where(
+                col(Conversation.owner_sub_hash) == owner
+            )
+            await session.execute(
+                sa_delete(Message).where(col(Message.conversation_id).in_(owner_convs))
+            )
+            result = await session.execute(
+                sa_delete(Conversation).where(col(Conversation.owner_sub_hash) == owner)
+            )
+        return result.rowcount or 0
 
     async def delete(self, owner: str, conv_id: str) -> bool:
         from sqlalchemy import delete as sa_delete
@@ -298,7 +305,7 @@ class PostgresConversationRepo:
         async with session_scope() as session:
             rows = (await session.execute(
                 select(UploadedFile).where(col(UploadedFile.owner_sub_hash) == owner)
-                .order_by(col(UploadedFile.uploaded_at).desc())
+                .order_by(col(UploadedFile.uploaded_at).desc()).limit(_MAX_LIST_ROWS)
             )).scalars().all()
         return [
             {

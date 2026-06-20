@@ -104,7 +104,9 @@ async def fetch_full_decision(
 
     error kodları: None (başarı) | 'not_found' | 'rate_limited' | 'timeout' | hata-tipi.
     """
-    key = f"{source_url or ''}|{source_id or ''}"
+    # Cache key boyut sınırı (CWE-524): source_url API'den gelebilir; devasa string'in
+    # dict key olarak bellekte tutulmasını engelle (gerçek URL'ler << 512 bayt).
+    key = f"{(source_url or '')[:512]}|{(source_id or '')[:128]}"
     if key in _cache:
         return {"text": _cache[key], "cached": True, "error": None}
 

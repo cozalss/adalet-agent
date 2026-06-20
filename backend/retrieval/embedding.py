@@ -203,7 +203,10 @@ class Embedder:
         # list-of-lists input → compute_score HER ZAMAN dict[str, list] döner (skaler yalnız tek
         # raw-tuple/str input'ta; biz hep [[q,p],...] geçiyoruz → skaler dalı yok, review HIGH).
         scores = out["colbert+sparse+dense"]  # ağırlıklı birleşik skor
-        assert isinstance(scores, list), f"compute_score beklenmeyen tip: {type(scores)}"
+        # assert KULLANMA — `python -O` (PYTHONOPTIMIZE) ile strip edilir, tip-guard prod'da
+        # sessizce kaybolur ve yanlış tip pipeline'a girer (proje konvansiyonu, bkz. yargi_client).
+        if not isinstance(scores, list):
+            raise TypeError(f"compute_score beklenmeyen tip: {type(scores)}")
         return [float(s) for s in scores]
 
     # ----------------------------------------------------------------------

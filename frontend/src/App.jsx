@@ -11,7 +11,7 @@ import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
 import { Modal } from "./components/Modal.jsx";
 import { SearchPanel, LibraryPanel, FilesPanel } from "./components/historyPanels.jsx";
-import { postFeedback, synthesizeTTS } from "./lib/api.js";
+import { postFeedback, synthesizeTTS, ocrUpload, downloadDilekce } from "./lib/api.js";
 import { useChat } from "./hooks/useChat.js";
 import { useVoiceRecorder } from "./hooks/useVoiceRecorder.js";
 import { usePrefs } from "./hooks/usePrefs.js";
@@ -36,7 +36,6 @@ function formatPii(counts) {
     .map(([k, n]) => `${n} ${PII_LABELS[k] || k}`)
     .join(", ");
 }
-import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import { addFileSb } from "./lib/supabaseData.js";
 import { Toaster, toast as sonnerToast } from "sonner";
 import { ShimmerButton } from "./components/ui/shimmer-button.jsx";
@@ -386,26 +385,36 @@ export default function App({ auth }) {
 
   /* ---------- citation → source beam ---------- */
   const [beam, setBeam] = useState(null);
+  // Animasyon timer'larını izle: hızlı ardışık tıklamada önceki timer'lar yeni animasyonu
+  // ortasından sıfırlamasın; unmount'ta da kalmış timer silinmiş state'i güncellemesin.
+  const beamTimersRef = useRef([]);
+  const clearBeamTimers = useCallback(() => {
+    beamTimersRef.current.forEach(clearTimeout);
+    beamTimersRef.current = [];
+  }, []);
   const jumpToSource = useCallback((n, citeEl) => {
+    clearBeamTimers();
+    const t = beamTimersRef.current;
     const startRect = citeEl ? citeEl.getBoundingClientRect() : null;
     setSheetOpen(true);
     setFlash(n);
-    setTimeout(() => {
+    t.push(setTimeout(() => {
       const el = srcRefs.current[n];
       const sc = panelRef.current;
       if (el && sc) sc.scrollTo({ top: el.offsetTop - 16, behavior: "smooth" });
-      setTimeout(() => {
+      t.push(setTimeout(() => {
         const card = document.querySelector('[data-src-id="' + n + '"]');
         if (startRect && card) {
           const er = card.getBoundingClientRect();
           setBeam({ x1: startRect.right, y1: startRect.top + startRect.height / 2,
             x2: er.left + 10, y2: er.top + 24, key: Date.now() });
         }
-      }, 240);
-    }, 340);
-    setTimeout(() => setFlash(null), 1900);
-    setTimeout(() => setBeam(null), 1700);
-  }, []);
+      }, 240));
+    }, 340));
+    t.push(setTimeout(() => setFlash(null), 1900));
+    t.push(setTimeout(() => setBeam(null), 1700));
+  }, [clearBeamTimers]);
+  useEffect(() => clearBeamTimers, [clearBeamTimers]); // unmount temizliği
 
   /* ---------- source panel content ---------- */
   const srcTurn = useMemo(() => {

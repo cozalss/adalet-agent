@@ -96,8 +96,9 @@ revoke execute on function public.handle_new_user() from authenticated;
 do $$
 begin
   if exists (select 1 from public.conversations limit 1)
-     or exists (select 1 from public.messages limit 1) then
-    raise exception 'GUVENLIK DURDURMA: conversations/messages BOS DEGIL — yikici kurulum scripti veri varken calistirilamaz. Artimlik degisiklik icin versiyonlu migration kullan (docs/DB_OPERATIONS.md).';
+     or exists (select 1 from public.messages limit 1)
+     or exists (select 1 from public.uploaded_files limit 1) then
+    raise exception 'GUVENLIK DURDURMA: conversations/messages/uploaded_files BOS DEGIL — yikici kurulum scripti veri varken calistirilamaz. Artimlik degisiklik icin versiyonlu migration kullan (docs/DB_OPERATIONS.md).';
   end if;
 exception
   when undefined_table then null; -- ilk kurulum: tablolar henuz yok → sorun degil, devam et

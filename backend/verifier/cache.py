@@ -65,6 +65,9 @@ class VerificationCache:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        # Ayrı kilit — _get_redis init'i _mem_get/_mem_set'in _lock'u ile reentrancy
+        # yapmasın (threading.Lock non-reentrant → deadlock riski).
+        self._redis_lock = threading.Lock()
         self._mem: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._redis: Any = None  # redis.Redis | None — lazy import, runtime'da Any
         self._redis_tried = False
@@ -73,23 +76,28 @@ class VerificationCache:
 
     # ---- Redis lazy bağlanma (başarısızsa bellek fallback) ----
     def _get_redis(self) -> Any:
+        # NLI verify thread-pool'da koşar → çok-thread'li erişim. Kilitsiz check-then-set
+        # iki thread'in birden bağlanıp birini sızdırmasına yol açardı (review HIGH).
         if self._redis is not None or self._redis_tried:
             return self._redis
-        self._redis_tried = True
-        url = os.getenv("REDIS_URL", "")
-        if not url:
-            log.info("nli_cache_memory_only", reason="no_redis_url")
-            return None
-        try:
-            import redis  # sync client — thread içinde blocking OK
-            client = redis.Redis.from_url(url, decode_responses=True, socket_timeout=2)
-            client.ping()
-            self._redis = client
-            log.info("nli_cache_redis_connected")
-        except Exception as exc:
-            log.warning("nli_cache_redis_failed", error=str(exc))
-            self._redis = None
-        return self._redis
+        with self._redis_lock:
+            if self._redis is not None or self._redis_tried:  # double-check
+                return self._redis
+            self._redis_tried = True
+            url = os.getenv("REDIS_URL", "")
+            if not url:
+                log.info("nli_cache_memory_only", reason="no_redis_url")
+                return None
+            try:
+                import redis  # sync client — thread içinde blocking OK
+                client = redis.Redis.from_url(url, decode_responses=True, socket_timeout=2)
+                client.ping()
+                self._redis = client
+                log.info("nli_cache_redis_connected")
+            except Exception as exc:
+                log.warning("nli_cache_redis_failed", error=str(exc))
+                self._redis = None
+            return self._redis
 
     # ---- bellek LRU yardımcıları ----
     def _mem_get(self, key: str) -> dict[str, Any] | None:

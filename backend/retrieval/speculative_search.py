@@ -65,7 +65,9 @@ async def search_speculative(  # noqa: C901
     # öne çıkar). Eski _dedup 'ilk-gören-kazanır' füzyonu kaybediyordu (denetim 2026-06-04).
     collected_lists: list[list] = []
 
-    loop = asyncio.get_event_loop()
+    # get_running_loop: async bağlamda doğru olan; get_event_loop() Python 3.12'de loop
+    # yoksa DeprecationWarning/RuntimeError üretir (search_speculative her zaman async çağrılır).
+    loop = asyncio.get_running_loop()
 
     # Wall-clock bütçe: deadline request başından ölçülür, hybrid bitince sıfırlanmaz.
     # Garanti: toplam kullanıcı beklemesi ≤ max(hybrid_ms, deadline_s).

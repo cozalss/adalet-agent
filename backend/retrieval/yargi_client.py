@@ -32,7 +32,13 @@ from tenacity import (
     wait_exponential,
 )
 
-from retrieval.mcp_base import PROTOCOL_VERSION, SESSION_HEADER, parse_mcp_response
+from retrieval.mcp_base import (
+    PROTOCOL_VERSION,
+    SESSION_HEADER,
+    enforce_response_size,
+    parse_mcp_response,
+    validate_mcp_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +118,7 @@ class YargiClient:
         timeout_ms: int = YARGI_MCP_TIMEOUT_MS,
         token: str | None = YARGI_MCP_TOKEN,
     ) -> None:
-        self.base_url = base_url
+        self.base_url = validate_mcp_base_url(base_url)
         self._timeout = timeout_ms / 1000.0
         self._token = token
         self._client: httpx.AsyncClient | None = None
@@ -132,7 +138,10 @@ class YargiClient:
         self._client = httpx.AsyncClient(
             timeout=self._timeout,
             headers=headers,
-            follow_redirects=True,
+            # SSRF sertleştirme (CWE-918): ele-geçirilmiş/hatalı MCP sunucusu 3xx ile
+            # iç ağ adreslerine (169.254.169.254 metadata, localhost servisleri) yönlendirip
+            # allowlist'i bypass edemesin. MCP Streamable HTTP redirect KULLANMAZ.
+            follow_redirects=False,
         )
         await self._initialize_session()
         return self
@@ -167,6 +176,7 @@ class YargiClient:
         if not self._session_id:
             raise RuntimeError("yargi-mcp initialize yanıtında session ID yok")
 
+        enforce_response_size(resp, resp.text)
         envelope = parse_mcp_response(resp.text)
         if "error" in envelope:
             raise RuntimeError(f"initialize hatası: {envelope['error']}")
@@ -213,6 +223,7 @@ class YargiClient:
             headers={SESSION_HEADER: self._session_id},
         )
         resp.raise_for_status()
+        enforce_response_size(resp, resp.text)
         envelope = parse_mcp_response(resp.text)
 
         if "error" in envelope:

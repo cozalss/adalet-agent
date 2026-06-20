@@ -644,7 +644,9 @@ def _format_citations(state: AgentState, cited_text: str | None = None) -> str:
         kind = "Mevzuat" if r.get("doc_type") == "law" else "Emsal"
         url = str(r.get("url") or "").strip()
         suffix = f" ({url})" if url else ""
-        refs.append(f"- [{kind}] {r['title']}{suffix}")
+        # Defensive .get() — kısmi/degrade ref'te (eksik 'title') finalize_node KeyError ile
+        # tümden çökmesin; satırdaki diğer erişimler de .get() kullanıyor (tutarlılık).
+        refs.append(f"- [{kind}] {r.get('title') or '(başlıksız)'}{suffix}")
         if len(refs) >= 8:
             break
     return "\n".join(refs) if refs else "(kaynak bulunamadı)"
@@ -668,7 +670,8 @@ def _compute_confidence(state: AgentState, verified: list) -> float:
     claim_ratio = (n_ver / n_claims) if n_claims else 1.0
 
     refs = (state.get("mevzuat_refs") or []) + (state.get("emsal_refs") or [])
-    retrieval_score = min(1.0, sum(r["score"] for r in refs[:5]) / 5.0) if refs else 0.0
+    # .get("score", 0.0) — eksik skorlu ref güven hesabını KeyError ile çökertmesin.
+    retrieval_score = min(1.0, sum(r.get("score", 0.0) for r in refs[:5]) / 5.0) if refs else 0.0
 
     return round(0.4 * dom_conf + 0.4 * claim_ratio + 0.2 * retrieval_score, 3)
 

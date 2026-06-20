@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import functools
 import os
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal, TypeVar
 
@@ -49,6 +50,9 @@ _F = TypeVar("_F", bound=Callable[..., Awaitable[Any]])
 # Module-level Langfuse client singleton (init at first use, lifespan friendly)
 _client: Any = None
 _observe_fn: Callable[..., Any] | None = None
+# Eşzamanlı ilk istekler iki ayrı Langfuse client (çift arka-plan thread/bağlantı)
+# kurmasın — double-checked locking (review HIGH).
+_langfuse_lock = threading.Lock()
 
 
 def _init_langfuse() -> tuple[Any, Callable[..., Any] | None]:
@@ -77,7 +81,9 @@ def get_langfuse_client() -> Any:
     """Langfuse v4 client singleton — None ENV yoksa."""
     global _client, _observe_fn
     if _client is None and LANGFUSE_ENABLED:
-        _client, _observe_fn = _init_langfuse()
+        with _langfuse_lock:
+            if _client is None:  # double-check — lock beklerken başka thread kurmuş olabilir
+                _client, _observe_fn = _init_langfuse()
     return _client
 
 

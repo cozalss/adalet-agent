@@ -249,7 +249,7 @@ async def _pdf_ocr(
     # Kümülatif deadline: N sayfa × per-sayfa timeout, isteğin saatlerce
     # sürüp thread-pool'u doldurmasını önler (rate-limit istek SAYISINI sınırlar,
     # SÜRESİNİ değil → ek savunma).
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()  # _pdf_ocr async; get_event_loop() 3.12'de deprecated
     deadline = loop.time() + OCR_TIMEOUT_S * len(images)
     page_texts: list[str] = []
     confs: list[float] = []

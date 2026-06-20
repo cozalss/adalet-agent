@@ -82,7 +82,11 @@ export async function askStream(payload, handlers, signal) {
           // Yarım frame normaldir; ama 'final'/'error' parse edilemezse kullanıcı
           // sonsuz spinner'da kalır — geliştirme için görünür kıl.
           if (event === "final" || event === "error") {
-            console.warn("[ADALET] SSE frame parse edilemedi:", event, err);
+            // Yalnız DEV'de konsola yaz (prod'da console yok kuralı); kullanıcıya zaten
+            // onError mesajı gider. err = parse hatası (frame içeriği değil → PII yok).
+            if (import.meta.env.DEV) {
+              console.warn("[ADALET] SSE frame parse edilemedi:", event, err);
+            }
             handlers.onError?.({ detail: "Yanıt çözümlenemedi, lütfen tekrar deneyin." });
           }
         }

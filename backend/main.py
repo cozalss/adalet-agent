@@ -219,6 +219,15 @@ def _log_auth_visibility() -> None:
                 "GÜVENLİK: ENV=production AMA FORCE_RETRY_ONCE=1 — ölçüm hook'u her isteği "
                 "gereksiz retry'a zorlar. Production'da kapalı olmalı."
             )
+        # /metrics* token'sız ise timing-bilgisi (P50/P95/P99) anonim erişime açıktır.
+        # Token'sız kullanım ağ-izolasyonlu deploy'da MEŞRU (private Prometheus scrape) →
+        # crash YOK; ama prod'da sessiz-açık kalmasın diye GÖRÜNÜR uyar (review HIGH).
+        if not os.getenv("METRICS_TOKEN", "").strip():
+            log.critical(
+                "metrics_unprotected_in_prod",
+                hint="ENV=production AMA METRICS_TOKEN boş — /metrics* token'sız erişilebilir. "
+                "Ağ-izolasyonu yoksa METRICS_TOKEN ayarla (timing side-channel).",
+            )
 
     if not _auth.AUTH_ENABLED:
         if is_prod:
@@ -359,6 +368,10 @@ async def lifespan(app: FastAPI):
         log.info("qdrant_shared_client_closed")
     except Exception as exc:
         log.warning("qdrant_close_failed_on_shutdown", error=str(exc))
+    # LLM singleton (llamacpp_server modunda httpx) temiz kapat — "unclosed client" uyarısı önler.
+    with contextlib.suppress(Exception):
+        from agents.llm import aclose_llm
+        await aclose_llm()
     # DB engine dispose (best-effort)
     with contextlib.suppress(Exception):
         from db import aclose_engine

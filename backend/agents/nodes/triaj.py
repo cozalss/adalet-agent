@@ -144,7 +144,10 @@ _TUTAR_RE = re.compile(
 _ISCI_SAYISI_RE = re.compile(r"\b\d+\s*(?:kişi|işçi|çalışan|personel)\b", re.IGNORECASE)
 
 
+@lru_cache(maxsize=1)
 def _load_prompt() -> str:
+    # lru_cache: prompt her /ask isteğinde (triaj_node) diskten okunuyordu → event loop'u
+    # bloke eden senkron I/O. Bir kez okunup cache'lenir (draft.py modül-sabiti deseniyle aynı amaç).
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 

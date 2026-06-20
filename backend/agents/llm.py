@@ -17,6 +17,7 @@ Kullanım:
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
@@ -30,6 +31,10 @@ import structlog
 log = structlog.get_logger()
 
 Role = Literal["system", "user", "assistant"]
+
+# llama.cpp KV-cache quantization tipleri (modül sabiti — N806; _load() içinde tekrar
+# tanımlanıyordu). f16=1 (default/kayıpsız), q8_0=8 (~yarı VRAM), q4_0=2.
+_KV_TYPES = {"f16": 1, "q8_0": 8, "q4_0": 2}
 
 
 @dataclass(slots=True)
@@ -217,7 +222,12 @@ class LlamaCppClient:
         # üzerinde paralel create_chat_completion → KV-cache yarışı → llama_decode
         # -1 (kira e2e'de görüldü: multi-query timeout sonrası eligibility çöktü).
         # Single-worker executor yeni işi kuyruğa alır, asla yarışmaz.
-        self._decode_executor: Any = None
+        # __init__'te yarat (lazy DEĞİL): iki eşzamanlı ilk-çağrı `is None` görüp İKİ
+        # ayrı executor kurarsa serileştirme garantisi kırılırdı (race). ThreadPoolExecutor
+        # thread'i ilk submit'e kadar spawn etmez → eager yaratma bedava.
+        self._decode_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="llama-decode",
+        )
 
     def _load(self) -> Any:
         # Windows: llama.dll'in CUDA bağımlılıkları (cudart64_12, cublas64_12)
@@ -255,7 +265,6 @@ class LlamaCppClient:
         # ~yarıya indirir → VRAM açar (4070 12GB'da Qwen+yardımcılarla sıkışıkken kritik) ve
         # decode'u biraz hızlandırır. flash_attn ŞART (yoksa her adımda dequantize → yavaş).
         # Default f16 (mevcut davranış — sıfır değişiklik); LLM_KV_TYPE=q8_0 ile aç. Bozarsa f16.
-        _KV_TYPES = {"f16": 1, "q8_0": 8, "q4_0": 2}
         _kv = _os2.getenv("LLM_KV_TYPE", "f16").lower()
         kv_type = _KV_TYPES.get(_kv, 1)
         kv_quant = kv_type != 1 and flash_attn
@@ -336,15 +345,10 @@ class LlamaCppClient:
         elif json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-        # Tek-worker decode executor — asyncio.to_thread global pool'u kullansa
-        # eşzamanlı chat() çağrıları aynı self._model'i yarıştırırdı. Ayrı 1-worker
-        # executor: wait_for cancel olsa da thread çalışmaya devam eder, yeni iş
-        # kuyrukta bekler, decode'lar SIRAYLA koşar. Yarış yok → llama_decode -1 yok.
-        if self._decode_executor is None:
-            import concurrent.futures
-            self._decode_executor = concurrent.futures.ThreadPoolExecutor(
-                max_workers=1, thread_name_prefix="llama-decode",
-            )
+        # Tek-worker decode executor (__init__'te kuruldu) — asyncio.to_thread global
+        # pool'u kullansa eşzamanlı chat() çağrıları aynı self._model'i yarıştırırdı.
+        # Ayrı 1-worker executor: wait_for cancel olsa da thread çalışmaya devam eder,
+        # yeni iş kuyrukta bekler, decode'lar SIRAYLA koşar. Yarış yok → llama_decode -1 yok.
         cf_future = self._decode_executor.submit(
             self._model.create_chat_completion, **kwargs,
         )
@@ -410,12 +414,7 @@ class LlamaCppClient:
             think_filter.flush()
             return "".join(parts)
 
-        # chat() ile aynı tek-worker decode executor (KV-cache yarışını önler).
-        if self._decode_executor is None:
-            import concurrent.futures
-            self._decode_executor = concurrent.futures.ThreadPoolExecutor(
-                max_workers=1, thread_name_prefix="llama-decode",
-            )
+        # chat() ile aynı tek-worker decode executor (__init__'te kuruldu; KV-cache yarışını önler).
         cf_future = self._decode_executor.submit(_run_stream)
         content = await asyncio.wrap_future(cf_future)
         return LLMResponse(content=_strip_think(content), raw={}, finish_reason="stop")
@@ -592,6 +591,17 @@ def reset_llm() -> None:
     """Test fixture — singleton'u sıfırla."""
     global _singleton
     _singleton = None
+
+
+async def aclose_llm() -> None:
+    """LLM singleton'unu temiz kapat (varsa). Lifespan shutdown'da çağrılır —
+    llamacpp_server modundaki httpx bağlantısını kapatır (Qdrant/DB teardown deseniyle
+    tutarlı). Singleton yoksa veya aclose'u yoksa (MockLLM) no-op."""
+    if _singleton is None:
+        return
+    aclose = getattr(_singleton, "aclose", None)
+    if aclose is not None:
+        await aclose()
 
 
 # MockLLM için kaba domain keyword routing — sadece smoke test akışı için

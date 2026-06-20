@@ -1,7 +1,7 @@
 /* Sesli giriş kaydı (#7): mikrofondan kaydet → backend Whisper STT → transkript.
    Tarayıcı API'leri (getUserMedia + MediaRecorder) ince tutuldu; durum makinesi
    (idle→recording→transcribing) test edilebilir. Backend hazır (/multimodal/stt). */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { sttUpload } from "../lib/api.js";
 
 export function useVoiceRecorder({ onTranscript } = {}) {
@@ -10,6 +10,19 @@ export function useVoiceRecorder({ onTranscript } = {}) {
   const recRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
+
+  // Unmount temizliği: kayıt sürerken bileşen kalkarsa (rota değişimi, modal kapanışı)
+  // mikrofon track'leri kapanmaz → sekme başlığında mikrofon ikonu kalır + kaynak sızar.
+  useEffect(() => {
+    return () => {
+      try {
+        if (recRef.current && recRef.current.state === "recording") recRef.current.stop();
+      } catch {
+        /* MediaRecorder zaten durmuş olabilir — yut */
+      }
+      streamRef.current?.getTracks?.().forEach((t) => t.stop());
+    };
+  }, []);
 
   const supported =
     typeof navigator !== "undefined" &&
