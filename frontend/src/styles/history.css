@@ -10,6 +10,14 @@
   transition: background .13s; position: relative;
 }
 .sb-conv:hover { background: var(--sidebar-hover); }
+/* hover'da başlık hafif kayar (tactile) + aktif çizgi yumuşak büyür */
+.sb-conv-title { transition: transform .2s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)); }
+.sb-conv:hover .sb-conv-title { transform: translateX(2px); }
+.sb-conv.active::before { transition: transform .25s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)); transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-conv-title { transition: none; }
+  .sb-conv:hover .sb-conv-title { transform: none; }
+}
 .sb-conv.active { background: var(--sidebar-active); }
 .sb-conv.active::before {
   content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;

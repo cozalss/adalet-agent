@@ -117,8 +117,14 @@ export async function ocrUpload(file) {
   const res = await fetch("/multimodal/ocr", {
     method: "POST", headers: authHeaders(), body: form,
   });
-  if (!res.ok) throw new Error(`OCR başarısız (HTTP ${res.status})`);
-  return res.json(); // {text, engine, n_chars, ...}
+  if (!res.ok) {
+    // Backend `detail` mesajını yüzeye çıkar (415 "Desteklenmeyen tip",
+    // 413 boyut, 400 boş dosya) — kullanıcı genel hata yerine nedeni görsün.
+    let detail = null;
+    try { detail = (await res.json())?.detail; } catch { /* gövdesiz hata yanıtı */ }
+    throw new Error(detail || `OCR başarısız (HTTP ${res.status})`);
+  }
+  return res.json(); // {text, engine, n_chars, error, page_count, ...}
 }
 
 /** POST /multimodal/stt — ses dosyası/blob → Türkçe metin (sesli giriş, #7).

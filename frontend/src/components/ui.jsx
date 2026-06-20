@@ -92,7 +92,7 @@ export function CitationMarker({ n, source, onJump }) {
 // üretir (innerHTML yok → XSS güvenli). Underscore DAHİL DEĞİL: legal/teknik
 // metinde "madde_32", source_id'ler yanlış eşleşir.
 const INLINE_MD_RE = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g;
-function renderInline(text, keyBase) {
+export function renderInline(text, keyBase) {
   if (!text || text.indexOf("*") === -1) return text;
   const out = [];
   let last = 0, m, i = 0;

@@ -10,6 +10,7 @@
                   taranabilir stat-bloklar olarak gösterir (Güven · Kaynak · İddia). */
 import React, { useState, useEffect, useId } from "react";
 import { Icon } from "./icons.jsx";
+import { NumberTicker } from "./ui/number-ticker.jsx";
 
 /** %0→value ease-out-cubic sayaç (reduced-motion saygılı). */
 function useCountUp(value) {
@@ -34,7 +35,6 @@ function useCountUp(value) {
 
 /* ---------- Kanıt özeti — daisyUI stat deseni (Güven · Kaynak · İddia) ---------- */
 export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }) {
-  const conf = useCountUp(confidence);
   const list = claims || [];
   const verified = list.filter((c) => c.verified).length;
   const total = list.length;
@@ -48,7 +48,7 @@ export function EvidenceStats({ confidence, sourceCount, claims, onOpenSources }
         className={"ev-stat" + (mid ? " mid" : "")}
         title="Güven göstergesi — alan eşleşmesi + doğrulanan iddia oranı + kaynak kalitesinin sezgisel harmanı; kalibre edilmiş doğruluk olasılığı DEĞİLDİR."
       >
-        <div className="ev-val" aria-label={`Güven göstergesi yüzde ${conf} (sezgisel, kalibre olasılık değil)`}>%{conf}</div>
+        <div className="ev-val" aria-label={`Güven göstergesi yüzde ${confidence} (sezgisel, kalibre olasılık değil)`}>%<NumberTicker value={confidence} className="ev-num" /></div>
         <div className="ev-label">Güven</div>
         <div className="ev-bar" aria-hidden="true"><span style={{ width: confidence + "%" }}></span></div>
       </div>
@@ -211,9 +211,15 @@ export function PredictionCard({ prediction: p }) {
         <div className="pred-cases">
           <span className="pred-cases-lbl">Benzer kararlar</span>
           <div className="pred-cases-list">
-            {p.similarCaseIds.slice(0, 6).map((id, i) => (
+            {/* Çip sayısı oylanan emsal sayısıyla eşleşsin (reasoning "8 emsal" derken
+                6 çip göstermek tutarsız görünüyordu). Backend ≤8 benzersiz karar verir;
+                8'i göster, fazlası olursa "+N" ile dürüstçe belirt. */}
+            {p.similarCaseIds.slice(0, 8).map((id, i) => (
               <span className="pred-case" key={i}>{id}</span>
             ))}
+            {p.similarCaseIds.length > 8 && (
+              <span className="pred-case more">+{p.similarCaseIds.length - 8}</span>
+            )}
           </div>
         </div>
       )}

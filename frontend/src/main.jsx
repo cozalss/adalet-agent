@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "./styles/tailwind.css"; // preflight'sız Tailwind v4 (utility'ler + warm-light @theme)
 import { Root } from "./Root.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 

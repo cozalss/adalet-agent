@@ -50,9 +50,13 @@ export const DEMO_TURN = {
     debateNotes: "Mevzuat ve Emsal ajanları hemfikir; Doğrulama ajanı 3. iddiayı kaynak eşleşmesi olmadığı için işaretledi, taslaktan çıkarıldı.",
     retryCount: 1,
     prediction: {
-      verdictClass: "kazandi", confidence: 78,
-      similarCaseIds: ["Y9HD 2019/1234", "Y22HD 2020/5567", "Y9HD 2021/8890"],
-      reasoning: "Benzer nitelikteki 12 emsal davadan 9'u işçi lehine sonuçlanmış.",
+      verdictClass: "kazandi", confidence: 75,
+      // Gerçek sistemle tutarlı: top-8 benzersiz emsal; çip sayısı = reasoning sayısı.
+      similarCaseIds: [
+        "9. HD 2019/12453", "22. HD 2020/8876", "9. HD 2021/3344", "7. HD 2018/9912",
+        "9. HD 2022/5567", "22. HD 2019/14201", "9. HD 2020/7788", "9. HD 2021/10566",
+      ],
+      reasoning: "Benzer nitelikteki 8 emsal davadan 6'sı işçi lehine sonuçlanmış (çoğunluk kazanma, uyum %75). İstatistiksel tahmindir, mahkeme garantisi değildir.",
       disclaimer: "Bu tahmin geçmiş Yargıtay kararlarından türetilmiş istatistiksel bir tahmindir; mahkeme sonucu garantisi DEĞİLDİR. Kesin değerlendirme için bir avukata danışın.",
     },
     conversationId: "preview-demo",

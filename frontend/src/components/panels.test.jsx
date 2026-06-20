@@ -49,6 +49,25 @@ describe("PredictionCard", () => {
     expect(out).toContain("E.2021/1");
   });
 
+  it("8 emsale kadar tüm çipleri gösterir (reasoning sayısıyla tutarlı)", () => {
+    const ids = Array.from({ length: 8 }, (_, i) => `9. HD 2020/${1000 + i}`);
+    const out = html(<PredictionCard prediction={{
+      verdictClass: "kazandi", confidence: 75, similarCaseIds: ids,
+      reasoning: "8 emsalden 6'sı lehine", disclaimer: "d",
+    }} />);
+    ids.forEach((id) => expect(out).toContain(id));   // 8'inin hepsi görünür (6'da kesilmez)
+    expect(out).not.toContain("pred-case more");        // 8'de taşma yok
+  });
+
+  it("8'den fazla emsalde +N taşma göstergesi (dürüst, gizli mismatch yok)", () => {
+    const ids = Array.from({ length: 11 }, (_, i) => `K-${i}`);
+    const out = html(<PredictionCard prediction={{
+      verdictClass: "kazandi", confidence: 70, similarCaseIds: ids,
+      reasoning: "r", disclaimer: "d",
+    }} />);
+    expect(out).toContain("+3");                        // 11 - 8 = 3 daha
+  });
+
   it("belirsiz → yüzde/bar gösterilmez", () => {
     const out = html(<PredictionCard prediction={{ verdictClass: "belirsiz", confidence: 0, similarCaseIds: [], disclaimer: "d" }} />);
     expect(out).toContain("Belirsiz");

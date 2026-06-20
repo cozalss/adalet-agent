@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Icon, SB_NAV, CIVIL_DOMAINS } from "./components/icons.jsx";
 import {
-  RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton,
+  RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton, StreamStepper,
 } from "./components/ui.jsx";
-import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble } from "./components/cards.jsx";
+import { AnswerCard, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble } from "./components/cards.jsx";
 import { AgentTrace, PredictionCard, EvidenceStats, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
@@ -38,6 +38,9 @@ function formatPii(counts) {
 }
 import { ocrUpload, downloadDilekce } from "./lib/api.js";
 import { addFileSb } from "./lib/supabaseData.js";
+import { Toaster, toast as sonnerToast } from "sonner";
+import { ShimmerButton } from "./components/ui/shimmer-button.jsx";
+import { AnimatedGradientText } from "./components/ui/animated-gradient-text.jsx";
 import "./styles/sor.css";
 import "./styles/sor-pro.css";
 import "./styles/app-extra.css";
@@ -82,7 +85,17 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
         {busy ? (
           <button className="cg-send stop" onClick={onStop} aria-label="Yanıtı durdur" title="Yanıtı durdur"><Icon.stop /></button>
         ) : hasText ? (
-          <button className="cg-send go" onClick={submit} aria-label="Gönder"><Icon.send /></button>
+          <ShimmerButton
+            onClick={submit}
+            aria-label="Gönder"
+            background="var(--accent)"
+            shimmerColor="#f4ddbb"
+            shimmerDuration="2.4s"
+            borderRadius="999px"
+            className="cg-send go !px-0 !py-0 !border-0"
+          >
+            <Icon.send />
+          </ShimmerButton>
         ) : (
           <button
             className={"cg-send voice" + (voice.state !== "idle" ? " on" : "")}
@@ -238,11 +251,17 @@ export default function App({ auth }) {
   // toast: { msg, action? } — action = { label, onClick } (Vuetify snackbar-with-action).
   const toastTimer = useRef(null);
   const showToast = useCallback((msg, action = null) => {
+    // sr-only canlı bölge (ekran okuyucu) — görsel toast artık Sonner (animasyonlu, yığılır).
     clearTimeout(toastTimer.current);
     setToast({ msg, action });
     toastTimer.current = setTimeout(() => setToast(null), action ? 6000 : 3200);
+    sonnerToast(msg, action
+      ? { duration: 6000, action: { label: action.label, onClick: action.onClick } }
+      : { duration: 3200 });
   }, []);
-  const dismissToast = useCallback(() => { clearTimeout(toastTimer.current); setToast(null); }, []);
+  const dismissToast = useCallback(() => {
+    clearTimeout(toastTimer.current); setToast(null); sonnerToast.dismiss();
+  }, []);
 
   // "Yeni sohbet": görünümü temizle (geçmiş KALICI — silmez).
   const onNewChat = useCallback(() => {
@@ -316,10 +335,15 @@ export default function App({ auth }) {
     showToast("Belge okunuyor (OCR)…");
     try {
       const res = await ocrUpload(file);
-      if (!res.text || res.text.length < 5) { showToast("Belgeden metin çıkarılamadı."); return; }
+      if (!res.text || res.text.length < 5) {
+        // Backend spesifik neden döndürdüyse (şifreli/bozuk PDF, motor yok) onu göster.
+        showToast(res.error || "Belgeden metin çıkarılamadı. Belge boş veya okunamıyor olabilir.");
+        return;
+      }
+      const engine = res.engine || "rapidocr";
       const piiText = res.pii_detected ? formatPii(res.pii_counts) : "";
       setAttachments((a) => [...a, {
-        filename: file.name, ocr_engine: res.engine || "tesseract",
+        filename: file.name, ocr_engine: engine,
         text: res.text.slice(0, MAX_OCR_CHARS), n_chars: res.n_chars || res.text.length,
         pii: piiText || null,
         lowConf: !!res.low_confidence,  // #20: düşük OCR güveni → kullanıcıyı metni kontrol etmeye uyar
@@ -327,18 +351,27 @@ export default function App({ auth }) {
       // "Dosyalarım" metadata → Supabase (best-effort; oturumsuzda no-op, metin saklanmaz).
       addFileSb({
         conversation_id: conversationId || "", filename: file.name,
-        ocr_engine: res.engine || "tesseract", n_chars: res.n_chars || res.text.length,
+        ocr_engine: engine, n_chars: res.n_chars || res.text.length,
         pii_flag: !!piiText,
       });
-      // Şeffaflık: belgede kişisel veri varsa kullanıcıyı bilgilendir.
+      // Şeffaflık: düşük güven + taranmış-belge diakritik kaybı uyarısı.
       const lowNote = res.low_confidence
         ? " · OCR güveni düşük olabilir — eklenen metni kontrol edin."
         : "";
+      // OCR ile okunan (görsel/taranmış) belgede Türkçe işaretler (ç/ş/ğ) düşebilir;
+      // dijital PDF metni (engine="pdf-text") kusursuz olduğu için uyarı gösterilmez.
+      const isOcrEngine = engine.startsWith("pdf-scan") || engine === "rapidocr" || engine === "tesseract";
+      const scanNote = isOcrEngine
+        ? " · OCR ile okundu — Türkçe işaretler eksik olabilir, metni kontrol edin."
+        : "";
+      // Çok-sayfa PDF bilgisi.
+      const pageNote = res.page_count > 1 ? ` · ${res.page_count} sayfa işlendi` : "";
       showToast((piiText
         ? `Belge eklendi · Dikkat: belgenizde ${piiText} tespit edildi (sorunuzla birlikte işlenecek).`
-        : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`) + lowNote);
+        : `Belge eklendi: ${file.name} (${res.n_chars || res.text.length} karakter)`) + pageNote + lowNote + scanNote);
     } catch (err) {
-      showToast("OCR başarısız — backend çalışıyor mu?");
+      // ocrUpload artık backend `detail` mesajını fırlatıyor (415/413/400) — onu göster.
+      showToast(err?.message || "OCR başarısız — backend çalışıyor mu?");
     }
   };
 
@@ -426,8 +459,8 @@ export default function App({ auth }) {
               <div className="cg-hero">
                 <h1 className="cg-greet">
                   {(authUser?.name || prefs.displayName || "").trim()
-                    ? <>Nasıl yardımcı olabilirim, <span className="accent">{(authUser?.name || prefs.displayName).trim().split(/\s+/)[0]}</span>?</>
-                    : <>Bugün size nasıl <span className="accent">yardımcı</span> olabilirim?</>}
+                    ? <>Nasıl yardımcı olabilirim, <AnimatedGradientText colorFrom="#9e6a43" colorTo="#d9a866" speed={1.4}>{(authUser?.name || prefs.displayName).trim().split(/\s+/)[0]}</AnimatedGradientText>?</>
+                    : <>Bugün size nasıl <AnimatedGradientText colorFrom="#9e6a43" colorTo="#d9a866" speed={1.4}>yardımcı</AnimatedGradientText> olabilirim?</>}
                 </h1>
                 {/* Trust signals — abtest.design D11, +44% güven etkisi */}
                 <div className="trust-signals">
@@ -566,19 +599,29 @@ export default function App({ auth }) {
       {/* a11y (§8): kalıcı canlı bölge — ekran okuyucu tüm toast'ları (OCR,
           kopyala, dilekçe, PII uyarısı) duyurur. Görsel toast ayrı render edilir. */}
       <div className="sr-only" role="status" aria-live="polite">{toast?.msg || ""}</div>
-      {toast && (
-        <div className="toast" aria-hidden="true">
-          <span className="toast-msg">{toast.msg}</span>
-          {toast.action && (
-            <button
-              className="toast-action"
-              onClick={() => { toast.action.onClick(); dismissToast(); }}
-            >
-              {toast.action.label}
-            </button>
-          )}
-        </div>
-      )}
+      {/* Sonner — animasyonlu, yığılabilir toast; warm-light temaya bağlı (terracotta aksiyon). */}
+      <Toaster
+        position="bottom-center"
+        offset={88}
+        gap={10}
+        toastOptions={{
+          style: {
+            background: "var(--surface-strong)",
+            color: "var(--text)",
+            border: "1px solid var(--border-strong)",
+            borderRadius: "13px",
+            boxShadow: "var(--shadow-lg)",
+            fontFamily: "var(--font-body)",
+            fontSize: "14px",
+          },
+          actionButtonStyle: {
+            background: "var(--accent)",
+            color: "var(--accent-on)",
+            borderRadius: "8px",
+            fontWeight: 600,
+          },
+        }}
+      />
     </div>
   );
 }
@@ -628,14 +671,22 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
               ? <SmallTalkBubble text={d.draftText} />
               : <QuickTyping label="Yazıyor" />
           )}
-          {/* Hukuki yol: İLK fazdan (triage) itibaren 7-ajan şeffaflık stepper'ı — staged
-              streaming status (ADALET'in farkı). Önceden triage'da "Düşünüyor" spinner vardı;
-              artık baştan stepper (sınıflandırma→mevzuat→doğrulama aşamaları görünür → lokal
-              model daha hızlı HİSSEDİLİR + hangi aşamada olduğu şeffaf). */}
-          {/* HUKUK yolu "tek şey": ham DOĞRULANMAMIŞ taslak prose'u gösterilmez (kullanıcı
-              onu okuyup sonra kart'a dönüşmesi kafa karıştırıyordu + sıfır-halüsinasyon: doğrulanmamış
-              metni nihaiymiş gibi sunma). Canlı geri-bildirim = StreamStepper (yukarıda, "Cevap
-              hazırlanıyor…/İddialar doğrulanıyor…"). Sonra TEK kez doğrulanmış AnswerCard belirir. */}
+          {/* Hukuki yol: İLK fazdan (triage) itibaren şeffaflık stepper'ı + ilk token
+              gelince CANLI taslak baloncuğu. Önceden bu dalda HİÇBİR ŞEY render edilmiyordu
+              (ekran boş kalıyordu → "insanlar beklemez"). Artık:
+                1) StreamStepper — sınıflandırma→kaynaklar→yazım→doğrulama aşamaları + ilerleme
+                   (token öncesi boşlukta bile canlı hareket; lokal model daha hızlı HİSSEDİLİR).
+                2) DraftStreamBubble — token'lar geldikçe metin yazılır (ChatGPT hissi), AÇIKÇA
+                   "doğrulanacak" rozetiyle. Final gelince doğrulanmış AnswerCard ile DEĞİŞİR
+                   (ham taslak düşer → sıfır-halüsinasyon korunur, kullanıcı yine de beklemez). */}
+          {streaming && !softPath && (
+            <React.Fragment>
+              <StreamStepper phase={p} customLabel={d.domain ? `${d.domain} — sorunuz inceleniyor…` : undefined} />
+              {d.draftText && (p === "drafting" || p === "verifying") && (
+                <DraftStreamBubble text={d.draftText} />
+              )}
+            </React.Fragment>
+          )}
 
           {p === "smalltalk" && d.smalltalk && (
             <React.Fragment>

@@ -147,3 +147,56 @@
 @media (prefers-reduced-motion: reduce) {
   .auth-spin { animation: none; }
 }
+
+/* ============================================================
+   MOTION — premium giriş animasyonları + mikro-etkileşimler (2026-06-18)
+   Compositor-dostu (yalnız transform/opacity); prefers-reduced-motion altında kapanır.
+   ============================================================ */
+@keyframes auth-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes auth-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes auth-card-in { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes auth-glow-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: .85; }
+  50%      { transform: translate3d(-3%, 2%, 0) scale(1.1); opacity: 1; }
+}
+
+/* sol marka paneli — kademeli (stagger) reveal */
+.auth-logo       { animation: auth-rise .7s var(--ease-spring) both; }
+.auth-tagline    { animation: auth-rise .8s var(--ease-spring) both .08s; }
+.auth-trust li   { animation: auth-rise .7s var(--ease-spring) both; }
+.auth-trust li:nth-child(1) { animation-delay: .18s; }
+.auth-trust li:nth-child(2) { animation-delay: .26s; }
+.auth-trust li:nth-child(3) { animation-delay: .34s; }
+.auth-brand-foot { animation: auth-fade 1.1s ease both .5s; }
+.auth-brand::after { animation: auth-glow-drift 16s ease-in-out infinite; }
+
+/* sağ form kartı — yumuşak yükselerek gir */
+.auth-card { animation: auth-card-in .75s var(--ease-spring) both .12s; }
+
+/* mikro-etkileşimler — logo, trust-ikon, butonlar, input focus */
+.auth-logo-mark { transition: transform .35s var(--ease-spring), box-shadow .35s ease; }
+.auth-logo:hover .auth-logo-mark { transform: rotate(-6deg) scale(1.07); box-shadow: 0 8px 26px rgba(212,165,116,.42); }
+.auth-trust-ic { transition: transform .25s var(--ease-spring), background .25s ease; }
+.auth-trust li:hover .auth-trust-ic { transform: scale(1.13); background: rgba(212,165,116,.22); }
+
+.auth-submit { transition: filter .14s, transform .14s var(--ease-spring), box-shadow .22s ease; }
+.auth-submit:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-2px); box-shadow: 0 12px 26px rgba(158,106,67,.34); }
+.auth-submit:active:not(:disabled) { transform: translateY(0); box-shadow: 0 4px 12px rgba(158,106,67,.2); }
+
+.auth-google { transition: background .14s, border-color .14s, transform .14s var(--ease-spring), box-shadow .2s ease; }
+.auth-google:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.auth-field input, .auth-pw input { transition: border-color .16s, box-shadow .16s, transform .18s var(--ease-spring); }
+.auth-field input:focus, .auth-pw input:focus { transform: translateY(-1px); }
+
+.auth-tabs button { transition: background .18s, color .18s, transform .12s var(--ease-spring); }
+.auth-tabs button:active { transform: scale(.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-logo, .auth-tagline, .auth-trust li, .auth-brand-foot, .auth-card { animation: none; }
+  .auth-brand::after { animation: none; }
+  .auth-submit:hover:not(:disabled), .auth-google:hover:not(:disabled),
+  .auth-field input:focus, .auth-pw input:focus,
+  .auth-logo:hover .auth-logo-mark, .auth-trust li:hover .auth-trust-ic,
+  .auth-tabs button:active { transform: none; }
+}

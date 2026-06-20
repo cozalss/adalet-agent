@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import { Icon } from "../components/icons.jsx";
 import { supabaseEnabled } from "../lib/supabase.js";
+import { ShimmerButton } from "../components/ui/shimmer-button.jsx";
 
 const TRUST = [
   { icon: "shield", t: "Yargıtay kararları ve mevzuatla doğrulanır" },
@@ -126,9 +127,17 @@ export function AuthPage({ onLogin, onRegister, onGoogle }) {
               </label>
             )}
             {error && <div className="auth-error" role="alert"><Icon.info />{error}</div>}
-            <button type="submit" className="auth-submit" disabled={loading || !supabaseEnabled}>
+            <ShimmerButton
+              type="submit"
+              disabled={loading || !supabaseEnabled}
+              background="var(--accent)"
+              shimmerColor="#f1dcbb"
+              shimmerDuration="3.6s"
+              borderRadius="12px"
+              className="w-full h-12 mt-1.5 text-[15px] font-semibold disabled:opacity-70 disabled:cursor-default"
+            >
               {loading ? <span className="auth-spin" aria-hidden="true" /> : (isReg ? "Hesap oluştur" : "Giriş yap")}
-            </button>
+            </ShimmerButton>
           </form>
 
           <div className="auth-divider"><span>veya</span></div>

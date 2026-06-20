@@ -1,0 +1,62 @@
+/* ============================================================
+   Tailwind v4 — PREFLIGHT'SIZ entegrasyon (2026-06-18)
+   Global reset (preflight/base) KASITLI dışarıda: mevcut 130KB custom warm-light
+   CSS birebir korunsun. Yalnız theme + utilities yüklenir → Tailwind utility'leri
+   ve shadcn/Sonner gibi bileşenler çalışır, ama hiçbir global stil sıfırlanmaz.
+   ============================================================ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@custom-variant dark (&:is(.dark *));
+
+/* warm-light token köprüsü — Tailwind/shadcn utility'leri mevcut paleti kullansın
+   (bg-background, text-foreground, border-border, rounded-lg, ... → terracotta/cream). */
+@theme {
+  --color-background: #e7e3db;
+  --color-surface: #ffffff;
+  --color-foreground: #16130e;
+  --color-muted: #6a6256;
+  --color-muted-foreground: #7d7668;
+  --color-accent: #9e6a43;
+  --color-accent-foreground: #ffffff;
+  --color-success: #657e53;
+  --color-danger: #b24a3e;
+  --color-border: rgba(22, 19, 14, 0.12);
+
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite alternate;
+  --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
+  @keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+    }
+  }
+  @keyframes spin-around {
+  0% {
+    transform: translateZ(0) rotate(0);
+    }
+  15%, 35% {
+    transform: translateZ(0) rotate(90deg);
+    }
+  65%, 85% {
+    transform: translateZ(0) rotate(270deg);
+    }
+  100% {
+    transform: translateZ(0) rotate(360deg);
+    }
+  }
+  --animate-gradient: gradient 8s linear infinite
+;
+  @keyframes gradient {
+  to {
+    background-position: var(--bg-size, 300%) 0;
+    }
+  }}

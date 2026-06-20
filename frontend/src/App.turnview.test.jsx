@@ -43,6 +43,59 @@ describe("TurnView — reject yolu disclaimer (kırmızı çizgi §2)", () => {
   });
 });
 
+describe("TurnView — hukuki yol CANLI akış (boş ekran fix)", () => {
+  it("token öncesi (sources fazı) StreamStepper gösterir — ekran boş kalmaz", () => {
+    const out = html({
+      question: "İnternetten aldığım ürün ayıplı çıktı, iade hakkım var mı?",
+      phase: "sources",
+      data: { kind: "answer", domain: "Tüketici Hukuku", sourceCount: 0, draftText: "" },
+    });
+    expect(out).toContain("progressbar");                 // StreamStepper render edildi
+    expect(out).toContain("Kaynaklar aranıyor");           // sources adım etiketi
+  });
+
+  it("drafting fazında biriken draftText'i canlı baloncukta yazar (ChatGPT hissi)", () => {
+    const out = html({
+      question: "Kira sözleşmem feshedildi, ne yapabilirim?",
+      phase: "drafting",
+      data: { kind: "answer", domain: "Kira Hukuku", draftText: "Kira sözleşmesinin feshi halinde" },
+    });
+    expect(out).toContain("draft-stream");                 // canlı taslak baloncuğu
+    expect(out).toContain("Kira sözleşmesinin feshi");     // akan metin görünür
+    expect(out).toContain("doğrulanacak");                 // GEÇİCİ rozeti (kırmızı çizgi)
+  });
+
+  it("canlı taslakta ham markdown + [src:] etiketi GÖRÜNMEZ (final'le tutarlı temiz prose)", () => {
+    const out = html({
+      question: "kıdem?",
+      phase: "drafting",
+      data: {
+        kind: "answer", domain: "İş Hukuku",
+        draftText: "**Kısa cevap:** Kıdem tazminatı hakkı doğar [src: m-IK-4].",
+      },
+    });
+    expect(out).not.toContain("[src:");          // ham kaynak etiketi sızmaz
+    expect(out).not.toContain("**Kısa cevap");    // literal yıldız yok → <strong> render
+    expect(out).toContain("<strong>Kısa cevap:</strong>");  // bold olarak basıldı
+    expect(out).toContain("Kıdem tazminatı hakkı doğar");
+  });
+
+  it("final geldiğinde ham taslak DÜŞER, doğrulanmış AnswerCard gelir", () => {
+    const out = html({
+      question: "x",
+      phase: "final",
+      data: {
+        kind: "answer", domain: "Tüketici Hukuku", draftText: "eski ham taslak",
+        answer: { text: "Ayıplı malda iade hakkınız vardır.", confidence: 0.9 },
+        sources: [], claims: [], disclaimers: ["Genel bilgilendirme; avukata danışın."],
+      },
+    });
+    expect(out).not.toContain("draft-stream");             // ham taslak artık yok
+    expect(out).not.toContain("eski ham taslak");
+    expect(out).toContain("iade hakkınız vardır");         // doğrulanmış cevap (abbr-dışı parça)
+  });
+});
+
 describe("MsgActions — sesli 'Dinle' (TTS #7)", () => {
   afterEach(() => { vi.restoreAllMocks(); });
 
