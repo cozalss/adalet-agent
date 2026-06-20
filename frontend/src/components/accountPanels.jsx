@@ -5,6 +5,7 @@
    bileşen dili (at-timeline, line-icon, no-emoji) yeniden kullanılır. */
 import React, { useState } from "react";
 import { Icon, CIVIL_DOMAINS, OUT_OF_SCOPE } from "./icons.jsx";
+import { Avatar } from "./Avatar.jsx";
 
 /* ---------- 1) ADALET nasıl çalışır? (7-ajan + sıfır uydurma) ---------- */
 const AGENTS = [
@@ -289,12 +290,23 @@ export function OpenSourcePanel() {
   );
 }
 
-/* ---------- 8) Profil (tek alan) ---------- */
-export function ProfilePanel({ displayName, onSave, onClose }) {
+/* ---------- 8) Profil (canlı avatar önizleme + görünen ad) ---------- */
+export function ProfilePanel({ displayName, user, prefs, onSave, onClose }) {
   const [name, setName] = useState(displayName || "");
-  const save = () => { onSave?.(name.trim().slice(0, 60)); onClose?.(); };
+  const trimmed = name.trim();
+  const dirty = trimmed !== (displayName || "").trim(); // değişiklik yoksa kayda gerek yok
+  const save = () => { if (dirty) onSave?.(trimmed.slice(0, 60)); onClose?.(); };
+  // Avatar canlı önizleme: yazılan ad önceliklenir → kullanıcı yazdıkça gem güncellenir.
+  const previewName = trimmed || user?.name || user?.email || "";
   return (
     <div className="acc-body">
+      <div className="acc-profile-preview">
+        <Avatar user={{ name: previewName }} prefs={prefs} size={56} />
+        <div className="acc-profile-id">
+          <b>{trimmed || "Adınız burada görünür"}</b>
+          {user?.email && <span>{user.email}</span>}
+        </div>
+      </div>
       <label className="acc-field">
         <span className="acc-field-label">Görünen ad</span>
         <input
@@ -302,6 +314,7 @@ export function ProfilePanel({ displayName, onSave, onClose }) {
           placeholder="örn. Ayşe" onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") save(); }}
         />
+        <span className="acc-field-counter" aria-hidden="true">{name.length}/60</span>
       </label>
       <p className="acc-note">
         Bu ad yalnız selamlamada görünür ve cihazınızda saklanır; kimseyle
@@ -309,7 +322,7 @@ export function ProfilePanel({ displayName, onSave, onClose }) {
       </p>
       <div className="acc-confirm-actions" style={{ justifyContent: "flex-end" }}>
         <button className="acc-btn ghost" onClick={onClose}>Vazgeç</button>
-        <button className="acc-btn primary" onClick={save}>Kaydet</button>
+        <button className="acc-btn primary" onClick={save} disabled={!dirty}>Kaydet</button>
       </div>
     </div>
   );

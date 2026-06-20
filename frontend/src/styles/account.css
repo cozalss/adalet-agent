@@ -273,6 +273,8 @@ button.sb-user:hover, button.sb-user.open { background: var(--sidebar-hover); }
   cursor: pointer; transition: background .14s, border-color .14s, transform .06s;
 }
 .acc-btn:active { transform: translateY(1px); }
+.acc-btn:disabled { opacity: .45; cursor: not-allowed; }
+.acc-btn:disabled:active { transform: none; }
 .acc-btn svg { width: 16px; height: 16px; }
 .acc-btn.primary { background: var(--accent); color: var(--accent-on); border-color: transparent; }
 .acc-btn.ghost { background: transparent; }
@@ -393,7 +395,24 @@ button.sb-user:hover, button.sb-user.open { background: var(--sidebar-hover); }
 .acc-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 500; }
 
 /* ---------- 8) profil ---------- */
+.acc-profile-preview {
+  display: flex; align-items: center; gap: 14px; padding: 13px 14px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+}
+.acc-profile-id { min-width: 0; line-height: 1.3; }
+.acc-profile-id b {
+  display: block; font-size: 15px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.acc-profile-id span {
+  display: block; font-size: 12px; color: var(--text-3); font-family: var(--font-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
+}
 .acc-field { display: flex; flex-direction: column; gap: 7px; }
+.acc-field-counter {
+  align-self: flex-end; margin-top: -3px;
+  font-size: 11px; color: var(--text-3); font-family: var(--font-mono);
+}
 .acc-field-label { font-size: 13px; font-weight: 600; color: var(--text); }
 .acc-input {
   padding: 11px 13px; border-radius: 11px; border: 1px solid var(--border-strong);

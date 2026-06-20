@@ -60,9 +60,27 @@ it("OpenSourcePanel — açık kaynak (MIT) + lisans özgürlükleri + neden ön
   expect(out).toContain("Neden önemli");
 });
 
-it("ProfilePanel — görünen ad alanı + kaydet", () => {
+it("ProfilePanel — görünen ad alanı + kaydet + karakter sayacı", () => {
   const out = html(<ProfilePanel displayName="Ayşe" onSave={() => {}} onClose={() => {}} />);
   expect(out).toContain("Görünen ad");
   expect(out).toContain("Kaydet");
   expect(out).toContain("Ayşe");
+  expect(out).toContain("4/60"); // canlı karakter sayacı
+});
+
+it("ProfilePanel — değişiklik yokken Kaydet butonu pasif (gereksiz kayıt önlenir)", () => {
+  // name, displayName'den başlatılır → ilk render'da dirty=false → disabled
+  const out = html(<ProfilePanel displayName="Ayşe" onSave={() => {}} onClose={() => {}} />);
+  expect(out).toMatch(/Kaydet<\/button>/);
+  expect(out).toContain("disabled");
+});
+
+it("ProfilePanel — hesap e-postası önizleme kartında görünür", () => {
+  const out = html(
+    <ProfilePanel
+      displayName="Ayşe" user={{ email: "ayse@example.com" }}
+      onSave={() => {}} onClose={() => {}}
+    />,
+  );
+  expect(out).toContain("ayse@example.com");
 });

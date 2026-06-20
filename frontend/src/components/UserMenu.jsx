@@ -190,6 +190,8 @@ export function UserMenu({ prefs, setPref, toggleDomain, onClearSession, onAsk, 
             <ProfilePanel
               key={prefs.displayName}
               displayName={prefs.displayName}
+              user={user}
+              prefs={prefs}
               onSave={(n) => setPref("displayName", n)}
               onClose={closeView}
             />
