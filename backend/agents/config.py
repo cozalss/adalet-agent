@@ -117,6 +117,21 @@ def is_clatter_gate_enabled() -> bool:
     return _strict_default_flag("CLATTER_GATE_ENABLED")
 
 
+def is_llm_judge_enabled() -> bool:
+    """OpenAI LLM-judge grounding kapısı (opt-in, default KAPALI).
+
+    `VERIFY_LLM_JUDGE=1`: pass verdict'inde ek olarak OpenAI'ye "cevap kaynaklarla
+    temellendirilmiş mi?" sorulur; DEĞİLSE pass ENGELLENİR (retry/reject). Yalnız
+    SIKILAŞTIRIR (CLATTER gibi — reject'i ASLA pass yapmaz) → halüsinasyon kaçağı EKLEYEMEZ.
+    Judge çökerse fail-OPEN (sıkılaştırmaz) → baseline NLI/lettuce verdict'i korunur.
+
+    CLATTER'dan FARKLI: _strict_default_flag DEĞİL → production'da otomatik AÇILMAZ. Her
+    istekte ekstra OpenAI çağrısı (gecikme+maliyet) + kalibrasyon A/B'si gerektirir
+    (verify_calibration.py; quote-grounding A/B disiplini). Ölçmeden production'da açma.
+    """
+    return os.getenv("VERIFY_LLM_JUDGE", "0").lower() in {"1", "true", "yes"}
+
+
 def is_partial_answer_note_enabled() -> bool:
     """Partial-answer dürüst notu (opt-in) — çok-konulu/çok-iddialı cevapta verify bazı
     iddiaları kaynaklayamayıp DÜŞÜRDÜYSE (finalize._filter_to_verified n_dropped>0), kullanıcıya

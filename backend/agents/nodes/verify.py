@@ -38,6 +38,7 @@ from agents.config import (
     NLI_ENTAILMENT_THRESHOLD,
     is_cite_grounding_check_enabled,
     is_clatter_gate_enabled,
+    is_llm_judge_enabled,
 )
 from agents.risk_guard import is_high_risk_eligibility_claim, verify_risk_veto
 from agents.state import AgentState, Citation, Claim, DebateVerdict
@@ -293,6 +294,23 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
                 "pozitif entailment alamadı."
             )
 
+    # --- LLM-JUDGE KAPISI (opt-in, VERIFY_LLM_JUDGE=1; default KAPALI) ---
+    # OpenAI'ye "cevap kaynaklarca temellendirilmiş mi?" sorar; HAYIR ise pass engellenir.
+    # Yalnız SIKILAŞTIRIR (CLATTER deseni — reject'i pass yapmaz). Fail-OPEN: judge çökerse
+    # grounded=True döner → baseline verdict korunur. A/B'siz production'da AÇMA (config notu).
+    _judge_note = ""
+    if is_llm_judge_enabled() and verdict == "pass":
+        from verifier.llm_judge import judge_grounded
+        grounded, judge_reason = await judge_grounded(draft_text, _veto_sources)
+        if not grounded:
+            new_judge_verdict: DebateVerdict = (
+                "retry" if state.get("retry_count", 0) < MAX_RETRY else "reject"
+            )
+            log.warning("llm_judge_gate", reason=judge_reason, prev_verdict="pass",
+                        new_verdict=new_judge_verdict)
+            verdict = new_judge_verdict
+            _judge_note = f" LLM-JUDGE: kaynak-temellendirme yetersiz ({judge_reason})."
+
     # Ölçüm-amaçlı hook: FORCE_RETRY_ONCE=1 → ilk geçişte (retry_count==0) verdict'i
     # retry'a zorla. retry yolu latans maliyetini (P99) deterministik ölçmek için —
     # production'da ASLA set edilmez (VERIFY_ENABLED ablation hook'u gibi).
@@ -306,7 +324,7 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     _veto_note = f" RİSK-VETO: {'; '.join(risk_reasons)}." if blocked else ""
     notes = (
         f"{n_supported}/{len(claims)} iddia doğrulandı, "
-        f"{contradictions} çelişki tespit edildi.{_veto_note}{_clatter_note}"
+        f"{contradictions} çelişki tespit edildi.{_veto_note}{_clatter_note}{_judge_note}"
     )
 
     log.info(
