@@ -22,6 +22,13 @@ needs_turkish_font = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_real_openai_key(monkeypatch):
+    """Testler ASLA gerçek OpenAI STT'ye gitmesin — OPENAI_API_KEY'i temizle. Bulut yolunu
+    test eden testler explicit set/patch eder; dev makinesindeki .env anahtarı pytest'i bozmasın."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
 @pytest.fixture
 def turkish_text() -> str:
     return _TR

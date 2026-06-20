@@ -22,11 +22,19 @@ Kullanım:
     result.language      → "tr"
     result.elapsed_ms
 
+Sağlayıcı (v2.3 — bulut serbest): STT_PROVIDER=auto ise OPENAI_API_KEY varsa
+**OpenAI gpt-4o-transcribe** (en iyi Türkçe doğruluğu), yoksa lokal faster-whisper.
+Bulut patlarsa lokal'e graceful düşer. Bkz. `stt_cloud.py`.
+
 ENV:
-    STT_ENGINE=faster-whisper|whisper       (default faster-whisper)
-    STT_MODEL=large-v3|medium|small|base    (default small — CPU dostu)
-    STT_DEVICE=cpu|cuda                     (default cpu — model swap)
-    STT_COMPUTE_TYPE=int8|float16|float32   (default int8 CPU, float16 cuda)
+    STT_PROVIDER=auto|openai|local          (default auto — anahtar varsa bulut)
+    OPENAI_API_KEY=sk-...                    (bulut STT için; .env, asla hardcode)
+    OPENAI_STT_MODEL=gpt-4o-transcribe       (default; mini = ucuz)
+    STT_CLOUD_FALLBACK=1                      (bulut patlarsa lokal'e düş, default açık)
+    STT_ENGINE=faster-whisper|whisper        (lokal motor, default faster-whisper)
+    STT_MODEL=large-v3|medium|small|base     (lokal model, default small)
+    STT_DEVICE=cpu|cuda                      (lokal cihaz, default cpu)
+    STT_COMPUTE_TYPE=int8|float16|float32    (default int8 CPU, float16 cuda)
     STT_LANG=tr
 """
 
@@ -42,6 +50,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import structlog
+
+from multimodal.stt_cloud import cloud_stt_enabled, transcribe_openai
 
 log = structlog.get_logger()
 
@@ -60,6 +70,11 @@ STT_COMPUTE_TYPE = os.getenv(
 )
 STT_LANG = os.getenv("STT_LANG", "tr")
 STT_TIMEOUT_S = float(os.getenv("STT_TIMEOUT_S", "120"))
+# Sağlayıcı routing (v2.3 — bulut serbest): auto = OPENAI_API_KEY varsa OpenAI gpt-4o-transcribe,
+# yoksa lokal faster-whisper. openai = her zaman bulut dene. local = tam-lokal (gizlilik/offline).
+STT_PROVIDER = os.getenv("STT_PROVIDER", "auto").lower()
+# Bulut çağrısı patlarsa (ağ/anahtar/limit) lokal'e graceful düş — demo dayanıklılığı.
+STT_CLOUD_FALLBACK = os.getenv("STT_CLOUD_FALLBACK", "1").lower() in {"1", "true", "yes"}
 # Halüsinasyon filtresi (#17): Whisper sessiz/gürültülü segmentte uydurma metin üretir.
 # vad_filter bunların çoğunu eler ama VAD'ı geçen segment de yüksek no_speech_prob +
 # düşük avg_logprob taşıyabilir → konvansiyonel ikili koşulla at (İKİSİ birden olmalı,
@@ -181,6 +196,16 @@ def reset_engine() -> None:
     _engine_singleton = None
 
 
+def _use_cloud() -> bool:
+    """STT bulut'a mı gitsin? auto: anahtar varsa evet. openai: her zaman dene (anahtar
+    yoksa transcribe_openai raise → fallback). local: asla (tam-lokal gizlilik modu)."""
+    if STT_PROVIDER == "local":
+        return False
+    if STT_PROVIDER == "openai":
+        return True
+    return cloud_stt_enabled()  # auto
+
+
 async def transcribe_audio(
     audio_bytes: bytes,
     *,
@@ -206,6 +231,36 @@ async def transcribe_audio(
             text="", language=language, duration_s=0.0, elapsed_ms=0,
             error=f"desteklenmeyen format: {ext_clean}",
         )
+
+    # Bulut STT (OpenAI gpt-4o-transcribe) — anahtar/seçim varsa öncelik; başarısızsa
+    # lokal faster-whisper'a graceful düş (STT_CLOUD_FALLBACK). Temp-file gerekmez (bytes gider).
+    if _use_cloud():
+        cloud_start = time.perf_counter()
+        try:
+            text = await asyncio.wait_for(
+                transcribe_openai(
+                    audio_bytes, ext=ext_clean, language=language, timeout_s=STT_TIMEOUT_S,
+                ),
+                timeout=STT_TIMEOUT_S,
+            )
+            elapsed_ms = int((time.perf_counter() - cloud_start) * 1000)
+            log.info("stt_cloud_done", provider="openai", n_chars=len(text), elapsed_ms=elapsed_ms)
+            return STTResult(
+                text=text, language=language, duration_s=0.0,
+                elapsed_ms=elapsed_ms, engine="openai:gpt-4o-transcribe",
+            )
+        except Exception as exc:
+            log.warning(
+                "stt_cloud_failed",
+                error=str(exc) or type(exc).__name__, fallback=STT_CLOUD_FALLBACK,
+            )
+            if not STT_CLOUD_FALLBACK:
+                return STTResult(
+                    text="", language=language, duration_s=0.0,
+                    elapsed_ms=int((time.perf_counter() - cloud_start) * 1000),
+                    engine="openai:gpt-4o-transcribe", error="bulut STT başarısız",
+                )
+            # fallback açık → aşağıdaki lokal yola devam
 
     start = time.perf_counter()
     tmp_path: Path | None = None

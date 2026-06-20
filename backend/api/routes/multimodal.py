@@ -50,6 +50,8 @@ _ALLOWED_AUDIO_MIMES = {
     "audio/ogg", "audio/webm", "audio/flac",
 }
 _ALLOWED_AUDIO_EXTS = {"wav", "mp3", "m4a", "ogg", "webm", "flac", "mp4"}
+# Magic-byte algılanan tür → STT'nin beklediği uzantı (ftyp kutusu m4a sesidir; stt 'm4a' bekler).
+_DETECTED_AUDIO_TO_EXT = {"mp4": "m4a"}
 
 # Sprint-4 W7.5: filename sanitize — path traversal + null byte
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]")
@@ -67,6 +69,24 @@ def _sanitize_filename(name: str | None, default: str = "upload") -> str:
     base = name.replace("\x00", "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     cleaned = _SAFE_FILENAME_RE.sub("_", base).strip("._")
     return cleaned[:128] or default
+
+
+def _reject_if_oversized(request: Request, max_bytes: int, label: str) -> None:
+    """Content-Length header sınırı aşıyorsa gövdeyi OKUMADAN 413 (erken savunma).
+
+    `await file.read()` öncesi çağrılır: büyük upload'ın diske spool edilip sonra
+    reddedilmesini önler (DoS sertleştirme). Header yoksa/geçersizse no-op — okuma
+    sonrası `len(data)` kontrolü yetkili backstop kalır (Content-Length spoof'lanabilir).
+    """
+    cl = request.headers.get("content-length")
+    if not cl:
+        return
+    try:
+        size = int(cl)
+    except ValueError:
+        return
+    if size > max_bytes:
+        raise HTTPException(413, f"{label} > {max_bytes // (1024 * 1024)} MB")
 
 
 # Magic-byte imzaları — istemci Content-Type header'ı sahte olabilir; gerçek
@@ -144,6 +164,7 @@ async def ocr_upload(
     safe_name = _sanitize_filename(image.filename, "image")
     if image.content_type and image.content_type not in _ALLOWED_IMAGE_MIMES:
         raise HTTPException(415, f"Desteklenmeyen tip: {image.content_type}")
+    _reject_if_oversized(request, MAX_IMAGE_BYTES, "Görüntü")  # okuma öncesi erken 413
     data = await image.read()
     if not data:
         raise HTTPException(400, "Boş dosya")
@@ -204,6 +225,7 @@ async def stt_upload(
     safe_name = _sanitize_filename(audio.filename, "audio")
     if audio.content_type and audio.content_type not in _ALLOWED_AUDIO_MIMES:
         raise HTTPException(415, f"Desteklenmeyen tip: {audio.content_type}")
+    _reject_if_oversized(request, MAX_AUDIO_BYTES, "Ses")  # okuma öncesi erken 413
     data = await audio.read()
     if not data:
         raise HTTPException(400, "Boş dosya")
@@ -219,12 +241,11 @@ async def stt_upload(
             415, "Dosya içeriği tanınmadı (geçerli WAV/MP3/OGG/FLAC/M4A/WebM değil)",
         )
 
-    # Sanitize edilmiş filename'den ext çıkar — whitelist
-    ext = "wav"
-    if "." in safe_name:
-        candidate = safe_name.rsplit(".", 1)[-1].lower()
-        if candidate in _ALLOWED_AUDIO_EXTS:
-            ext = candidate
+    # ext: magic-byte ile algılanan GERÇEK türü kullan (content-truth). Frontend ses blob'unu
+    # genelde UZANTISIZ gönderir → filename'e güvenmek yanlış "wav" varsayar; ama içerik webm
+    # olabilir ve bulut STT (OpenAI gpt-4o-transcribe) uzantı/MIME'a güvenip reddedebilir.
+    # detected None değil (yukarıda 415 ile elendi). mp4 ftyp kutusu = m4a sesi (stt 'm4a' bekler).
+    ext = _DETECTED_AUDIO_TO_EXT.get(detected, detected)
 
     result = await transcribe_audio(data, ext=ext)
     # PII (denetim 2026-06-04): OCR ile SİMETRİK — transkriptte sesli okunan TCKN/telefon/
@@ -258,8 +279,8 @@ async def tts_generate(
     req: TTSRequest,
     principal: Principal = Depends(authenticate),
 ) -> Response:
-    _ = principal
     """Metin → 16kHz WAV bytes. Content-Type: audio/wav."""
+    _ = principal
     result = await synthesize_speech(req.text, strip_disclaimer=req.strip_disclaimer)
     if result.error and not result.audio_bytes:
         raise HTTPException(503, f"TTS hata: {result.error}")
