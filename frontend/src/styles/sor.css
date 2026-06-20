@@ -676,6 +676,25 @@ a { color: inherit; }
 }
 .cg-round:hover { background: var(--sidebar-hover); color: var(--text); }
 .cg-round svg { width: 19px; height: 19px; }
+
+/* "+" ekleme menüsü (Fotoğraf / Belge) — input'un üstünde açılan popover */
+.cg-attach { position: relative; flex: 0 0 auto; display: flex; }
+.attach-menu {
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 50;
+  min-width: 184px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface-strong); border: 1px solid var(--border-strong);
+  border-radius: 12px; box-shadow: var(--shadow-lg);
+  animation: attach-menu-in .12s ease-out;
+}
+@keyframes attach-menu-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.attach-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 11px; border: none; background: none; border-radius: 8px;
+  font-family: var(--font-body); font-size: 14px; color: var(--text); text-align: left;
+  cursor: pointer; transition: background .12s;
+}
+.attach-menu-item:hover { background: var(--accent-soft); color: var(--accent-text); }
+.attach-menu-item svg { flex: 0 0 16px; color: var(--accent-text); }
 .cg-shell textarea {
   flex: 1; border: none; background: none; resize: none; outline: none;
   font-family: var(--font-body); font-size: 16px; line-height: 1.5; color: var(--text);

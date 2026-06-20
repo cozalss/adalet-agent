@@ -48,8 +48,28 @@ import "./styles/account.css";
 import "./styles/history.css";
 
 /* ---------- ChatGPT-style input pill ---------- */
-function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachCount, wantDilekce, onToggleDilekce, onStop }) {
+function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttachPhoto, onAttachDoc, attachCount, wantDilekce, onToggleDilekce, onStop }) {
   const ref = useRef(null);
+  // "+" → Fotoğraf / Belge (PDF/Word) seçim menüsü.
+  const [attachMenu, setAttachMenu] = useState(false);
+  const attachMenuRef = useRef(null);
+  const attachBtnRef = useRef(null);
+  useEffect(() => {
+    if (!attachMenu) return undefined;
+    const onDoc = (e) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target)) setAttachMenu(false);
+    };
+    const onKey = (e) => {
+      // Esc → kapat + odağı tetikleyici butona geri ver (ARIA menu kuralı).
+      if (e.key === "Escape") { setAttachMenu(false); attachBtnRef.current?.focus(); }
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [attachMenu]);
   // Sesli giriş (#7): mic-kayıt → Whisper STT → transkripti input'a yaz. Buton input boşken görünür.
   const voice = useVoiceRecorder({ onTranscript: (t) => onChange(t) });
   useEffect(() => {
@@ -62,10 +82,36 @@ function CGInput({ value, onChange, onSubmit, busy, autoFocus, onAttach, attachC
   const hasText = value.trim().length > 0;
   return (
     <div className="cg-shell">
-      <button className="cg-round" aria-label="Belge ekle (OCR)" onClick={onAttach} title="Belge ekle">
-        <Icon.plus />
-        {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
-      </button>
+      <div className="cg-attach" ref={attachMenuRef}>
+        <button
+          ref={attachBtnRef}
+          className="cg-round"
+          aria-label="Fotoğraf veya belge ekle"
+          aria-haspopup="menu"
+          aria-expanded={attachMenu}
+          onClick={() => setAttachMenu((o) => !o)}
+          title="Fotoğraf veya belge ekle"
+        >
+          <Icon.plus />
+          {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
+        </button>
+        {attachMenu && (
+          <div className="attach-menu" role="menu">
+            <button
+              type="button" role="menuitem" className="attach-menu-item" autoFocus
+              onClick={() => { setAttachMenu(false); onAttachPhoto?.(); }}
+            >
+              <Icon.image style={{ width: 16, height: 16 }} />Fotoğraf
+            </button>
+            <button
+              type="button" role="menuitem" className="attach-menu-item"
+              onClick={() => { setAttachMenu(false); onAttachDoc?.(); }}
+            >
+              <Icon.file style={{ width: 16, height: 16 }} />Belge (PDF / Word)
+            </button>
+          </div>
+        )}
+      </div>
       <textarea
         ref={ref} rows={1} value={value}
         placeholder={attachCount > 0 ? "Belgeyle ilgili sorunuzu yazın…" : "Herhangi bir şey sor"}
@@ -188,7 +234,10 @@ export default function App({ auth }) {
   const scrollRef = useRef(null);
   const panelRef = useRef(null);
   const srcRefs = useRef({});
-  const fileRef = useRef(null);
+  // Ayrı gizli input'lar — accept'i çalışma anında mutasyona uğratmak yerine (race + React
+  // bypass) her tip için sabit-accept'li kendi input'u (Fotoğraf vs Belge).
+  const photoRef = useRef(null);
+  const docRef = useRef(null);
   const sessionFilesRef = useRef([]); // bu sohbette yüklenen belgeler (Dosyalarım)
   const savedSigRef = useRef(null);   // aynı durumu tekrar kaydetme (persist dedup)
 
@@ -328,7 +377,9 @@ export default function App({ auth }) {
   }, [ask, wantDilekce, attachments]);
 
   /* ---------- OCR upload ---------- */
-  const onAttach = () => fileRef.current?.click();
+  // "+" menüsü: Fotoğraf → görsel input; Belge → PDF/Word input (her biri sabit accept).
+  const onAttachPhoto = () => photoRef.current?.click();
+  const onAttachDoc = () => docRef.current?.click();
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -359,10 +410,10 @@ export default function App({ auth }) {
       const lowNote = res.low_confidence
         ? " · OCR güveni düşük olabilir — eklenen metni kontrol edin."
         : "";
-      // OCR ile okunan (görsel/taranmış) belgede Türkçe işaretler (ç/ş/ğ) düşebilir;
-      // dijital PDF metni (engine="pdf-text") kusursuz olduğu için uyarı gösterilmez.
-      const isOcrEngine = engine.startsWith("pdf-scan") || engine === "rapidocr" || engine === "tesseract";
-      const scanNote = isOcrEngine
+      // Yalnız LOKAL OCR (rapidocr/tesseract) Türkçe işaret (ç/ş/ğ) düşürebilir → uyar.
+      // pdf-text (dijital), docx-text (Word) ve openai-vision (bulut) kusursuz → uyarı yok.
+      const isLossyOcr = engine.includes("rapidocr") || engine.includes("tesseract");
+      const scanNote = isLossyOcr
         ? " · OCR ile okundu — Türkçe işaretler eksik olabilir, metni kontrol edin."
         : "";
       // Çok-sayfa PDF bilgisi.
@@ -447,7 +498,8 @@ export default function App({ auth }) {
           />
         }
       />
-      <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onFile} />
+      <input ref={photoRef} type="file" accept="image/*" hidden aria-hidden="true" tabIndex={-1} onChange={onFile} />
+      <input ref={docRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden aria-hidden="true" tabIndex={-1} onChange={onFile} />
 
       <div className="main-col" id="sor-main">
         {sidebarCollapsed && (
@@ -482,7 +534,7 @@ export default function App({ auth }) {
                 <div className="cg-input-wrap">
                   <CGInput
                     value={input} onChange={setInput} onSubmit={doAsk} busy={false} autoFocus
-                    onAttach={onAttach} attachCount={attachments.length}
+                    onAttachPhoto={onAttachPhoto} onAttachDoc={onAttachDoc} attachCount={attachments.length}
                     wantDilekce={wantDilekce} onToggleDilekce={() => setWantDilekce((v) => !v)}
                     onStop={stop}
                   />
@@ -545,7 +597,7 @@ export default function App({ auth }) {
                     {attachments.length > 0 && <AttachRow attachments={attachments} onClear={() => setAttachments([])} />}
                     <CGInput
                       value={input} onChange={setInput} onSubmit={doAsk} busy={busy}
-                      onAttach={onAttach} attachCount={attachments.length}
+                      onAttachPhoto={onAttachPhoto} onAttachDoc={onAttachDoc} attachCount={attachments.length}
                       wantDilekce={wantDilekce} onToggleDilekce={() => setWantDilekce((v) => !v)}
                       onStop={stop}
                     />
