@@ -84,14 +84,10 @@ export function RelatedCases({ cases, onJump }) {
                 {c.title}
               </div>
             )}
-            {c.passage && (
-              <p className="rc-passage">
-                {c.passage.length > 180 ? `${c.passage.slice(0, 180)}…` : c.passage}
-              </p>
-            )}
+            {c.passage && <p className="rc-passage">{c.passage}</p>}
             {c.url && (
               <a className="rc-link" href={c.url} target="_blank" rel="noreferrer">
-                Kararın tam metni <Icon.ext />
+                {c.urlIsFallback ? "Kararı Google'da ara" : "Kararın tam metni"} <Icon.ext />
               </a>
             )}
           </li>

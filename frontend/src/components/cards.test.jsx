@@ -108,6 +108,14 @@ describe("RelatedCases", () => {
     expect(html(<RelatedCases cases={undefined} />)).toBe("");
   });
 
+  it("urlIsFallback ise link 'Google'da ara', değilse 'Kararın tam metni'", () => {
+    const fb = html(<RelatedCases cases={[{ id: 1, title: "Y", type: "Yargıtay", url: "http://g", urlIsFallback: true }]} />);
+    expect(fb).toContain("Google");                  // arama etiketi
+    expect(fb).not.toContain("tam metni");
+    const real = html(<RelatedCases cases={[{ id: 2, title: "Y", type: "Yargıtay", url: "http://k", urlIsFallback: false }]} />);
+    expect(real).toContain("tam metni");
+  });
+
   it("başlığa tıklayınca onJump(id) — kaynak kartına gider", () => {
     const onJump = vi.fn();
     const { getByRole } = render(

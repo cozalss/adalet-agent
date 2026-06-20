@@ -832,7 +832,7 @@ a.btn:not(:disabled):active {
   color: var(--success, #4a7c59); background: var(--success-soft, rgba(74,124,89,.12));
   padding: 1px 7px; border-radius: 6px;
 }
-.related-cases .rc-passage { margin: 5px 0 6px; font-size: 13px; line-height: 1.6; color: var(--text-2, #555); }
+.related-cases .rc-passage { margin: 5px 0 6px; font-size: 13px; line-height: 1.6; color: var(--text-2, #555); overflow-wrap: break-word; word-break: break-word; }
 .related-cases .rc-link {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 12.5px; font-weight: 600; color: var(--accent-text, var(--accent, #9E6A43)); text-decoration: none;
