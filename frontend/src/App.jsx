@@ -711,10 +711,8 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
           {p === "final" && d.answer && (
             <React.Fragment>
               <AnswerCard answer={d.answer} sources={d.sources ?? []} onJump={onJump} />
-              {/* Emsal davalar cite-edilmediği için source-panel'de yok → onJump YOK
-                  (title statik + "tam metni" linki). Inline'da ilk 3 önizleme; tamamı
-                  "İlgili Kararlar" stat'ından yan panelde. */}
-              <RelatedCases cases={(d.relatedCases ?? []).slice(0, 3)} />
+              {/* İlgili Kararlar inline GÖSTERİLMEZ (tekrar olmasın): yalnız EvidenceStats'taki
+                  "İlgili Kararlar" stat'ına basınca yan panelde açılır (SourcePanelBody cases modu). */}
               <EvidenceStats
                 confidence={d.answer.confidence} sourceCount={(d.sources ?? []).length} claims={d.claims}
                 onOpenSources={onOpenSources ? () => onOpenSources(turn) : undefined}
