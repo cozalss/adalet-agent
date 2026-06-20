@@ -90,10 +90,11 @@ export function ScopePanel({ onAsk }) {
 
 /* ---------- 3) Kaynaklarım nereden geliyor? ---------- */
 const SOURCES = [
-  { name: "Mevzuat Bilgi Sistemi", host: "mevzuat.gov.tr", use: "Kanun maddeleri" },
-  { name: "Yargıtay Kararları", host: "yargitay.gov.tr", use: "Emsal kararlar" },
-  { name: "Resmi Gazete", host: "resmigazete.gov.tr", use: "Güncel mevzuat" },
-  { name: "Danıştay", host: "danistay.gov.tr", use: "İdari hukuk" },
+  { name: "Mevzuat Bilgi Sistemi", host: "mevzuat.gov.tr", use: "Kanun & yönetmelik maddeleri", icon: "book" },
+  { name: "Yargıtay Kararları", host: "yargitay.gov.tr", use: "Hukuk dairesi emsal kararları", icon: "scale" },
+  { name: "Danıştay Kararları", host: "danistay.gov.tr", use: "İdari yargı içtihatları", icon: "scale" },
+  { name: "Anayasa Mahkemesi", host: "anayasa.gov.tr", use: "Bireysel başvuru & norm denetimi", icon: "shield" },
+  { name: "Resmî Gazete", host: "resmigazete.gov.tr", use: "Güncel mevzuat yayımı", icon: "file" },
 ];
 
 export function SourcesPanel() {
@@ -104,19 +105,26 @@ export function SourcesPanel() {
         kaynaklardan</b> getirilir ve orijinaliyle eşleştirilir.
       </p>
       <ul className="acc-src-list">
-        {SOURCES.map((s) => (
-          <li className="acc-src-item" key={s.host}>
-            <span className="acc-src-ic"><Icon.book /></span>
-            <div className="acc-src-tx">
-              <span className="acc-src-name">{s.name}</span>
-              <span className="acc-src-host">{s.host} · {s.use}</span>
-            </div>
-          </li>
-        ))}
+        {SOURCES.map((s) => {
+          const I = Icon[s.icon] || Icon.book;
+          return (
+            <li className="acc-src-item" key={s.host}>
+              <span className="acc-src-ic"><I /></span>
+              <div className="acc-src-tx">
+                <span className="acc-src-name">{s.name}</span>
+                <span className="acc-src-host">{s.host} · {s.use}</span>
+              </div>
+            </li>
+          );
+        })}
       </ul>
-      <p className="acc-note">
-        Bir iddia bu kaynaklardan doğrulanamazsa Doğrulama Ajanı cevabı reddeder.
-      </p>
+      <div className="acc-callout">
+        <span className="acc-callout-ic"><Icon.shield /></span>
+        <div>
+          Bir iddia bu kaynaklardan doğrulanamazsa <b>Doğrulama Ajanı cevabı
+          reddeder</b> — uydurma madde veya karar üretilmez.
+        </div>
+      </div>
     </div>
   );
 }
@@ -181,29 +189,96 @@ export function PrefsPanel({ prefs, setPref, toggleDomain }) {
 }
 
 /* ---------- 6) Sorumluluk reddi ---------- */
+const DISC_CAN = [
+  "Mevzuat maddelerini ve emsal kararları bulup özetler",
+  "Haklarınızı ve olası adımları sade dille açıklar",
+  "Dilekçe taslağı hazırlamanıza yardımcı olur",
+];
+const DISC_CANNOT = [
+  "Sizi mahkemede temsil edemez, vekâlet alamaz",
+  "Kesin sonuç veya hukuki garanti veremez",
+  "Avukat–müvekkil ilişkisi kurmaz",
+];
+
 export function DisclaimerPanel() {
   return (
     <div className="acc-body">
       <p className="acc-lead">ADALET bir <b>bilgilendirme aracıdır</b>, hukuki danışmanlık değildir.</p>
-      <ul className="acc-disc-list">
-        <li>Yanıtlar gerçek mevzuat ve kararlara dayanır, ancak hata içerebilir.</li>
-        <li>Karmaşık veya acil durumlarda mutlaka bir avukata danışın.</li>
-        <li>ADALET sizi mahkemede temsil edemez, vekâlet alamaz (Avukatlık Kanunu).</li>
-      </ul>
-      <p className="acc-note">Her yanıtın altındaki kısa uyarı bu metnin özetidir.</p>
+
+      {/* acc-priv-status/acc-priv-row yeniden kullanıldı: aynı success-soft tonu, bilinçli */}
+      <div className="acc-priv-status">
+        <div className="acc-sub-head" style={{ marginBottom: 2 }}>Yapabildiklerim</div>
+        {DISC_CAN.map((t) => (
+          <div className="acc-priv-row" key={t}><Icon.circleCheck />{t}</div>
+        ))}
+      </div>
+
+      <div className="acc-scope-out" style={{ marginTop: 0 }}>
+        <div className="acc-out-head"><Icon.close /> Yapamadıklarım</div>
+        {DISC_CANNOT.map((t) => (
+          <div className="acc-out-row" key={t}><b>{t}</b></div>
+        ))}
+      </div>
+
+      <div className="acc-callout">
+        <span className="acc-callout-ic"><Icon.scale /></span>
+        <div>
+          Bu sınır yasal bir zorunluluktur: hukuki danışmanlık ve mahkemede
+          temsil yalnızca avukatlara tanınmıştır (<b>Avukatlık Kanunu</b>).
+        </div>
+      </div>
+
+      <p className="acc-note">
+        Yanıtlar gerçek mevzuat ve kararlara dayanır ancak hata içerebilir.
+        Karmaşık, acil veya yüksek riskli durumlarda mutlaka bir avukata danışın.
+        Her yanıtın altındaki kısa uyarı bu metnin özetidir.
+      </p>
     </div>
   );
 }
 
 /* ---------- 7) Açık kaynak (MIT) ---------- */
+const MIT_FREEDOMS = [
+  { icon: "search", title: "İncele", desc: "Kodun tamamını satır satır okuyun." },
+  { icon: "download", title: "Çalıştır", desc: "Kendi bilgisayarınızda kurup çalıştırın." },
+  { icon: "pencil", title: "Değiştir", desc: "İhtiyacınıza göre uyarlayın." },
+  { icon: "users", title: "Paylaş", desc: "Değişikliklerinizle birlikte dağıtın." },
+];
+
 export function OpenSourcePanel() {
   return (
     <div className="acc-body">
       <div className="acc-callout">
         <span className="acc-callout-ic"><Icon.code /></span>
         <div>
-          ADALET <b>açık kaynaktır (MIT lisansı)</b>. Şeffaflık iddiamızı
-          kanıtlarız: kodun tamamını inceleyebilir, kendiniz çalıştırabilirsiniz.
+          ADALET <b>açık kaynaktır (MIT lisansı)</b>. “Sıfır uydurma” ve
+          “kaynaklı yanıt” iddialarımızı kanıtlamanın tek dürüst yolu kodu
+          herkese açmaktır.
+        </div>
+      </div>
+      <div>
+        <div className="acc-sub-head">MIT lisansı şunlara izin verir</div>
+        <ul className="acc-src-list">
+          {MIT_FREEDOMS.map((f) => {
+            const I = Icon[f.icon] || Icon.check;
+            return (
+              <li className="acc-src-item" key={f.title}>
+                <span className="acc-src-ic"><I /></span>
+                <div className="acc-src-tx">
+                  <span className="acc-src-name">{f.title}</span>
+                  <span className="acc-src-host">{f.desc}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="acc-callout">
+        <span className="acc-callout-ic"><Icon.shield /></span>
+        <div>
+          <b>Neden önemli?</b> Bir hukuk asistanına güvenmeniz için onu
+          denetleyebilmeniz gerekir. Kapalı bir sistem “bana güvenin” der;
+          açık kaynak <i>“kendiniz bakın”</i> der.
         </div>
       </div>
       <p className="acc-note">
