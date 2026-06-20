@@ -308,9 +308,13 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "320"))
 # 768→960); DRAFT_MIN_TOKENS = basit/tanımsal soru tavanı (gereksiz uzunluğu/RLHF-verbosity'i kıs).
 # Gerçek uzunluğu prompt sürer (model basitte erken durur); bunlar yalnız tavan/taban.
 # max(128, ...) alt sınır (ECC sweep): geçersiz/0/negatif env max_tokens=0 → llama.cpp hatası yapmasın.
-DRAFT_MAX_TOKENS = max(128, int(os.getenv("DRAFT_MAX_TOKENS", "896")))
+# 2026-06-20: EĞİTİCİ/kapsamlı cevap için tavan yükseltildi (896→1500). Kullanıcı "çok az yazı,
+# öğrenemiyorum" dedi; gpt-4o hızlı olduğundan uzun üretim latansı kabul edilebilir. Latans-öncelikli
+# dağıtımda DRAFT_MAX_TOKENS env ile kısaltılabilir.
+DRAFT_MAX_TOKENS = max(128, int(os.getenv("DRAFT_MAX_TOKENS", "1500")))
 # Guard (ECC review MEDIUM-1): yanlış env (MIN>MAX) tavanı tersine çevirmesin → MAX'e clamp; alt 64.
-DRAFT_MIN_TOKENS = max(64, min(int(os.getenv("DRAFT_MIN_TOKENS", "384")), DRAFT_MAX_TOKENS))
+# MIN de yükseltildi (384→640): basit soruda bile kuralı yeterince açıklasın (kullanıcı öğrensin).
+DRAFT_MIN_TOKENS = max(64, min(int(os.getenv("DRAFT_MIN_TOKENS", "640")), DRAFT_MAX_TOKENS))
 # Doğrulanacak iddia tavanı (NLI çift sayısını → verify latency'sini doğrudan etkiler).
 # 15→12: tipik hukuk cevabı ~5-9 iddia; üst kuyruk nadiren bilgi taşır, NLI yükü lineer.
 # MIN_VERIFIED_CLAIMS_RATIO koruması yerinde → kapsama düşmez. Env ile ayarlanabilir.
