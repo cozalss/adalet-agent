@@ -5,10 +5,30 @@ from __future__ import annotations
 import pytest
 
 from api.routes.multimodal import (
+    _ALLOWED_AUDIO_MIMES,
+    _base_mime,
     _detect_audio_kind,
     _detect_image_kind,
     _sanitize_filename,
 )
+
+
+@pytest.mark.parametrize("content_type,expected", [
+    ("audio/webm;codecs=opus", "audio/webm"),   # MediaRecorder blob (mikrofon STT 415 kök-nedeni)
+    ("audio/webm; codecs=opus", "audio/webm"),  # boşluklu parametre
+    ("audio/ogg;codecs=opus", "audio/ogg"),
+    ("audio/wav", "audio/wav"),                 # parametresiz değişmez
+    ("AUDIO/WEBM", "audio/webm"),               # büyük-küçük normalize
+    (None, ""),
+    ("", ""),
+])
+def test_base_mime_strips_parameters(content_type, expected):
+    assert _base_mime(content_type) == expected
+
+
+def test_base_mime_webm_opus_passes_allowlist():
+    """MediaRecorder 'audio/webm;codecs=opus' allowlist'e takılmamalı (mikrofon STT fix)."""
+    assert _base_mime("audio/webm;codecs=opus") in _ALLOWED_AUDIO_MIMES
 
 
 @pytest.mark.parametrize("raw,expected_safe", [

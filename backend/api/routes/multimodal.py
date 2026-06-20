@@ -89,6 +89,15 @@ def _reject_if_oversized(request: Request, max_bytes: int, label: str) -> None:
         raise HTTPException(413, f"{label} > {max_bytes // (1024 * 1024)} MB")
 
 
+def _base_mime(content_type: str | None) -> str:
+    """MIME'ı parametrelerinden ayır: 'audio/webm;codecs=opus' → 'audio/webm'.
+
+    Tarayıcı MediaRecorder blob'ları codecs parametresi taşır; exact-match allowlist
+    bunu reddedip 415 üretirdi (mikrofon STT kırıktı). Yalnız temel type/subtype karşılaştırılır.
+    """
+    return (content_type or "").split(";", 1)[0].strip().lower()
+
+
 # Magic-byte imzaları — istemci Content-Type header'ı sahte olabilir; gerçek
 # dosya içeriğini ilk byte'lardan doğrula (H1: client-controlled MIME bypass).
 def _detect_image_kind(data: bytes) -> str | None:
@@ -162,7 +171,7 @@ async def ocr_upload(
     Taranmış PDF/görsel: RapidOCR (offline, sistem-kurulumsuz; ENV ile Tesseract/Qwen-VL)."""
     _ = principal
     safe_name = _sanitize_filename(image.filename, "image")
-    if image.content_type and image.content_type not in _ALLOWED_IMAGE_MIMES:
+    if (mime := _base_mime(image.content_type)) and mime not in _ALLOWED_IMAGE_MIMES:
         raise HTTPException(415, f"Desteklenmeyen tip: {image.content_type}")
     _reject_if_oversized(request, MAX_IMAGE_BYTES, "Görüntü")  # okuma öncesi erken 413
     data = await image.read()
@@ -223,7 +232,7 @@ async def stt_upload(
     """Ses dosyası → Türkçe metin (faster-whisper)."""
     _ = principal
     safe_name = _sanitize_filename(audio.filename, "audio")
-    if audio.content_type and audio.content_type not in _ALLOWED_AUDIO_MIMES:
+    if (mime := _base_mime(audio.content_type)) and mime not in _ALLOWED_AUDIO_MIMES:
         raise HTTPException(415, f"Desteklenmeyen tip: {audio.content_type}")
     _reject_if_oversized(request, MAX_AUDIO_BYTES, "Ses")  # okuma öncesi erken 413
     data = await audio.read()
