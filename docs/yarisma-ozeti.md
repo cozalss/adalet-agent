@@ -112,7 +112,7 @@ Aşağıdaki üç özellik bu dönemde **uçtan uca geliştirilmiş, test edilmi
 
 Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 
-- **2026-06-21 doğrulaması:** backend hızlı pakette 1532 test, frontend birim/entegrasyon paketinde 254 test ve Playwright e2e paketinde 11 test geçti. Ayrıntı ve hariç tutulan entegrasyon alanları için `docs/CURRENT_STATUS.md`.
+- **2026-06-21 doğrulaması:** backend hızlı pakette 1546 test, frontend birim/entegrasyon paketinde 262 test ve Playwright e2e paketinde 11 test geçti. Ayrıntı ve hariç tutulan entegrasyon alanları için `docs/CURRENT_STATUS.md`.
 - **Sürekli entegrasyon (CI):** ruff (lint), bandit (güvenlik), mypy (tip
   denetimi) — tümü yeşil.
 - **Çok-ajanlı kod & güvenlik incelemesi** her özellikte (OWASP perspektifi).
@@ -143,7 +143,7 @@ Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 | **TÜBİTAK 2209-A** | Özgün araştırma sorusu (Türkçe hukuk için doğrulamalı RAG + dava tahmini); yöntem, ölçüm ve yaygın etki net. |
 | **Teknofest — Türkçe NLP** | Çekirdek katkı Türkçe doğal dil işleme: konuşma-dili→hukuk-dili retrieval, NLI doğrulama, Türkçe metin normalizasyonu. |
 | **Teknofest — İnsanlık Yararına Teknoloji** | Adalete erişimde eşitsizliği azaltır; dezavantajlı vatandaşı hedefler; erişilebilirlik birinci sınıf. |
-| **Teknofest — Yazılım & Dijital** | Açık kaynak, yüksek mühendislik olgunluğu (2026-06-21 hızlı doğrulamada 1532 backend + 254 frontend + 11 e2e test), modüler mimari. |
+| **Teknofest — Yazılım & Dijital** | Açık kaynak, yüksek mühendislik olgunluğu (2026-06-21 hızlı doğrulamada 1546 backend + 262 frontend + 11 e2e test), modüler mimari. |
 | **Imagine Cup** | Toplumsal etki + ileri yapay zekâ; Azure entegrasyonuna uygun mimari. |
 
 ---
@@ -171,7 +171,7 @@ Bir öğrenci projesi için sıra dışı bir mühendislik disiplini:
 > (HyDE, RAPTOR, hibrit arama, NLI doğrulama), çok modlu giriş (belge OCR + sesli),
 > dava sonucu tahmini ve açıklanabilirlik (her ajanın katkısı + güven skoru)
 > sunar. KVKK-uyumlu (yerel model, PII maskeleme, anonim parmak izi), erişilebilir
-> ve 1532 backend hızlı test + 254 frontend testi + 11 e2e testlik son doğrulama
+> ve 1546 backend hızlı test + 262 frontend testi + 11 e2e testlik son doğrulama
 > matrisiyle CI güvencesi altında geliştirilmiştir.
 
 ---

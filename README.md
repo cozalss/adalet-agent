@@ -11,10 +11,10 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![Qdrant](https://img.shields.io/badge/Qdrant-159k%20snapshot-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Tests](https://img.shields.io/badge/tests-1532%20backend%20%2B%20254%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
+[![Tests](https://img.shields.io/badge/tests-1546%20backend%20%2B%20262%20frontend-success?logo=pytest&logoColor=white)](#-test-ve-kalite)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**159k kaynak vektörü (2026-05-29 snapshot) · 1532 backend hızlı test + 254 frontend test + 11 e2e · 8 hukuk alanı · 4 katmanlı doğrulama · lokal + bulut hibrit model**
+**159k kaynak vektörü (2026-05-29 snapshot) · 1546 backend hızlı test + 262 frontend test + 11 e2e · 8 hukuk alanı · 4 katmanlı doğrulama · lokal + bulut hibrit model**
 
 `Durum:` backend · retrieval · doğrulama · eval · web sohbet arayüzü **olgun** &nbsp;·&nbsp; mobil / landing **yol haritasında**
 
@@ -207,7 +207,7 @@ veya canlı API ile alınmıştır. Metodoloji: [docs/theses/measured-results.md
 
 | Yanıt (ort) | Algılanan³ | Verify claim-desteği | Verify ayırt-etme⁴ | Tahmin f1_macro | Test |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1532** ✓ |
+| **~11 s** | **~1-2 s** | **%45** | **+58.1 puan** | 0.825 | **1546** ✓ |
 
 > ³ Streaming (SSE `draft_token`) ile kullanıcı cevabın **ilk 1-2 saniyede** oluşmaya başladığını görür.
 > ⁴ Verify açıkken claim-desteği %41.9, kapalıyken %100 → doğrulama katmanı kaynaksız iddiaların
@@ -373,6 +373,8 @@ uv run --extra dev ruff check .                            # geniş strict kural
 uv run --extra dev mypy .                                  # strict
 uv run --extra dev bandit -r . -c pyproject.toml -ll -ii
 uvx pip-audit --ignore-vuln CVE-2025-69872
+python scripts/check_production_readiness.py                 # prod config/default gate
+python scripts/check_live_integrations.py                    # multimodal/training/live contract gate
 python scripts/check_docs_consistency.py                   # güncel docs drift kontrolü
 ```
 
@@ -415,7 +417,7 @@ adalet-agent/
 │   ├── multimodal/    OCR · STT · TTS
 │   ├── predictive/    BERT-TR dava sonucu tahmini
 │   ├── eval/          benchmark · policy_eval · draft_quality · ablation
-│   └── tests/         pytest suite (1532 hızlı CI testi)
+│   └── tests/         pytest suite (1546 hızlı CI testi)
 ├── frontend/          Vite + React web arayüzü — /sor sohbet, SSE canlı akış (254 unit + E2E)
 ├── mobile/            Flutter çalışma alanı — aktif ürün yüzeyi değil
 ├── docs/              mimari · ADR · runbook · tez dokümanları

@@ -292,7 +292,7 @@ flowchart LR
 
 | Metric | Değer |
 |---|---|
-| Test sayısı | **1532 backend hızlı CI testi + 254 frontend unit testi + 11 Playwright E2E** |
+| Test sayısı | **1546 backend hızlı CI testi + 262 frontend unit testi + 11 Playwright E2E** |
 | mypy --strict | 0 hata · ruff ✅ · bandit ✅ · pip-audit ✅ · pnpm audit ✅ |
 | Corpus | **159k vektör** (8 domain; 62k→159k) |
 | Retrieval | **domain@1 %81.2 · @5 %97.3 · MRR 0.88** (186 vaka, ölçüldü) |
