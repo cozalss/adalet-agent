@@ -1,15 +1,59 @@
-# Production LLM Setup — Qwen 14B-Q5_K_M on RTX 4070 12GB
+# Production LLM Setup — Qwen3.5-9B-UD-Q4_K_XL on RTX 4070 12GB
 
-> ⚠️ **KÖKEN NOTU (2026-06 güncelleme):** Üretim modeli **Qwen3.5-9B UD-Q4_K_XL**'e
-> geçti (head-to-head 2-1, daha az uydurma; bkz. `backend/.env.example` `LLM_MODEL_PATH`
-> + README). Bu doküman 2026-05'teki **14B-vs-32B kararını** belgeler — VRAM/indirme/
-> ngl rakamları o 14B kurulumuna aittir, güncel üretim 9B için tarihsel referanstır.
->
-> Tarih: 2026-05-26
-> Hedef: Mock LLM → Gerçek model geçişi (ADALET-AGENT prod).
-> Donanım: RTX 4070 12GB VRAM.
+> **Güncel durum (2026-06-21):** Üretim model string'i
+> `Qwen3.5-9B-UD-Q4_K_XL.gguf` olarak tekilleştirildi. `docker-compose.yml`,
+> `.env.example`, `backend/.env.example`, README ve bu runbook aynı dosya adını
+> kullanır. 2026-05 tarihli Qwen 2.5 14B karşılaştırması aşağıda yalnız tarihsel
+> karar bağlamı olarak kalır.
 
-## Karar: Qwen 2.5 14B Q5_K_M (NOT 32B-Q3)
+> Tarih: 2026-06-21
+> Hedef: Mock LLM → gerçek model geçişi (ADALET-AGENT prod).
+> Donanım: Bulut yol GPU gerektirmez; lokal yol RTX 4070 12GB VRAM.
+
+## İki Yol: Bulut (önerilen) vs Lokal
+
+v2.3 (CLAUDE.md) ile "en iyi teknoloji serbest" → ana LLM **OpenAI bulut** olabilir.
+Embedding/retrieval/rerank her iki yolda da **lokal** kalır (sadece cevabı yazan model değişir).
+
+| | Bulut (OpenAI) | Lokal (Qwen GGUF) |
+|---|---|---|
+| Kurulum | `LLM_MODE=openai` + `OPENAI_API_KEY` | model indir + llama-server (GPU) |
+| Donanım | GPU YOK (ucuz CPU VPS) | RTX 4070+ / 12GB VRAM |
+| Kalite (TR hukuk) | gpt-4o-mini > 9B-Q4 | iyi ama daha zayıf |
+| Maliyet | token başına (~kuruş/soru) | $0 API (elektrik/GPU) |
+| Gizlilik | soru OpenAI'a gider (PII maskelenir) | tam-lokal |
+
+### Bulut Yol (önerilen — en az operasyon)
+
+```bash
+# backend/.env (veya container env):
+LLM_MODE=openai
+OPENAI_API_KEY=sk-proj-...           # SECRET — .env (gitignore) / secret manager
+OPENAI_LLM_MODEL=gpt-4o-mini         # max kalite: gpt-4o
+```
+
+Docker stack (GPU YOK, llama-server başlamaz):
+```bash
+# docker-compose backend env'i OPENAI_API_KEY/OPENAI_LLM_MODEL'i .env'den geçirir.
+# llama-server artık 'local-llm' profilinde → bulut moddayken başlamaz.
+docker compose --profile production up -d
+```
+> ⚠️ `OPENAI_API_KEY` container'a geçmezse `get_llm()` **sessizce MockLLM'e** düşer
+> (stub cevap). `docker compose config` ile env'in backend'e geçtiğini doğrula.
+
+Aşağıdaki bölümler **lokal Qwen** yolu içindir (opt-in).
+
+## Güncel Karar: Qwen3.5-9B UD-Q4_K_XL (Lokal Yol)
+
+| Kriter | Güncel değer |
+|---|---|
+| Model dosyası | `Qwen3.5-9B-UD-Q4_K_XL.gguf` |
+| Beklenen dosya konumu | `backend/models/Qwen3.5-9B-UD-Q4_K_XL.gguf` |
+| Compose env | `LLAMA_MODEL_FILE=Qwen3.5-9B-UD-Q4_K_XL.gguf` |
+| Backend in-process env | `LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf` |
+| Neden | 12GB GPU'ya daha rahat sığar; head-to-head yerel değerlendirmede daha az uydurma/sahte-grounding verdi |
+
+## Tarihsel Not: Qwen 2.5 14B Q5_K_M (NOT 32B-Q3)
 
 | Kriter | 14B Q5_K_M | 32B Q3_K_M | 32B Q4_K_M |
 |---|---|---|---|
@@ -32,13 +76,13 @@
 ### 1. Model İndirme
 
 ```powershell
-# huggingface-cli ile
-huggingface-cli download bartowski/Qwen2.5-14B-Instruct-GGUF `
-  Qwen2.5-14B-Instruct-Q5_K_M.gguf `
-  --local-dir .\models --local-dir-use-symlinks False
+# Proje sahibinin doğruladığı GGUF dosyasını backend/models altına koy.
+# Dosya adı compose/env ile birebir aynı olmalıdır:
+Test-Path .\backend\models\Qwen3.5-9B-UD-Q4_K_XL.gguf
 ```
 
-Alternatif: tarayıcıdan https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF
+Eksikse model dosyasını indirdikten/aldıktan sonra şu yola yerleştir:
+`backend/models/Qwen3.5-9B-UD-Q4_K_XL.gguf`.
 
 ### 2. llama-server (Windows)
 
@@ -46,7 +90,7 @@ Alternatif: tarayıcıdan https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-
 
 ```powershell
 .\llama-server.exe `
-  -m .\models\Qwen2.5-14B-Instruct-Q5_K_M.gguf `
+  -m .\models\Qwen3.5-9B-UD-Q4_K_XL.gguf `
   --n-gpu-layers 99 `
   --ctx-size 8192 `
   --batch-size 512 `
@@ -73,7 +117,7 @@ Flag açıklamaları:
 # adalet-agent/backend/.env
 LLM_MODE=llamacpp_server
 LLM_SERVER_URL=http://127.0.0.1:8080
-LLM_MODEL_PATH=./models/Qwen2.5-14B-Instruct-Q5_K_M.gguf
+LLM_MODEL_PATH=./models/Qwen3.5-9B-UD-Q4_K_XL.gguf
 ```
 
 ### 4. Smoke Test

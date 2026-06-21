@@ -142,9 +142,19 @@ services:
       FEEDBACK_LOG_DIR: /var/lib/adalet/feedback
       # Production default: lokal llama-server. Dev/test için .env'de
       # LLM_MODE=mock override et veya docker-compose.dev.yml + local uvicorn kullan.
+      # Bulut (v2.3): LLM_MODE=openai → aşağıdaki OPENAI_* anahtarları container'a geçmeli,
+      # yoksa get_llm() sessizce MockLLM'e düşer (stub cevap). Bu yüzden passthrough şart.
       LLM_MODE: ${LLM_MODE:-llamacpp_server}
       # production profilinde llama-server servisi (adalet-net içi DNS).
       LLM_SERVER_URL: ${LLM_SERVER_URL:-http://llama-server:8080}
+      # OpenAI bulut LLM + multimodal (LLM_MODE=openai veya *_PROVIDER=auto/openai için).
+      # Boş bırakılırsa lokal modellere düşer; LLM_MODE=openai iken anahtar ZORUNLU.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      STT_PROVIDER: ${STT_PROVIDER:-local}
+      OCR_PROVIDER: ${OCR_PROVIDER:-local}
+      TTS_PROVIDER: ${TTS_PROVIDER:-local}
       # --- Retrieval stack — TEK DOĞRU KAYNAK (dev .env ile aynı olmalı) ---
       # KRİTİK: EMBEDDING_MODEL ve QDRANT_COLLECTION boyutları UYUŞMALI.
       #   Mursit-Base = 768-dim → adalet_mursit_hybrid (768-dim)
@@ -204,8 +214,11 @@ services:
       retries: 3
 
   # ============================================================================
-  # PRODUCTION profili — TLS (Caddy) + gerçek LLM (llama-server).
-  # Tek komut tam stack:   docker compose --profile production up -d
+  # PRODUCTION profili — TLS (Caddy) reverse-proxy + SPA sunumu.
+  #   Bulut LLM (v2.3, LLM_MODE=openai):  docker compose --profile production up -d
+  #     → caddy + backend + qdrant + redis + postgres (GPU YOK). OPENAI_* .env'den gelir.
+  #   Lokal LLM ekle (LLM_MODE=llamacpp_server):  ... --profile production --profile local-llm up -d
+  #     → ayrıca llama-server (GPU). Bulut moddayken llama-server BAŞLAMAZ (boşuna VRAM yok).
   # Lokal dev için docker-compose.dev.yml + backend local uvicorn kullan.
   # NOT: container-smoke ile doğrulanmadı.
   # ============================================================================
@@ -230,10 +243,11 @@ services:
       - backend
 
   llama-server:
-    # llama.cpp resmi CUDA server image'ı — lokal gguf, bulut LLM YOK (KVKK).
+    # llama.cpp resmi CUDA server image'ı — lokal GGUF (LLM_MODE=llamacpp_server için).
+    # v2.3: bulut LLM serbest; bu servis OPT-IN (local-llm profili). Bulut moddayken başlamaz.
     image: ghcr.io/ggerganov/llama.cpp:server-cuda
     container_name: adalet-llm
-    profiles: ["production"]
+    profiles: ["local-llm"]
     restart: unless-stopped
     deploy:
       resources:
@@ -247,7 +261,7 @@ services:
       - ./backend/models:/models:ro
     command:
       - "-m"
-      - "/models/${LLAMA_MODEL_FILE:-Qwen2.5-14B-Instruct-Q5_K_M.gguf}"
+      - "/models/${LLAMA_MODEL_FILE:-Qwen3.5-9B-UD-Q4_K_XL.gguf}"
       - "--ctx-size"
       - "8192"
       - "--port"
@@ -272,7 +286,7 @@ services:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 5s
-      start_period: 120s   # 14B yükleme ~30-60s
+      start_period: 120s   # 9B yükleme ~30-60s
       retries: 3
 
 networks:
