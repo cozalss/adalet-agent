@@ -18,7 +18,7 @@
 #     AUTH=0 ile fail-fast çökerdi). NOT: /me geçmiş uçları 401 döner (beklenen).
 #
 # Ön-koşul: docker'da qdrant (adalet_mursit_hybrid dolu) + redis UP; backend/.venv;
-#           frontend/node_modules; backend/models/Qwen2.5-14B-Instruct-Q5_K_M.gguf.
+#           frontend/node_modules; backend/models/Qwen3.5-9B-UD-Q4_K_XL.gguf.
 # Kullanım (Git Bash):  bash scripts/run-local-demo.sh
 # Durdur:               bash scripts/run-local-demo.sh stop
 # =============================================================================

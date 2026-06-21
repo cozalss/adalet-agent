@@ -36,8 +36,8 @@ REQUIRED_SNIPPETS = {
     Path("docs/CURRENT_STATUS.md"): [
         "tek doğru kaynak",
         "2026-06-21",
-        "1532 passed",
-        "254 tests",
+        "1546 passed",
+        "262 tests",
         "11 passed",
         "Qwen3.5-9B-UD-Q4_K_XL.gguf",
         "misafir/localStorage-only sohbet modu yoktur",
@@ -46,7 +46,7 @@ REQUIRED_SNIPPETS = {
         "docs/CURRENT_STATUS.md",
         "unverified",
         "Qwen3.5-9B-UD-Q4_K_XL",
-        "1532 backend hızlı test + 254 frontend test + 11 e2e",
+        "1546 backend hızlı test + 262 frontend test + 11 e2e",
     ],
     Path("docs/README.md"): [
         "CURRENT_STATUS.md",
