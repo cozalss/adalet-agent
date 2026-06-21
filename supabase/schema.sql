@@ -1,6 +1,8 @@
 -- ADALET — Supabase şeması (auth + sohbet geçmişi + tercihler).
 -- Supabase Dashboard → SQL Editor'e yapıştır + RUN. (auth.users built-in'dir.)
 -- Güvenlik: RLS ile her kullanıcı YALNIZ kendi satırlarını görür/yazar (IDOR'a kapalı).
+-- 2026-05-30 Supabase Data API değişikliği: public tablolar yeni projelerde otomatik
+-- exposed değildir. Bu schema explicit GRANT içerir; RLS yine satır seviyesini korur.
 --
 -- TASARIM NOTU (conversation id = TEXT):
 --   conversation_id backend'de uuid4().hex; uuid tipi dashed'e çevirip localStorage/
@@ -227,3 +229,24 @@ begin
          coalesce((r->>'confidence')::numeric, 0)
   from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) as r;
 end; $$;
+
+-- ============================ Data API grants ============================
+-- Supabase 2026-05-30 sonrası yeni projelerde public tablolar Data API'ye
+-- otomatik expose edilmez. Frontend supabase-js doğrudan bu tabloları/RPC'yi
+-- kullandığı için authenticated role'e açık GRANT gerekir. anon'a custom tablo
+-- yetkisi verilmez; Auth uçları Supabase'in kendi auth şemasında çalışır.
+grant usage on schema public to authenticated;
+
+revoke all on table public.profiles from public, anon, authenticated;
+revoke all on table public.conversations from public, anon, authenticated;
+revoke all on table public.messages from public, anon, authenticated;
+revoke all on table public.uploaded_files from public, anon, authenticated;
+
+grant select, insert, update, delete on table public.profiles to authenticated;
+grant select, insert, update, delete on table public.conversations to authenticated;
+grant select, insert, update, delete on table public.messages to authenticated;
+grant select, insert, update, delete on table public.uploaded_files to authenticated;
+
+revoke execute on function public.save_conversation(text, text, text, jsonb) from public;
+revoke execute on function public.save_conversation(text, text, text, jsonb) from anon;
+grant execute on function public.save_conversation(text, text, text, jsonb) to authenticated;

@@ -18,6 +18,12 @@
 (profiles + conversations + messages + uploaded_files tabloları + RLS politikaları +
 yeni-kullanıcı trigger'ı oluşur. RLS sayesinde her kullanıcı yalnız kendi verisini görür.)
 
+> 2026-05-30 sonrası yeni Supabase projelerinde `public` tablolar Data API'ye
+> otomatik açılmaz. `schema.sql` bu yüzden `authenticated` role için explicit
+> `GRANT` satırlarını içerir; `anon` role custom tablo yetkisi verilmez. Mevcut
+> projeyi artımlı güncelliyorsan `supabase/migrations/0002_explicit_data_api_grants.sql`
+> dosyasını da SQL Editor'de çalıştır.
+
 ## 3. Auth sağlayıcılarını aç
 > **Misafir modu YOK:** siteye yalnız kayıt olup giriş yapan kullanıcı girebilir.
 > Giriş yoksa `AuthPage` gösterilir (uygulama açılmaz).
@@ -31,6 +37,15 @@ yeni-kullanıcı trigger'ı oluşur. RLS sayesinde her kullanıcı yalnız kendi
     doğrulanmamış e-postalar oturum açabilir — prod'da AÇIK tut.
 - **Google** (opsiyonel, demo cilası): Google Cloud'da OAuth client oluştur →
   Client ID/Secret'i buraya gir. (Email/şifre bunsuz da çalışır.)
+
+**Authentication → Security**:
+- **Leaked Password Protection**: Pro plan ve üstünde AÇIK tut. Supabase advisor
+  `auth_leaked_password_protection` uyarısı veriyorsa bu toggle kapalıdır.
+  ADALET web signup tarafında ayrıca `VITE_HIBP_PASSWORD_CHECK=1` ile HIBP
+  Pwned Passwords k-anonymity range check çalışır; şifrenin kendisi veya tam
+  hash'i gönderilmez. Eski internal auth yolu da `password_policy_issues`
+  fallback'iyle yaygın kalıpları, düşük karmaşıklığı ve e-posta/ad içeren
+  parolaları reddeder.
 
 **Authentication → URL Configuration**: Site URL'e dev için `http://localhost:5173`,
 prod için Vercel domain'ini ekle (şifre-sıfırlama/confirm linkleri buraya döner).
