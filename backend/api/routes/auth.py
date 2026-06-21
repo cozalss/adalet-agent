@@ -28,7 +28,7 @@ from api.audit import AuditEvent
 from api.audit import emit as emit_audit
 from api.limiter import INVITE_RATE, limiter
 from api.middleware.auth import Principal, authenticate, issue_token
-from api.passwords import hash_password, verify_password
+from api.passwords import hash_password, password_policy_issues, verify_password
 from api.pii import fingerprint
 from db.repositories.users import get_user_repo, normalize_email
 
@@ -215,6 +215,9 @@ async def register(request: Request, req: RegisterRequest) -> TokenResponse:
     if not req.privacy_consent:
         raise HTTPException(400, "Gizlilik onayı şart")
     email = normalize_email(req.email)
+    policy_issues = password_policy_issues(req.password, email=email, name=req.name)
+    if policy_issues:
+        raise HTTPException(status_code=422, detail=policy_issues[0])
     repo = get_user_repo(USERS_STORE_FILE)
     created = await repo.create(email, hash_password(req.password), req.name.strip())
     if not created:

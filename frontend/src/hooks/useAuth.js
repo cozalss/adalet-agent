@@ -5,6 +5,7 @@
    tarafından yönetilir (localStorage'da, otomatik yenilenir). Supabase
    yapılandırılmamışsa (env yok) giriş kullanılamaz (uygulama auth zorunlu). */
 import { useState, useEffect, useCallback } from "react";
+import { assertPasswordPolicyWithBreachCheck } from "../lib/passwordPolicy.js";
 import { supabase, supabaseEnabled } from "../lib/supabase.js";
 
 /** Supabase session → ADALET kullanıcı nesnesi. */
@@ -24,7 +25,7 @@ function mapAuthError(error) {
   const m = (error?.message || "").toLowerCase();
   if (m.includes("invalid login")) return "E-posta veya şifre hatalı.";
   if (m.includes("already registered") || m.includes("already been registered")) return "Bu e-posta zaten kayıtlı.";
-  if (m.includes("at least") || m.includes("password")) return "Şifre çok kısa (en az 6 karakter).";
+  if (m.includes("at least") || m.includes("password")) return "Şifre yeterince güçlü değil.";
   if (m.includes("email")) return "Geçerli bir e-posta girin.";
   if (m.includes("provider is not enabled")) return "Google girişi bu projede henüz açık değil.";
   return error?.message || "Bir sorun oluştu, tekrar deneyin.";
@@ -63,6 +64,7 @@ export function useAuth() {
    *  olayı tetiklenir, kullanıcı otomatik içeri alınır. */
   const register = useCallback(async ({ email, password, name }) => {
     if (!supabase) throw new Error("Kayıt şu an kullanılamıyor (Supabase yapılandırılmadı).");
+    await assertPasswordPolicyWithBreachCheck(password, { email, name });
     const { data, error } = await supabase.auth.signUp({
       email, password, options: { data: { name: name || "" } },
     });

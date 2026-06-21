@@ -60,6 +60,12 @@ def test_register_weak_password_422(client):
     assert _reg(client, pw="kisa").status_code == 422  # < 8 karakter
 
 
+def test_register_common_password_422(client):
+    r = _reg(client, pw="Password123")
+    assert r.status_code == 422
+    assert "yaygın" in r.json()["detail"]
+
+
 def test_register_bad_email_422(client):
     assert _reg(client, email="gecersiz").status_code == 422
 

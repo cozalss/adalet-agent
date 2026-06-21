@@ -17,6 +17,7 @@ vi.mock("../lib/supabase.js", () => ({ supabase: { auth: mockAuth }, supabaseEna
 import { useAuth } from "./useAuth.js";
 
 beforeEach(() => {
+  vi.clearAllMocks();
   localStorage.clear();
   mockAuth.getSession.mockResolvedValue({ data: { session: null } });
   mockAuth.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
@@ -68,6 +69,15 @@ describe("useAuth (Supabase)", () => {
       email: "x@y.com", password: "Gizli123", options: { data: { name: "Veli" } },
     });
     expect(res).toEqual({ needsConfirmation: true }); // mock'ta oturum yok → onay gerekir
+  });
+
+  it("register yaygın parolayı Supabase'e göndermeden reddeder", async () => {
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await expect(
+      result.current.register({ email: "x@y.com", password: "Password123", name: "Veli" }),
+    ).rejects.toThrow("yaygın");
+    expect(mockAuth.signUp).not.toHaveBeenCalled();
   });
 
   it("register oturum dönerse needsConfirmation=false (e-posta onayı kapalı)", async () => {

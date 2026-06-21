@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from api.passwords import hash_password, verify_password
+from api.passwords import hash_password, password_policy_issues, verify_password
 
 
 @pytest.fixture(autouse=True)
@@ -33,3 +33,17 @@ def test_verify_rejects_garbage():
 def test_raw_password_not_in_hash():
     h = hash_password("CokGizliParola")
     assert "CokGizliParola" not in h
+
+
+def test_password_policy_accepts_strong_password():
+    assert password_policy_issues("Gizli123!", email="ayse@example.com", name="Ayse") == []
+
+
+def test_password_policy_rejects_common_compromised_password():
+    issues = password_policy_issues("Password123")
+    assert any("yaygın" in issue for issue in issues)
+
+
+def test_password_policy_rejects_personal_information():
+    issues = password_policy_issues("Ayse2026!", email="ayse@example.com", name="Ayse")
+    assert any("e-posta" in issue for issue in issues)

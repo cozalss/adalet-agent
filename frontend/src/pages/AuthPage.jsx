@@ -3,6 +3,7 @@
    uyarlandı, kütüphane KURULMADI). Giriş/kayıt → /sor sohbet sayfasına geçilir. */
 import React, { useState } from "react";
 import { Icon } from "../components/icons.jsx";
+import { passwordPolicyIssues } from "../lib/passwordPolicy.js";
 import { supabaseEnabled } from "../lib/supabase.js";
 import { ShimmerButton } from "../components/ui/shimmer-button.jsx";
 
@@ -36,8 +37,11 @@ export function AuthPage({ onLogin, onRegister, onGoogle }) {
     e.preventDefault();
     setError(""); setNotice("");
     if (!email.trim() || !password) { setError("E-posta ve şifre gerekli."); return; }
-    if (isReg && password.length < 8) { setError("Şifre en az 8 karakter olmalı."); return; }
     if (isReg && !consent) { setError("Devam etmek için gizlilik onayı gerekli."); return; }
+    if (isReg) {
+      const issues = passwordPolicyIssues(password, { email: email.trim(), name: name.trim() });
+      if (issues.length) { setError(issues[0]); return; }
+    }
     setLoading(true);
     try {
       if (isReg) {
