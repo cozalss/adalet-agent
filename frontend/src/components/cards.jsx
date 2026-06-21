@@ -40,8 +40,11 @@ export function AnswerCard({ answer, sources, onJump }) {
   return (
     <div className="card answer" ref={cardRef}>
       {sections.map((sec, i) => (
-        <div className="sec reveal-target" key={i}>
-          <div className="sec-label">{sec.label}</div>
+        <div className={`sec reveal-target${sec.lead ? " sec-lead" : ""}`} key={i}>
+          {/* Lead (açılış cevabı) ETİKETSİZ — robotik "Kısa cevap:" başlığı kalktı; lead zaten
+             vurgulu punto ile cevap-önce sinyali verir. İkincil bölüm etiketleri (Dayanak/Ne
+             yapmalı) taranabilirlik için KALIR. Backend "Kısa cevap" BLUF işareti değişmez. */}
+          {!sec.lead && <div className="sec-label">{sec.label}</div>}
           {sec.steps ? (
             <ol className="steps">
               {sec.steps.map((st, j) => <li key={j}>{st}</li>)}

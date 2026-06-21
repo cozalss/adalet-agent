@@ -752,7 +752,8 @@ a.btn:not(:disabled):active {
 .answer .sec.reveal-target.visible { opacity: 1; transform: none; }
 
 /* "Yazılma" hissi — o an beliren bölümün etiketinde yanıp sönen gold imleç. */
-.answer .sec.writing .sec-label::after {
+.answer .sec.writing .sec-label::after,
+.answer .sec.writing.sec-lead .lead::after {
   content: ""; display: inline-block;
   width: 2px; height: 0.95em; margin-left: 6px;
   background: var(--accent, #D4A574); vertical-align: -0.12em;
@@ -769,7 +770,8 @@ a.btn:not(:disabled):active {
 /* Hareketi azalt: kademeli reveal/imleç yok — içerik anında ve tam görünür. */
 @media (prefers-reduced-motion: reduce) {
   .answer .sec.reveal-target { opacity: 1; transform: none; transition: none; }
-  .answer .sec.writing .sec-label::after { display: none; animation: none; }
+  .answer .sec.writing .sec-label::after,
+  .answer .sec.writing.sec-lead .lead::after { display: none; animation: none; }
   .assistant-body > .card.answer { animation: none; }
 }
 

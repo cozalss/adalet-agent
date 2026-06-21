@@ -22,17 +22,22 @@ describe("SmallTalkBubble", () => {
 });
 
 describe("AnswerCard", () => {
-  it("bölümleri (label + içerik) render eder", () => {
-    const answer = { sections: [{ label: "Kısa cevap", lead: true, runs: [{ t: "TÜFE sınırı" }] }] };
+  it("lead etiketini GİZLER (robotik 'Kısa cevap:' başlığı yok), ikincil etiketi GÖSTERİR", () => {
+    const answer = { sections: [
+      { label: "Kısa cevap", lead: true, runs: [{ t: "TÜFE sınırı" }] },
+      { label: "Dayanak", runs: [{ t: "TBK 344" }] },
+    ] };
     const out = html(<AnswerCard answer={answer} sources={[]} />);
-    expect(out).toContain("Kısa cevap");
-    expect(out).toContain("TÜFE sınırı");
+    expect(out).toContain("TÜFE sınırı");      // lead içeriği görünür
+    expect(out).not.toContain("Kısa cevap");   // lead etiketi GİZLİ (doğal açılış metni)
+    expect(out).toContain("Dayanak");          // ikincil etiket GÖRÜNÜR (taranabilirlik)
+    expect(out).toContain("TBK 344");
   });
 
-  it("savunmacı: sections yoksa text'ten tek bölüme düşer (beyaz ekran yok)", () => {
+  it("savunmacı: sections yoksa text'ten tek lead bölüme düşer (etiketsiz saf metin)", () => {
     const out = html(<AnswerCard answer={{ text: "yalın cevap" }} sources={[]} />);
     expect(out).toContain("yalın cevap");
-    expect(out).toContain("Cevap"); // fallback label
+    expect(out).not.toContain("sec-label"); // tek lead → etiket yok (saf prose)
   });
 
   it("steps bölümünü <ol><li> olarak render eder", () => {
