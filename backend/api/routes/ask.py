@@ -411,8 +411,10 @@ async def ask(
     pii_result = mask_pii(cleaned_question)
     safe_for_log = pii_result.masked_text
 
-    # Sanitize sonrası kalan metin LLM'e gider (PI temizlenmiş ama PII orijinal)
-    sanitized_req = req.model_copy(update={"question": cleaned_question})
+    # PII (TCKN/telefon/IBAN) LLM'e GİTMEDEN maskelenir: bulut LLM'e (OpenAI) ham kimlik
+    # bilgisi sızmasın (KVKK). mask_pii süre/tutar/tarih'e dokunmaz → hukuki çıkarım bozulmaz.
+    # Ekler (mask_pii @~275) ve case_facts (@~300) zaten maskeliydi; soru metni de hizalandı.
+    sanitized_req = req.model_copy(update={"question": pii_result.masked_text})
 
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
@@ -555,7 +557,8 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
         )
 
     safe_for_log = mask_pii(cleaned_question).masked_text  # PII-masked persist için
-    sanitized_req = req.model_copy(update={"question": cleaned_question})
+    # LLM'e de maskeli metin gider — ham TCKN/telefon/IBAN bulut LLM'e (OpenAI) sızmasın (KVKK).
+    sanitized_req = req.model_copy(update={"question": safe_for_log})
     graph = _get_graph()
     initial, conv_id = await _build_initial_with_session(sanitized_req)
     # IDOR: sahip bağla / doğrula (stream başlamadan; mismatch → 403).

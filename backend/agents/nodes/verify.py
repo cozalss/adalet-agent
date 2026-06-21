@@ -38,7 +38,9 @@ from agents.config import (
     NLI_ENTAILMENT_THRESHOLD,
     is_cite_grounding_check_enabled,
     is_clatter_gate_enabled,
+    is_high_risk_question,
     is_llm_judge_enabled,
+    is_llm_judge_high_risk_enabled,
 )
 from agents.risk_guard import is_high_risk_eligibility_claim, verify_risk_veto
 from agents.state import AgentState, Citation, Claim, DebateVerdict
@@ -298,8 +300,14 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     # OpenAI'ye "cevap kaynaklarca temellendirilmiş mi?" sorar; HAYIR ise pass engellenir.
     # Yalnız SIKILAŞTIRIR (CLATTER deseni — reject'i pass yapmaz). Fail-OPEN: judge çökerse
     # grounded=True döner → baseline verdict korunur. A/B'siz production'da AÇMA (config notu).
+    # Judge AÇIK ya global (her soru) ya da yüksek-riskli soruda otomatik (süre/hak-kaybı/icra —
+    # yanlış cevabın en zararlı olduğu yer). İkisi de fail-OPEN + yalnız sıkılaştırır.
+    _judge_on = is_llm_judge_enabled() or (
+        is_llm_judge_high_risk_enabled()
+        and is_high_risk_question(state.get("question"), state.get("domain"))
+    )
     _judge_note = ""
-    if is_llm_judge_enabled() and verdict == "pass":
+    if _judge_on and verdict == "pass":
         from verifier.llm_judge import judge_grounded
         grounded, judge_reason = await judge_grounded(draft_text, _veto_sources)
         if not grounded:

@@ -93,3 +93,22 @@ async def test_judge_skips_empty():
     assert grounded is True and "skipped" in reason
     grounded2, _ = await judge_grounded("cevap", [])
     assert grounded2 is True
+
+
+def test_high_risk_question_detection():
+    """Yüksek-risk: süre/hak-kaybı/icra kelimesi VEYA icra domain → True; sıradan → False."""
+    from agents.config import is_high_risk_question
+    assert is_high_risk_question("zamanaşımı süresi doldu mu") is True
+    assert is_high_risk_question("tebligat geldi ne yapmalıyım") is True
+    assert is_high_risk_question("borcum var", "icra") is True       # yüksek-risk domain
+    assert is_high_risk_question("kıdem tazminatı nedir", "is") is False  # sıradan
+    assert is_high_risk_question("") is False
+
+
+def test_judge_high_risk_gate_flag(monkeypatch):
+    """VERIFY_LLM_JUDGE_HIGH_RISK=1 → judge yüksek-riskli soruda otomatik açılır (global kapalı olsa bile)."""
+    from agents.config import is_llm_judge_enabled, is_llm_judge_high_risk_enabled
+    monkeypatch.delenv("VERIFY_LLM_JUDGE", raising=False)
+    monkeypatch.setenv("VERIFY_LLM_JUDGE_HIGH_RISK", "1")
+    assert is_llm_judge_enabled() is False           # global judge KAPALI
+    assert is_llm_judge_high_risk_enabled() is True  # ama yüksek-risk kapısı AÇIK

@@ -57,6 +57,61 @@ def test_health_returns_ok():
         assert "llm" in body["components"]
 
 
+def test_health_openai_mode_reports_openai_not_mock(monkeypatch):
+    """LLM_MODE=openai + anahtar set → health 'openai:<model>' raporlar (eski hata: 'mock')."""
+    monkeypatch.setenv("LLM_MODE", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-dummy-key")
+    monkeypatch.setenv("OPENAI_LLM_MODEL", "gpt-4o")
+    from main import app
+    with TestClient(app) as client:
+        body = client.get("/health").json()
+        assert body["components"]["llm"] == "openai:gpt-4o"
+
+
+def test_health_openai_mode_without_key_is_degraded_mock(monkeypatch):
+    """LLM_MODE=openai ama anahtar yok → get_llm() mock'a düşer; health 'mock' + degraded."""
+    monkeypatch.setenv("LLM_MODE", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from main import app
+    with TestClient(app) as client:
+        body = client.get("/health").json()
+        assert body["components"]["llm"] == "mock"
+        assert body["status"] in {"degraded", "down"}
+
+
+def test_ask_masks_pii_before_reaching_llm(monkeypatch):
+    """KVKK: kullanıcı sorusundaki TCKN/telefon, bulut LLM'e (OpenAI) GİTMEDEN maskelenir.
+    Hukuki içerik (kira/depozito) korunur."""
+    from api.routes import ask as ask_mod
+
+    captured: dict = {}
+
+    class _CaptureGraph:
+        async def ainvoke(self, initial):
+            captured["question"] = initial["question"]
+            return {
+                "domain": "kira", "domain_confidence": 0.9, "intent": "legal_answer",
+                "retry_count": 0, "mevzuat_refs": [], "emsal_refs": [],
+                "response": "Kısa cevap: Test.", "confidence": 0.9,
+                "debate_verdict": "pass", "verified_claims": [],
+                "disclaimers": [], "errors": [],
+            }
+
+    monkeypatch.setenv("ASK_GRAPH_TIMEOUT_S", "0")
+    monkeypatch.setattr(ask_mod, "_get_graph", lambda: _CaptureGraph())
+    from main import app
+    client = TestClient(app)
+    resp = client.post("/ask", json={
+        "question": "Kimlik 12345678901, telefon 0555-123-4567 ile kira depozitom iade edilir mi?",
+    })
+    assert resp.status_code == 200, resp.text
+    q = captured["question"]
+    assert "12345678901" not in q   # ham TCKN LLM'e gitmedi
+    assert "0555-123-4567" not in q  # ham telefon gitmedi
+    assert "[PII_MASKED]" in q       # maskelendi
+    assert "depozito" in q           # hukuki içerik korundu
+
+
 def test_metrics_latency_endpoint():
     """SSE stage latans yüzdelikleri — P50/P95/P99 görünürlüğü (#5 dashboard)."""
     from core.metrics import record_stream_timings, reset_all

@@ -161,6 +161,37 @@ def test_get_llm_openai_routing(monkeypatch):
     reset_llm()
 
 
+def test_get_llm_for_model_tiers_in_openai_mode(monkeypatch):
+    """Tiered routing: openai modunda base-dışı model → ayrı OpenAIClient; default → base singleton."""
+    monkeypatch.setattr(llm, "_singleton", None)
+    monkeypatch.setenv("LLM_MODE", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
+    monkeypatch.setenv("OPENAI_LLM_MODEL", "gpt-4o-mini")
+    reset_llm()
+    base = get_llm()
+    # default model → base singleton (ekstra client yok)
+    assert llm.get_llm_for_model("gpt-4o-mini") is base
+    assert llm.get_llm_for_model(None) is base
+    # güçlü model → AYRI client (base değil) ama yine OpenAIClient
+    strong = llm.get_llm_for_model("gpt-4o")
+    assert strong is not base
+    assert type(strong).__name__ == "OpenAIClient"
+    assert strong.model == "gpt-4o"
+    # aynı model tekrar → cache (aynı nesne)
+    assert llm.get_llm_for_model("gpt-4o") is strong
+    reset_llm()
+
+
+def test_get_llm_for_model_no_tiering_outside_openai(monkeypatch):
+    """openai-dışı mod (mock/lokal tek model) → tiering yok, her zaman base singleton."""
+    monkeypatch.setattr(llm, "_singleton", None)
+    monkeypatch.setenv("LLM_MODE", "mock")
+    reset_llm()
+    base = get_llm()
+    assert llm.get_llm_for_model("gpt-4o") is base  # mock modda model override yok sayılır
+    reset_llm()
+
+
 def test_openai_compat_helpers(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert cloud_enabled() is False

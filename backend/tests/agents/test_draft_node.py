@@ -111,6 +111,26 @@ async def test_draft_no_facts_leaves_placeholder_clean(monkeypatch):
     assert "{olgular_blogu}" not in user_msg.content
 
 
+def test_select_draft_model_off_returns_none(monkeypatch):
+    """LLM_TIER_ROUTING kapalı (default) → her zaman None (varsayılan model, sıfır değişiklik)."""
+    import agents.nodes.draft as draft_mod
+    monkeypatch.delenv("LLM_TIER_ROUTING", raising=False)
+    assert draft_mod._select_draft_model("x" * 200, {"a": "1", "b": "2"}, "icra") is None
+
+
+def test_select_draft_model_on_routes_complex_and_high_risk(monkeypatch):
+    """Flag açık → karmaşık (≥2 olgu/uzun) VEYA yüksek-riskli → güçlü model; basit → None."""
+    import agents.nodes.draft as draft_mod
+    monkeypatch.setenv("LLM_TIER_ROUTING", "1")
+    monkeypatch.setenv("OPENAI_LLM_MODEL_COMPLEX", "gpt-4o")
+    # basit + düşük-risk → varsayılan (None)
+    assert draft_mod._select_draft_model("kıdem nedir", {}, "is") is None
+    # karmaşık (≥2 olgu) → güçlü
+    assert draft_mod._select_draft_model("durumum", {"a": "1", "b": "2"}, "is") == "gpt-4o"
+    # yüksek-riskli (icra domain) basit soru olsa bile → güçlü
+    assert draft_mod._select_draft_model("borcum var", {}, "icra") == "gpt-4o"
+
+
 def test_format_facts_empty_returns_empty_string():
     import agents.nodes.draft as draft_mod
     assert draft_mod._format_facts_for_prompt({}) == ""

@@ -1,8 +1,9 @@
-"""LLM istemcisi — Protocol + iki implementasyon.
+"""LLM istemcisi — Protocol + dört implementasyon (mock / openai / llamacpp / llamacpp_server).
 
-Stratejik karar (CLAUDE.md §3): Production'da OpenAI/Anthropic API YOK.
-Lokal model şart. Geliştirme ortamı RTX 4070 12GB → Qwen 2.5 14B Q4_K_M GGUF
-(llama-cpp-python) yeterli, ~8.5 GB VRAM + ~3 GB KV cache.
+Strateji (CLAUDE.md v2.3): "en iyi teknoloji serbest" — bulut API'ler (OpenAI gpt-4o/mini)
+ana LLM olabilir; lokal model (Qwen GGUF, llama-cpp-python) hâlâ desteklenir (artık kısıt
+değil, tercih). LLM_MODE ile seçilir; anahtarlar .env'de (asla hardcode). get_llm() dispatch eder.
+Lokal Qwen geliştirme ortamı: RTX 4070 12GB → Qwen3.5-9B Q4_K_XL GGUF (~6 GB VRAM).
 
 Mock client (test/CI için): yapısal yanıtları stub'lar, gerçek inference yok.
 
@@ -427,6 +428,11 @@ class LlamaCppClient:
             return clamped
         return requested
 
+    async def aclose(self) -> None:
+        """Decode executor'ı kapat (lifespan shutdown — aclose_llm getattr ile çağırır).
+        Aksi halde SIGTERM'de tek-worker thread orphan kalır; hızlı restart'ta birikir."""
+        self._decode_executor.shutdown(wait=False)
+
 
 class LlamaCppServerClient:
     """llama.cpp standalone server üzerinden OpenAI-uyumlu HTTP istemci.
@@ -778,21 +784,51 @@ def get_llm() -> LLMClient:
     return _singleton
 
 
+# Tiered routing (LLM_TIER_ROUTING): karmaşık/yüksek-riskli sorular için güçlü model (gpt-4o).
+# openai modunda model BAŞINA ayrı OpenAIClient cache'lenir (bağlantı havuzu paylaşımı). Default
+# model ya da openai-dışı mod → base singleton (ekstra client AÇILMAZ → sıfır ek kaynak).
+_tier_clients: dict[str, LLMClient] = {}
+
+
+def get_llm_for_model(model: str | None) -> LLMClient:
+    """Belirli bir OpenAI modeli için client döndür (tiered routing — draft tarafı seçer).
+
+    model None/boş → base singleton. openai-dışı mod (lokal/mock tek model) → base singleton.
+    model == base model → base singleton (ekstra bağlantı havuzu açma). Aksi → model'e özel
+    OpenAIClient (process boyu cache'li). aclose_llm hepsini kapatır.
+    """
+    base = get_llm()
+    # Mod kararını base singleton'ın TİPİNE bağla (env'i yeniden okumak yerine) → get_llm ile
+    # aynı karar yolu (LLM_MODE singleton kurulduktan sonra değişse bile tutarlı; ECC review MEDIUM).
+    if not model or not isinstance(base, OpenAIClient):
+        return base
+    model = model.strip()
+    if not model or model == getattr(base, "model", None):
+        return base
+    client = _tier_clients.get(model)
+    if client is None:
+        client = OpenAIClient(model=model)
+        _tier_clients[model] = client
+        log.info("llm_tier_client_created", model=model)
+    return client
+
+
 def reset_llm() -> None:
-    """Test fixture — singleton'u sıfırla."""
+    """Test fixture — singleton'u + tier cache'i sıfırla."""
     global _singleton
     _singleton = None
+    _tier_clients.clear()
 
 
 async def aclose_llm() -> None:
-    """LLM singleton'unu temiz kapat (varsa). Lifespan shutdown'da çağrılır —
-    llamacpp_server modundaki httpx bağlantısını kapatır (Qdrant/DB teardown deseniyle
-    tutarlı). Singleton yoksa veya aclose'u yoksa (MockLLM) no-op."""
-    if _singleton is None:
-        return
-    aclose = getattr(_singleton, "aclose", None)
-    if aclose is not None:
-        await aclose()
+    """LLM singleton'unu + tier client'larını temiz kapat (varsa). Lifespan shutdown'da çağrılır —
+    openai/llamacpp_server modundaki httpx bağlantılarını kapatır (Qdrant/DB teardown deseniyle
+    tutarlı). aclose'u olmayan (MockLLM) no-op."""
+    targets = ([_singleton] if _singleton is not None else []) + list(_tier_clients.values())
+    for client in targets:
+        aclose = getattr(client, "aclose", None)
+        if aclose is not None:
+            await aclose()
 
 
 # MockLLM + mock dispatch → agents/llm_mock.py (CLAUDE.md <800). DİP re-export, circular-safe:

@@ -24,13 +24,33 @@ from agents.config import (
     DRAFT_MIN_TOKENS,
     LLM_CONTEXT_BUDGET,
     LLM_TEMPERATURE,
+    OPENAI_LLM_MODEL_COMPLEX,
     is_guided_cite_enabled,
+    is_high_risk_question,
     is_quote_grounding_enabled,
+    is_tier_routing_enabled,
 )
 from agents.draft_stream import draft_token_sink
-from agents.llm import ChatMessage, get_llm
+from agents.llm import ChatMessage, get_llm, get_llm_for_model
 from agents.state import AgentState, Citation, Claim
 from core.observability import observe_node
+
+
+def _select_draft_model(
+    question: str, facts: dict[str, object], domain: str | None,
+) -> str | None:
+    """Tiered routing: KARMAŞIK (≥2 olgu / uzun soru) VEYA YÜKSEK-RİSKLİ soru → güçlü model
+    (gpt-4o); aksi → None (varsayılan gpt-4o-mini, base singleton — ekstra client yok).
+
+    Karmaşıklık eşiği _adaptive_max_tokens ile AYNI (tutarlı sinyal). Yalnız LLM_TIER_ROUTING=1
+    + LLM_MODE=openai'de etkili (get_llm_for_model openai-dışı modu zaten base'e düşürür)."""
+    if not is_tier_routing_enabled():
+        return None
+    n_facts = sum(1 for v in (facts or {}).values() if str(v).strip())
+    complex_q = n_facts >= 2 or len(question or "") > 180
+    if complex_q or is_high_risk_question(question, domain):
+        return OPENAI_LLM_MODEL_COMPLEX
+    return None
 
 
 def _adaptive_max_tokens(question: str, facts: dict[str, object]) -> int:
@@ -230,7 +250,13 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         .replace("{soru}", question)
     )
 
-    llm = get_llm()
+    # Tiered routing: karmaşık/yüksek-riskli soru → güçlü model (gpt-4o), aksi → varsayılan.
+    # Flag KAPALI (default) → _select_draft_model None döner → get_llm() (sıfır değişiklik).
+    _tier_model = _select_draft_model(question, state.get("case_facts") or {}, state.get("domain"))
+    # Flag KAPALI (default) → _tier_model None → get_llm() (draft-modül referansı; testler bunu
+    # monkeypatch'ler). AÇIK + tier → get_llm_for_model. Koşul bilinçli (mock-edilebilirlik + sıfır
+    # değişiklik korunur; ECC review LOW "redundant" önerisi test desenini kırdığı için reddedildi).
+    llm = get_llm_for_model(_tier_model) if _tier_model else get_llm()
     messages = [
         ChatMessage(role="system", content=_build_draft_system()),
         ChatMessage(role="user", content=user_prompt),

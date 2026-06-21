@@ -132,6 +132,39 @@ def is_llm_judge_enabled() -> bool:
     return os.getenv("VERIFY_LLM_JUDGE", "0").lower() in {"1", "true", "yes"}
 
 
+def is_llm_judge_high_risk_enabled() -> bool:
+    """Yüksek-riskli sorularda (süre/zamanaşımı/hak-kaybı/icra) LLM-judge'u OTOMATİK aç —
+    global VERIFY_LLM_JUDGE kapalı olsa bile. is_llm_judge_enabled gibi yalnız SIKILAŞTIRIR
+    (reject'i pass yapmaz; fail-OPEN). Yanlış cevabın en zararlı olduğu konularda ekstra denetim.
+
+    VERIFY_LLM_JUDGE_HIGH_RISK=1 ile etkin; default KAPALI. Global judge zaten açıksa (=1) bu
+    no-op (her soru zaten denetleniyor). Yüksek-risk tespiti: is_high_risk_question().
+    """
+    return os.getenv("VERIFY_LLM_JUDGE_HIGH_RISK", "0").lower() in {"1", "true", "yes"}
+
+
+# Yüksek-risk işaretleri — yanlış cevabın en zararlı olduğu konular (süre/hak-kaybı/icra).
+# Tier routing (güçlü model) + judge-high-risk (ekstra denetim) AYNI sinyali paylaşır → tek kaynak.
+# "süre" gibi çok-genel kelime BİLEREK dışarıda (her soruyu tetiklemesin); net yüksek-stake kalıplar.
+_HIGH_RISK_KEYWORDS: tuple[str, ...] = (
+    "zamanaşımı", "zaman aşımı", "tebligat", "tebliğ", "hak düşürücü", "itiraz süresi",
+    "icra", "haciz", "ihtar", "temyiz", "istinaf", "hak kaybı", "hak kaybetme",
+)
+_HIGH_RISK_DOMAINS: frozenset[str] = frozenset({"icra"})
+
+
+def is_high_risk_question(question: str | None, domain: str | None = None) -> bool:
+    """Süre/hak-kaybı/icra gibi yüksek-riskli soru mu? Tier routing + judge-high-risk paylaşır.
+
+    Saf + deterministik (LLM yok): yüksek-risk domain VEYA net hak-kaybı kelimesi. Türkçe
+    küçük-harf normalizasyonu (I→ı, İ→i) ile diakritik-duyarsız eşleşme.
+    """
+    if domain and domain.lower() in _HIGH_RISK_DOMAINS:
+        return True
+    low = (question or "").replace("I", "ı").replace("İ", "i").lower()
+    return any(kw in low for kw in _HIGH_RISK_KEYWORDS)
+
+
 def is_partial_answer_note_enabled() -> bool:
     """Partial-answer dürüst notu (opt-in) — çok-konulu/çok-iddialı cevapta verify bazı
     iddiaları kaynaklayamayıp DÜŞÜRDÜYSE (finalize._filter_to_verified n_dropped>0), kullanıcıya
@@ -373,6 +406,18 @@ ADAPTIVE_ROUTING_ENABLED = os.getenv("ADAPTIVE_ROUTING_ENABLED", "1") not in {"0
 # A/B: HyDE ort. 4825ms → spekülatif mod ile ~322ms-2322ms aralığına çekilir.
 SPECULATIVE_DEADLINE_S = float(os.getenv("SPECULATIVE_DEADLINE_S", "2.0"))
 SPECULATIVE_ENABLED = os.getenv("SPECULATIVE_ENABLED", "1") not in {"0", "false", "False"}
+
+# --- Tiered LLM routing (model kademesi) ---
+# LLM_TIER_ROUTING=1 → karmaşık (olgu-zengin/uzun) VEYA yüksek-riskli sorular GÜÇLÜ modele
+# (OPENAI_LLM_MODEL_COMPLEX, default gpt-4o), basit sorular varsayılan modele (OPENAI_LLM_MODEL,
+# gpt-4o-mini) gider. Yalnız LLM_MODE=openai'de etkili (lokal/mock tek model). Default KAPALI —
+# gpt-4o ~16× gpt-4o-mini maliyetli; ölçerek aç (yalnız karmaşık/riskli soruda devreye girer).
+OPENAI_LLM_MODEL_COMPLEX = os.getenv("OPENAI_LLM_MODEL_COMPLEX", "gpt-4o").strip() or "gpt-4o"
+
+
+def is_tier_routing_enabled() -> bool:
+    """Zorluğa/riske göre model kademesi (LLM_TIER_ROUTING=1; default KAPALI)."""
+    return os.getenv("LLM_TIER_ROUTING", "0").lower() in {"1", "true", "yes"}
 
 # --- Sprint-7/8 (Tier-3) opsiyonel SOTA toggle'ları ---
 # Default OFF: ENV=1 ile etkin. Bayrak kapalıyken graph topolojisi Sprint-3 ile aynı.

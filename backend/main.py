@@ -484,8 +484,9 @@ async def health() -> HealthResponse:
         components["redis"] = f"down: {type(exc).__name__}"
         status_levels.append("degraded")
 
-    # LLM
-    if os.environ.get("LLM_MODE") == "llamacpp_server":
+    # LLM — modu doğru raporla (get_llm() ile aynı karar mantığı).
+    llm_mode = os.environ.get("LLM_MODE", "mock")
+    if llm_mode == "llamacpp_server":
         try:
             import httpx as _httpx
             url = os.environ.get("LLM_SERVER_URL", "http://127.0.0.1:8080")
@@ -496,6 +497,15 @@ async def health() -> HealthResponse:
                     status_levels.append("degraded")
         except Exception as exc:
             components["llm"] = f"down: {type(exc).__name__}"
+            status_levels.append("degraded")
+    elif llm_mode == "openai":
+        # Bulut ana LLM (v2.3): anahtar set ise OpenAI aktif. Anahtar yoksa get_llm()
+        # sessizce mock'a düşer → health bunu degraded olarak göstersin (yanıltıcı "ok" değil).
+        from core.openai_compat import cloud_enabled
+        if cloud_enabled():
+            components["llm"] = f"openai:{os.environ.get('OPENAI_LLM_MODEL', 'gpt-4o-mini')}"
+        else:
+            components["llm"] = "mock"
             status_levels.append("degraded")
     else:
         components["llm"] = "mock"
