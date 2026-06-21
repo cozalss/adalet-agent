@@ -7,11 +7,21 @@ ASLA hardcode değil. base_url operatör-config olsa da env-poisoning'e karşı 
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import os
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+if TYPE_CHECKING:
+    import httpx
+
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
+# Geçici (retry edilebilir) OpenAI HTTP durumları — OpenAIClient.chat ile aynı küme.
+# 429 (rate limit) + 5xx (geçici sunucu). 4xx-auth (401/403/400) KALICI → retry yok.
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 # SSRF: bulut metadata (IMDS) host'ları — kimlik-bilgisi hırsızlığının ana hedefi. Engelle.
 # Loopback/private (127.x, 10.x, localhost) MEŞRU bırakılır — yerel OpenAI-uyumlu proxy
@@ -62,9 +72,47 @@ def require_api_key(context: str) -> str:
     return key
 
 
+async def send_with_retry(
+    do_post: Callable[[], Awaitable[httpx.Response]],
+    *,
+    attempts: int = 3,
+    base_delay: float = 1.0,
+) -> httpx.Response:
+    """Bulut POST'unu geçici hatalarda exponential-backoff ile yeniden dene (STT/OCR/TTS ortak).
+
+    `do_post`: her çağrıda POST yapıp `httpx.Response` döndüren async factory (aynı client'ı
+    kapatır → bağlantı havuzu denemeler arası korunur). 429/5xx + ağ hatasında retry; kalıcı
+    4xx (auth) HEMEN yükselir. Tüm denemeler tükenince son exception propagate edilir →
+    çağıran (stt.py/ocr.py/tts.py) lokal motora graceful düşer. `raise_for_status` burada yapılır.
+    """
+    import httpx
+
+    last_exc: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            resp = await do_post()
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPStatusError as exc:
+            last_exc = exc
+            code = exc.response.status_code
+            if code in _RETRYABLE_STATUS and attempt < attempts - 1:
+                await asyncio.sleep(base_delay * (2 ** attempt))
+                continue
+            raise
+        except httpx.HTTPError as exc:  # transport/timeout — geçici say
+            last_exc = exc
+            if attempt < attempts - 1:
+                await asyncio.sleep(base_delay * (2 ** attempt))
+                continue
+            raise
+    raise last_exc or RuntimeError("send_with_retry: erişilemez")  # pragma: no cover
+
+
 __all__ = (
     "cloud_enabled",
     "openai_api_key",
     "require_api_key",
+    "send_with_retry",
     "validated_base_url",
 )

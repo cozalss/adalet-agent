@@ -23,7 +23,7 @@ import os
 
 import httpx
 
-from core.openai_compat import cloud_enabled, require_api_key
+from core.openai_compat import cloud_enabled, require_api_key, send_with_retry
 from core.openai_compat import validated_base_url as _validated_base_url
 
 _TRANSCRIBE_PATH = "/chat/completions"
@@ -130,8 +130,10 @@ async def ocr_image_openai(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
-        resp = await client.post(f"{base}{_TRANSCRIBE_PATH}", headers=headers, json=payload)
-        resp.raise_for_status()
+        async def _post() -> httpx.Response:
+            return await client.post(f"{base}{_TRANSCRIBE_PATH}", headers=headers, json=payload)
+
+        resp = await send_with_retry(_post)
         payload_json = resp.json()
     choices = payload_json.get("choices") or []
     if not choices:

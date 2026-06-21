@@ -17,9 +17,17 @@ import os
 
 import httpx
 
-from core.openai_compat import cloud_enabled, require_api_key, validated_base_url
+from core.openai_compat import (
+    cloud_enabled,
+    require_api_key,
+    send_with_retry,
+    validated_base_url,
+)
 
 _SPEECH_PATH = "/audio/speech"
+
+# Yanıt boyutu tavanı: kötü/SSRF proxy ya da beklenmedik dev audio worker belleğini şişirmesin.
+_MAX_TTS_BYTES = int(os.getenv("OPENAI_TTS_MAX_BYTES", str(10 * 1024 * 1024)))
 
 
 def cloud_tts_enabled() -> bool:
@@ -45,8 +53,12 @@ async def synthesize_openai(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
-        resp = await client.post(f"{base}{_SPEECH_PATH}", headers=headers, json=payload)
-        resp.raise_for_status()
+        async def _post() -> httpx.Response:
+            return await client.post(f"{base}{_SPEECH_PATH}", headers=headers, json=payload)
+
+        resp = await send_with_retry(_post)
+        if len(resp.content) > _MAX_TTS_BYTES:
+            raise ValueError(f"TTS yanıtı çok büyük: {len(resp.content)} bayt (> {_MAX_TTS_BYTES})")
         return resp.content
 
 

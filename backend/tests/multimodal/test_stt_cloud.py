@@ -6,8 +6,10 @@ conftest autouse fixture'ı OPENAI_API_KEY'i temizler (deterministik).
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
+import core.openai_compat as openai_compat
 import multimodal.stt as stt
 import multimodal.stt_cloud as cloud
 from multimodal.stt import transcribe_audio
@@ -146,3 +148,54 @@ async def test_transcribe_openai_builds_request(monkeypatch):
 async def test_transcribe_openai_no_key_raises():
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         await cloud.transcribe_openai(b"audio", ext="wav", language="tr", timeout_s=30)
+
+
+@pytest.mark.asyncio
+async def test_transcribe_openai_retries_on_503(monkeypatch):
+    """Geçici 503 → exponential-backoff retry; ikinci deneme başarılı (lokal'e düşmeden)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    async def _no_sleep(_s):  # backoff beklemesini test'te atla
+        return None
+
+    monkeypatch.setattr(openai_compat.asyncio, "sleep", _no_sleep)
+    calls = {"n": 0}
+
+    class Resp503:
+        def raise_for_status(self):
+            req = httpx.Request("POST", "https://api.openai.com/v1/audio/transcriptions")
+            raise httpx.HTTPStatusError("503", request=req, response=httpx.Response(503, request=req))
+
+    class RespOK:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"text": "ikinci deneme"}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, data=None, files=None):
+            calls["n"] += 1
+            return Resp503() if calls["n"] == 1 else RespOK()
+
+    monkeypatch.setattr(cloud.httpx, "AsyncClient", lambda *_a, **_k: FakeClient())
+
+    text = await cloud.transcribe_openai(b"audio", ext="wav", language="tr", timeout_s=30)
+
+    assert text == "ikinci deneme"
+    assert calls["n"] == 2  # 1 başarısız + 1 retry başarılı
+
+
+@pytest.mark.asyncio
+async def test_transcribe_openai_rejects_oversized_audio(monkeypatch):
+    """Ön-yükleme boyut kıskacı: büyük blob OpenAI'ye gitmeden reddedilir (bant-genişliği/maliyet)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(cloud, "_MAX_AUDIO_BYTES", 10)
+    with pytest.raises(ValueError, match="çok büyük"):
+        await cloud.transcribe_openai(b"x" * 20, ext="wav", language="tr", timeout_s=30)
