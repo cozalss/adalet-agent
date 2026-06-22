@@ -161,6 +161,40 @@ def test_get_llm_openai_routing(monkeypatch):
     reset_llm()
 
 
+def test_payload_reasoning_model_param_compat(monkeypatch):
+    """gpt-4o: temperature+max_tokens. o1/gpt-5: max_completion_tokens, temperature YOK (400 önle)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    p4 = OpenAIClient(model="gpt-4o-mini")._payload(
+        [ChatMessage(role="user", content="x")], 0.1, 500,
+        json_mode=False, json_schema=None, stream=False,
+    )
+    assert p4["temperature"] == 0.1 and p4["max_tokens"] == 500 and "max_completion_tokens" not in p4
+    po = OpenAIClient(model="o1-mini")._payload(
+        [ChatMessage(role="user", content="x")], 0.1, 500,
+        json_mode=False, json_schema=None, stream=False,
+    )
+    assert po["max_completion_tokens"] == 500 and "max_tokens" not in po and "temperature" not in po
+
+
+def test_retry_delay_honors_retry_after():
+    """429 Retry-After header'ine saygı (cap'li); header yok/bozuk → exponential backoff."""
+    from core.openai_compat import _retry_delay
+
+    class R:
+        headers = {"retry-after": "5"}
+
+    class Big:
+        headers = {"retry-after": "999"}
+
+    class Bad:
+        headers = {"retry-after": "soon"}
+
+    assert _retry_delay(1.0, 0, R()) == 5.0     # backoff(1) < header(5) → header
+    assert _retry_delay(1.0, 0, Big()) == 30.0  # 30s cap
+    assert _retry_delay(1.0, 2, None) == 4.0    # header yok → backoff 2^2
+    assert _retry_delay(1.0, 1, Bad()) == 2.0   # parse fail → backoff 2^1
+
+
 def test_get_llm_for_model_tiers_in_openai_mode(monkeypatch):
     """Tiered routing: openai modunda base-dışı model → ayrı OpenAIClient; default → base singleton."""
     monkeypatch.setattr(llm, "_singleton", None)

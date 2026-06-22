@@ -21,7 +21,7 @@ import os
 import httpx
 import structlog
 
-from core.openai_compat import require_api_key, validated_base_url
+from core.openai_compat import require_api_key, send_with_retry, validated_base_url
 
 log = structlog.get_logger()
 
@@ -75,8 +75,10 @@ async def judge_grounded(
         }
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
-            resp = await client.post(f"{base}{_CHAT_PATH}", headers=headers, json=payload)
-            resp.raise_for_status()
+            async def _post() -> httpx.Response:
+                return await client.post(f"{base}{_CHAT_PATH}", headers=headers, json=payload)
+
+            resp = await send_with_retry(_post)  # geçici 429/5xx → retry (multimodal ile tutarlı)
             content = (resp.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
         data = json.loads(content)
         grounded = bool(data.get("grounded", True))

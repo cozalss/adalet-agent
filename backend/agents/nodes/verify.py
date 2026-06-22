@@ -309,7 +309,15 @@ async def verify_node(state: AgentState) -> dict:  # noqa: C901
     _judge_note = ""
     if _judge_on and verdict == "pass":
         from verifier.llm_judge import judge_grounded
-        grounded, judge_reason = await judge_grounded(draft_text, _veto_sources)
+        try:
+            # Dış zaman-zarfı (multimodal ile simetrik): judge httpx-timeout'u olsa da hang'e karşı
+            # sert üst sınır. Aşılırsa fail-OPEN (grounded=True) → baseline verdict korunur.
+            grounded, judge_reason = await asyncio.wait_for(
+                judge_grounded(draft_text, _veto_sources), timeout=35.0,
+            )
+        except TimeoutError:
+            grounded, judge_reason = True, "judge timeout (fail-open)"
+            log.warning("llm_judge_timeout")
         if not grounded:
             new_judge_verdict: DebateVerdict = (
                 "retry" if state.get("retry_count", 0) < MAX_RETRY else "reject"

@@ -29,7 +29,7 @@ from typing import Any, Literal, Protocol
 
 import structlog
 
-from core.openai_compat import require_api_key, validated_base_url
+from core.openai_compat import _retry_delay, require_api_key, validated_base_url
 
 log = structlog.get_logger()
 
@@ -576,10 +576,16 @@ class OpenAIClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [m.to_dict() for m in messages],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
             "stream": stream,
         }
+        # Yeni-nesil muhakeme modelleri (o1/o3/o4/gpt-5): 'max_tokens' YERİNE 'max_completion_tokens'
+        # ve 'temperature' yalnız default(1) destekler → özel temp GÖNDERME (400 hatası önlenir).
+        # gpt-4o ailesi (default): klasik parametreler. İleride model değişse de kod kırılmaz.
+        if re.match(r"^(o[1-9]|gpt-5)", self.model):
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["temperature"] = temperature
+            payload["max_tokens"] = max_tokens
         # json_schema da dahil → json_object (OpenAI strict-schema formatı kırılgan; geçerli
         # JSON garantisi + prompt yönlendirmesi + post-hoc filtre yeterli).
         if json_mode or json_schema is not None:
@@ -620,7 +626,7 @@ class OpenAIClient:
                 last_exc = exc
                 code = exc.response.status_code
                 if code in (429, 500, 502, 503, 504) and attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(_retry_delay(1.0, attempt, exc.response))
                     continue
                 log.warning("openai_llm_failed", status=code)
                 raise
@@ -693,7 +699,7 @@ class OpenAIClient:
                         code = exc.response.status_code
                         if code in (429, 500, 502, 503, 504) and attempt < 2:
                             last_exc = exc
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(_retry_delay(1.0, attempt, exc.response))
                             continue  # token emit edilmedi → güvenli retry
                         log.warning("openai_stream_failed", status=code)
                         raise

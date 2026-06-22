@@ -45,6 +45,16 @@ export async function askStream(payload, handlers, signal) {
   const decoder = new TextDecoder();
   let buf = "";
 
+  // SSE inaktivite-watchdog: backend yanıt vermeyi keserse (hiç olay gelmezse) kullanıcı sonsuz
+  // "yazıyor…"da kalmasın. Her olayda sıfırlanır; IDLE_MS sessizlikte reader iptal edilir + onError.
+  const IDLE_MS = 45000;
+  let idleAborted = false;
+  let idleTimer = null;
+  const armIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { idleAborted = true; reader.cancel().catch(() => {}); }, IDLE_MS);
+  };
+
   const dispatch = (event, data) => {
     switch (event) {
       case "node": handlers.onNode?.(data); break;
@@ -61,9 +71,12 @@ export async function askStream(payload, handlers, signal) {
     }
   };
 
-  while (true) {
+  armIdle();
+  try {
+   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
+    armIdle(); // aktivite geldi → inaktivite sayacını sıfırla
     buf += decoder.decode(value, { stream: true });
     // SSE frame ayracı: çift newline
     let sep;
@@ -92,6 +105,12 @@ export async function askStream(payload, handlers, signal) {
         }
       }
     }
+   }
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer);
+  }
+  if (idleAborted) {
+    handlers.onError?.({ detail: "Sunucu yanıt vermiyor (zaman aşımı). Lütfen tekrar deneyin." });
   }
 }
 

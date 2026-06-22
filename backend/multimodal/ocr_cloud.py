@@ -22,9 +22,12 @@ import io
 import os
 
 import httpx
+import structlog
 
 from core.openai_compat import cloud_enabled, require_api_key, send_with_retry
 from core.openai_compat import validated_base_url as _validated_base_url
+
+log = structlog.get_logger()
 
 _TRANSCRIBE_PATH = "/chat/completions"
 
@@ -138,6 +141,11 @@ async def ocr_image_openai(
     choices = payload_json.get("choices") or []
     if not choices:
         return ""
+    # Uzun belge max_tokens'a takılırsa OpenAI metni SESSİZCE keser (finish_reason=length).
+    # Görünür kıl: çağıran/operatör eksik OCR'ı fark etsin (OPENAI_OCR_MAX_TOKENS artırılabilir).
+    if choices[0].get("finish_reason") == "length":
+        log.warning("ocr_openai_truncated", max_tokens=max_tokens,
+                    note="OCR çıktısı token sınırına takıldı; OPENAI_OCR_MAX_TOKENS artırılabilir")
     return (choices[0].get("message", {}).get("content") or "").strip()
 
 

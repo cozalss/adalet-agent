@@ -152,9 +152,24 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      # Tiered routing (karmaşık/yüksek-riskli → güçlü model) + yüksek-riskli judge.
+      LLM_TIER_ROUTING: ${LLM_TIER_ROUTING:-0}
+      OPENAI_LLM_MODEL_COMPLEX: ${OPENAI_LLM_MODEL_COMPLEX:-gpt-4o}
+      VERIFY_LLM_JUDGE: ${VERIFY_LLM_JUDGE:-0}
+      VERIFY_LLM_JUDGE_HIGH_RISK: ${VERIFY_LLM_JUDGE_HIGH_RISK:-0}
+      OPENAI_JUDGE_MODEL: ${OPENAI_JUDGE_MODEL:-gpt-4o-mini}
+      # Multimodal bulut: sağlayıcı + model + lokal-fallback (yoksa container'da default'a düşer).
       STT_PROVIDER: ${STT_PROVIDER:-local}
       OCR_PROVIDER: ${OCR_PROVIDER:-local}
       TTS_PROVIDER: ${TTS_PROVIDER:-local}
+      OPENAI_STT_MODEL: ${OPENAI_STT_MODEL:-gpt-4o-transcribe}
+      OPENAI_OCR_MODEL: ${OPENAI_OCR_MODEL:-gpt-4o-mini}
+      OPENAI_OCR_MAX_TOKENS: ${OPENAI_OCR_MAX_TOKENS:-4096}
+      OPENAI_TTS_MODEL: ${OPENAI_TTS_MODEL:-gpt-4o-mini-tts}
+      OPENAI_TTS_VOICE: ${OPENAI_TTS_VOICE:-alloy}
+      STT_CLOUD_FALLBACK: ${STT_CLOUD_FALLBACK:-1}
+      OCR_CLOUD_FALLBACK: ${OCR_CLOUD_FALLBACK:-1}
+      TTS_CLOUD_FALLBACK: ${TTS_CLOUD_FALLBACK:-1}
       # --- Retrieval stack — TEK DOĞRU KAYNAK (dev .env ile aynı olmalı) ---
       # KRİTİK: EMBEDDING_MODEL ve QDRANT_COLLECTION boyutları UYUŞMALI.
       #   Mursit-Base = 768-dim → adalet_mursit_hybrid (768-dim)

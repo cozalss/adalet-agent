@@ -72,6 +72,26 @@ def require_api_key(context: str) -> str:
     return key
 
 
+_RETRY_AFTER_CAP_S = 30.0
+
+
+def _retry_delay(base_delay: float, attempt: int, response: httpx.Response | None = None) -> float:
+    """Exponential backoff; sunucu 429 ile Retry-After verirse ona SAYGI duy (cap'li).
+
+    Retry-After saniye (int) veya HTTP-date olabilir; saniye-int desteklenir, geçersizse backoff.
+    Cap (_RETRY_AFTER_CAP_S) kötü-niyetli/aşırı header'ın worker'ı uzun bloke etmesini önler."""
+    import contextlib
+
+    delay = base_delay * (2 ** attempt)
+    # Retry-After okuması TAMAMEN defansif: header/attr yoksa veya parse edilemezse backoff'a düş
+    # (response bir mock/eksik nesne olabilir → asla retry'ı bozma).
+    with contextlib.suppress(Exception):
+        ra = response.headers.get("retry-after") if response is not None else None
+        if ra:
+            delay = min(max(delay, float(str(ra).strip())), _RETRY_AFTER_CAP_S)
+    return delay
+
+
 async def send_with_retry(
     do_post: Callable[[], Awaitable[httpx.Response]],
     *,
@@ -97,7 +117,7 @@ async def send_with_retry(
             last_exc = exc
             code = exc.response.status_code
             if code in _RETRYABLE_STATUS and attempt < attempts - 1:
-                await asyncio.sleep(base_delay * (2 ** attempt))
+                await asyncio.sleep(_retry_delay(base_delay, attempt, exc.response))
                 continue
             raise
         except httpx.HTTPError as exc:  # transport/timeout — geçici say
