@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import structlog
 
@@ -36,6 +37,15 @@ _SYSTEM = (
     "fazla 4 tane. Soruda OLMAYAN talep EKLEME (uydurma yok). "
     'Yalnız JSON: {"sub_questions": ["...", "..."]}'
 )
+
+
+def _sanitize_sub(s: str) -> str:
+    """LLM çıktısı alt-soruyu retrieval/draft prompt'una enjekte etmeden temizle (prompt-injection
+    savunması, derinlik): tek-satır, kontrol-char/markdown/liste-işareti soyulur, tavan 160."""
+    s = re.sub(r"[\x00-\x1f\x7f]", " ", s)        # kontrol karakterleri (yeni-satır dahil) → boşluk
+    s = re.sub(r"\s+", " ", s).strip()
+    s = s.lstrip("#*->`•·.) ").strip()            # markdown/liste başı
+    return s[:160]
 
 
 @observe_node(name="decompose")
@@ -70,8 +80,8 @@ async def decompose_node(state: AgentState) -> dict:
         data = json.loads(resp.content or "{}")
         raw = data.get("sub_questions") if isinstance(data, dict) else None
         subs = [
-            s.strip() for s in (raw or [])
-            if isinstance(s, str) and 5 <= len(s.strip()) <= 160
+            cleaned for s in (raw or [])
+            if isinstance(s, str) and (cleaned := _sanitize_sub(s)) and 5 <= len(cleaned) <= 160
         ]
     except Exception as exc:  # LLM/parse hatası → no-op (tek-atış retrieval'a düş)
         log.warning("decompose_failed", error=type(exc).__name__)

@@ -42,6 +42,38 @@ def test_extract_duration_turkish_words():
     assert extract_duration("temyiz süresi on beş gün olarak belirlenmiştir") == (15, "gün")  # bileşik
 
 
+def test_extract_duration_skips_work_and_past():
+    """Workflow HIGH bulgusu: çalışma-süresi/geçmiş-zaman YANLIŞ deadline olmamalı."""
+    # çalışma-süresi 'yıllık' atlanmalı, gerçek deadline 'ihbar süresi 8 hafta' alınmalı
+    assert extract_duration(
+        "5 yıllık çalışma için kıdem tazminatı hakkınız var; ihbar süresi 8 haftadır") == (8, "hafta")
+    # geçmiş-zaman '5 yıl önce' atlanmalı; '30 gün' başvuru süresi alınmalı
+    assert extract_duration("5 yıl önce aldığınız ürün için başvuru süresi 30 gündür") == (30, "gün")
+    # kıdem/çalışma bağlamı tek başına → deadline DEĞİL
+    assert extract_duration("2 yıldır çalışıyorsunuz, kıdem tazminatına hak kazandınız") is None
+
+
+def test_extract_duration_requires_deadline_context():
+    """Bağlamsız çıplak süre → None (muhafazakâr; yanlış-pozitif yok)."""
+    assert extract_duration("evde 3 yıl oturdu") is None          # bağlam yok
+    assert extract_duration("itiraz süresi 7 gün") == (7, "gün")  # 'süresi' bağlamı var
+
+
+def test_deadline_note_vowel_harmony():
+    """Workflow bulgusu: 'günlık' YANLIŞ → 'günlük' olmalı (ses uyumu)."""
+    note = deadline_note("28.02.2024 aldım", "itiraz süresi 7 gündür")
+    assert "günlük" in note and "günlık" not in note
+
+
+def test_deadline_note_no_false_positive_from_work_duration():
+    """Uçtan uca HIGH senaryosu: çalışma-süresi yanlış son-tarih ÜRETMEMELİ."""
+    note = deadline_note(
+        "10.01.2022 tarihinde işten çıkarıldım, 5 yıldır çalışıyordum",
+        "5 yıllık çalışma için kıdem hakkınız var; ihbar süresi 8 haftadır.")
+    # 8 hafta'dan hesaplanmalı (10.01.2022 + 56 gün = 07.03.2022), 5 yıl'dan (2027) DEĞİL
+    assert "2027" not in note and "07.03.2022" in note
+
+
 def test_compute_deadline_days_exact():
     # 28.02.2024 + 7 gün → 06.03.2024 (2024 ARTIK YIL: şubat 29 çeker — LLM'in kaçırdığı)
     assert compute_deadline(date(2024, 2, 28), 7, "gün") == date(2024, 3, 6)

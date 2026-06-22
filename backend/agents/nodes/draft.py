@@ -309,6 +309,9 @@ async def draft_node(state: AgentState) -> dict[str, object]:
     sink = draft_token_sink.get()
     # Adaptif uzunluk: tavanı soru-karmaşıklığına göre seç (basit→kısa, karmaşık→uzun).
     max_out = _adaptive_max_tokens(question, state.get("case_facts") or {})
+    # İT-5: çok-parçalı memo (per-konu) uzun olur; KISA çok-parçalı soru DRAFT_MIN alıp kesilmesin.
+    if len(_subs) >= 2:
+        max_out = DRAFT_MAX_TOKENS
     try:
         if sink is not None and hasattr(llm, "chat_stream"):
             response = await llm.chat_stream(

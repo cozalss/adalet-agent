@@ -633,7 +633,12 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                         _dom = _DOMAIN_TR.get(state.get("domain"), state.get("domain"))
                         yield _sse_event("reasoning", {
                             "agent": "Triaj", "text": f"Soruyu **{_dom}** hukuku olarak belirledim."})
-                    if "retrieval" not in _reasoned and (state.get("mevzuat_refs") or state.get("emsal_refs")):
+                    # İkisi de dönene kadar BEKLE (paralel fan-out; emsal mevzuat'tan önce dönerse
+                    # "0 kanun" yanlış-snapshot'ı engellenir — workflow bulgusu). [] olabilir, None değil.
+                    if ("retrieval" not in _reasoned
+                            and state.get("mevzuat_refs") is not None
+                            and state.get("emsal_refs") is not None
+                            and (state.get("mevzuat_refs") or state.get("emsal_refs"))):
                         _reasoned.add("retrieval")
                         _mz = state.get("mevzuat_refs") or []
                         _em = state.get("emsal_refs") or []

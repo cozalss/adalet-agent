@@ -27,6 +27,18 @@ _WORD_NUM = {
 }
 _NUM_ALT = r"\d{1,3}|" + "|".join(sorted(_WORD_NUM, key=len, reverse=True))
 
+# Vowel-harmony doğru "-lık" eki (gün→günlük DEĞİL günlık). Birim başına sabit.
+_UNIT_SUFFIX = {"gün": "günlük", "hafta": "haftalık", "ay": "aylık", "yıl": "yıllık"}
+
+# Deadline bağlamı: bir süreyi İLERİ-yönlü işlem-süresi yapan ipuçları. extract_duration YALNIZ bu
+# bağlamda eşleşir → çalışma-süresi ("5 yıllık çalışma") / geçmiş-zaman ("5 yıl önce") / kıdem
+# ("2 yıldır çalışıyorum") yanlış-pozitif deadline'ı engellenir (workflow HIGH bulgusu).
+_CTX_AFTER = ("içinde", "içerisinde", "itibaren", "zarfında", "kadar", "içerisin")
+_CTX_BEFORE = ("süre", "süresi", "süreniz", "süren", "için", "itibaren", "itiraz", "dava",
+               "başvuru", "ihbar", "temyiz", "cevap", "şikayet", "zamanaşımı", "hak düşürücü", "fesih")
+_EXCLUDE_AFTER = ("önce", "evvel", "sonra", "boyunca", "süredir", "geçti", "geçmiş")
+_EXCLUDE_BEFORE = ("çalış", "kıdem", "hizmet", "sigortal", "prim", "geçen", "aradan", "ikamet")
+
 
 def extract_date(text: str) -> date | None:
     """Metinden ilk tarihi çıkar: DD.MM.YYYY, DD/MM/YYYY veya '28 Şubat 2024'. Yoksa None."""
@@ -46,18 +58,31 @@ def extract_date(text: str) -> date | None:
 
 
 def extract_duration(answer: str) -> tuple[int, str] | None:
-    """Cevaptaki İLK süreyi çıkar — rakam ('7 gün') VEYA kelime ('iki yıl', 'altı ay', 'on beş gün').
+    """Cevaptaki ilk DEADLINE-bağlamlı süreyi çıkar — rakam ('7 gün') VEYA kelime ('iki yıl').
 
-    → (sayı, birim) veya None. Birim Türkçe ek alır ('gündür', 'yıllık'); base birim group(2).
+    YALNIZ ileri-yönlü işlem-süresi eşleşir: süre/içinde/itibaren/itiraz-süresi gibi bağlamda.
+    Çalışma-süresi ('5 yıllık çalışma'), geçmiş ('5 yıl önce'), kıdem ('2 yıldır çalışıyorum')
+    ATLANIR → yanlış-pozitif deadline engellenir (workflow HIGH bulgusu). → (sayı, birim) veya None.
     """
-    m = re.search(rf"\b({_NUM_ALT})\s*(gün|hafta|yıl|ay)", (answer or "").lower())
-    if not m:
-        return None
-    num = m.group(1)
-    n = int(num) if num.isdigit() else _WORD_NUM.get(num, 0)
-    if n <= 0:
-        return None
-    return n, m.group(2)
+    a = (answer or "").lower()
+    for m in re.finditer(rf"\b({_NUM_ALT})\s*(gün|hafta|yıl|ay)", a):
+        num, unit = m.group(1), m.group(2)
+        after = a[m.end():m.end() + 16].lstrip()
+        before = a[max(0, m.start() - 30):m.start()]
+        # Geçmiş-zaman ("5 yıl önce/sonra") → atla.
+        if any(after.startswith(w) for w in _EXCLUDE_AFTER):
+            continue
+        # Çalışma-süresi/kıdem bağlamı ("5 yıllık çalışma", "kıdem ... 2 yıl") → atla.
+        if any(w in before for w in _EXCLUDE_BEFORE):
+            continue
+        # POZİTİF deadline bağlamı zorunlu (yoksa atla → muhafazakâr, yanlış-pozitif yok).
+        has_ctx = any(c in after for c in _CTX_AFTER) or any(b in before for b in _CTX_BEFORE)
+        if not has_ctx:
+            continue
+        n = int(num) if num.isdigit() else _WORD_NUM.get(num, 0)
+        if n > 0:
+            return n, unit
+    return None
 
 
 def _add_months(d: date, months: int) -> date:
@@ -92,7 +117,7 @@ def deadline_note(question: str, answer: str) -> str:
     except (ValueError, OverflowError):
         return ""
     return (
-        f"📅 Girdiğiniz {start.strftime('%d.%m.%Y')} tarihine göre {n} {unit}lık süre yaklaşık "
+        f"📅 Girdiğiniz {start.strftime('%d.%m.%Y')} tarihine göre {n} {_UNIT_SUFFIX[unit]} süre yaklaşık "
         f"**{end.strftime('%d.%m.%Y')}** tarihinde dolar (resmî/adli tatil hariç — son gün resmi "
         f"tatile denk gelirse sonraki iş gününe uzayabilir; kritik işlemde mutlaka teyit edin)."
     )
