@@ -230,7 +230,15 @@ export function mapResponse(resp, question) {
   const citeMap = buildCiteMap(usedCitations);
   const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
-  const mappedSources = mapSources(usedCitations);
+  // Kaynaklar paneli: cite edilenler (Doğrulandı) + EK getirilen ilgili kanun maddeleri (DAHA ÇOK
+  // KAYNAK — korpus zengin, retrieval ~8 madde buluyor ama çoğu cite edilmez). Cited'lar ÖNCE
+  // (inline [N] numaraları korunur); ekler sonra verified=false (rozet yok → "ilgili", "doğrulandı" değil).
+  const _extraLaws = usedIds.size
+    ? (citations || []).filter((c) => (c.doc_type || "") === "law" && !usedIds.has(c.source_id)).slice(0, 6)
+    : [];
+  const mappedSources = mapSources([...usedCitations, ..._extraLaws]).map(
+    (s, i) => (i < usedCitations.length ? s : { ...s, verified: false }),
+  );
   // İlgili Kararlar: GETİRİLEN tüm emsal kararlar. Cevap gövdesi genelde kanun maddesi
   // cite eder, emsalı CITE ETMEZ (8 emsal getirilip 0'ı cite ediliyordu) → usedCitations'a
   // güvenme; FULL citations'tan al. Aynı kararın farklı chunk'ları başlıkla teklenir.

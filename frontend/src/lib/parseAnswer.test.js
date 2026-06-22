@@ -234,8 +234,8 @@ describe("mapResponse — answer", () => {
     expect(out.relatedCases.map((c) => c.title)).toEqual(["Yargıtay 3.HD 2011/1", "Yargıtay 6.HD 2025/9"]);
   });
 
-  it("Kaynak = cevabın CITE ETTİĞİ kaynaklar (sabit retrieval havuzu değil)", () => {
-    // Havuz 4 aday AMA cevap yalnız 2 madde cite ediyor → sources 2 olmalı ('16 saçma' fix).
+  it("Kaynaklar = cite edilenler (Doğrulandı) + EK getirilen ilgili kanun maddeleri (daha çok kaynak)", () => {
+    // Cevap 2 madde cite ediyor; havuzda 1 ek kanun (m-TBK-321) var → o da İLGİLİ olarak gösterilir.
     const r = {
       domain: "kira", verdict: "pass", confidence: 0.7,
       answer: "**Kısa cevap:** TÜFE sınırı [src: m-TBK-344]. Dava [src: m-TBK-345].",
@@ -251,9 +251,12 @@ describe("mapResponse — answer", () => {
       ],
     };
     const out = mapResponse(r, "");
-    expect(out.sources).toHaveLength(2);                       // 4 değil → cite edilen 2
-    expect(out.sources.map((s) => s.ref).sort()).toEqual(["m-TBK-344", "m-TBK-345"]);
-    // inline numaralar cited-listeye göre tutarlı remap (kopuk numara yok)
+    expect(out.sources).toHaveLength(3);  // 2 cite edilen + 1 ek ilgili kanun (case havuza girmez)
+    expect(out.sources.slice(0, 2).map((s) => s.ref).sort()).toEqual(["m-TBK-344", "m-TBK-345"]);
+    expect(out.sources.slice(0, 2).every((s) => s.verified)).toBe(true);   // cite edilen → Doğrulandı
+    expect(out.sources[2].ref).toBe("m-TBK-321");                          // ek getirilen ilgili madde
+    expect(out.sources[2].verified).toBe(false);                          // cite edilmedi → rozet yok
+    // inline numaralar cited-listeye göre (1,2) korunur, ek madde inline'a girmez
     const runs = out.answer.sections[0].runs;
     expect(runs.some((x) => x.cite === 1)).toBe(true);
     expect(JSON.stringify(runs)).not.toContain("src:");
