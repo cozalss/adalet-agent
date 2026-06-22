@@ -1,6 +1,24 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText, parseSections, cleanLegalSnippet } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText, parseSections, cleanLegalSnippet, cleanFullArticle } from "./parseAnswer.js";
+
+describe("cleanFullArticle — Kaynaklar TAM madde (sarkan başlık + '…' fix)", () => {
+  it("son cümlede temiz biter, sarkan sonraki-madde başlığını atar, '…' EKLEMEZ", () => {
+    const chunk = "MADDE 10- (1) Teslim tarihinden itibaren altı ay içinde ortaya çıkan ayıplar kabul edilir. Bu hâlde mevzuat hükümleri uygulanır.\nTüketicinin seçimlik hakları";
+    const out = cleanFullArticle(chunk);
+    expect(out.endsWith("uygulanır.")).toBe(true);   // son cümlede temiz biter
+    expect(out).not.toContain("seçimlik hakları");     // sarkan sonraki-madde başlığı atıldı
+    expect(out).not.toContain("…");                    // tam madde → "…" yok
+  });
+
+  it("zaten nokta ile biten maddeyi olduğu gibi bırakır", () => {
+    expect(cleanFullArticle("MADDE 5- (1) Bir kural budur.")).toBe("MADDE 5- (1) Bir kural budur.");
+  });
+
+  it("boş → ''", () => {
+    expect(cleanFullArticle("")).toBe("");
+  });
+});
 
 describe("cleanLegalSnippet — İlgili Kararlar önizleme (madde yarısından başlıyor fix)", () => {
   it("cümle-ortası başlayan chunk'tan yarım token'ı atar + '…' ekler", () => {
@@ -27,7 +45,8 @@ describe("cleanLegalSnippet — İlgili Kararlar önizleme (madde yarısından b
   it("mapSources kanun kaynağına fullText (tam madde, baştan) ekler — passage'dan uzun", () => {
     const out = mapSources([{
       source_id: "m-TKHK-8", doc_type: "law", title: "TKHK m.8",
-      snippet: "MADDE 8- (1) Ayıplı mal, tüketiciye teslimi anında... " + "x".repeat(500), url: "",
+      snippet: "MADDE 8- (1) Ayıplı mal, tüketiciye teslimi anında sözleşmeye aykırı olan maldır. " +
+        "Bu kapsamda ayrıntılı bir açıklama gerekmektedir burada. ".repeat(12), url: "",
     }]);
     expect(out[0].fullText.length).toBeGreaterThan(out[0].passage.length);
     expect(out[0].fullText).toContain("MADDE 8");

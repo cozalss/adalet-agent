@@ -102,6 +102,19 @@ export function cleanLegalSnippet(raw, maxLen = 360) {
   return s.trim();
 }
 
+/** Kanun maddesi TAM gösterimi (expand): baştan; SON CÜMLEDE bitir → korpus chunk'ının sarkıttığı
+ *  SONRAKİ madde başlığını ("Tüketicinin seçimlik hakları") at; "…" EKLEME (madde tam, kesik değil).
+ *  Çok uzun maddede makul tavan. cleanLegalSnippet'in (kısa önizleme, "…"li) tersine TAM + temiz-son. */
+export function cleanFullArticle(raw, maxLen = 8000) {
+  let s = (raw || "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+  if (!s) return "";
+  if (s.length > maxLen) s = s.slice(0, maxLen);
+  // Son cümle-sonu noktasına kadar al (sarkan başlık/yarım kelime düşer); yarıdan fazlasını korursa uygula
+  const m = s.match(/^[\s\S]*[.!?]["”')\]]?/);
+  if (m && m[0].length > s.length * 0.5) s = m[0];
+  return s.trim();
+}
+
 export function mapSources(citations) {
   return citations.map((c, i) => {
     const isLaw = c.doc_type === "law";
@@ -112,9 +125,9 @@ export function mapSources(citations) {
       title: c.title || c.source_id,
       ref: c.source_id,
       passage: cleanLegalSnippet(c.snippet || ""),
-      // Tam madde metni (baştan) — Kaynaklar paneli "tam maddeyi göster" ile açar (fetch yok;
-      // kanun chunk'ı zaten ~tam madde). passage kısa önizleme, fullText tam.
-      fullText: cleanLegalSnippet(c.snippet || "", 1600),
+      // Tam madde metni (baştan, son cümlede temiz biter, sarkan sonraki-madde başlığı atılır,
+      // "…" yok) — Kaynaklar paneli "tam maddeyi göster" ile açar (fetch yok; chunk ~tam madde).
+      fullText: cleanFullArticle(c.snippet || ""),
       url: c.url || "",
       verified: true,
       rel: [i + 1],

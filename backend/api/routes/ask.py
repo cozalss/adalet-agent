@@ -784,8 +784,8 @@ def _state_to_response(
             doc_type=r["doc_type"],
             title=r["title"],
             # Emsal (case) özeti "İlgili Kararlar"da tam gösterilir; kanun maddesi de Kaynaklar
-            # panelinde BAŞTAN + TAM gösterilsin (chunk ~tam madde ≤1600) → frontend kısa önizleme + expand.
-            snippet=r["snippet"][:2000] if r.get("doc_type") != "law" else r["snippet"][:1600],
+            # panelinde BAŞTAN + TAM gösterilsin (uzun maddeler için 6000) → frontend önizleme + expand.
+            snippet=r["snippet"][:2000] if r.get("doc_type") != "law" else r["snippet"][:6000],
             url=r["url"],
             score=min(max(float(r["score"]), 0.0), 1.0),
         )
