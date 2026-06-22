@@ -853,6 +853,14 @@ def _state_to_response(
         if pred
         else None
     )
+    # Tool-use ajan yeteneği: soruda TARİH + cevapta SÜRE varsa son günü DETERMİNİSTİK hesapla
+    # (LLM tarih aritmetiğinde güvenilmez). Sonuç disclaimers'a önden eklenir → DisclaimerBar gösterir.
+    from core.legal_dates import deadline_note
+    _disclaimers = list(state.get("disclaimers", []) or [])
+    _dl = deadline_note(state.get("question", "") or "", state.get("response", "") or "")
+    if _dl:
+        _disclaimers = [_dl, *_disclaimers]
+
     return AskResponse(
         answer=state.get("response", ""),
         domain=state.get("domain", "unknown"),
@@ -867,7 +875,7 @@ def _state_to_response(
         clarify_options=list(state.get("clarify_options") or []),
         citations=citations,
         claims=claims,
-        disclaimers=state.get("disclaimers", []),
+        disclaimers=_disclaimers,
         debate_notes=state.get("debate_notes", ""),
         retry_count=int(state.get("retry_count", 0)),
         prediction=prediction,

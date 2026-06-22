@@ -303,12 +303,14 @@ def test_ask_stream_success_contract(monkeypatch):
     events = _parse_sse(resp.text)
     # verifying = doğrulama/tartışma aşaması (debate_verdict set olunca) — 4. stepper
     # adımını canlandırır. timing event final'dan hemen önce — stage latency.
-    assert [e for e, _ in events] == ["node", "triage", "verifying", "timing", "final"]
-    node = events[0][1]
-    triage = events[1][1]
-    verifying = events[2][1]
-    timing = events[3][1]
-    final = events[4][1]
+    # İT-1: 'reasoning' event (canlı akıl yürütme) node sonrası triaj kararını yayar (mock
+    # triage_reasoning+domain). verifying = doğrulama/tartışma; timing final'dan hemen önce.
+    assert [e for e, _ in events] == ["node", "reasoning", "triage", "verifying", "timing", "final"]
+    by: dict = {}
+    for e, d in events:
+        by.setdefault(e, d)  # her tipin ilki
+    node, triage, verifying, timing, final = (by["node"], by["triage"], by["verifying"], by["timing"], by["final"])
+    assert by["reasoning"]["agent"] == "Triaj"  # canlı akıl yürütme satırı
     assert verifying["v"] == 2
     assert "t_ms" in verifying
     assert node["v"] == 2
