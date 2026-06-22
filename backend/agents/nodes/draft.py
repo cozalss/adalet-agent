@@ -153,7 +153,10 @@ _DRAFT_SYSTEM = (
     "geçmiyorsa onu YAZMA.\n"
     "3. Emin olmadığında uydurmak yerine 'bu konuda kesin bilgi veremiyorum, "
     "bir avukata danışmanızı öneririm' de.\n"
-    "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle.\n"
+    "4. Her hukuki iddiayı dayandığın kaynağın [src: ID] etiketiyle işaretle; etiketi CÜMLE "
+    "SONUNA koy (cümle/madde/adım BAŞINA asla). [src:]'i yalnız kaynaktan gelen hukuki iddiaya "
+    "koy; genel tavsiye/uyarı ('avukata danışın', 'dikkat edin') cümlelerine KOYMA. Aynı kaynağı "
+    "her cümlede tekrarlama — bir paragrafta bir kez yeter; mekanik tekrar profesyonel durmaz.\n"
     "5. Yanıtının TAMAMI Türkçe olmalı. İngilizce, Çince veya başka hiçbir "
     "dilde tek kelime bile yazma; tüm cevabı baştan sona Türkçe ver.\n"
     "6. İspat yükünü veya üst sınır yönünü ters yazma: kaynak satıcı/işveren/idare "
@@ -221,6 +224,34 @@ _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ])")
 LLM_CLAIM_EXTRACTION_ENABLED = (
     os.getenv("LLM_CLAIM_EXTRACTION", "0").lower() in {"1", "true", "yes"}
 )
+
+
+# Net tavsiye/öneri kalıpları — bunlar kaynaktan gelen hukuki iddia DEĞİL; LLM ısrarla [src:]
+# yapıştırıyor. Yalnız BU net kalıplar (belirsiz "önemlidir" vb. HARİÇ → meşru madde atfı korunur).
+_ADVICE_PATTERNS = re.compile(
+    r"avukat[ae]?\s+(danış|başvur)|hukuki\s+(destek|yardım|danışmanlık)\s+al|"
+    r"avukatla\s+görüş|bir\s+avukat",
+    re.IGNORECASE,
+)
+
+
+def _strip_advice_citations(text: str) -> str:
+    """Tavsiye cümlelerindeki [src:] etiketini sil (kaynaktan gelmeyen prosedürel öneri).
+
+    Her [src:] için, etiketten önceki cümle parçasına bakar; net öneri kalıbı ("avukata danışın"
+    vb.) içeriyorsa etiketi kaldırır. Yapı (\\n\\n bölümleri) korunur; yalnız etiket çıkarılır.
+    Belirsiz kelimeler hariç → meşru madde-içeriği atfı bozulmaz. Saf, deterministik."""
+    def _repl(m: re.Match[str]) -> str:
+        prefix = text[max(0, m.start() - 200):m.start()]
+        # son BOŞ-OLMAYAN cümle (atıf cümle-sonu noktasından SONRA gelse de doğru cümleyi bul)
+        segs = [s for s in re.split(r"(?<=[.!?])\s|\n", prefix) if s.strip()]
+        sentence = segs[-1] if segs else prefix
+        return "" if _ADVICE_PATTERNS.search(sentence) else m.group(0)
+
+    cleaned = _SRC_TAG_RE.sub(_repl, text)
+    # etiket silindikten sonra " ." / çift boşluk düzelt (satır yapısı korunur)
+    cleaned = re.sub(r"[ \t]+([.!?])", r"\1", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned)
 
 
 @observe_node(as_type="generation", name="draft")
@@ -302,6 +333,9 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         state.get("case_facts") or {},
         state.get("eligibility") or [],
     )
+    # Tavsiye/öneri cümlelerinden [src:] sil — LLM (gpt-4o) prompt'a rağmen "avukata danışın"
+    # gibi kaynaktan-gelmeyen cümlelere mekanik atıf yapıştırıyor. Deterministik temizlik.
+    draft_text = _strip_advice_citations(draft_text)
     # Adaptif bölüm: tanımsal soruda (olgu yok + "nedir/ne demek") model yine de 5 bölüm
     # ürettiyse, uygulanamayan bölümleri (Durumunuza uygulama/Ne yapmalı/Dikkat) DETERMİNİSTİK
     # kes → gerçek kısa cevap (Kısa cevap + Dayanak). Claim-extraction'dan ÖNCE (verify tutarlı).

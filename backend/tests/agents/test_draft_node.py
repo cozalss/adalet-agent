@@ -131,6 +131,23 @@ def test_select_draft_model_on_routes_complex_and_high_risk(monkeypatch):
     assert draft_mod._select_draft_model("borcum var", {}, "icra") == "gpt-4o"
 
 
+def test_strip_advice_citations_removes_only_advice_tags():
+    """Tavsiye cümlesindeki [src:] silinir; meşru madde atfı KORUNUR; yapı bozulmaz."""
+    import agents.nodes.draft as draft_mod
+    f = draft_mod._strip_advice_citations
+    # tavsiye (nokta sonrası atıf) → sil
+    assert "[src:" not in f("Bir avukata danışmanız faydalı olacaktır. [src: m-TBK-353]")
+    # tavsiye (nokta öncesi atıf) → sil
+    assert "[src:" not in f("Gerekirse bir avukata danışın [src: m-TBK-353].")
+    # meşru madde içeriği → KORU
+    assert "[src: m-IIK-62]" in f("İtiraz süresi yedi gündür [src: m-IIK-62].")
+    # karma: meşru korunur, tavsiye silinir
+    out = f("Madde 11 seçimlik hak verir [src: m-TKHK-11]. Bir avukata danışın [src: m-TBK-353].")
+    assert "[src: m-TKHK-11]" in out and "m-TBK-353" not in out
+    # çok-paragraflı yapı korunur (\n\n)
+    assert "\n\n" in f("**Dayanak:** X [src: m-A].\n\n**Dikkat:** Avukata danışın [src: m-B].")
+
+
 def test_format_facts_empty_returns_empty_string():
     import agents.nodes.draft as draft_mod
     assert draft_mod._format_facts_for_prompt({}) == ""
