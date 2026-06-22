@@ -555,12 +555,48 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
 }
 
 
+# ÇAPRAZ-DOMAIN yönetmelikler: bir yönetmelik birden çok domaine ait olabilir (ör. asansör/yangın
+# bina yönetmeliği → kira + tapu + idari). Birincil domaini codes.json'da; EK domainler burada →
+# soru hangi domaine sınıflansa da spesifik yönetmelik boost alır (asansör sorusu 'tapu'ya gitse de
+# YON_ASANS 'kira'da ama buradan tapu'ya da kaydolur). {kodu: (ek_domainler,)}
+CROSS_DOMAIN_YONETMELIK: dict[str, tuple[str, ...]] = {
+    # Bina/yapı: kira (apartman) ↔ tapu (taşınmaz) ↔ idari (imar/yapı denetim)
+    "YON_YANGIN": ("tapu", "idari"),
+    "YON_YAPDEN": ("tapu", "idari"),
+    "YON_YAPKAY": ("tapu", "idari"),
+    "YON_ENERJI": ("tapu",),
+    "YON_ASANS": ("tapu",),
+    "YON_PLANLI_ALAN": ("tapu", "kira"),
+    "YON_OTOPARK": ("tapu", "kira"),
+    "YON_ISYERI_RUHSAT": ("kira",),
+    # Taşınmaz satış/ticaret: tapu ↔ idari ↔ icra (cebri satış)
+    "YON_TASINMAZ_TICARET": ("idari",),
+    "YON_BORCSATIS": ("tapu",),
+    "YON_ESATIS": ("tapu",),
+    # Konut finansmanı: tüketici ↔ kira
+    "YON_KONUTFIN": ("kira",),
+    "YON_KONFIN": ("tuketici",),
+    # Abonelik/sayaç (su/elektrik/gaz): kira ↔ tüketici
+    "YON_ELEKTUK": ("tuketici",),
+    "YON_GAZABO": ("tuketici",),
+    "YON_ATIKSU": ("tuketici",),
+    # Memur: idari ↔ iş
+    "YON_MEMUR_SIKAYET": ("isHukuku",),
+    "YON_MEMUR_HASTALIK": ("isHukuku",),
+    # Vergi denetim: vergi ↔ idari · Adres: kira ↔ idari
+    "YON_VDK": ("idari",),
+    "YON_ADRKAY": ("idari",),
+    "YON_ADRES_KAYIT": ("kira",),
+}
+
+
 def _load_auto_yonetmelik_codes() -> None:
     """Firecrawl yönetmelik ingestion'la eklenen YON_ kodlarını OTOMATİK kaydet (elle config edit yok).
 
     data/yonetmelik_codes.json {kodu: domain} → DOMAIN_TO_KANUN_KODU'ya SONA eklenir (primary kanun
-    korunur). seed_firecrawl_yonetmelik başarılı seed'lerde bu dosyayı günceller → onlarca yönetmelik
-    tek elle-edit olmadan boost alır. Dosya yoksa/bozuksa sessizce geçer (mevcut davranış)."""
+    korunur). Her kod birincil domaini + CROSS_DOMAIN_YONETMELIK'teki EK domainlere kaydedilir →
+    çapraz-domain yönetmelik (asansör/yangın vb.) soru hangi domaine gitse de boost alır. Dosya
+    yoksa/bozuksa sessizce geçer."""
     import json as _json
     from pathlib import Path as _Path
     p = _Path(__file__).resolve().parent.parent / "data" / "yonetmelik_codes.json"
@@ -571,8 +607,10 @@ def _load_auto_yonetmelik_codes() -> None:
     except Exception:
         return
     for kod, dom in (mapping or {}).items():
-        if dom in DOMAIN_TO_KANUN_KODU and kod not in DOMAIN_TO_KANUN_KODU[dom]:
-            DOMAIN_TO_KANUN_KODU[dom] = DOMAIN_TO_KANUN_KODU[dom] + (kod,)
+        domains = {dom, *CROSS_DOMAIN_YONETMELIK.get(kod, ())}
+        for d in domains:
+            if d in DOMAIN_TO_KANUN_KODU and kod not in DOMAIN_TO_KANUN_KODU[d]:
+                DOMAIN_TO_KANUN_KODU[d] = DOMAIN_TO_KANUN_KODU[d] + (kod,)
 
 
 _load_auto_yonetmelik_codes()
