@@ -77,6 +77,31 @@ function parseContentBlocks(content, citeMap) {
 }
 
 /** citations[] → UI source kartı şekli. */
+/** Emsal/mevzuat önizleme snippet'ini temizle — "madde yarısından başlıyor / sonu yok" görünümünü
+ *  düzeltir. Korpus chunk'ı keyfi ~1400 krk pencere → kelime/cümle ORTASINDAN kesilir. Baş küçük
+ *  harfle (cümle-ortası) başlıyorsa yarım token'ı düşür + "…"; sonu yarımsa cümle sınırında kes + "…".
+ *  Salt görsel: içeriği değiştirmez, yalnız kırık kenarları kırpar. Tam metin tıklamada gelir. */
+export function cleanLegalSnippet(raw, maxLen = 360) {
+  let s = (raw || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  const f = s[0];
+  // Baş cümle-ortası (küçük harf) → ilk yarım token'ı düşür + "…"
+  if (f === f.toLocaleLowerCase("tr") && f !== f.toLocaleUpperCase("tr")) {
+    const sp = s.indexOf(" ");
+    if (sp > 0 && sp <= 24) s = s.slice(sp + 1).trimStart();
+    s = "… " + s;
+  }
+  // Son: uzunsa son TAM cümlede kes; yarım bitiyorsa "…"
+  if (s.length > maxLen) {
+    const cut = s.slice(0, maxLen);
+    const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+    s = (end > maxLen * 0.5 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, "")).trim() + " …";
+  } else if (!/[.!?"”)\]]$/.test(s)) {
+    s = s + " …";
+  }
+  return s.trim();
+}
+
 export function mapSources(citations) {
   return citations.map((c, i) => {
     const isLaw = c.doc_type === "law";
@@ -86,7 +111,7 @@ export function mapSources(citations) {
       badge: isLaw ? "kanun" : "yargitay",
       title: c.title || c.source_id,
       ref: c.source_id,
-      passage: (c.snippet || "").trim(),
+      passage: cleanLegalSnippet(c.snippet || ""),
       url: c.url || "",
       verified: true,
       rel: [i + 1],

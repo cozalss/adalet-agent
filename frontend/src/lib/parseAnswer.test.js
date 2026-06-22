@@ -1,6 +1,29 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText, parseSections } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText, parseSections, cleanLegalSnippet } from "./parseAnswer.js";
+
+describe("cleanLegalSnippet — İlgili Kararlar önizleme (madde yarısından başlıyor fix)", () => {
+  it("cümle-ortası başlayan chunk'tan yarım token'ı atar + '…' ekler", () => {
+    const out = cleanLegalSnippet("bilecek taşınmazlardan olmadığından TMK.nun 999.maddesi uyarınca tapu tescili mümkün bulunmayan taşınmazlardır.");
+    expect(out.startsWith("…")).toBe(true);
+    expect(out).not.toContain("bilecek taşınmazlardan");
+    expect(out).toContain("taşınmazlardan olmadığından");
+  });
+
+  it("düzgün başlayan + nokta ile biten snippet'i bozmaz", () => {
+    const clean = "Yargıtay kararına göre tüketici seçimlik haklara sahiptir.";
+    expect(cleanLegalSnippet(clean)).toBe(clean);
+  });
+
+  it("yarım biten snippet'e '…' ekler", () => {
+    expect(cleanLegalSnippet("İşçi kıdem tazminatına hak kazanır ancak ihbar").endsWith("…")).toBe(true);
+  });
+
+  it("boş/whitespace → ''", () => {
+    expect(cleanLegalSnippet("")).toBe("");
+    expect(cleanLegalSnippet("   ")).toBe("");
+  });
+});
 
 describe("parseSections — satır-içi kalın etiket bölüm SANILMAZ (öksüz-numara fix)", () => {
   it("numaralı + kalın-etiketli seçenek listesini TEK bölüm yapar (öksüz numara yok)", () => {

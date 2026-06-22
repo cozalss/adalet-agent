@@ -52,6 +52,9 @@ export default defineConfig({
       // /me: tercih + sohbet geçmişi + dosya senkronu (auth'lu kullanıcı).
       "/me": { target: BACKEND, changeOrigin: true },
       "/multimodal": { target: BACKEND, changeOrigin: true },
+      // /emsal: "İlgili Kararlar" tam-metin (on-demand). Public yargi-mcp yavaş (~20s) →
+      // proxyTimeout yükseltilir, yoksa proxy isteği erken keser ("getirilemedi" hatası).
+      "/emsal": { target: BACKEND, changeOrigin: true, proxyTimeout: 60000, timeout: 60000 },
       "/feedback": { target: BACKEND, changeOrigin: true },
       "/auth": { target: BACKEND, changeOrigin: true },
       "/health": { target: BACKEND, changeOrigin: true },
