@@ -230,11 +230,15 @@ export function mapResponse(resp, question) {
   const citeMap = buildCiteMap(usedCitations);
   const body = stripAnswerTail(resp.answer);
   const sections = parseSections(body, citeMap);
-  // Kaynaklar paneli: cite edilenler (Doğrulandı) + EK getirilen ilgili kanun maddeleri (DAHA ÇOK
-  // KAYNAK — korpus zengin, retrieval ~8 madde buluyor ama çoğu cite edilmez). Cited'lar ÖNCE
-  // (inline [N] numaraları korunur); ekler sonra verified=false (rozet yok → "ilgili", "doğrulandı" değil).
+  // Kaynaklar paneli: cite edilenler (Doğrulandı) + EK getirilen GERÇEKTEN İLGİLİ kanun maddeleri.
+  // KRİTİK: yalnız relevance skoru yüksek (≥ EŞİK) ekler — havuzun ALAKASIZ kuyruğu (skor ~0.0)
+  // gösterilmez (kullanıcı "konuyla alakasız" dedi). Cited'lar ÖNCE (inline [N] korunur); ekler
+  // sonra verified=false (rozet yok → "ilgili"). Cap 6.
+  const _EXTRA_MIN_SCORE = 0.5;
   const _extraLaws = usedIds.size
-    ? (citations || []).filter((c) => (c.doc_type || "") === "law" && !usedIds.has(c.source_id)).slice(0, 6)
+    ? (citations || [])
+        .filter((c) => (c.doc_type || "") === "law" && !usedIds.has(c.source_id) && (c.score ?? 0) >= _EXTRA_MIN_SCORE)
+        .slice(0, 6)
     : [];
   const mappedSources = mapSources([...usedCitations, ..._extraLaws]).map(
     (s, i) => (i < usedCitations.length ? s : { ...s, verified: false }),

@@ -240,10 +240,11 @@ describe("mapResponse — answer", () => {
       domain: "kira", verdict: "pass", confidence: 0.7,
       answer: "**Kısa cevap:** TÜFE sınırı [src: m-TBK-344]. Dava [src: m-TBK-345].",
       citations: [
-        { source_id: "m-TBK-344", doc_type: "law", title: "TBK 344", snippet: "x" },
-        { source_id: "m-TBK-345", doc_type: "law", title: "TBK 345", snippet: "y" },
-        { source_id: "m-TBK-321", doc_type: "law", title: "TBK 321", snippet: "z" },
-        { source_id: "h-999-c1", doc_type: "case", title: "Yargıtay", snippet: "w" },
+        { source_id: "m-TBK-344", doc_type: "law", title: "TBK 344", snippet: "x", score: 0.9 },
+        { source_id: "m-TBK-345", doc_type: "law", title: "TBK 345", snippet: "y", score: 0.9 },
+        { source_id: "m-TBK-321", doc_type: "law", title: "TBK 321", snippet: "z", score: 0.7 },  // ilgili
+        { source_id: "m-TBK-300", doc_type: "law", title: "TBK 300", snippet: "q", score: 0.05 }, // ALAKASIZ
+        { source_id: "h-999-c1", doc_type: "case", title: "Yargıtay", snippet: "w", score: 0.6 },
       ],
       claims: [
         { text: "TÜFE sınırı", cite_ids: ["m-TBK-344"], verified: true },
@@ -251,11 +252,12 @@ describe("mapResponse — answer", () => {
       ],
     };
     const out = mapResponse(r, "");
-    expect(out.sources).toHaveLength(3);  // 2 cite edilen + 1 ek ilgili kanun (case havuza girmez)
+    expect(out.sources).toHaveLength(3);  // 2 cite + 1 ilgili ek (skor 0.7); ALAKASIZ (0.05) ELENİR
     expect(out.sources.slice(0, 2).map((s) => s.ref).sort()).toEqual(["m-TBK-344", "m-TBK-345"]);
     expect(out.sources.slice(0, 2).every((s) => s.verified)).toBe(true);   // cite edilen → Doğrulandı
-    expect(out.sources[2].ref).toBe("m-TBK-321");                          // ek getirilen ilgili madde
+    expect(out.sources[2].ref).toBe("m-TBK-321");                          // skor ≥ 0.5 ilgili ek
     expect(out.sources[2].verified).toBe(false);                          // cite edilmedi → rozet yok
+    expect(out.sources.map((s) => s.ref)).not.toContain("m-TBK-300");     // skor 0.05 → ALAKASIZ, elendi
     // inline numaralar cited-listeye göre (1,2) korunur, ek madde inline'a girmez
     const runs = out.answer.sections[0].runs;
     expect(runs.some((x) => x.cite === 1)).toBe(true);
