@@ -280,6 +280,17 @@ async def draft_node(state: AgentState) -> dict[str, object]:
         .replace("{gecmis_blogu}", gecmis)
         .replace("{soru}", question)
     )
+    # İT-5 KAPSAMLI ANALİZ (deep research): query decomposition çok-parçalı soruyu alt-sorulara
+    # böldüyse (sub_questions), cevabı HER alt-konuyu ayrı ele alan yapılandırılmış mütalaa olarak
+    # iste → hiçbir talep atlanmaz. Tek-parça/decompose-kapalı → normal davranış (sıfır değişiklik).
+    _subs = state.get("sub_questions") or []
+    if len(_subs) >= 2:
+        user_prompt += (
+            "\n\nKAPSAMLI ANALİZ — Bu çok-parçalı bir sorudur. Aşağıdaki HER alt-konuyu cevabında "
+            "AYRI ve eksiksiz ele al (her biri için kalın kısa başlık + ilgili madde/dayanak [src:] "
+            "+ net sonuç). Hiçbirini atlama, hiçbirini uydurma — yalnız kaynaklarda geçeni:\n"
+            + "\n".join(f"  {i}. {s}" for i, s in enumerate(_subs, 1))
+        )
 
     # Tiered routing: karmaşık/yüksek-riskli soru → güçlü model (gpt-4o), aksi → varsayılan.
     # Flag KAPALI (default) → _select_draft_model None döner → get_llm() (sıfır değişiklik).

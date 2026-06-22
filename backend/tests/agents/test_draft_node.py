@@ -98,6 +98,35 @@ async def test_draft_injects_case_facts(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_draft_memo_when_decomposed(monkeypatch):
+    """İT-5: sub_questions varsa user prompt'una KAPSAMLI ANALİZ + alt-sorular enjekte edilir."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    state = {
+        "question": "kıdem, ihbar ve fazla mesai alabilir miyim?",
+        "mevzuat_refs": [_ref()], "emsal_refs": [],
+        "sub_questions": ["kıdem tazminatı şartları", "ihbar tazminatı süresi", "fazla mesai ücreti"],
+    }
+    await draft_mod.draft_node(state)
+    user = cap.messages[-1].content
+    assert "KAPSAMLI ANALİZ" in user
+    assert "kıdem tazminatı şartları" in user and "fazla mesai ücreti" in user
+
+
+@pytest.mark.asyncio
+async def test_draft_no_memo_without_subquestions(monkeypatch):
+    """Tek-parça (sub_questions yok) → memo enjekte edilmez (normal davranış)."""
+    import agents.nodes.draft as draft_mod
+
+    cap = _CapturingLLM()
+    monkeypatch.setattr(draft_mod, "get_llm", lambda: cap)
+    await draft_mod.draft_node({"question": "Ayıplı malda hak nedir?", "mevzuat_refs": [_ref()], "emsal_refs": []})
+    assert "KAPSAMLI ANALİZ" not in cap.messages[-1].content
+
+
+@pytest.mark.asyncio
 async def test_draft_no_facts_leaves_placeholder_clean(monkeypatch):
     """case_facts yoksa {olgular_blogu} boşa indirgenir — ham placeholder sızmaz."""
     import agents.nodes.draft as draft_mod
