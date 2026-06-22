@@ -23,6 +23,15 @@ describe("cleanLegalSnippet — İlgili Kararlar önizleme (madde yarısından b
     expect(cleanLegalSnippet("")).toBe("");
     expect(cleanLegalSnippet("   ")).toBe("");
   });
+
+  it("mapSources kanun kaynağına fullText (tam madde, baştan) ekler — passage'dan uzun", () => {
+    const out = mapSources([{
+      source_id: "m-TKHK-8", doc_type: "law", title: "TKHK m.8",
+      snippet: "MADDE 8- (1) Ayıplı mal, tüketiciye teslimi anında... " + "x".repeat(500), url: "",
+    }]);
+    expect(out[0].fullText.length).toBeGreaterThan(out[0].passage.length);
+    expect(out[0].fullText).toContain("MADDE 8");
+  });
 });
 
 describe("parseSections — satır-içi kalın etiket bölüm SANILMAZ (öksüz-numara fix)", () => {

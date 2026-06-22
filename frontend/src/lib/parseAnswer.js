@@ -112,6 +112,9 @@ export function mapSources(citations) {
       title: c.title || c.source_id,
       ref: c.source_id,
       passage: cleanLegalSnippet(c.snippet || ""),
+      // Tam madde metni (baştan) — Kaynaklar paneli "tam maddeyi göster" ile açar (fetch yok;
+      // kanun chunk'ı zaten ~tam madde). passage kısa önizleme, fullText tam.
+      fullText: cleanLegalSnippet(c.snippet || "", 1600),
       url: c.url || "",
       verified: true,
       rel: [i + 1],

@@ -172,7 +172,11 @@ export function DisclaimerBar({ items }) {
 
 export function SourceCard({ s, flash, onRef }) {
   const ref = useRef(null);
+  const [srcExpanded, setSrcExpanded] = useState(false);
   const showSourceUrl = shouldShowSourceUrl(s);
+  // Kanun maddesi: passage kısa önizleme (baştan), fullText tam madde. "Tam maddeyi göster"
+  // ile açılır (fetch yok — chunk zaten ~tam madde). hasMoreText: fullText önizlemeden uzunsa.
+  const hasMoreText = (s.fullText || "").length > (s.passage || "").length + 4;
   const onMove = (e) => {
     const el = ref.current; if (!el) return;
     const r = el.getBoundingClientRect();
@@ -207,7 +211,12 @@ export function SourceCard({ s, flash, onRef }) {
       </div>
       <div className="sc-passage">
         <span className="mono mono-ref" style={{ color: "var(--text-3)", fontSize: 11, display: "block", marginBottom: 4 }}>{s.ref}</span>
-        “{s.passage}”
+        “{srcExpanded && s.fullText ? s.fullText : s.passage}”
+        {hasMoreText && (
+          <button type="button" className="sc-more" onClick={() => setSrcExpanded((e) => !e)}>
+            {srcExpanded ? "Kısalt" : "Tam maddeyi göster"}
+          </button>
+        )}
       </div>
       <div className="sc-foot">
         {showSourceUrl ? (

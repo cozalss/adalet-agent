@@ -265,7 +265,9 @@ async def _rank_and_build_laws(
             source_id=r.chunk_id,
             doc_type="law",
             title=_format_law_title(r),
-            snippet=r.text[:500],
+            # Kanun maddesi chunk'ı ~tam maddedir (≤1400 krk). Kaynaklar paneli maddeyi BAŞTAN +
+            # TAM gösterebilsin diye 500 yerine tam chunk gönder (frontend kısa önizleme + expand).
+            snippet=r.text[:1600],
             url=normalize_mevzuat_url(r.source_url, r.metadata),
             score=r.score,
         )

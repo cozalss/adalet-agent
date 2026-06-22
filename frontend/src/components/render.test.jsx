@@ -68,6 +68,18 @@ describe("SourceCard", () => {
 
     expect(out).toContain("karararama.yargitay.gov.tr");
   });
+  it("kanun maddesi: fullText önizlemeden uzunsa 'Tam maddeyi göster' + baştan önizleme (tam GİZLİ)", () => {
+    const out = html(<SourceCard s={{
+      ...s, passage: "MADDE 8 onizleme", fullText: "MADDE 8 onizleme " + "x".repeat(500) + " TAMSON",
+    }} />);
+    expect(out).toContain("Tam maddeyi göster");  // expand butonu
+    expect(out).toContain("MADDE 8 onizleme");     // baştan önizleme gösterilir
+    expect(out).not.toContain("TAMSON");           // tam metin default gizli (expand'da açılır)
+  });
+  it("kısa madde (fullText ≈ passage) → expand butonu YOK", () => {
+    expect(html(<SourceCard s={{ ...s, passage: "kısa madde", fullText: "kısa madde" }} />))
+      .not.toContain("Tam maddeyi göster");
+  });
 });
 
 describe("ConversationList", () => {
