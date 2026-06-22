@@ -183,7 +183,7 @@ def _infer_active_node(state: dict[str, Any]) -> str:
         return "clarifier"
     if state.get("response") or state.get("confidence_label"):
         return "finalize"
-    if state.get("debate_verdict"):
+    if state.get("debate_notes"):  # debate ACTUALLY çalıştı (init'te ""); debate_verdict init'te "pass" → kullanma
         return "debate"
     if state.get("verified_claims"):
         return "verify"
@@ -660,8 +660,10 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                     # Doğrulama/Tartışma aşaması başladı → 4. stepper adımı canlanır.
                     # ADALET'in farkı (iddia doğrulama + debate) artık akışta görünür;
                     # eskiden drafting'den final'a atlayıp "Doğrulanıyor" adımı ölü kalıyordu.
+                    # debate_verdict init'te "pass" (routing default) → erken-tetik; gerçek sinyal
+                    # verified_claims (verify) veya debate_notes (debate) — ikisi de init'te boş.
                     if not _sent_verifying and (
-                        state.get("verified_claims") or state.get("debate_verdict")
+                        state.get("verified_claims") or state.get("debate_notes")
                     ):
                         _sent_verifying = True
                         yield _sse_event("verifying", {"t_ms": _ms()})

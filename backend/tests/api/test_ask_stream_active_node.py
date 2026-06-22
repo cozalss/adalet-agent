@@ -14,8 +14,11 @@ def test_infer_active_node_each_stage():
     assert _infer_active_node({"emsal_refs": [{"x": 1}]}) == "retrieval"
     assert _infer_active_node({"mevzuat_refs": [1], "draft_response": "..."}) == "draft"
     assert _infer_active_node({"draft_response": "...", "verified_claims": [{}]}) == "verify"
-    assert _infer_active_node({"verified_claims": [{}], "debate_verdict": "pass"}) == "debate"
-    assert _infer_active_node({"debate_verdict": "pass", "confidence_label": "Yüksek"}) == "finalize"
+    # debate ETİKETİ debate_notes ile (init'te debate_verdict="pass" → SİNYAL DEĞİL, aksi halde
+    # graph başından "debate" sızardı); debate_verdict tek başına "debate" döndürmemeli.
+    assert _infer_active_node({"verified_claims": [{}], "debate_notes": "eleştiri"}) == "debate"
+    assert _infer_active_node({"verified_claims": [{}], "debate_verdict": "pass"}) == "verify"
+    assert _infer_active_node({"confidence_label": "Yüksek"}) == "finalize"
     assert _infer_active_node({"response": "cevap"}) == "finalize"
     assert _infer_active_node({"chat_response": "merhaba"}) == "chat"
     assert _infer_active_node({"clarify_response": True, "clarifying_questions": ["?"]}) == "clarifier"

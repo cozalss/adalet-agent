@@ -284,6 +284,7 @@ def test_ask_stream_success_contract(monkeypatch):
                 "response": "Kısa cevap: Test.",
                 "confidence": 0.9,
                 "debate_verdict": "pass",
+                "debate_notes": "yeterli",  # debate ÇALIŞTI sinyali → verifying event (init "pass" değil)
                 "verified_claims": [],
                 "disclaimers": [],
                 "errors": [],
