@@ -1,0 +1,5 @@
+preview/
+*.pdf
+*_unscrubbed.docx
+render_*/
+_eval_extract.md
