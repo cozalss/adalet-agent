@@ -45,9 +45,18 @@ export function AnswerCard({ answer, sources, onJump }) {
              vurgulu punto ile cevap-önce sinyali verir. İkincil bölüm etiketleri (Dayanak/Ne
              yapmalı) taranabilirlik için KALIR. Backend "Kısa cevap" BLUF işareti değişmez. */}
           {!sec.lead && <div className="sec-label">{sec.label}</div>}
-          {sec.steps ? (
+          {sec.blocks ? (
+            // Karışık içerik: sıralı bloklar (liste + açıklama prose'u). Hiçbir şey düşmez.
+            sec.blocks.map((b, bi) => b.steps ? (
+              <ol className="steps" key={bi}>
+                {b.steps.map((st, j) => <li key={j}>{renderInline(st, "b" + bi + "s" + j)}</li>)}
+              </ol>
+            ) : (
+              <p key={bi}><RunText runs={b.runs} sources={sources} onJump={onJump} /></p>
+            ))
+          ) : sec.steps ? (
             <ol className="steps">
-              {sec.steps.map((st, j) => <li key={j}>{st}</li>)}
+              {sec.steps.map((st, j) => <li key={j}>{renderInline(st, "st" + j)}</li>)}
             </ol>
           ) : (
             <p className={sec.lead ? "lead" : ""}>

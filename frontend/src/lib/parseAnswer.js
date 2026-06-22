@@ -13,7 +13,9 @@ const THINK_BLOCK = /<think>[\s\S]*?<\/think>/gi;
 const THINK_OPEN = /<think>[\s\S]*$/i;
 
 // Bölüm başlıkları: **Kısa cevap:**, **Dayanak:**, **Durumuna uygulama:**, ...
-const SECTION_RE = /\*\*([^*:]+):\*\*/g;
+// SATIR-BAŞINA DEMİRLİ (^...gm): "1. **Sözleşmeden dönme:** ..." gibi satır-içi kalın etiketler
+// bölüm başlığı SANILMASIN (aksi halde numaralı liste parçalanıp numaralar öksüz kalıyordu).
+const SECTION_RE = /^[ \t]*\*\*([^*:\n]+):\*\*/gm;
 const SRC_TAG_RE = /\[src:\s*([^\]]+)\]/g;
 const NUM_LI_RE = /^\s*\d+[.)]\s+(.+)$/;
 
@@ -47,6 +49,31 @@ function textToRuns(text, citeMap) {
   const tail = text.slice(last);
   if (tail) runs.push({ t: tail });
   return runs.length ? runs : [{ t: text }];
+}
+
+/** Bölüm içeriğini SIRALI bloklara böl: ardışık numaralı satırlar → {steps}, diğer metin → {runs}.
+ *  Karışık içerikte (numaralı liste + öncesinde/sonrasında açıklama paragrafı) hiçbir şey DÜŞMEZ. */
+function parseContentBlocks(content, citeMap) {
+  const blocks = [];
+  let prose = [];
+  let steps = [];
+  const flushProse = () => {
+    const t = prose.join("\n").trim();
+    if (t) blocks.push({ runs: textToRuns(t, citeMap) });
+    prose = [];
+  };
+  const flushSteps = () => {
+    if (steps.length) blocks.push({ steps: steps.slice() });
+    steps = [];
+  };
+  for (const line of content.split("\n")) {
+    const mm = line.match(NUM_LI_RE);
+    if (mm) { flushProse(); steps.push(mm[1].replace(SRC_TAG_RE, "").trim()); }
+    else { flushSteps(); prose.push(line); }
+  }
+  flushSteps();
+  flushProse();
+  return blocks;
 }
 
 /** citations[] → UI source kartı şekli. */
@@ -88,14 +115,16 @@ export function parseSections(body, citeMap) {
     const lower = h.label.toLocaleLowerCase("tr");
     const isLead = i === 0 || lower.includes("kısa cevap");
 
-    // "Ne yapmalı" / adım listesi → steps[]
-    const lines = content.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-    const numbered = lines.map((l) => l.match(NUM_LI_RE)).filter(Boolean);
-    if (numbered.length >= 2) {
-      sections.push({
-        label: h.label,
-        steps: numbered.map((mm) => mm[1].replace(SRC_TAG_RE, "").trim()),
-      });
+    // Numaralı liste içeren bölüm → SIRALI bloklar (liste + çevresindeki açıklama prose'u korunur,
+    // düşmez). Sade durumda (yalnız liste) eski {steps} şekliyle uyumlu kalır.
+    const numberedCount = content.split("\n").filter((l) => NUM_LI_RE.test(l)).length;
+    if (numberedCount >= 2) {
+      const blocks = parseContentBlocks(content, citeMap);
+      if (blocks.length === 1 && blocks[0].steps) {
+        sections.push({ label: h.label, steps: blocks[0].steps });
+      } else {
+        sections.push({ label: h.label, blocks });
+      }
       continue;
     }
     sections.push({ label: h.label, lead: isLead, runs: textToRuns(content, citeMap) });

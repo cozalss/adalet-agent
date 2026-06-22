@@ -1,6 +1,50 @@
 /* parseAnswer — backend AskResponse → /sor UI veri şekli (SSE→UI köprüsü) testleri. */
 import { describe, it, expect } from "vitest";
-import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText } from "./parseAnswer.js";
+import { mapResponse, mapClarify, mapSources, deriveRisk, looksSmalltalk, mapSmalltalk, cleanDraftText, parseSections } from "./parseAnswer.js";
+
+describe("parseSections — satır-içi kalın etiket bölüm SANILMAZ (öksüz-numara fix)", () => {
+  it("numaralı + kalın-etiketli seçenek listesini TEK bölüm yapar (öksüz numara yok)", () => {
+    const body = [
+      "**Kısa cevap:** Evet, iade hakkınız var.",
+      "",
+      "**Seçenekleriniz:**",
+      "1. **Sözleşmeden dönme:** Malı iade edip sözleşmeden dönebilirsiniz.",
+      "2. **Bedel indirimi:** Ayıp oranında indirim isteyebilirsiniz.",
+      "3. **Onarım:** Malın onarılmasını talep edebilirsiniz.",
+    ].join("\n");
+    const secs = parseSections(body, new Map());
+    const labels = secs.map((s) => s.label);
+    expect(labels).not.toContain("Sözleşmeden dönme");
+    expect(labels).not.toContain("Bedel indirimi");
+    expect(labels).toEqual(["Kısa cevap", "Seçenekleriniz"]);
+    const sec = secs.find((s) => s.label === "Seçenekleriniz");
+    expect(sec.steps).toHaveLength(3); // sade liste → {steps}
+    expect(sec.steps[0]).toContain("Sözleşmeden dönme");
+  });
+
+  it("liste + SONRASINDA açıklama paragrafı → bloklar; açıklama DÜŞMEZ", () => {
+    const body = [
+      "**Seçenekleriniz:**",
+      "1. **Sözleşmeden dönme:** Malı iade edebilirsiniz.",
+      "2. **Bedel indirimi:** İndirim isteyebilirsiniz.",
+      "",
+      "Bu hakları kullanmak için satıcıya yazılı bildirimde bulunmanız önemlidir.",
+    ].join("\n");
+    const sec = parseSections(body, new Map()).find((s) => s.label === "Seçenekleriniz");
+    expect(sec.blocks).toBeTruthy();
+    const stepsBlock = sec.blocks.find((b) => b.steps);
+    const proseBlock = sec.blocks.find((b) => b.runs);
+    expect(stepsBlock.steps).toHaveLength(2);
+    // trailing açıklama korunmalı (eski steps-render'da DÜŞÜYORDU)
+    const proseText = proseBlock.runs.map((r) => r.t || "").join("");
+    expect(proseText).toContain("yazılı bildirimde");
+  });
+
+  it("gerçek satır-başı başlıkları bölüm olarak ayırır (regresyon yok)", () => {
+    const labels = parseSections("**Kısa cevap:** X.\n\n**Dayanak:** Madde Y der.", new Map()).map((s) => s.label);
+    expect(labels).toEqual(["Kısa cevap", "Dayanak"]);
+  });
+});
 
 describe("cleanDraftText — CANLI taslak temizliği (saçmalık fix)", () => {
   it("ham [src: id] kaynak etiketlerini kaldırır (final numaralı çip ekler)", () => {
