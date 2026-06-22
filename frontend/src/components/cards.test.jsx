@@ -125,26 +125,36 @@ describe("RelatedCases", () => {
     expect(html(<RelatedCases cases={undefined} />)).toBe("");
   });
 
-  it("'tam metnini getir'e tıklayınca kararın TAM metnini gösterir", async () => {
+  it("panel açılınca tam metni OTOMATİK getirir ve baştan gösterir (tıklama yok)", async () => {
     fetchFullDecision.mockResolvedValue({ text: "8. HD İçtihat Metni: tam karar gövdesi burada", cached: false, error: null });
-    const { getByText, findByText } = render(
+    const { findByText } = render(
       <RelatedCases cases={[{ id: 9, type: "Yargıtay", title: "Y 8.HD", passage: "özet parça",
         url: "https://karararama.yargitay.gov.tr/?aranan=525485900", ref: "h-525485900-c1" }]} />,
     );
-    fireEvent.click(getByText("Kararın tam metnini getir"));
+    // mount'ta otomatik yüklenir → tam metnin BAŞI görünür
     expect(await findByText(/tam karar gövdesi/)).toBeTruthy();
-    // payload ilk argüman; ikinci argüman AbortSignal (unmount iptali).
     expect(fetchFullDecision.mock.calls[0][0]).toEqual({
       source_url: "https://karararama.yargitay.gov.tr/?aranan=525485900", source_id: "h-525485900-c1", court: "Yargıtay",
     });
   });
 
-  it("getirme başarısızsa kullanıcı-dostu hata gösterir (uydurmaz)", async () => {
+  it("uzun kararı BAŞTAN önizler (~420 krk) + 'tam metnini göster' ile açar", async () => {
+    const long = "BAŞLANGIÇ " + "x".repeat(600) + " SONUC";
+    fetchFullDecision.mockResolvedValue({ text: long, cached: false, error: null });
+    const { findByText, getByText, queryByText } = render(
+      <RelatedCases cases={[{ id: 11, type: "Yargıtay", title: "Y", url: "https://x", ref: "r" }]} />,
+    );
+    await findByText(/BAŞLANGIÇ/);          // baştan gösterildi
+    expect(queryByText(/SONUC/)).toBeNull();  // 420'den sonrası önizlemede gizli
+    fireEvent.click(getByText("Kararın tam metnini göster"));
+    expect(getByText(/SONUC/)).toBeTruthy();  // expand → tam metin
+  });
+
+  it("getirme başarısızsa kullanıcı-dostu hata gösterir (uydurmaz, mount'ta otomatik)", async () => {
     fetchFullDecision.mockResolvedValue({ text: "", cached: false, error: "rate_limited" });
-    const { getByText, findByText } = render(
+    const { findByText } = render(
       <RelatedCases cases={[{ id: 10, type: "Yargıtay", title: "Y", url: "https://karararama.yargitay.gov.tr/?aranan=1", ref: "h-1-c0" }]} />,
     );
-    fireEvent.click(getByText("Kararın tam metnini getir"));
     expect(await findByText(/yoğunluk/i)).toBeTruthy();
   });
 });

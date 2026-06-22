@@ -24,6 +24,9 @@ log = structlog.get_logger()
 
 _cache: dict[str, str] = {}
 _CACHE_MAX = 256
+# Single-flight: aynı karar için UÇUŞTAKİ canlı çekiş (key → Task). Otomatik-yükle (panel)
+# + tıklama + paralel istekler aynı kararı çekerse TEK isteğe indirir (public mcp'ye nazik).
+_inflight: dict[str, object] = {}
 _RATE_LIMIT_RETRY_DELAY_S = 2.0
 # Paylaşımlı public mcp eşzamanlılık/rate sınırı yiyebiliyor (yerel mcp kapalıyken her
 # istek public'e düşer) → birkaç kez backoff'lu yeniden dene; çoğu geçici sınır düzelir.
@@ -200,6 +203,27 @@ async def fetch_full_decision(
         _cache_put(key, persisted)
         return {"text": persisted, "cached": True, "error": None}
 
+    # SINGLE-FLIGHT: aynı karar UÇUŞTA ise mevcut isteği paylaş (çift canlı-çekiş yok → rate-limit
+    # dostu; özellikle panel 5 kararı otomatik-yüklerken + kullanıcı tıklarken kritik).
+    existing = _inflight.get(key)
+    if existing is not None:
+        return await existing  # type: ignore[no-any-return]
+    import asyncio
+    task = asyncio.ensure_future(
+        _live_fetch_and_cache(key, source_url, source_id, court, timeout_s),
+    )
+    _inflight[key] = task
+    try:
+        return await task
+    finally:
+        _inflight.pop(key, None)
+
+
+async def _live_fetch_and_cache(
+    key: str, source_url: str, source_id: str, court: str, timeout_s: float,
+) -> dict:
+    """yargi-mcp → Firecrawl yedeği canlı çekiş; başarıda in-process + kalıcı cache'e yaz."""
+    from retrieval import fulltext_store
     text, base_error = await _fetch_yargi_text(source_url, source_id, court, timeout_s)
     if base_error is None:
         _cache_put(key, text)

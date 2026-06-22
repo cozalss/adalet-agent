@@ -79,11 +79,12 @@ function _fullTextError(code) {
 
 /** Tek emsal karar satırı — özet + "Kararın tam metnini getir" (on-demand canlı çekme).
  *  Tam metin korpusta YOK (parçalı indeks) → istek üzerine resmi kaynaktan getirilir. */
+const _CASE_PREVIEW_CHARS = 420; // önizlemede gösterilen baştan-itibaren karakter
+
 function CaseItem({ c }) {
   const [full, setFull] = useState({ loading: false, text: null, error: null });
+  const [expanded, setExpanded] = useState(false);
   const abortRef = useRef(null);
-  // Unmount'ta uçuşan isteği iptal et → kapanmış bileşende setState (stale closure) olmasın.
-  useEffect(() => () => abortRef.current?.abort(), []);
 
   const onGet = async () => {
     abortRef.current?.abort();
@@ -101,6 +102,18 @@ function CaseItem({ c }) {
     }
   };
 
+  // Panel açılınca tam metni OTOMATİK getir → önizleme her zaman kararın BAŞINDAN gösterilir
+  // (korpus chunk'ı orta-parça olabilir). Cache + single-flight ile genelde hızlı; ilk sefer
+  // birkaç saniye (bu sırada temizlenmiş chunk gösterilir). Unmount'ta uçuşan isteği iptal et.
+  useEffect(() => {
+    if (c.url || c.ref) onGet();
+    return () => abortRef.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const beginning = full.text ? full.text.slice(0, _CASE_PREVIEW_CHARS).trimEnd() : "";
+  const hasMore = !!full.text && full.text.length > _CASE_PREVIEW_CHARS;
+
   return (
     <li className="rc-item">
       <div className="rc-title rc-title-static">
@@ -109,22 +122,28 @@ function CaseItem({ c }) {
       </div>
       {full.text ? (
         <>
-          <div className="rc-fulltext" tabIndex={0} aria-label="Kararın tam metni">{full.text}</div>
-          <button type="button" className="rc-getfull ghost" onClick={() => setFull({ loading: false, text: null, error: null })}>
-            Özeti göster
-          </button>
+          <div className="rc-fulltext" tabIndex={0} aria-label="Kararın metni">
+            {expanded ? full.text : beginning + (hasMore ? " …" : "")}
+          </div>
+          {hasMore && (
+            <button type="button" className="rc-getfull ghost" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? "Özeti göster" : "Kararın tam metnini göster"}
+            </button>
+          )}
         </>
       ) : (
         <>
           {c.passage && <p className="rc-passage">{c.passage}</p>}
-          {(c.url || c.ref) && (
-            <button type="button" className="rc-getfull" onClick={onGet} disabled={full.loading}>
-              {full.loading ? "Getiriliyor…" : "Kararın tam metnini getir"}
+          {full.loading ? (
+            <span className="rc-loading" aria-live="polite">Tam metin getiriliyor…</span>
+          ) : (c.url || c.ref) ? (
+            <button type="button" className="rc-getfull" onClick={onGet}>
+              Kararın tam metnini getir
             </button>
-          )}
+          ) : null}
         </>
       )}
-      {full.error && <p className="rc-err" role="alert">{full.error}</p>}
+      {full.error && !full.loading && <p className="rc-err" role="alert">{full.error}</p>}
     </li>
   );
 }

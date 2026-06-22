@@ -101,6 +101,23 @@ def test_normalized_cache_key_stable_and_collision_safe():
 
 
 @pytest.mark.asyncio
+async def test_full_decision_single_flight_dedupes_concurrent(monkeypatch):
+    """Aynı karar için 5 eşzamanlı fetch → TEK canlı çekiş (single-flight; rate-limit dostu)."""
+    fd._cache.clear()
+    calls = {"n": 0}
+
+    async def fake_yargi(*_a, **_k):
+        calls["n"] += 1
+        await asyncio.sleep(0.05)  # çekiş sürsün ki diğer 4 istek UÇUŞTA yakalasın
+        return "Tam karar metni yeterince uzun olsun burada gerçekten olsun.", None
+
+    monkeypatch.setattr(fd, "_fetch_yargi_text", fake_yargi)
+    results = await asyncio.gather(*[fd.fetch_full_decision("https://sf", "idsf") for _ in range(5)])
+    assert all("Tam karar" in r["text"] for r in results)
+    assert calls["n"] == 1  # 5 eşzamanlı istek → tek canlı çekiş
+
+
+@pytest.mark.asyncio
 async def test_full_decision_writes_live_result_to_persistent_cache(monkeypatch):
     """Canlı çekiş başarısı kalıcı cache'e yazılır → in-process temizlense de diskten gelir."""
     fd._cache.clear()
