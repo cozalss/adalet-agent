@@ -14,6 +14,7 @@ Tasarım (ADALET desenleri):
 
 from __future__ import annotations
 
+import asyncio
 import os
 from urllib.parse import urlparse
 
@@ -96,16 +97,22 @@ async def search_mevzuat_url(query: str, *, timeout_s: float = 40.0) -> str:
     key = os.getenv("FIRECRAWL_API_KEY", "").strip()
     if not key:
         return ""
-    payload = {"query": query, "limit": 6}
+    payload = {"query": query, "limit": 10}
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    try:
-        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
-            resp = await client.post(f"{_BASE_URL}{_SEARCH_PATH}", headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception as exc:
-        log.warning("firecrawl_search_failed", error=type(exc).__name__)
-        return ""
+    data = None
+    for attempt in range(3):  # geçici 429/5xx rate-limit → kısa backoff retry
+        try:
+            async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
+                resp = await client.post(f"{_BASE_URL}{_SEARCH_PATH}", headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+            break
+        except Exception as exc:
+            if attempt < 2:
+                await asyncio.sleep(2.0 * (attempt + 1))
+                continue
+            log.warning("firecrawl_search_failed", error=type(exc).__name__)
+            return ""
 
     raw = data.get("data") or {}
     results = raw.get("web") if isinstance(raw, dict) else raw
