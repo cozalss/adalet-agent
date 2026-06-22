@@ -40,18 +40,41 @@ logger = logging.getLogger("seed_yon_fc")
 
 # 8 domaine yayılı önemli yönetmelikler. (q=arama sorgusu, kodu, adi, domain). Search MevzuatNo'yu bulur.
 REGULATIONS: list[dict] = [
+    # --- iş ---
     {"q": "İş Sağlığı ve Güvenliği Risk Değerlendirmesi Yönetmeliği", "kodu": "YON_ISG_RISK", "adi": "İSG Risk Değerlendirmesi Yönetmeliği", "domain": "isHukuku"},
     {"q": "İş Sağlığı ve Güvenliği Hizmetleri Yönetmeliği", "kodu": "YON_ISG_HIZMET", "adi": "İSG Hizmetleri Yönetmeliği", "domain": "isHukuku"},
     {"q": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik", "kodu": "YON_ISG_EGITIM", "adi": "Çalışanların İSG Eğitimleri Yönetmeliği", "domain": "isHukuku"},
-    {"q": "Karayolları Trafik Yönetmeliği", "kodu": "YON_TRAFIK", "adi": "Karayolları Trafik Yönetmeliği", "domain": "trafik"},
-    {"q": "Araçların Tescili Yönetmeliği karayolları", "kodu": "YON_ARAC_TESCIL", "adi": "Araç Tescil Yönetmeliği", "domain": "trafik"},
-    {"q": "Planlı Alanlar İmar Yönetmeliği", "kodu": "YON_IMAR", "adi": "Planlı Alanlar İmar Yönetmeliği", "domain": "idari"},
+    {"q": "İş Kanununa İlişkin Fazla Çalışma ve Fazla Sürelerle Çalışma Yönetmeliği", "kodu": "YON_FAZLA", "adi": "Fazla Çalışma Yönetmeliği", "domain": "isHukuku"},
+    {"q": "Yıllık Ücretli İzin Yönetmeliği", "kodu": "YON_YILLIK", "adi": "Yıllık Ücretli İzin Yönetmeliği", "domain": "isHukuku"},
+    {"q": "İş Kanununa İlişkin Çalışma Süreleri Yönetmeliği", "kodu": "YON_CALISMA", "adi": "Çalışma Süreleri Yönetmeliği", "domain": "isHukuku"},
+    {"q": "Kadın Çalışanların Gece Postalarında Çalıştırılması Yönetmeliği", "kodu": "YON_GECE", "adi": "Kadın Çalışanların Gece Postaları Yönetmeliği", "domain": "isHukuku"},
+    {"q": "Postalar Halinde İşçi Çalıştırılarak Yürütülen İşlerde Çalışmalara İlişkin Yönetmelik", "kodu": "YON_POSTA", "adi": "Postalar Halinde Çalışma Yönetmeliği", "domain": "isHukuku"},
+    # --- tüketici ---
     {"q": "Fiyat Etiketi Yönetmeliği tüketici", "kodu": "YON_ETIKET", "adi": "Fiyat Etiketi Yönetmeliği", "domain": "tuketici"},
     {"q": "Ön Ödemeli Konut Satışları Hakkında Yönetmelik", "kodu": "YON_ONODEME", "adi": "Ön Ödemeli Konut Satış Yönetmeliği", "domain": "tuketici"},
+    {"q": "Devre Tatil ve Uzun Süreli Tatil Hizmeti Sözleşmeleri Yönetmeliği", "kodu": "YON_DEVRE", "adi": "Devre Tatil Yönetmeliği", "domain": "tuketici"},
+    {"q": "Abonelik Sözleşmeleri Yönetmeliği tüketici", "kodu": "YON_ABONELIK", "adi": "Abonelik Sözleşmeleri Yönetmeliği", "domain": "tuketici"},
+    {"q": "Taksitle Satış Sözleşmeleri Hakkında Yönetmelik", "kodu": "YON_TAKSIT", "adi": "Taksitle Satış Yönetmeliği", "domain": "tuketici"},
+    {"q": "Paket Tur Sözleşmeleri Yönetmeliği", "kodu": "YON_PAKET", "adi": "Paket Tur Sözleşmeleri Yönetmeliği", "domain": "tuketici"},
+    {"q": "İşyeri Dışında Kurulan Sözleşmeler Yönetmeliği tüketici", "kodu": "YON_ISYERIDISI", "adi": "İşyeri Dışında Kurulan Sözleşmeler Yönetmeliği", "domain": "tuketici"},
+    # --- trafik ---
+    {"q": "Karayolları Trafik Yönetmeliği", "kodu": "YON_TRAFIK", "adi": "Karayolları Trafik Yönetmeliği", "domain": "trafik"},
+    {"q": "Araç Muayene İstasyonlarının Açılması Yönetmeliği", "kodu": "YON_MUAYENE", "adi": "Araç Muayene Yönetmeliği", "domain": "trafik"},
+    {"q": "Karayolu Taşıma Yönetmeliği", "kodu": "YON_TASIMA", "adi": "Karayolu Taşıma Yönetmeliği", "domain": "trafik"},
+    # --- idari ---
+    {"q": "Planlı Alanlar İmar Yönetmeliği", "kodu": "YON_IMAR", "adi": "Planlı Alanlar İmar Yönetmeliği", "domain": "idari"},
+    {"q": "Çevresel Etki Değerlendirmesi Yönetmeliği ÇED", "kodu": "YON_CED", "adi": "ÇED Yönetmeliği", "domain": "idari"},
+    {"q": "Mal Alımı İhaleleri Uygulama Yönetmeliği kamu ihale", "kodu": "YON_IHALE_MAL", "adi": "Mal Alımı İhaleleri Uygulama Yönetmeliği", "domain": "idari"},
+    {"q": "Hizmet Alımı İhaleleri Uygulama Yönetmeliği kamu ihale", "kodu": "YON_IHALE_HIZMET", "adi": "Hizmet Alımı İhaleleri Uygulama Yönetmeliği", "domain": "idari"},
+    {"q": "Yapım İşleri İhaleleri Uygulama Yönetmeliği kamu ihale", "kodu": "YON_IHALE_YAPIM", "adi": "Yapım İşleri İhaleleri Uygulama Yönetmeliği", "domain": "idari"},
+    {"q": "Mezarlık Yerlerinin İnşaası ile Cenaze Nakil ve Defin İşlemleri Yönetmeliği", "kodu": "YON_DEFIN", "adi": "Cenaze ve Defin İşlemleri Yönetmeliği", "domain": "idari"},
+    # --- tapu / kira ---
     {"q": "Tapu Sicili Tüzüğü", "kodu": "YON_TAPU_SICIL", "adi": "Tapu Sicili Tüzüğü", "domain": "tapu"},
     {"q": "Kat Mülkiyeti Kanununun Uygulanmasına İlişkin Yönetmelik", "kodu": "YON_KMK", "adi": "Kat Mülkiyeti Yönetmeliği", "domain": "kira"},
-    {"q": "İşkur Aktif İşgücü Hizmetleri Yönetmeliği", "kodu": "YON_ISKUR", "adi": "Aktif İşgücü Hizmetleri Yönetmeliği", "domain": "isHukuku"},
-    {"q": "Çevresel Etki Değerlendirmesi Yönetmeliği ÇED", "kodu": "YON_CED", "adi": "ÇED Yönetmeliği", "domain": "idari"},
+    {"q": "Yapı Kayıt Belgesi Verilmesine İlişkin Usul ve Esaslar imar barışı", "kodu": "YON_YAPIKAYIT", "adi": "Yapı Kayıt Belgesi Usul ve Esasları", "domain": "tapu"},
+    # --- icra / vergi ---
+    {"q": "İcra ve İflas Kanunu Yönetmeliği", "kodu": "YON_ICRA", "adi": "İcra ve İflas Kanunu Yönetmeliği", "domain": "icra"},
+    {"q": "Vergi Usul Kanunu Genel Tebliği elektronik defter usul esas", "kodu": "YON_VUK", "adi": "VUK Uygulama Yönetmeliği", "domain": "vergi"},
 ]
 
 

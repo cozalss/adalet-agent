@@ -466,6 +466,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "YON_HAKEM",        # Tüketici Hakem Heyetleri Yönetmeliği (2022)
         "YON_HAKEM_ESKI",   # Tüketici Hakem Heyetleri Yönetmeliği (2014)
         "YON_ETIKET", "YON_ONODEME",  # Firecrawl ingestion
+        "YON_DEVRE", "YON_ABONELIK", "YON_TAKSIT", "YON_PAKET", "YON_ISYERIDISI",
     ),
     "isHukuku":  (
         "IK",       # 4857 — İş
@@ -480,6 +481,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "OGK",      # 5188 — Özel Güvenlik
         # Yönetmelikler (Firecrawl ingestion — seed_firecrawl_yonetmelik)
         "YON_ISG_RISK", "YON_ISG_HIZMET", "YON_ISG_EGITIM", "YON_ISKUR",
+        "YON_FAZLA", "YON_YILLIK", "YON_CALISMA", "YON_GECE", "YON_POSTA",
     ),
     "kira":      (
         "TBK",      # 6098 — Borçlar (kira bölümü)
@@ -495,6 +497,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "AATUHK",   # 6183 — Amme Alacağı
         "BK",       # 5411 — Banka kredisi
         "SGK",      # 5510 — SGK alacağı
+        "YON_ICRA",  # İcra ve İflas Kanunu Yönetmeliği (Firecrawl ingestion)
     ),
     "trafik":    (
         "KTK",      # 2918 — Karayolları Trafik
@@ -504,7 +507,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "SGK",      # 5510 — Kaza tazminat
         "KGK",      # 4925 — Karayolu Taşıma
         # Yönetmelikler (Firecrawl ingestion)
-        "YON_TRAFIK", "YON_ARAC_TESCIL",
+        "YON_TRAFIK", "YON_ARAC_TESCIL", "YON_MUAYENE", "YON_TASIMA",
     ),
     "vergi":     (
         "VUK",      # 213 — Vergi Usul
@@ -517,6 +520,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "EMLAKV",   # 1319 — Emlak
         "AATUHK",   # 6183 — Amme Alacağı
         "MYK",      # 5018 — Mali Yönetim
+        "YON_VUK",  # VUK uygulama yönetmeliği (Firecrawl ingestion)
     ),
     "tapu":      (
         "TMK",      # 4721 — Medeni (eşya hukuku, tescil m.705-706)
@@ -527,7 +531,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "KDK",      # 6306 — Kentsel Dönüşüm
         # KAMK (kamulaştırma) çıkarıldı — nadir, idari'ye ait; satış/tescil sorgusunda
         # _boost_by_domain ile öne çıkıp TMK/TBK satım maddelerini eziyordu (2026-06-04 ölçüm).
-        "YON_TAPU_SICIL",  # Tapu Sicili Tüzüğü (Firecrawl ingestion)
+        "YON_TAPU_SICIL", "YON_YAPIKAYIT",  # Firecrawl ingestion
     ),
     "idari":     (
         "IYUK",     # 2577 — İdari Yargılama
@@ -546,6 +550,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "KAMK",     # 2942 — Kamulaştırma (bedel tespiti m.10-11, acele m.27)
         # Yönetmelikler (Firecrawl ingestion)
         "YON_IMAR", "YON_CED",
+        "YON_IHALE_MAL", "YON_IHALE_HIZMET", "YON_IHALE_YAPIM", "YON_DEFIN",
     ),
 }
 
