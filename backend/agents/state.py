@@ -166,6 +166,10 @@ class AgentState(TypedDict):
     # (örn. kıdem tazminatı için kaynaktaki 1 yıl eşiği vs. kullanıcının 3 ayı).
     # Anahtarlar serbest; LLM neyi bulursa onu doldurur, yoksa boş dict.
     case_facts: NotRequired[dict[str, Any]]
+    # Query decomposition (DECOMPOSE_ENABLED): çok-parçalı soru bağımsız alt-sorulara bölünür;
+    # mevzuat node her birine AYRI retrieve edip birleştirir (multi-hop agentic RAG). Boş/yok →
+    # tek-atış retrieval (mevcut davranış). decompose_node doldurur.
+    sub_questions: NotRequired[list[str]]
     # Clarifier (eksik bilgide takip sorusu): Policy engine "clarify" derse
     # clarifier_node 2-4 SABİT Türkçe soru üretir, retrieval/draft YOK, finalize
     # bu metni doğrudan basar. clarification_round loop-guard (max 1 tur).

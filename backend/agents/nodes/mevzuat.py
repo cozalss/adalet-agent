@@ -97,10 +97,45 @@ async def mevzuat_node(state: AgentState) -> dict:
         retrieval_q = await decontextualize_for_retrieval(
             state["question"], state.get("chat_history") or [], domain
         )
-        return await _mevzuat_retrieve(retrieval_q, domain)
+        result = await _mevzuat_retrieve(retrieval_q, domain)
+        # Query decomposition (multi-hop): alt-sorular varsa her birine AYRI retrieve edip
+        # birleştir → her hukuki talep güçlü kaynak alır (tek-atış vektör-ortalamasını aşar).
+        subs = state.get("sub_questions") or []
+        if subs:
+            result = await _merge_sub_question_refs(result, subs, domain)
+        return result
     except Exception as exc:
         log.error("mevzuat_node_degraded", error=str(exc) or type(exc).__name__)
         return {"mevzuat_refs": [], "errors": [f"mevzuat: {type(exc).__name__}"]}
+
+
+async def _merge_sub_question_refs(base: dict, subs: list[str], domain: str) -> dict:
+    """Alt-sorulara PARALEL retrieve et, her birinden en iyi N'i base mevzuat_refs ile birleştir.
+
+    Kapsam garantisi: her alt-soru EN AZ N=3 madde katar (skor-sıralama tek bir parçayı ezmesin) →
+    çok-parçalı soruda her talep temsil edilir. Dedup source_id; skor-sıralı; tavan TOP_K_LAW×2."""
+    import asyncio
+
+    merged = list(base.get("mevzuat_refs") or [])
+    seen = {r["source_id"] for r in merged}
+    per_sub = 3
+    sub_results = await asyncio.gather(
+        *[_mevzuat_retrieve(s, domain) for s in subs], return_exceptions=True,
+    )
+    for res in sub_results:
+        if isinstance(res, Exception) or not isinstance(res, dict):
+            continue
+        added = 0
+        for r in res.get("mevzuat_refs") or []:
+            if added >= per_sub:
+                break
+            if r["source_id"] not in seen:
+                seen.add(r["source_id"])
+                merged.append(r)
+                added += 1
+    merged.sort(key=lambda r: r.get("score", 0.0), reverse=True)
+    log.info("mevzuat_decomposed", n_subs=len(subs), n_refs=len(merged))
+    return {**base, "mevzuat_refs": merged[: TOP_K_LAW * 2]}
 
 
 def mevzuat_pool_k() -> int:

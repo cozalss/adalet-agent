@@ -57,6 +57,7 @@ from agents.nodes.clarifier import clarifier_node
 from agents.nodes.compose import compose_node
 from agents.nodes.crag import crag_node
 from agents.nodes.debate import debate_node
+from agents.nodes.decompose import DECOMPOSE_ENABLED, decompose_node
 from agents.nodes.dilekce import dilekce_node
 from agents.nodes.draft import draft_node
 from agents.nodes.eligibility import eligibility_node
@@ -126,7 +127,9 @@ def _route_after_triaj(state: AgentState) -> list[str] | str:
     if decision == "chat":
         return "chat"
     if decision == "answer":
-        return ["mevzuat", "emsal"]
+        # Query decomposition (DECOMPOSE_ENABLED): çok-parçalı soru için önce decompose
+        # (alt-soru üret) → sonra [mevzuat, emsal] fan-out. Kapalıysa doğrudan fan-out.
+        return ["decompose"] if DECOMPOSE_ENABLED else ["mevzuat", "emsal"]
     return _sink()
 
 
@@ -226,6 +229,12 @@ def build_graph() -> Any:
     eligibility_on = _eligibility_enabled()
     if eligibility_on:
         g.add_node("eligibility", eligibility_node)
+    if DECOMPOSE_ENABLED:
+        # Query decomposition: triaj → decompose → [mevzuat, emsal]. decompose çok-parçalı
+        # soruyu alt-sorulara böler; mevzuat node her birine retrieve edip birleştirir.
+        g.add_node("decompose", decompose_node)
+        g.add_edge("decompose", "mevzuat")
+        g.add_edge("decompose", "emsal")
     if crag_on:
         g.add_node("crag", crag_node)
     if self_rag_on:
@@ -264,11 +273,10 @@ def build_graph() -> Any:
     g.add_edge(START, "triaj")
 
     # Triaj sonrası fan-out / kapsam-dışı reject
-    g.add_conditional_edges(
-        "triaj",
-        _route_after_triaj,
-        ["mevzuat", "emsal", "clarifier", "chat", sink],
-    )
+    _triaj_targets = ["mevzuat", "emsal", "clarifier", "chat", sink]
+    if DECOMPOSE_ENABLED:
+        _triaj_targets.append("decompose")
+    g.add_conditional_edges("triaj", _route_after_triaj, _triaj_targets)
 
     # Fan-in: mevzuat ve emsal bittiğinde → retrieve-sonrası zincir → draft.
     # Zincir: [crag?] → [eligibility?] → draft. Bayraklar kapalıysa doğrudan draft
