@@ -211,6 +211,9 @@ class AgentState(TypedDict):
     debate_verdict: DebateVerdict
     debate_notes: str
     retry_count: int               # max 3 (config.MAX_RETRY)
+    # CRAG öz-düzeltme oldu mu (zayıf retrieval → multi-query/graph ek kaynak çekti). Canlı reasoning
+    # akışı bunu "öz-düzeltme" satırı olarak gösterir (şeffaflık). crag_node yalnız düzeltince set eder.
+    crag_corrected: NotRequired[bool]
 
     # --- Tahmin (opsiyonel 8. ajan, PREDICTIVE_ENABLED) ---
     prediction: NotRequired[Prediction | None]

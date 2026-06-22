@@ -90,6 +90,8 @@ async def crag_node(state: AgentState) -> dict:
         delta["mevzuat_refs"] = new_mevzuat[len(mevzuat):]
     if n_added_case > 0:
         delta["emsal_refs"] = new_emsal[len(emsal):]
+    if delta:
+        delta["crag_corrected"] = True  # öz-düzeltme oldu → canlı reasoning gösterir (şeffaflık)
     return delta
 
 

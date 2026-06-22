@@ -647,6 +647,12 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                             "agent": "Mevzuat & Emsal",
                             "text": f"{len(_mz)} kanun maddesi + {len(_em)} mahkeme kararı taradım — "
                                     f"en alakalısı %{round(max(0.0, min(_top, 1.0)) * 100)} eşleşme."})
+                    # CRAG öz-düzeltme: retrieval zayıftı → ek kaynak çekildi (nadir ama etkileyici).
+                    if "crag" not in _reasoned and state.get("crag_corrected"):
+                        _reasoned.add("crag")
+                        yield _sse_event("reasoning", {
+                            "agent": "Öz-Düzeltme",
+                            "text": "İlk kaynaklar zayıftı — farklı sorgularla yeniden arayıp ek kaynak buldum."})
                     if "draft" not in _reasoned and state.get("draft_response"):
                         _reasoned.add("draft")
                         yield _sse_event("reasoning", {
@@ -659,6 +665,12 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                             "agent": "Doğrulama",
                             "text": (f"{_nc} iddiayı kaynaklarla karşılaştırdım (halüsinasyon kalkanı)."
                                      if _nc else "Cevabı kaynaklarla doğruladım (halüsinasyon kalkanı).")})
+                    # Debate retry: tartışma ajanı cevabı yetersiz buldu → yeniden yazdırdı (öz-düzeltme).
+                    if "retry" not in _reasoned and state.get("retry_count", 0) > 0:
+                        _reasoned.add("retry")
+                        yield _sse_event("reasoning", {
+                            "agent": "Tartışma",
+                            "text": "Cevabı tutarlılık için eleştirdim ve kaynaklara daha sadık biçimde yeniden yazdırdım."})
 
                     # --- Algılanan gecikme azaltma: ara ilerleme event'leri ---
                     # Triaj tamamlandı → intent + domain belli (2-3s'de kullanıcıya

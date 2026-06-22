@@ -332,6 +332,35 @@ def test_ask_stream_success_contract(monkeypatch):
     assert final["answer"] == "Kısa cevap: Test."
 
 
+def test_ask_stream_self_correction_reasoning(monkeypatch):
+    """CRAG düzeltme + debate retry → canlı reasoning'de 'Öz-Düzeltme' ve 'Tartışma' satırları (şeffaflık)."""
+    from api.routes import ask as ask_mod
+
+    class _SelfCorrectGraph:
+        async def astream(self, _initial, stream_mode="values"):
+            assert stream_mode == "values"
+            yield {
+                "domain": "isHukuku", "domain_confidence": 0.9, "response_intent": "legal_answer",
+                "triage_reasoning": "iş hukuku", "retry_count": 1, "crag_corrected": True,
+                "mevzuat_refs": [{"source_id": "m-IK-17", "score": 0.8}], "emsal_refs": [],
+                "draft_response": "taslak", "response": "Kısa cevap: Test.", "confidence": 0.9,
+                "debate_verdict": "pass", "debate_notes": "yeterli", "verified_claims": [{}],
+                "disclaimers": [], "errors": [],
+            }
+
+        async def ainvoke(self, _initial):  # pragma: no cover
+            raise AssertionError("stream ainvoke çağırmamalı")
+
+    monkeypatch.setenv("ASK_GRAPH_TIMEOUT_S", "0")
+    monkeypatch.setattr(ask_mod, "_get_graph", lambda: _SelfCorrectGraph())
+    from main import app
+
+    resp = TestClient(app).post("/ask/stream", json={"question": "kıdem ve ihbar tazminatı alabilir miyim?"})
+    assert resp.status_code == 200, resp.text
+    agents = [d["agent"] for e, d in _parse_sse(resp.text) if e == "reasoning"]
+    assert "Öz-Düzeltme" in agents and "Tartışma" in agents
+
+
 def _parse_sse(text: str) -> list[tuple[str, dict]]:
     events: list[tuple[str, dict]] = []
     for block in [b for b in text.strip().split("\n\n") if b.strip()]:
