@@ -21,6 +21,19 @@ with contextlib.suppress(Exception):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
+# backend/.env'i os.environ'a yükle — EN ÖNDE (app modülleri env'i import-time okuyor).
+# cwd-bağımsız (main.py yanındaki .env). override=False: production'da dışarıdan verilen env
+# (docker-compose/secret manager) DAİMA kazanır; .env yalnız eksik değerleri doldurur.
+# `with` bloğu ruff/isort'u engeller (EN ÖNDE kalır) + dotenv/.env yoksa sessizce geçer.
+with contextlib.suppress(Exception):
+    # Testlerde dev .env'ini YÜKLEME — pytest kendi mock env'ini kurar (.env'den openai sızarsa
+    # test determinizmi bozulur). Yalnız gerçek çalıştırmada (uvicorn vb.) yükle.
+    if "pytest" not in sys.modules:
+        from pathlib import Path as _DotenvPath
+
+        from dotenv import load_dotenv as _load_dotenv
+        _load_dotenv(_DotenvPath(__file__).resolve().parent / ".env", override=False)
+
 # Windows: pyarrow'u torch'tan ÖNCE yükle (Arrow↔torch native import-sıra
 # çakışması → access violation; bkz. core/native_preload.py). `with` bloğu
 # içinde olduğundan ruff/isort yeniden sıralamaz → kesinlikle EN ÖNDE çalışır,

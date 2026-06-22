@@ -13,6 +13,7 @@ dependencies = [
     "python-multipart>=0.0.31",
     "slowapi>=0.1.9",
     "structlog>=24.4.0",
+    "python-dotenv>=1.0.1",
     # Agents
     "langgraph>=0.2.40",
     "langchain-core>=0.3.10",
