@@ -71,6 +71,9 @@ backend/eval/runs/*.json
 # committed dosyalar varsa ignore et — production'da named volume kullanılır.
 backend/data/feedback/*.jsonl
 
+# İlgili Kararlar tam-metin kalıcı cache (on-demand dolar; resmi kaynaktan çekilen metin)
+backend/data/fulltext_cache.sqlite*
+
 # Test
 coverage/
 .coverage

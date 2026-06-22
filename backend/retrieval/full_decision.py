@@ -97,6 +97,89 @@ async def _route_fetch(yc, source_url: str, source_id: str, court: str) -> str:
     return await yc.get_document(doc_id) if doc_id else ""
 
 
+async def _fetch_yargi_text(
+    source_url: str, source_id: str, court: str, timeout_s: float,
+) -> tuple[str, str | None]:
+    """yargi-mcp'den tam metni çek (yerel→public fallback + rate-limit backoff). → (text, base_error).
+
+    base_error: None (text gerçek) | 'timeout' | 'rate_limited' | 'not_found' | hata-tipi.
+    """
+    from retrieval.yargi_client import YargiClient
+
+    async def _attempt(base_url: str | None) -> str:
+        kwargs = {"base_url": base_url} if base_url else {}
+        async with YargiClient(**kwargs) as yc:
+            text = ""
+            # Rate-limit (içerik VEYA HTTP 429) → artan backoff ile birkaç kez dene.
+            for i in range(_RATE_LIMIT_MAX_TRIES):
+                try:
+                    text = await _route_fetch(yc, source_url, source_id, court)
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 429 and i < _RATE_LIMIT_MAX_TRIES - 1:
+                        await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))
+                        continue
+                    raise
+                if not _looks_rate_limited(text) or i == _RATE_LIMIT_MAX_TRIES - 1:
+                    return text
+                await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))  # 2s, 4s
+            return text
+
+    async def _do() -> str:
+        try:
+            return await _attempt(None)  # yapılandırılmış (genelde yerel) mcp
+        except Exception as exc:
+            if _is_connection_error(exc):  # yerel mcp kapalı → resmi public'e düş
+                log.info("full_decision_public_fallback", error=type(exc).__name__)
+                return await _attempt(_PUBLIC_YARGI_MCP)
+            raise
+
+    try:
+        text = await asyncio.wait_for(_do(), timeout=timeout_s)
+    except TimeoutError:
+        log.warning("full_decision_timeout", source_id=source_id)
+        return "", "timeout"
+    except httpx.HTTPStatusError as exc:  # 429 → rate_limited (jenerik değil net mesaj)
+        code = exc.response.status_code
+        log.warning("full_decision_http_error", status=code)
+        return "", ("rate_limited" if code == 429 else "not_found")
+    except Exception as exc:
+        log.warning("full_decision_failed", error=str(exc) or type(exc).__name__)
+        return "", type(exc).__name__
+
+    if _looks_rate_limited(text):
+        return "", "rate_limited"
+    if not _is_real_text(text):
+        return "", "not_found"
+    return text, None
+
+
+async def _firecrawl_fallback(source_url: str, source_id: str, timeout_s: float) -> str:
+    """yargi-mcp getiremeyince Firecrawl ile bilinen hukuki URL'den temiz metin (yedek).
+
+    Anahtar yok / host izinli değil / hata → "" (çağıran orijinal hatayı döndürür). Yedek ASLA
+    ana akışı bozmaz. Sıfır halüsinasyon: içerik doğrudan resmi sayfadan (model üretmez)."""
+    from retrieval.firecrawl_client import scrape_legal_url
+    try:
+        text = await scrape_legal_url(source_url, timeout_s=min(timeout_s, 30.0))
+    except Exception as exc:
+        log.warning("firecrawl_fallback_error", error=type(exc).__name__)
+        return ""
+    if text:
+        log.info("full_decision_firecrawl_fallback", source_id=source_id)
+    return text
+
+
+def _normalized_cache_key(source_url: str, source_id: str) -> str:
+    """Kararı tekil tanımlayan KARARLI cache key — aynı kararın farklı URL/param varyasyonları TEK
+    key olur (kardinalite kaynakta sınırlanır + collision yüzeyi kapanır). Bedesten/Yargıtay/Danıştay
+    documentId (en yaygın) → host:id; çıkarılamazsa ham source_url|source_id fallback (CWE-524 sınırlı).
+    Host öneki cross-kaynak rakam çakışmasını önler. in-process + disk cache AYNI key'i kullanır."""
+    doc_id = bedesten_document_id(source_url, source_id)
+    if doc_id:
+        return f"{_hostname(source_url) or 'doc'}:{doc_id}"
+    return f"{(source_url or '')[:512]}|{(source_id or '')[:128]}"
+
+
 async def fetch_full_decision(
     source_url: str, source_id: str = "", court: str = "", *, timeout_s: float = 45.0,
 ) -> dict:
@@ -104,61 +187,33 @@ async def fetch_full_decision(
 
     error kodları: None (başarı) | 'not_found' | 'rate_limited' | 'timeout' | hata-tipi.
     """
-    # Cache key boyut sınırı (CWE-524): source_url API'den gelebilir; devasa string'in
-    # dict key olarak bellekte tutulmasını engelle (gerçek URL'ler << 512 bayt).
-    key = f"{(source_url or '')[:512]}|{(source_id or '')[:128]}"
+    # Kararlı, normalize key (kardinalite + collision guard; CWE-524 boyut sınırı fallback'te korunur).
+    key = _normalized_cache_key(source_url, source_id)
     if key in _cache:
         return {"text": _cache[key], "cached": True, "error": None}
 
-    try:
-        from retrieval.yargi_client import YargiClient
+    # KALICI cache (disk) — restart sonrası / başka kullanıcı için ANINDA (yavaş canlı çekiş yok).
+    # Korpusa dokunmaz; yalnız daha önce çekilmiş tam metni tekrar-kullanır. Hata → None (fail-open).
+    from retrieval import fulltext_store
+    persisted = await fulltext_store.get(key)
+    if persisted:
+        _cache_put(key, persisted)
+        return {"text": persisted, "cached": True, "error": None}
 
-        async def _attempt(base_url: str | None) -> str:
-            kwargs = {"base_url": base_url} if base_url else {}
-            async with YargiClient(**kwargs) as yc:
-                text = ""
-                # Rate-limit (içerik VEYA HTTP 429) → artan backoff ile birkaç kez dene.
-                for i in range(_RATE_LIMIT_MAX_TRIES):
-                    try:
-                        text = await _route_fetch(yc, source_url, source_id, court)
-                    except httpx.HTTPStatusError as exc:
-                        if exc.response.status_code == 429 and i < _RATE_LIMIT_MAX_TRIES - 1:
-                            await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))
-                            continue
-                        raise
-                    if not _looks_rate_limited(text) or i == _RATE_LIMIT_MAX_TRIES - 1:
-                        return text
-                    await asyncio.sleep(_RATE_LIMIT_RETRY_DELAY_S * (i + 1))  # 2s, 4s
-                return text
+    text, base_error = await _fetch_yargi_text(source_url, source_id, court, timeout_s)
+    if base_error is None:
+        _cache_put(key, text)
+        await fulltext_store.put(key, text)  # bir daha çekme: kalıcı kaydet
+        return {"text": text, "cached": False, "error": None}
 
-        async def _do() -> str:
-            try:
-                return await _attempt(None)  # yapılandırılmış (genelde yerel) mcp
-            except Exception as exc:
-                if _is_connection_error(exc):  # yerel mcp kapalı → resmi public'e düş
-                    log.info("full_decision_public_fallback", error=type(exc).__name__)
-                    return await _attempt(_PUBLIC_YARGI_MCP)
-                raise
+    # yargi-mcp getiremedi (hata/boş/rate-limited) → Firecrawl YEDEĞİ (bilinen hukuki URL).
+    fc_text = await _firecrawl_fallback(source_url, source_id, timeout_s)
+    if _is_real_text(fc_text):
+        _cache_put(key, fc_text)
+        await fulltext_store.put(key, fc_text)  # bir daha çekme: kalıcı kaydet
+        return {"text": fc_text, "cached": False, "error": None}
 
-        text = await asyncio.wait_for(_do(), timeout=timeout_s)
-    except TimeoutError:
-        log.warning("full_decision_timeout", source_id=source_id)
-        return {"text": "", "cached": False, "error": "timeout"}
-    except httpx.HTTPStatusError as exc:  # 429 → rate_limited (jenerik değil net mesaj)
-        code = exc.response.status_code
-        log.warning("full_decision_http_error", status=code)
-        return {"text": "", "cached": False, "error": "rate_limited" if code == 429 else "not_found"}
-    except Exception as exc:
-        log.warning("full_decision_failed", error=str(exc) or type(exc).__name__)
-        return {"text": "", "cached": False, "error": type(exc).__name__}
-
-    if _looks_rate_limited(text):
-        return {"text": "", "cached": False, "error": "rate_limited"}
-    if not _is_real_text(text):
-        return {"text": "", "cached": False, "error": "not_found"}
-
-    _cache_put(key, text)
-    return {"text": text, "cached": False, "error": None}
+    return {"text": "", "cached": False, "error": base_error}
 
 
 __all__ = ("bedesten_document_id", "fetch_full_decision")

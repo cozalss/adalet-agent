@@ -132,6 +132,15 @@ def _isolate_feedback_writes(tmp_path, monkeypatch):
     monkeypatch.setattr(fb_mod, "FEEDBACK_LOG_PATH", tmp_path / "feedback")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_fulltext_cache(tmp_path, monkeypatch):
+    """İlgili Kararlar tam-metin kalıcı cache (fulltext_store) testlerde gerçek
+    `data/fulltext_cache.sqlite`'a yazmasın → her test ayrı tmp DB. fetch_full_decision
+    artık cache'e get/put yaptığından izolasyon ŞART (aksi halde önceki koşunun cache'i
+    mock'lanan canlı-çekiş yolunu maskeler → flaky)."""
+    monkeypatch.setenv("FULLTEXT_CACHE_PATH", str(tmp_path / "fulltext_cache.sqlite"))
+
+
 @pytest.fixture
 def sample_citations() -> list[Citation]:
     """3 örnek citation — TKHK + iş hukuku + emsal karar."""
