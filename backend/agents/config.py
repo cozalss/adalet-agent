@@ -554,6 +554,30 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
     ),
 }
 
+
+def _load_auto_yonetmelik_codes() -> None:
+    """Firecrawl yönetmelik ingestion'la eklenen YON_ kodlarını OTOMATİK kaydet (elle config edit yok).
+
+    data/yonetmelik_codes.json {kodu: domain} → DOMAIN_TO_KANUN_KODU'ya SONA eklenir (primary kanun
+    korunur). seed_firecrawl_yonetmelik başarılı seed'lerde bu dosyayı günceller → onlarca yönetmelik
+    tek elle-edit olmadan boost alır. Dosya yoksa/bozuksa sessizce geçer (mevcut davranış)."""
+    import json as _json
+    from pathlib import Path as _Path
+    p = _Path(__file__).resolve().parent.parent / "data" / "yonetmelik_codes.json"
+    if not p.exists():
+        return
+    try:
+        mapping = _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    for kod, dom in (mapping or {}).items():
+        if dom in DOMAIN_TO_KANUN_KODU and kod not in DOMAIN_TO_KANUN_KODU[dom]:
+            DOMAIN_TO_KANUN_KODU[dom] = DOMAIN_TO_KANUN_KODU[dom] + (kod,)
+
+
+_load_auto_yonetmelik_codes()
+
+
 # Düzenleyici otorite → ilgili domain'ler (Sprint-5 W15)
 # Bu mapping regulator karar'larını domain'lere yönlendirir (retrieval filter).
 # Sprint-5 W15: local yargi-mcp tools'la entegre — bddk + sigorta_tahkim

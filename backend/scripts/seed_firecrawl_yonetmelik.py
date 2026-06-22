@@ -123,28 +123,56 @@ async def seed_one(reg: dict, embedder: Embedder, qdrant) -> int:
     return len(points)
 
 
+def _register_codes(succeeded: dict[str, str]) -> None:
+    """Başarılı YON kodlarını data/yonetmelik_codes.json'a yaz (config oto-kaydeder → boost). Merge."""
+    import json
+    p = Path("data") / "yonetmelik_codes.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if p.exists():
+        try:
+            existing = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+    existing.update(succeeded)
+    p.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("registered %d kod → %s (toplam %d)", len(succeeded), p, len(existing))
+
+
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", type=str, default="")
+    ap.add_argument("--file", type=str, default="", help="JSON yönetmelik listesi (q,kodu,adi,domain)")
     args = ap.parse_args()
+
     regs = REGULATIONS
+    if args.file:
+        import json
+        regs = json.loads(Path(args.file).read_text(encoding="utf-8"))
+        if isinstance(regs, dict):
+            regs = regs.get("regulations", [])
     if args.only:
         want = {x.strip() for x in args.only.split(",")}
         regs = [r for r in regs if r["kodu"] in want]
 
-    logger.info("warming_embedder...")
+    logger.info("warming_embedder... (%d yönetmelik)", len(regs))
     embedder = Embedder()
     qdrant = get_client()
     await ensure_collection(qdrant)
 
     total = ok = 0
+    succeeded: dict[str, str] = {}
     for reg in regs:
         try:
             n = await seed_one(reg, embedder, qdrant)
             total += n
-            ok += 1 if n else 0
+            if n:
+                ok += 1
+                succeeded[reg["kodu"]] = reg["domain"]
         except Exception as exc:
-            logger.warning("reg_failed %s: %s", reg["kodu"], type(exc).__name__)
+            logger.warning("reg_failed %s: %s", reg.get("kodu"), type(exc).__name__)
+    if succeeded:
+        _register_codes(succeeded)
     logger.info("=== BİTTİ: %d/%d yönetmelik, toplam %d madde upserted ===", ok, len(regs), total)
     return 0
 

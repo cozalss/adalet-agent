@@ -101,3 +101,6 @@ backend/scripts/*_probe.py
 
 # LoRA adapter ciktilari (egitimle uretilir, repo'ya girmez)
 backend/data/lora/
+
+# Yönetmelik ingestion transient kuyruk (workflow çıktısı; yeniden üretilebilir)
+backend/data/yonetmelik_queue.json
