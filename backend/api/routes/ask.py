@@ -60,6 +60,12 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 _graph_singleton: Any = None
 SSE_SCHEMA_VERSION = 2  # v2: node event'ine active_node + sources event'ine mevzuat/emsal split
 
+# Canlı akıl yürütme akışı (reasoning event) — domain → Türkçe etiket.
+_DOMAIN_TR = {
+    "tuketici": "tüketici", "isHukuku": "iş", "kira": "kira", "icra": "icra ve iflas",
+    "trafik": "trafik", "vergi": "vergi", "tapu": "tapu", "idari": "idari",
+}
+
 
 def _get_graph() -> Any:
     """Process-singleton compiled graph."""
@@ -564,7 +570,7 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
     # IDOR: sahip bağla / doğrula (stream başlamadan; mismatch → 403).
     await _bind_or_verify_owner(conv_id, principal)
 
-    async def event_source() -> AsyncIterator[str]:
+    async def event_source() -> AsyncIterator[str]:  # noqa: C901 — SSE: aşamalı event + reasoning akışı inherent dallı
         start = time.perf_counter()
         final_state: dict = {}
         timeout_s = get_ask_graph_timeout_s()
@@ -586,6 +592,7 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
         _t_first_event: int | None = None      # ilk node (graph başladı)
         _t_retrieval_done: int | None = None    # mevzuat+emsal geldi
         _t_first_token: int | None = None       # ilk CANLI draft token (gerçek)
+        _reasoned: set[str] = set()             # canlı akıl yürütme — hangi ajan rapor etti
         # Canlı yazım: draft node üretirken token'ları bu kuyruğa iter (sink contextvar);
         # _merge_tokens astream state'leriyle interleave eder → draft_token SSE eventi.
         token_q: asyncio.Queue[str | None] = asyncio.Queue()
@@ -615,6 +622,38 @@ async def ask_stream(  # noqa: C901 — SSE handler: aşamalı event'ler + canl�
                         "active_node": _infer_active_node(state),  # curated etiket (Ajan Akış Şeması)
                     }
                     yield _sse_event("node", payload)
+
+                    # --- Canlı akıl yürütme akışı (şeffaflık wow) ---
+                    # State'te yeni bilgi belirdikçe ilgili ajanın kararını yay. Tam-cevapta state
+                    # sırayla açılır (triage_reasoning→mevzuat_refs→draft_response→verified_claims);
+                    # clarify/smalltalk yolunda retrieval/draft yok → yalnız triaj görünür (doğru).
+                    if "triaj" not in _reasoned and state.get("triage_reasoning") \
+                            and (state.get("domain") or "unknown") != "unknown":
+                        _reasoned.add("triaj")
+                        _dom = _DOMAIN_TR.get(state.get("domain"), state.get("domain"))
+                        yield _sse_event("reasoning", {
+                            "agent": "Triaj", "text": f"Soruyu **{_dom}** hukuku olarak belirledim."})
+                    if "retrieval" not in _reasoned and (state.get("mevzuat_refs") or state.get("emsal_refs")):
+                        _reasoned.add("retrieval")
+                        _mz = state.get("mevzuat_refs") or []
+                        _em = state.get("emsal_refs") or []
+                        _top = max((r.get("score", 0.0) for r in (_mz + _em)), default=0.0)
+                        yield _sse_event("reasoning", {
+                            "agent": "Mevzuat & Emsal",
+                            "text": f"{len(_mz)} kanun maddesi + {len(_em)} mahkeme kararı taradım — "
+                                    f"en alakalısı %{round(max(0.0, min(_top, 1.0)) * 100)} eşleşme."})
+                    if "draft" not in _reasoned and state.get("draft_response"):
+                        _reasoned.add("draft")
+                        yield _sse_event("reasoning", {
+                            "agent": "Taslak", "text": "Bulduğum maddelere dayanarak cevabı yazıyorum."})
+                    if "verify" not in _reasoned and "draft" in _reasoned \
+                            and (state.get("verified_claims") or state.get("debate_notes")):
+                        _reasoned.add("verify")
+                        _nc = len(state.get("verified_claims") or state.get("claims") or [])
+                        yield _sse_event("reasoning", {
+                            "agent": "Doğrulama",
+                            "text": (f"{_nc} iddiayı kaynaklarla karşılaştırdım (halüsinasyon kalkanı)."
+                                     if _nc else "Cevabı kaynaklarla doğruladım (halüsinasyon kalkanı).")})
 
                     # --- Algılanan gecikme azaltma: ara ilerleme event'leri ---
                     # Triaj tamamlandı → intent + domain belli (2-3s'de kullanıcıya

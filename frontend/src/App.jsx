@@ -5,7 +5,7 @@ import { Icon, SB_NAV, CIVIL_DOMAINS } from "./components/icons.jsx";
 import {
   RiskWarning, DisclaimerBar, SourceCard, SourceSkeleton, StreamStepper,
 } from "./components/ui.jsx";
-import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble } from "./components/cards.jsx";
+import { AnswerCard, RelatedCases, RejectCard, ClarifyCard, UserBubble, SmallTalkBubble, DraftStreamBubble, ReasoningStream } from "./components/cards.jsx";
 import { AgentTrace, AnswerFooter, QuickTyping } from "./components/panels.jsx";
 import { UserMenu } from "./components/UserMenu.jsx";
 import { ConversationList } from "./components/ConversationList.jsx";
@@ -748,6 +748,7 @@ export function TurnView({ turn, onJump, onRetry, onReask, onEdit, onClarifyPick
           {streaming && !softPath && (
             <React.Fragment>
               <StreamStepper phase={p} customLabel={d.domain ? `${d.domain} — sorunuz inceleniyor…` : undefined} />
+              {d.reasoning?.length > 0 && <ReasoningStream items={d.reasoning} />}
               {d.draftText && (p === "drafting" || p === "verifying") && (
                 <DraftStreamBubble text={d.draftText} />
               )}

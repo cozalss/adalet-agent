@@ -269,6 +269,22 @@ export function DraftStreamBubble({ text }) {
   );
 }
 
+/** Canlı ajan akıl yürütme akışı — her ajanın kararı sıralı belirir (şeffaflık: kullanıcı
+ *  AI'ı kara-kutu değil, düşünen çok-ajanlı sistem olarak görür). renderInline → **kalın**. */
+export function ReasoningStream({ items }) {
+  return (
+    <ol className="reasoning-stream" aria-label="Ajan akıl yürütme akışı">
+      {(items || []).map((r, i) => (
+        <li key={i} className="rs-line">
+          <span className="rs-dot" aria-hidden="true" />
+          <span className="rs-agent">{r.agent}</span>
+          <span className="rs-text">{renderInline(r.text || "", `rs${i}`)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function UserBubble({ text, onEdit }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(text);

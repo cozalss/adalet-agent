@@ -104,6 +104,15 @@ export function useChat() {
         },
         onDrafting: () => { if (!sawClarify && !sawSmalltalk) _patch(key, { phase: "drafting" }); },
         onVerifying: () => { if (!sawClarify && !sawSmalltalk) _patch(key, { phase: "verifying" }); },
+        // Canlı akıl yürütme akışı — her ajanın kararını biriktir (şeffaflık wow'u). Hafif
+        // yollarda (selam/clarify) gösterme; yalnız hukuki cevap akışında.
+        onReasoning: (d) => {
+          if (sawClarify || sawSmalltalk || !d || !d.text) return;
+          setTurns((ts) => ts.map((x) =>
+            x.key === key
+              ? { ...x, data: { ...x.data, reasoning: [...(x.data?.reasoning || []), d] } }
+              : x));
+        },
         onTiming: () => {}, // timing latency event — gelecekte metrikler için; şimdi no-op
         onFinal: (resp) => {
           if (ac.signal.aborted) return; // stop sonrası gecikmeli final → state'i ezme

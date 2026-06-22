@@ -958,12 +958,33 @@ a.btn:not(:disabled):active {
   background: var(--accent); margin-left: 2px; animation: blink 1s step-end infinite;
 }
 
+/* Canlı ajan akıl yürütme akışı — her ajanın kararı sıralı belirir (şeffaflık wow'u). */
+.reasoning-stream {
+  list-style: none; margin: 2px 0 12px; padding: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.reasoning-stream .rs-line {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; line-height: 1.5; animation: st-rise .28s ease both;
+}
+.reasoning-stream .rs-dot {
+  flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); align-self: center; opacity: .85;
+}
+.reasoning-stream .rs-agent {
+  flex: 0 0 auto; min-width: 110px; font-weight: 600; font-size: 11px;
+  letter-spacing: .3px; text-transform: uppercase;
+  color: var(--accent-text, var(--accent));
+}
+.reasoning-stream .rs-text { color: var(--text); opacity: .85; }
+
 @media (prefers-reduced-motion: reduce) {
   .smalltalk-bubble { animation: none; }
   .quick-typing .qt-dot { animation: none; opacity: .6; }
   .draft-stream { animation: none; }
   .draft-stream-head .draft-pulse { animation: none; }
   .draft-caret { animation: none; opacity: .7; }
+  .reasoning-stream .rs-line { animation: none; }
 }
 
 /* Üst-düzey hata sınırı kurtarma ekranı (denetim #8) — sakin, ortalanmış, marka-içi. */
