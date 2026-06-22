@@ -84,4 +84,37 @@ async def scrape_legal_url(url: str, *, timeout_s: float = 30.0) -> str:
     return md
 
 
-__all__ = ("firecrawl_enabled", "host_allowed", "scrape_legal_url")
+_SEARCH_PATH = "/search"
+
+
+async def search_mevzuat_url(query: str, *, timeout_s: float = 40.0) -> str:
+    """Firecrawl search ile resmi mevzuat.gov.tr URL'i bul (yönetmelik/kanun seed için).
+
+    Sorguya en uygun `www.mevzuat.gov.tr/mevzuat?MevzuatNo=...` sonucunu döndürür (host allowlist'li);
+    bulamazsa "". MevzuatNo'yu elle bilmeye gerek kalmaz. Anahtar yok/hata → "".
+    """
+    key = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        return ""
+    payload = {"query": query, "limit": 6}
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
+            resp = await client.post(f"{_BASE_URL}{_SEARCH_PATH}", headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        log.warning("firecrawl_search_failed", error=type(exc).__name__)
+        return ""
+
+    raw = data.get("data") or {}
+    results = raw.get("web") if isinstance(raw, dict) else raw
+    for item in results or []:
+        url = (item or {}).get("url", "")
+        if host_allowed(url) and "mevzuat.gov.tr/mevzuat" in url:
+            log.info("firecrawl_search_hit", url=url[:90])
+            return url
+    return ""
+
+
+__all__ = ("firecrawl_enabled", "host_allowed", "scrape_legal_url", "search_mevzuat_url")

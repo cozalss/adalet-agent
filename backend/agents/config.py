@@ -465,6 +465,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "YON_SSH",          # Satış Sonrası Hizmetler Yönetmeliği
         "YON_HAKEM",        # Tüketici Hakem Heyetleri Yönetmeliği (2022)
         "YON_HAKEM_ESKI",   # Tüketici Hakem Heyetleri Yönetmeliği (2014)
+        "YON_ETIKET", "YON_ONODEME",  # Firecrawl ingestion
     ),
     "isHukuku":  (
         "IK",       # 4857 — İş
@@ -477,6 +478,8 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "DIK",      # 854 — Deniz İş
         "BMC",      # 5953 — Basın Mesleği
         "OGK",      # 5188 — Özel Güvenlik
+        # Yönetmelikler (Firecrawl ingestion — seed_firecrawl_yonetmelik)
+        "YON_ISG_RISK", "YON_ISG_HIZMET", "YON_ISG_EGITIM", "YON_ISKUR",
     ),
     "kira":      (
         "TBK",      # 6098 — Borçlar (kira bölümü)
@@ -484,6 +487,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "KMK",      # 634 — Kat Mülkiyeti
         "KDK",      # 6306 — Kentsel Dönüşüm
         "BLDK",     # 5393 — Belediye
+        "YON_KMK",  # Kat Mülkiyeti Yönetmeliği (Firecrawl ingestion)
     ),
     "icra":      (
         "IIK",      # 2004 — İcra İflas
@@ -499,6 +503,8 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "TBK",      # 6098 — Borçlar (haksız fiil)
         "SGK",      # 5510 — Kaza tazminat
         "KGK",      # 4925 — Karayolu Taşıma
+        # Yönetmelikler (Firecrawl ingestion)
+        "YON_TRAFIK", "YON_ARAC_TESCIL",
     ),
     "vergi":     (
         "VUK",      # 213 — Vergi Usul
@@ -521,6 +527,7 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         "KDK",      # 6306 — Kentsel Dönüşüm
         # KAMK (kamulaştırma) çıkarıldı — nadir, idari'ye ait; satış/tescil sorgusunda
         # _boost_by_domain ile öne çıkıp TMK/TBK satım maddelerini eziyordu (2026-06-04 ölçüm).
+        "YON_TAPU_SICIL",  # Tapu Sicili Tüzüğü (Firecrawl ingestion)
     ),
     "idari":     (
         "IYUK",     # 2577 — İdari Yargılama
@@ -537,6 +544,8 @@ DOMAIN_TO_KANUN_KODU: dict[str, tuple[str, ...]] = {
         # eklenmemişti → kamulaştırma soruları boost'suz/tier-2 kalıp sistematik
         # miss veriyordu (2026-06-11 teşhis: V_idari_004 + V3_idari_023/024 hepsi KAMK).
         "KAMK",     # 2942 — Kamulaştırma (bedel tespiti m.10-11, acele m.27)
+        # Yönetmelikler (Firecrawl ingestion)
+        "YON_IMAR", "YON_CED",
     ),
 }
 
