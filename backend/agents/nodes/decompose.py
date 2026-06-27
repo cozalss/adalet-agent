@@ -49,7 +49,7 @@ def _sanitize_sub(s: str) -> str:
 
 
 @observe_node(name="decompose")
-async def decompose_node(state: AgentState) -> dict:
+async def decompose_node(state: AgentState) -> dict[str, object]:
     """Çok-parçalı soruyu alt-sorulara böl → state['sub_questions']. Tek-parça/basit → no-op."""
     if not DECOMPOSE_ENABLED:
         return {}
